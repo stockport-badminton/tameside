@@ -4,3 +4,12 @@ dev.env
 
 # Node.js dependencies:
 node_modules/
+node_modules
+node_modules
+namecheap SPF record
+Dockerfile-old
+.gitignore
+.DS_Store
+bootstrap/.DS_Store
+bootstrap/.DS_Store
+docker-compose.debug.yml
