@@ -1,0 +1,20 @@
+services:
+  tamesidesite:
+    image: tamesidesite
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+      NODE_ENV: production
+    ports:
+      - 8080:8080
+    develop:
+      watch:
+        - action: sync+restart
+          path: .
+          target: /usr/src/app
+
+        - action: rebuild
+          path: package.json
+          target: /usr/src/app
+    command: npm run dev  
