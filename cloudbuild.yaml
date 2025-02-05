@@ -1,0 +1,7 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  script: |
+    docker build -t europe-west2-docker.pkg.dev/avid-compound-429108-g9/cloud-run-source-deploy/tameide-image:tag1 .
+  automapSubstitutions: true
+  env: 'DOCKER_BUILDKIT=1'
+images: 'europe-west2-docker.pkg.dev/avid-compound-429108-g9/cloud-run-source-deploy/tameide-image:tag1'
