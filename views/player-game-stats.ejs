@@ -1,0 +1,74 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+
+  <% if (typeof errors !== 'undefined') { %>
+    <p>Something seems to have gone wrong</p>
+    <p><%= error %></p>
+  <% }
+  else { %>
+    <h1><%= fullName %></h1>
+    <div class="table-responsive">
+    <table class="table" id="results-table">
+      <thead>
+        <tr>
+          <th>date</th>
+          <th>Partner</th>
+          <th>Opponent 1</th>
+          <th>Opponent 2</th>
+          <th>points for</th>
+          <th>points against</th>
+          <th>type</th>
+          <th>rating before</th>
+          <th>rating after</th>
+          <th>adjustment</th>
+        </tr>
+      </thead>
+      <tbody>
+    <% result.forEach(function(row){ %>
+      <%
+        var MyDate = new Date(row['date']);
+        var MyDateString;
+
+        // MyDate.setDate(MyDate.getDate() + 20);
+
+        MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+                     + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+                     + MyDate.getFullYear();
+      %>
+
+      <tr>
+
+          <td><%= MyDateString %></td>
+          <td><%= row['partnerName'] %></td>
+          <td><%= row['oppName1'] %></td>
+          <td><%= row['oppName2'] %></td>
+          <td><%= row['score'] %></td>
+          <td><%= row['vsScore'] %></td>
+          <td><%= row['gameType'] %></td>
+          <td><%= row['before'] %></td>
+          <td><%= row['after'] %></td>
+          <td><%= row['adjustment'] %></td>
+      </tr>
+    <% }) %>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+   <% } %>
+
+
+
+
+<%- include('footer.ejs') %>
+<%- include('datatables.ejs') %>
+
+</body>
+</html>

@@ -1,0 +1,14 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<h2><%= pageHeading %></h2>
+      <%- entry %>
+      <%
+            if (title == "How to Find Us"){
+                  %>
+                  <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2374.9324527827275!2d-2.07269492319112!3d53.46966727232532!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x487bb60fd2966bc5%3A0xd68d197932a5cef!2sAstley%20Sports%20Village!5e0!3m2!1sen!2suk!4v1689804595682!5m2!1sen!2suk" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                  <%
+            }
+      %>
+
+<%- include('footer.ejs') %>

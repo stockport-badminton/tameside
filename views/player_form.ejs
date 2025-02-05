@@ -1,0 +1,89 @@
+<%- include('beta/header.ejs') %>
+<%- include('beta/nav.ejs') %>
+
+<% if (typeof row !== 'undefined'){ %>
+
+  <p>Player Created!<br />
+  id:<%= row[0]['playerId'] %><br />
+  Name: <%= row[0].playerName %><br />
+  Club: <%= row[0].clubName %><br />
+  Team: <%= row[0].teamName %><br />
+  <%
+  var MyDate = new Date(row[0]['date_of_registration']);
+  MyDate.setDate(MyDate.getDate()+7);
+  MyDate = ('0' + MyDate.getDate()).slice(-2) + '/'
+               + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+               + MyDate.getFullYear();
+
+  %>
+  Eligible from: <%= MyDate %></p>
+<% } %>
+<% if (typeof club_list !== 'undefined'){ %>
+<div class="modal-dialog">
+  <form id="signupForm" role="form" method="post" action="/player/create">
+    <div class="modal-content">
+      <div class="modal-body">
+
+          <input type="hidden" name="date_of_registration" id="date_of_registration" value="<%= Date.now() %>">
+          <div class="form-group">
+            <label for="first_name" >First Name</label>
+            <input type="text" class="form-control" id="first_name" name="first_name" placeholder="First Name">
+          </div>
+          <div class="form-group">
+            <label for="family_name">Family Name</label>
+            <input type="text" class="form-control" id="family_name" name="family_name" placeholder="Family Name">
+          </div>
+          <div class="form-group">
+            <label for="gender">Gender</label>
+            <select name="gender" id="gender" class="form-control">
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="club">Club</label>
+            <select name="club" id="club" class="form-control">
+              <% club_list.forEach(function(club){ %>
+                <option value="<%= club.id %>"><%= club.name %></option>
+              <% }) %>
+
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="team">team</label>
+            <select name="team" id="team" class="form-control">
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="token" >Access Token</label>
+            <input type="text" class="form-control" id="token" name="token" placeholder="Token">
+          </div>
+      </div>
+      <div class="modal-footer">
+        <button id="submit" type="submit" class="btn btn-primary">Submit</button>
+      </div>
+    </div>
+  </form>
+</div>
+<% } %>
+<%- include('beta/footer.ejs') %>
+<% if (typeof club_list !== 'undefined'){ %>
+<script type="text/javascript" src="/scripts/ejs/ejs.js"></script>
+<script type="text/javascript">
+
+$(document).ready(function(){
+  $("#club").change(function(){
+    var selectedClub = this.value;
+    $.get('/static/formOption.ejs', function (template) {
+        $.post('/teams', {'clubid':selectedClub}, function (data) {
+           // Generate the html from the given data.
+           var html = ejs.render(template,{data:data});
+           $('#team').html(html);
+        });
+    });
+  })
+
+})
+<% } %>
+
+</script>

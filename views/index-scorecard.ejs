@@ -1,0 +1,822 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+      <%
+      var hasErrors, hasScorecardData, hasResult = false
+      %>
+
+      <% if (typeof errors !== 'undefined') {
+          if (errors !== false){
+            hasErrors = true
+          }
+        }
+      %>
+      <% if (typeof scorecardData !== 'undefined'){
+        hasScorecardData = true
+      }
+      %>
+
+      <% if (typeof result !== 'undefined') {
+        hasResult = true
+      }
+      %>
+
+      <div class="jumbotron">
+        <h1>The next big thing is coming...</h1>
+        <% if (hasErrors) { %>
+            <p>Looks like something went wrong</p>
+            <p><a class="btn btn-lg btn-danger"  data-toggle="modal" href="#signupModal">Fix Errors</a></p>
+            <p><%= JSON.stringify(errors) %></p>
+        <% } %>
+        <% if (hasScorecardData) { %>
+          <p>Some Scorecard Data</p>
+          <%- include('recentPlayerHistory.ejs') %>
+        <% } %>
+        <% if (hasResult && !hasErrors) { %>
+        <p><a class="btn btn-lg btn-success"  data-toggle="modal" href="#signupModal">Enter Result</a></p>
+        <% } %>
+      </div>
+
+      <!-- Modal -->
+      <% if (hasResult || hasErrors) { %>
+       <div class="modal fade multi-step" id="signupModal" tabindex="-1" role="dialog" aria-labelledby="signupModal" aria-hidden="true">
+         <div class="modal-dialog">
+         <form id="signupForm" role="form" action="/scorecard-beta" method="post">
+            <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title step-1" data-step="1">Fixture</h4>
+                  <h4 class="modal-title step-2" data-step="2">Home Team</h4>
+                  <h4 class="modal-title step-3" data-step="3">Away Team</h4>
+                  <h4 class="modal-title step-4" data-step="4">Open A</h4>
+                  <h4 class="modal-title step-5" data-step="5">Ladies</h4>
+                  <h4 class="modal-title step-6" data-step="6">Open B</h4>
+                  <h4 class="modal-title step-7" data-step="7">Mixed A</h4>
+                  <h4 class="modal-title step-8" data-step="8">Mixed B</h4>
+                  <h4 class="modal-title step-9" data-step="9">Mixed C</h4>
+                  <h4 class="modal-title step-10" data-step="10">Mixed D</h4>
+                  <h4 class="modal-title step-11" data-step="11">Open C</h4>
+                  <h4 class="modal-title step-12" data-step="12">Open D</h4>
+                  <h4 class="modal-title step-13" data-step="13">Summary</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
+             </div>
+             <div class="modal-body step step-1">
+
+
+                <div class="form-row">
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="division">Division</label>
+                      <select class="form-control" name="division" id="division" placeholder="Division">
+                        <option disabled selected>Choose Division</option>
+                        <% result.forEach(function(row){ %>
+                          <option value="<%= row.id %>"><%= row.name %></option>
+                        <% }) %>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="date">Date</label>
+                      <input type="date" class="form-control" id="date" name="date" placeholder="DD/MM/YYYY">
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="homeTeam">Home Team</label>
+                  <select class="form-control" id="homeTeam" name="homeTeam" placeholder="Home Team">
+                    <option disabled selected>Select a team</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="awayTeam">Away Team</label>
+                  <select class="form-control" id="awayTeam" name="awayTeam" placeholder="Away Team">
+                    <option disabled selected>Select a team</option>
+                  </select>
+                </div>
+            </div>
+            <div class="modal-body step step-2">
+
+                <div class="form-row">
+                  <div class="col-md-6">
+                    <div class="form-group step-2">
+                      <label for="homeMan1">Man 1</label>
+                      <select class="form-control" id="homeMan1" name="homeMan1" placeholder="Home Man 1">
+                        <option disabled selected>Select a player</option>
+                      </select>
+                    </div>
+                    <div class="form-group step-2">
+                      <label for="homeMan2">Man 2</label>
+                      <select class="form-control" id="homeMan2" name="homeMan2" placeholder="Home Man 2">
+                        <option disabled selected>Select a player</option>
+                      </select>
+                    </div>
+                    <div class="form-group step-2">
+                      <label for="homeMan3">Man 3</label>
+                      <select class="form-control" id="homeMan3" name="homeMan3" placeholder="Home Man 3">
+                        <option disabled selected>Select a player</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                     <div class="form-group step-2">
+                       <label for="homeMan4">Man 4</label>
+                       <select class="form-control" id="homeMan4" name="homeMan4" placeholder="Home Man 4">
+                         <option disabled selected>Select a player</option>
+                       </select>
+                     </div>
+                    <div class="form-group step-2">
+                      <label for="homeLady1">Lady 1</label>
+                      <select class="form-control" id="homeLady1" name="homeLady1" placeholder="Home Lady 1">
+                        <option disabled selected>Select a player</option>
+                      </select>
+                    </div>
+                    <div class="form-group step-2">
+                      <label for="homeLady2">Lady 2</label>
+                      <select class="form-control" id="homeLady2" name="homeLady2" placeholder="Home Lady 2">
+                        <option disabled selected>Select a player</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+            </div>
+            <div class="modal-body step step-3">
+
+                <div class="form-row">
+                  <div class="col-md-6">
+                    <div class="form-group step-3">
+                      <label for="awayMan1">Man 1</label>
+                      <select class="form-control" id="awayMan1" name="awayMan1" placeholder="Away Man 1">
+                        <option disabled selected>Select a player</option>
+                      </select>
+                    </div>
+                    <div class="form-group step-3">
+                      <label for="awayMan2">Man 2</label>
+                      <select class="form-control" id="awayMan2" name="awayMan2" placeholder="Away Man 2">
+                        <option disabled selected>Select a player</option>
+                      </select>
+                    </div>
+                    <div class="form-group step-3">
+                      <label for="awayMan3">Man 3</label>
+                      <select class="form-control" id="awayMan3" name="awayMan3" placeholder="Away Man 3">
+                        <option disabled selected>Select a player</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                   <div class="form-group step-3">
+                     <label for="awayMan4">Man 4</label>
+                     <select class="form-control" id="awayMan4" name="awayMan4" placeholder="Away Man 4">
+                       <option disabled selected>Select a player</option>
+                     </select>
+                   </div>
+                    <div class="form-group step-3">
+                      <label for="awayLady1">Lady 1</label>
+                      <select class="form-control" id="awayLady1" name="awayLady1" placeholder="Away Lady 1">
+                        <option disabled selected>Select a player</option>
+                      </select>
+                    </div>
+                    <div class="form-group step-3">
+                      <label for="awayLady2">Lady 2</label>
+                      <select class="form-control" id="awayLady2" name="awayLady2" placeholder="Away Lady 2">
+                        <option disabled selected>Select a player</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+            </div>
+            <div class="modal-body step step-4 FirstMens">
+
+             <div class="form-group step-4 FirstMens">
+               <label for="homeFirstMens">Home FirstMens</label>
+               <select class="form-control playerInput" id="FirstMenshomeMan1" data-player-type="homeMan1" name="FirstMenshomeMan1" placeholder="Home Man 1">
+               </select>
+               <select class="form-control playerInput" id="FirstMenshomeMan2" data-player-type="homeMan2" name="FirstMenshomeMan2" placeholder="Home Man 2">
+               </select>
+             </div>
+             <div class="form-group step-4 FirstMens">
+               <label for="awayFirstMens">Away FirstMens</label>
+               <select class="form-control playerInput" id="FirstMensawayMan1" data-player-type="awayMan1" name="FirstMensawayMan1" placeholder="Away Man 1">
+               </select>
+               <select class="form-control playerInput" id="FirstMensawayMan2" data-player-type="awayMan2" name="FirstMensawayMan2" placeholder="Away Man 2">
+               </select>
+             </div>
+             <div class="form-row">
+               <div class="form-group step-4 FirstMens col-6">
+                 <label for="game1Score">Game 1</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game1 home" id="Game1homeScore" name="Game1homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game1 away" id="Game1awayScore" name="Game1awayScore" placeholder=""></div></div>
+               </div>
+               <div class="form-group step-4 FirstMens col-6">
+                 <label for="game2Score">Game 2</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game2 home" id="Game2homeScore" name="Game2homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game2 away" id="Game2awayScore" name="Game2awayScore" placeholder=""></div></div>
+               </div>
+             </div>
+             
+             </div><div class="modal-body step step-5 FirstLadies">
+     
+             <div class="form-group step-5 FirstLadies">
+               <label for="homeFirstLadies">Home FirstLadies</label>
+               <select class="form-control playerInput" id="FirstLadieshomeLady1" data-player-type="homeLady1" name="FirstLadieshomeLady1" placeholder="Home Lady 1">
+               </select>
+               <select class="form-control playerInput" id="FirstLadieshomeLady2" data-player-type="homeLady2" name="FirstLadieshomeLady2" placeholder="Home Lady 2">
+               </select>
+             </div>
+             <div class="form-group step-5 FirstLadies">
+               <label for="awayFirstLadies">Away FirstLadies</label>
+               <select class="form-control playerInput" id="FirstLadiesawayLady1" data-player-type="awayLady1" name="FirstLadiesawayLady1" placeholder="Away Lady 1">
+               </select>
+               <select class="form-control playerInput" id="FirstLadiesawayLady2" data-player-type="awayLady2" name="FirstLadiesawayLady2" placeholder="Away Lady 2">
+               </select>
+             </div>
+             <div class="form-row">
+               <div class="form-group step-5 FirstLadies col-6">
+                 <label for="game3Score">Game 3</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game3 home" id="Game3homeScore" name="Game3homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game3 away" id="Game3awayScore" name="Game3awayScore" placeholder=""></div></div>
+               </div>
+               <div class="form-group step-5 FirstLadies col-6">
+                 <label for="game4Score">Game 4</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game4 home" id="Game4homeScore" name="Game4homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game4 away" id="Game4awayScore" name="Game4awayScore" placeholder=""></div></div>
+               </div>
+             </div>
+             
+             </div><div class="modal-body step step-6 SecondMens">
+     
+             <div class="form-group step-6 SecondMens">
+               <label for="homeSecondMens">Home SecondMens</label>
+               <select class="form-control playerInput" id="SecondMenshomeMan3" data-player-type="homeMan3" name="SecondMenshomeMan3" placeholder="Home Man 3">
+               </select>
+               <select class="form-control playerInput" id="SecondMenshomeMan4" data-player-type="homeMan4" name="SecondMenshomeMan4" placeholder="Home Man 4">
+               </select>
+             </div>
+             <div class="form-group step-6 SecondMens">
+               <label for="awaySecondMens">Away SecondMens</label>
+               <select class="form-control playerInput" id="SecondMensawayMan3" data-player-type="awayMan3" name="SecondMensawayMan3" placeholder="Away Man 3">
+               </select>
+               <select class="form-control playerInput" id="SecondMensawayMan4" data-player-type="awayMan4" name="SecondMensawayMan4" placeholder="Away Man 4">
+               </select>
+             </div>
+             <div class="form-row">
+               <div class="form-group step-6 SecondMens col-6">
+                 <label for="game5Score">Game 5</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game5 home" id="Game5homeScore" name="Game5homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game5 away" id="Game5awayScore" name="Game5awayScore" placeholder=""></div></div>
+               </div>
+               <div class="form-group step-6 SecondMens col-6">
+                 <label for="game6Score">Game 6</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game6 home" id="Game6homeScore" name="Game6homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game6 away" id="Game6awayScore" name="Game6awayScore" placeholder=""></div></div>
+               </div>
+             </div>
+             
+             </div><div class="modal-body step step-7 FirstMixed">
+     
+             <div class="form-group step-7 FirstMixed">
+               <label for="homeFirstMixed">Home FirstMixed</label>
+               <select class="form-control playerInput" id="FirstMixedhomeMan1" data-player-type="homeMan1" name="FirstMixedhomeMan1" placeholder="Home Man 1">
+               </select>
+               <select class="form-control playerInput" id="FirstMixedhomeLady1" data-player-type="homeLady1" name="FirstMixedhomeLady1" placeholder="Home Lady 1">
+               </select>
+             </div>
+             <div class="form-group step-7 FirstMixed">
+               <label for="awayFirstMixed">Away FirstMixed</label>
+               <select class="form-control playerInput" id="FirstMixedawayMan1" data-player-type="awayMan1" name="FirstMixedawayMan1" placeholder="Away Man 1">
+               </select>
+               <select class="form-control playerInput" id="FirstMixedawayLady1" data-player-type="awayLady1" name="FirstMixedawayLady1" placeholder="Away Lady 1">
+               </select>
+             </div>
+             <div class="form-row">
+               <div class="form-group step-7 FirstMixed col-6">
+                 <label for="game7Score">Game 7</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game7 home" id="Game7homeScore" name="Game7homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game7 away" id="Game7awayScore" name="Game7awayScore" placeholder=""></div></div>
+               </div>
+               <div class="form-group step-7 FirstMixed col-6">
+                 <label for="game8Score">Game 8</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game8 home" id="Game8homeScore" name="Game8homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game8 away" id="Game8awayScore" name="Game8awayScore" placeholder=""></div></div>
+               </div>
+             </div>
+             
+             </div><div class="modal-body step step-8 SecondMixed">
+     
+             <div class="form-group step-8 SecondMixed">
+               <label for="homeSecondMixed">Home SecondMixed</label>
+               <select class="form-control playerInput" id="SecondMixedhomeMan2" data-player-type="homeMan2" name="SecondMixedhomeMan2" placeholder="Home Man 2">
+               </select>
+               <select class="form-control playerInput" id="SecondMixedhomeLady2" data-player-type="homeLady2" name="SecondMixedhomeLady2" placeholder="Home Lady 2">
+               </select>
+             </div>
+             <div class="form-group step-8 SecondMixed">
+               <label for="awaySecondMixed">Away SecondMixed</label>
+               <select class="form-control playerInput" id="SecondMixedawayMan2" data-player-type="awayMan2" name="SecondMixedawayMan2" placeholder="Away Man 2">
+               </select>
+               <select class="form-control playerInput" id="SecondMixedawayLady2" data-player-type="awayLady2" name="SecondMixedawayLady2" placeholder="Away Lady 2">
+               </select>
+             </div>
+             <div class="form-row">
+               <div class="form-group step-8 SecondMixed col-6">
+                 <label for="game9Score">Game 9</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game9 home" id="Game9homeScore" name="Game9homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game9 away" id="Game9awayScore" name="Game9awayScore" placeholder=""></div></div>
+               </div>
+               <div class="form-group step-8 SecondMixed col-6">
+                 <label for="game10Score">Game 10</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game10 home" id="Game10homeScore" name="Game10homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game10 away" id="Game10awayScore" name="Game10awayScore" placeholder=""></div></div>
+               </div>
+             </div>
+             
+             </div><div class="modal-body step step-9 ThirdMixed">
+     
+             <div class="form-group step-9 ThirdMixed">
+               <label for="homeThirdMixed">Home ThirdMixed</label>
+               <select class="form-control playerInput" id="ThirdMixedhomeMan3" data-player-type="homeMan3" name="ThirdMixedhomeMan3" placeholder="Home Man 3">
+               </select>
+               <select class="form-control playerInput" id="ThirdMixedhomeLady1" data-player-type="homeLady1" name="ThirdMixedhomeLady1" placeholder="Home Lady 1">
+               </select>
+             </div>
+             <div class="form-group step-9 ThirdMixed">
+               <label for="awayThirdMixed">Away ThirdMixed</label>
+               <select class="form-control playerInput" id="ThirdMixedawayMan3" data-player-type="awayMan3" name="ThirdMixedawayMan3" placeholder="Away Man 3">
+               </select>
+               <select class="form-control playerInput" id="ThirdMixedawayLady1" data-player-type="awayLady1" name="ThirdMixedawayLady1" placeholder="Away Lady 1">
+               </select>
+             </div>
+             <div class="form-row">
+               <div class="form-group step-9 ThirdMixed col-6">
+                 <label for="game11Score">Game 11</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game11 home" id="Game11homeScore" name="Game11homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game11 away" id="Game11awayScore" name="Game11awayScore" placeholder=""></div></div>
+               </div>
+               <div class="form-group step-9 ThirdMixed col-6">
+                 <label for="game12Score">Game 12</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game12 home" id="Game12homeScore" name="Game12homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game12 away" id="Game12awayScore" name="Game12awayScore" placeholder=""></div></div>
+               </div>
+             </div>
+             
+             </div><div class="modal-body step step-10 FourthMixed">
+     
+             <div class="form-group step-10 FourthMixed">
+               <label for="homeFourthMixed">Home FourthMixed</label>
+               <select class="form-control playerInput" id="FourthMixedhomeMan4" data-player-type="homeMan4" name="FourthMixedhomeMan4" placeholder="Home Man 4">
+               </select>
+               <select class="form-control playerInput" id="FourthMixedhomeLady2" data-player-type="homeLady2" name="FourthMixedhomeLady2" placeholder="Home Lady 2">
+               </select>
+             </div>
+             <div class="form-group step-10 FourthMixed">
+               <label for="awayFourthMixed">Away FourthMixed</label>
+               <select class="form-control playerInput" id="FourthMixedawayMan4" data-player-type="awayMan4" name="FourthMixedawayMan4" placeholder="Away Man 4">
+               </select>
+               <select class="form-control playerInput" id="FourthMixedawayLady2" data-player-type="awayLady2" name="FourthMixedawayLady2" placeholder="Away Lady 2">
+               </select>
+             </div>
+             <div class="form-row">
+               <div class="form-group step-10 FourthMixed col-6">
+                 <label for="game13Score">Game 13</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game13 home" id="Game13homeScore" name="Game13homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game13 away" id="Game13awayScore" name="Game13awayScore" placeholder=""></div></div>
+               </div>
+               <div class="form-group step-10 FourthMixed col-6">
+                 <label for="game14Score">Game 14</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game14 home" id="Game14homeScore" name="Game14homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game14 away" id="Game14awayScore" name="Game14awayScore" placeholder=""></div></div>
+               </div>
+             </div>
+             
+             </div><div class="modal-body step step-11 ThirdMens">
+     
+             <div class="form-group step-11 ThirdMens">
+               <label for="homeThirdMens">Home ThirdMens</label>
+               <select class="form-control playerInput" id="ThirdMenshomeMan1" data-player-type="homeMan1" name="ThirdMenshomeMan1" placeholder="Home Man 1">
+               </select>
+               <select class="form-control playerInput" id="ThirdMenshomeMan2" data-player-type="homeMan2" name="ThirdMenshomeMan2" placeholder="Home Man 2">
+               </select>
+             </div>
+             <div class="form-group step-11 ThirdMens">
+               <label for="awayThirdMens">Away ThirdMens</label>
+               <select class="form-control playerInput" id="ThirdMensawayMan3" data-player-type="awayMan3" name="ThirdMensawayMan3" placeholder="Away Man 3">
+               </select>
+               <select class="form-control playerInput" id="ThirdMensawayMan4" data-player-type="awayMan4" name="ThirdMensawayMan4" placeholder="Away Man 4">
+               </select>
+             </div>
+             <div class="form-row">
+               <div class="form-group step-11 ThirdMens col-6">
+                 <label for="game15Score">Game 15</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game15 home" id="Game15homeScore" name="Game15homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game15 away" id="Game15awayScore" name="Game15awayScore" placeholder=""></div></div>
+               </div>
+               <div class="form-group step-11 ThirdMens col-6">
+                 <label for="game16Score">Game 16</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game16 home" id="Game16homeScore" name="Game16homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game16 away" id="Game16awayScore" name="Game16awayScore" placeholder=""></div></div>
+               </div>
+             </div>
+             
+             </div><div class="modal-body step step-12 FourthMens">
+     
+             <div class="form-group step-12 FourthMens">
+               <label for="homeFourthMens">Home FourthMens</label>
+               <select class="form-control playerInput" id="FourthMenshomeMan3" data-player-type="homeMan3" name="FourthMenshomeMan3" placeholder="Home Man 3">
+               </select>
+               <select class="form-control playerInput" id="FourthMenshomeMan4" data-player-type="homeMan4" name="FourthMenshomeMan4" placeholder="Home Man 4">
+               </select>
+             </div>
+             <div class="form-group step-12 FourthMens">
+               <label for="awayFourthMens">Away FourthMens</label>
+               <select class="form-control playerInput" id="FourthMensawayMan1" data-player-type="awayMan1" name="FourthMensawayMan1" placeholder="Away Man 1">
+               </select>
+               <select class="form-control playerInput" id="FourthMensawayMan2" data-player-type="awayMan2" name="FourthMensawayMan2" placeholder="Away Man 2">
+               </select>
+             </div>
+             <div class="form-row">
+               <div class="form-group step-12 FourthMens col-6">
+                 <label for="game17Score">Game 17</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game17 home" id="Game17homeScore" name="Game17homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game17 away" id="Game17awayScore" name="Game17awayScore" placeholder=""></div></div>
+               </div>
+               <div class="form-group step-12 FourthMens col-6">
+                 <label for="game18Score">Game 18</label>
+                 <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game18 home" id="Game18homeScore" name="Game18homeScore" placeholder=""></div>
+                 <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game18 away" id="Game18awayScore" name="Game18awayScore" placeholder=""></div></div>
+               </div>
+             </div>
+             
+             </div>
+             <div class="modal-body step step-13">
+
+                 <div class="form-group step-13">
+                    <div id="FirstMensSummary" class="row">
+                        <div class="col-4"></div>
+                        <div class="col-1">vs</div>
+                        <div class="col-4"></div>
+                        <div class="col-3"></div>
+                      </div>
+                      <div id="FirstLadiesSummary" class="row">
+                        <div class="col-4"></div>
+                        <div class="col-1">vs</div>
+                        <div class="col-4"></div>
+                        <div class="col-3"></div>
+                      </div>
+                      <div id="SecondMensSummary" class="row">
+                        <div class="col-4"></div>
+                        <div class="col-1">vs</div>
+                        <div class="col-4"></div>
+                        <div class="col-3"></div>
+                      </div>
+                      <div id="FirstMixedSummary" class="row">
+                        <div class="col-4"></div>
+                        <div class="col-1">vs</div>
+                        <div class="col-4"></div>
+                        <div class="col-3"></div>
+                      </div>
+                      <div id="SecondMixedSummary" class="row">
+                        <div class="col-4"></div>
+                        <div class="col-1">vs</div>
+                        <div class="col-4"></div>
+                        <div class="col-3"></div>
+                      </div>
+                      <div id="ThirdMixedSummary" class="row">
+                        <div class="col-4"></div>
+                        <div class="col-1">vs</div>
+                        <div class="col-4"></div>
+                        <div class="col-3"></div>
+                      </div>
+   
+                      <div id="FourthMixedSummary" class="row">
+                       <div class="col-4"></div>
+                       <div class="col-1">vs</div>
+                       <div class="col-4"></div>
+                       <div class="col-3"></div>
+                     </div>
+                     <div id="ThirdMensSummary" class="row">
+                       <div class="col-4"></div>
+                       <div class="col-1">vs</div>
+                       <div class="col-4"></div>
+                       <div class="col-3"></div>
+                     </div>
+                     <div id="FourthMensSummary" class="row">
+                       <div class="col-4"></div>
+                       <div class="col-1">vs</div>
+                       <div class="col-4"></div>
+                       <div class="col-3"></div>
+                     </div>
+                      <div id="finalScore"></div>
+                      <input type="hidden" id="homeScore" name="homeScore" value="">
+                      <input type="hidden" id="awayScore" name="awayScore" value="">
+                 </div>
+
+             </div>
+             <div class="modal-footer">
+                <button type="button" class="btn btn-primary step step-1" data-step="1" onclick="sendEvent('2')">Continue</button>
+                <button type="button" class="btn btn-primary step step-2" data-step="2" onclick="sendEvent('1')">Back</button>
+                <button type="button" class="btn btn-primary step step-2" data-step="2" onclick="sendEvent('3')">Continue</button>
+                <button type="button" class="btn btn-primary step step-3" data-step="3" onclick="sendEvent('2')">Back</button>
+                <button type="button" class="btn btn-primary step step-3" data-step="3" onclick="sendEvent('4')">Continue</button>
+                <button type="button" class="btn btn-primary step step-4" data-step="4" onclick="sendEvent('3')">Back</button>
+                <button type="button" class="btn btn-primary step step-4" data-step="4" onclick="sendEvent('5')">Continue</button>
+                <button type="button" class="btn btn-primary step step-5" data-step="5" onclick="sendEvent('4')">Back</button>
+                <button type="button" class="btn btn-primary step step-5" data-step="5" onclick="sendEvent('6')">Continue</button>
+                <button type="button" class="btn btn-primary step step-6" data-step="6" onclick="sendEvent('5')">Back</button>
+                <button type="button" class="btn btn-primary step step-6" data-step="6" onclick="sendEvent('7')">Continue</button>
+                <button type="button" class="btn btn-primary step step-7" data-step="7" onclick="sendEvent('6')">Back</button>
+                <button type="button" class="btn btn-primary step step-7" data-step="7" onclick="sendEvent('8')">Continue</button>
+                <button type="button" class="btn btn-primary step step-8" data-step="8" onclick="sendEvent('7')">Back</button>
+                <button type="button" class="btn btn-primary step step-8" data-step="8" onclick="sendEvent('9')">Continue</button>
+                <button type="button" class="btn btn-primary step step-9" data-step="9" onclick="sendEvent('8')">Back</button>
+                <button type="button" class="btn btn-primary step step-9" data-step="9" onclick="sendEvent('10')">Continue</button>
+                <button type="button" class="btn btn-primary step step-10" data-step="10" onclick="sendEvent('9')">Back</button>
+                <button type="button" class="btn btn-primary step step-10" data-step="10" onclick="sendEvent('11')">Continue</button>
+                <button type="button" class="btn btn-primary step step-11" data-step="11" onclick="sendEvent('10')">Back</button>
+                <button type="button" class="btn btn-primary step step-11" data-step="11" onclick="sendEvent('12')">Continue</button>
+                <button type="button" class="btn btn-primary step step-12" data-step="12" onclick="sendEvent('11')">Back</button>
+                <button type="button" class="btn btn-primary step step-12" data-step="12" onclick="sendEvent('13')">Continue</button>
+                <button type="button" class="btn btn-primary step step-13" data-step="13" onclick="sendEvent('12')">Back</button>
+                <button id="signup" type="submit" class="btn btn-primary step step-13" data-step="13" >Submit</button>
+
+             </div>
+           </div><!-- /.modal-content -->
+         </div><!-- /.modal-dialog -->
+       </div><!-- /.modal -->
+    <% } %>
+    <%- include('footer.ejs') %>
+    <script type="text/javascript" src="/scripts/ejs/ejs.js"></script>
+
+    <script type="text/javascript">
+
+    $(document).ready(function() {
+      <% if (hasResult || hasErrors){ %>
+        $(".form-group.step-2 input, .form-group.step-3 input").change(function() {
+        // console.log($(this).val() + '-' + $(this).attr("id"));
+
+        $("[data-player-type=" + $(this).attr("id") + "]").val($(this).val());
+      })
+      $("#division").change(function(){
+        var selectedDivision = this.value;
+        $.get('/static/formOption.ejs', function (template) {
+            $.post('/teams', {'divisionId':selectedDivision}, function (data) {
+               // Generate the html from the given data.
+               var html = ejs.render(template,{data:data});
+               $('#homeTeam').html(html);
+               $('#awayTeam').html(html);
+            });
+        });
+      })
+      $("#homeTeam").change(function(){
+        var selectedTeam = this.value;
+        $.get('/static/playerFormOptions.ejs', function (template) {
+            $.get('/eligiblePlayers/'+selectedTeam+'/Male', function (data) {
+               // Generate the html from the given data.
+               var html = ejs.render(template,{data:data});
+               $('#homeMan1').html(html);
+               $('#homeMan2').html(html);
+               $('#homeMan3').html(html);
+               $('#homeMan4').html(html);
+            });
+            $.get('/eligiblePlayers/'+selectedTeam+'/Female', function (data) {
+               // Generate the html from the given data.
+               var html = ejs.render(template,{data:data});
+               $('#homeLady1').html(html);
+               $('#homeLady2').html(html);
+            });
+        });
+      })
+      $("#awayTeam").change(function(){
+        var selectedTeam = this.value;
+        $.get('/static/playerFormOptions.ejs', function (template) {
+            $.get('/eligiblePlayers/'+selectedTeam+'/Male', function (data) {
+               // Generate the html from the given data.
+               var html = ejs.render(template,{data:data});
+               $('#awayMan1').html(html);
+               $('#awayMan2').html(html);
+               $('#awayMan3').html(html);
+               $('#awayMan4').html(html);
+            });
+            $.get('/eligiblePlayers/'+selectedTeam+'/Female', function (data) {
+               // Generate the html from the given data.
+               var html = ejs.render(template,{data:data});
+               $('#awayLady1').html(html);
+               $('#awayLady2').html(html);
+            });
+        });
+      })
+      $("#homeMan1, #homeMan2, #homeMan3, #homeMan4, #homeLady1, #homeLady2, #awayMan1, #awayMan2, #awayMan3, #awayMan4, #awayLady1, #awayLady2").change(function(){
+        var selectedPlayerName = $(this)[0].selectedOptions[0].text;
+        var selectedPlayerId = $(this)[0].selectedOptions[0].value;
+        var selectedPlayer = $(this)[0].id
+        // console.log(selectedPlayerName+'-'+selectedPlayerId+'-'+selectedPlayer);
+      })
+      $(".scoreInput").change(function(){
+        var inputScore = $(this)[0]
+        var inputScore = $(this)[0]
+        // console.log(inputScore.id + '-' + inputScore.value)
+      })
+      $(".playerInput").change(function(){
+        var inputPlayerName = $(this)[0].selectedOptions[0].text;
+        var inputPlayerId = $(this)[0].selectedOptions[0].value;
+        var inputPlayer = $(this)[0].id
+        // console.log(inputPlayerName+'-'+inputPlayerId+'-'+inputPlayer);
+      })
+
+      <% } %>
+    });
+
+
+    <% if (hasResult || hasErrors){ %>
+    +function($) {
+    'use strict';
+
+    var modals = $('.modal.multi-step');
+
+    modals.each(function(idx, modal) {
+        var $modal = $(modal);
+        var $buttons = $modal.find('button.step');
+        var total_num_steps = $buttons.length;
+        var $progress = $modal.find('.m-progress');
+        var $progress_bar = $modal.find('.m-progress-bar');
+        var $progress_stats = $modal.find('.m-progress-stats');
+        var $progress_current = $modal.find('.m-progress-current');
+        var $progress_total = $modal.find('.m-progress-total');
+        var $progress_complete  = $modal.find('.m-progress-complete');
+        var reset_on_close = $modal.attr('reset-on-close') === 'true';
+
+        function reset() {
+            $modal.find('.step').hide();
+            $modal.find('[data-step]').hide();
+        }
+
+        function completeSteps() {
+            $progress_stats.hide();
+            $progress_complete.show();
+            $modal.find('.progress-text').animate({
+                top: '-2em'
+            });
+            $modal.find('.complete-indicator').animate({
+                top: '-2em'
+            });
+            $progress_bar.addClass('completed');
+        }
+
+        function getPercentComplete(current_step, total_steps) {
+            return Math.min(current_step / total_steps * 100, 100) + '%';
+        }
+
+        function updateProgress(current, total) {
+            $progress_bar.animate({
+                width: getPercentComplete(current, total)
+            });
+            if (current - 1 >= total_num_steps) {
+                completeSteps();
+            } else {
+                $progress_current.text(current);
+            }
+
+            $progress.find('[data-progress]').each(function() {
+                var dp = $(this);
+                if (dp.data().progress <= current - 1) {
+                    dp.addClass('completed');
+                } else {
+                    dp.removeClass('completed');
+                }
+            });
+        }
+
+        function goToStep(step) {
+            reset();
+            var to_show = $modal.find('.step-' + step);
+            if (to_show.length === 0) {
+                // at the last step, nothing else to show
+                return;
+            }
+            if (step == 4){
+              $("#FirstMenshomeMan1, #ThirdMenshomeMan1, #FirstMixedhomeMan1").html("<option value="+ $('#homeMan1')[0].selectedOptions[0].value +" selected>"+ $('#homeMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan2')[0].selectedOptions[0].value +">"+ $('#homeMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan3')[0].selectedOptions[0].value +">"+ $('#homeMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan4')[0].selectedOptions[0].value +">"+ $('#homeMan4')[0].selectedOptions[0].text +"</option>");
+              $("#FirstMenshomeMan2, #ThirdMenshomeMan2, #SecondMixedhomeMan2").html("<option value="+ $('#homeMan1')[0].selectedOptions[0].value +" >"+ $('#homeMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan2')[0].selectedOptions[0].value +" selected>"+ $('#homeMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan3')[0].selectedOptions[0].value +">"+ $('#homeMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan4')[0].selectedOptions[0].value +">"+ $('#homeMan4')[0].selectedOptions[0].text +"</option>");
+              $("#SecondMenshomeMan3, #FourthMenshomeMan3, #ThirdMixedhomeMan3").html("<option value="+ $('#homeMan1')[0].selectedOptions[0].value +" >"+ $('#homeMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan2')[0].selectedOptions[0].value +">"+ $('#homeMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan3')[0].selectedOptions[0].value +" selected>"+ $('#homeMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan4')[0].selectedOptions[0].value +">"+ $('#homeMan4')[0].selectedOptions[0].text +"</option>");
+              $("#SecondMenshomeMan4, #FourthMenshomeMan4, #FourthMixedhomeMan4").html("<option value="+ $('#homeMan1')[0].selectedOptions[0].value +" >"+ $('#homeMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan2')[0].selectedOptions[0].value +">"+ $('#homeMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan3')[0].selectedOptions[0].value +">"+ $('#homeMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan4')[0].selectedOptions[0].value +" selected>"+ $('#homeMan4')[0].selectedOptions[0].text +"</option>");
+              $("#FirstMensawayMan1, #FourthMensawayMan1, #FirstMixedawayMan1").html("<option value="+ $('#awayMan1')[0].selectedOptions[0].value +" selected>"+ $('#awayMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan2')[0].selectedOptions[0].value +">"+ $('#awayMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan3')[0].selectedOptions[0].value +">"+ $('#awayMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan4')[0].selectedOptions[0].value +">"+ $('#awayMan4')[0].selectedOptions[0].text +"</option>");
+              $("#FirstMensawayMan2, #FourthMensawayMan2, #SecondMixedawayMan2").html("<option value="+ $('#awayMan1')[0].selectedOptions[0].value +" >"+ $('#awayMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan2')[0].selectedOptions[0].value +" selected>"+ $('#awayMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan3')[0].selectedOptions[0].value +">"+ $('#awayMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan4')[0].selectedOptions[0].value +">"+ $('#awayMan4')[0].selectedOptions[0].text +"</option>");
+              $("#SecondMensawayMan3, #ThirdMensawayMan3, #ThirdMixedawayMan3").html("<option value="+ $('#awayMan1')[0].selectedOptions[0].value +" >"+ $('#awayMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan2')[0].selectedOptions[0].value +">"+ $('#awayMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan3')[0].selectedOptions[0].value +" selected>"+ $('#awayMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan4')[0].selectedOptions[0].value +">"+ $('#awayMan4')[0].selectedOptions[0].text +"</option>");
+              $("#SecondMensawayMan4, #ThirdMensawayMan4, #FourthMixedawayMan4").html("<option value="+ $('#awayMan1')[0].selectedOptions[0].value +" >"+ $('#awayMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan2')[0].selectedOptions[0].value +">"+ $('#awayMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan3')[0].selectedOptions[0].value +">"+ $('#awayMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan4')[0].selectedOptions[0].value +" selected>"+ $('#awayMan4')[0].selectedOptions[0].text +"</option>");
+              $("#FirstLadieshomeLady1, #FirstMixedhomeLady1, #ThirdMixedhomeLady1").html("<option value="+ $('#homeLady1')[0].selectedOptions[0].value +" selected>"+ $('#homeLady1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeLady2')[0].selectedOptions[0].value +">"+ $('#homeLady2')[0].selectedOptions[0].text +"</option>");
+              $("#FirstLadieshomeLady2, #SecondMixedhomeLady2, #FourthMixedhomeLady2").html("<option value="+ $('#homeLady1')[0].selectedOptions[0].value +" >"+ $('#homeLady1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeLady2')[0].selectedOptions[0].value +" selected>"+ $('#homeLady2')[0].selectedOptions[0].text +"</option>");
+              $("#FirstLadiesawayLady1, #FirstMixedawayLady1, #ThirdMixedawayLady1").html("<option value="+ $('#awayLady1')[0].selectedOptions[0].value +" selected>"+ $('#awayLady1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayLady2')[0].selectedOptions[0].value +">"+ $('#awayLady2')[0].selectedOptions[0].text +"</option>");
+              $("#FirstLadiesawayLady2, #SecondMixedawayLady2, #FourthMixedawayLady2").html("<option value="+ $('#awayLady1')[0].selectedOptions[0].value +" >"+ $('#awayLady1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayLady2')[0].selectedOptions[0].value +" selected>"+ $('#awayLady2')[0].selectedOptions[0].text +"</option>");
+
+            }
+            if (step > 4){
+              var prevStep = step - 1;
+              var playerSelections = $(".form-group.step-"+prevStep+" > select");
+              var gameScores = $(".form-group.step-"+prevStep+" .scoreInput");
+              var parentElem = $($('.form-group.step-'+prevStep+' > select')[0].parentElement)[0].classList
+              var summaryElement = "#"+ parentElem[parentElem.length - 1] + "Summary";
+              var homePairSummary = playerSelections[0].selectedOptions[0].text + " & " + playerSelections[1].selectedOptions[0].text
+              var awayPairSummary = playerSelections[2].selectedOptions[0].text + " & " + playerSelections[3].selectedOptions[0].text
+              var game1score = gameScores[0].value + '-' + gameScores[1].value
+              var game2score = gameScores[2].value + '-' + gameScores[3].value
+              $(summaryElement)[0].children[0].innerHTML = homePairSummary
+              $(summaryElement)[0].children[2].innerHTML = awayPairSummary
+              $(summaryElement)[0].children[3].innerHTML = game1score + '<br />' + game2score
+              if (step == 13){
+                var matchSummary = {
+                  "homeTeamTotalPoints":0,
+                  "homeTeamTotalGames":0,
+                  "awayTeamTotalPoints":0,
+                  "awayTeamTotalGames":0
+                }
+                var homeScoresArray = $('.scoreInput.home')
+                var awayScoresArray = $('.scoreInput.away')
+                for(var i=0; i< homeScoresArray.length; i++) {
+                  matchSummary.homeTeamTotalPoints += (homeScoresArray[i].value)*1;
+                  matchSummary.awayTeamTotalPoints += (awayScoresArray[i].value)*1;
+                  console.log(homeScoresArray[i].value)
+                  console.log(awayScoresArray[i].value)
+                  if ((homeScoresArray[i].value)*1 > (awayScoresArray[i].value)*1){
+                    matchSummary.homeTeamTotalGames++;
+                  }
+                  else {
+                    matchSummary.awayTeamTotalGames++;
+                  }
+                  console.log("points: "+matchSummary.homeTeamTotalPoints+"-"+matchSummary.awayTeamTotalPoints+"<br />"+matchSummary.homeTeamTotalGames+"-"+matchSummary.awayTeamTotalGames);
+                }
+                $('#finalScore')[0].innerHTML = "Points: "+matchSummary.homeTeamTotalPoints+"-"+matchSummary.awayTeamTotalPoints+"<br />Games:"+matchSummary.homeTeamTotalGames+"-"+matchSummary.awayTeamTotalGames
+                $('#homeScore')[0].value = matchSummary.homeTeamTotalGames;
+                $('#awayScore')[0].value = matchSummary.awayTeamTotalGames;
+              }
+
+            }
+            to_show.show();
+            var current = parseInt(step, 10);
+            updateProgress(current, total_num_steps);
+            findFirstFocusableInput(to_show).focus();
+        }
+
+        function findFirstFocusableInput(parent) {
+            var candidates = [parent.find('input'), parent.find('select'),
+                              parent.find('textarea'),parent.find('button')],
+                winner = parent;
+            $.each(candidates, function() {
+                if (this.length > 0) {
+                    winner = this[0];
+                    return false;
+                }
+            });
+            return $(winner);
+        }
+
+        function bindEventsToModal($modal) {
+            var data_steps = [];
+            $('[data-step]').each(function() {
+                var step = $(this).data().step;
+                if (step && $.inArray(step, data_steps) === -1) {
+                    data_steps.push(step);
+                }
+            });
+
+            $.each(data_steps, function(i, v) {
+                $modal.on('next.m.' + v, {step: v}, function(e) {
+                    goToStep(e.data.step);
+                });
+            });
+        }
+
+        function initialize() {
+            reset();
+            updateProgress(1, total_num_steps);
+            $modal.find('.step-1').show();
+            $progress_complete.hide();
+            $progress_total.text(total_num_steps);
+            bindEventsToModal($modal, total_num_steps);
+            $modal.data({
+                total_num_steps: $buttons.length,
+            });
+            if (reset_on_close){
+                //Bootstrap 2.3.2
+                $modal.on('hidden', function () {
+                    reset();
+                    $modal.find('.step-1').show();
+                })
+                //Bootstrap 3
+                $modal.on('hidden.bs.modal', function () {
+                    reset();
+                    $modal.find('.step-1').show();
+                })
+            }
+        }
+
+        initialize();
+    })
+    }(jQuery);
+
+    sendEvent = function(page) {
+    $('#signupModal').trigger('next.m.' + page);
+    }
+    <% } %>
+    </script>
+
+    </body>
+    </html>

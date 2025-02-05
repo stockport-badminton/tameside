@@ -1,0 +1,115 @@
+<%- include('./header.ejs'); -%>
+<%- include('./nav.ejs'); -%>
+
+
+<% if (error) { %>
+<p>Something seems to have gone wrong</p>
+<p><%= error %></p>
+<% }
+  else { %>
+<div class="row col-12 fixHeader">
+    <h1><%= division.replace('-',' ') %></h1>
+    <a class="text-secondary" href="<%= path.replace('\/results-grid\/','\/results\/') %>"><i class="fa fa-bars"></i></a>
+</div>
+
+<div class="table-responsive">
+    <% for (division of jsonResult){ %>
+    <% if (jsonResult.length > 1) { %>
+    <div class="text-left">
+        <h3><%= division.division %></h3>
+    </div>
+    <% } %>
+    
+    <table class="table" id="results-grid">
+        <tr>
+            <th class="py-3 border">&nbsp;</th>
+            <% for (team of division.teams){ %>
+            <th class="py-3 border"><%= team %></th>
+            <% } %>
+        </tr>
+
+        <%  var currhometeam = ""
+                for (const [i,fix] of division.fixtures.entries()){ 
+                    var cellClass = '';
+                    var resultValue = '';
+                    var status = ""
+                    var NowDate = Date.now();
+                    var MyDate = new Date(fix.date);
+                    if ((MyDate < NowDate) && (fix.homeScore == null) && (fix.status != 'void')) {
+                        cellClass = 'bg-danger'
+                        resultValue = 'Awaiting Result';
+                    }
+                    var MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/' + MyDate.getFullYear();
+                    if (fix.status == 'rearranging'){
+                        var cellClass = 'bg-warning';
+                        var resultValue = 'Rearranging';
+                        var status = ""
+                    }
+                    if (fix.status == 'conceded'){
+                        var cellClass = 'bg-danger';
+                        var resultValue = 'Conceded';
+                        var status = "Conceded"
+                    }
+                    if (fix.status == 'void'){
+                        var cellClass = 'bg-danger';
+                        var resultValue = "Void"
+                        var status = "Void"
+                    }
+                    if (fix.hometeam == currhometeam) { 
+                    if (i%division.teams.length == 0 ){
+                        %><td class="py-3 border">&nbsp;</td> <%
+                    } %>
+        <td class="py-3 border <%= cellClass %>">
+
+            <% if(fix.homeScore === null && fix.status != 'void'){ %>
+                <%= MyDateString %>
+                <% }
+                else if (fix.status == 'void'){ %>
+                <%= resultValue %>
+                <% }
+                        else{ %>
+                <%= fix.homeScore %> - <%= fix.awayScore %>
+                <% } %>
+        </td>
+        <% } 
+                else {
+                    currhometeam = fix.hometeam
+                    %>
+        </tr>
+        <tr>
+            <th class="py-3 border"><%= fix.hometeam %></th>
+            <% if (i%division.teams.length == 0 ){
+                        %><td>&nbsp;</td> <%
+                    } %>
+            <td class="py-3 border <%= cellClass %>">
+
+                <% if(fix.homeScore === null && fix.status != 'void'){ %>
+                <%= MyDateString %>
+                <% }
+                else if (fix.status == 'void'){ %>
+                <%= resultValue %>
+                <% }
+                        else{ %>
+                <%= fix.homeScore %> - <%= fix.awayScore %>
+                <% } %>
+            </td>
+            <% }
+                     } %>
+        </tr>
+    </table>
+    <% } %>
+
+
+
+</div>
+<% } %>
+
+
+
+
+<%- include('footer.ejs') %>
+
+
+</body>
+
+</html>

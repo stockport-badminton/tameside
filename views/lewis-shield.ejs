@@ -1,0 +1,53 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<h1>Lewis Shield Draw</h1>
+
+<div class="row col-12 bracket-container">
+    <% 
+    let fixCount=0
+    let offset = 0
+    for (let i=0; i < 4; i++) { %>
+        <div class="col">      
+<%
+        for (let j=0; j < 16; j++){ 
+            if (j % Math.pow(2,i) == 0){ 
+                if (i == 0){
+                    if (j == 3 || j==9 || j==13 || j==15 ){ 
+                        fixCount++
+                        %>
+                        <div class="row align-middle d-flex align-items-center h-6">
+                            <div class="row col-12 g-0 p-0 m-0 d-flex">
+                        <% if (typeof teams[fixCount+offset] !== 'undefined'){ %>
+                        <%= teams[fixCount+offset].homeTeam %><span class="px-1">vs</span></div><div class="row col-12 g-0 p-0 m-0 d-flex"><%= teams[fixCount+offset].awayTeam %> <strong class="px-1"><% if (teams[fixCount+offset].homeScore != null) { %><%= teams[fixCount+offset].homeScore + "-"+ teams[fixCount+offset].awayScore %><% } %></strong></div> <% } %>
+                            <div style="" class="bracket even-fix d-flex flex-fill">&nbsp;</div>
+                        </div>
+                   <%  }
+                    else { %>
+                        <div class="row align-middle d-flex align-items-center h-6">&nbsp;</div>
+                    <% }
+                }
+                else { 
+                    fixCount++
+                    %>
+                    <div class="row align-middle d-flex align-items-center h-<%= i > 0 ? (i > 1 ? ( i > 2 ? (i > 3 ? 100 : 50) : 25 ) : 13 ) : 6 %>">
+                        <% if (typeof teams[fixCount+offset] !== 'undefined'){ %>
+                            <div class="row col-12 g-0 p-0 m-0 d-flex">
+                        <%= teams[fixCount+offset].homeTeam  %><span class="px-1">vs</span></div><div class="row col-12 g-0 p-0 m-0 d-flex"><%= teams[fixCount+offset].awayTeam %> <strong class="px-1"><% if (teams[fixCount+offset].homeScore != null) { %><%= teams[fixCount+offset].homeScore + "-"+ teams[fixCount+offset].awayScore %><% } %></strong></div> <% } %>
+                        <div style="" class="bracket <%= fixCount % 2 == 0 ? 'even' : 'odd' %>-fix d-flex flex-fill">&nbsp;</div>
+                    </div>
+                <% } 
+                
+            } 
+            
+         } %> 
+        </div>
+   <%  } %>
+ 
+</div>
+
+<%- include('footer.ejs') %>
+
+
+</body>
+</html>

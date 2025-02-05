@@ -1,0 +1,6 @@
+<option disabled selected>Choose...</option>
+<% data.forEach(function(row){ %>
+  <option value="<%= row.id %>"><%= row.first_name %> <%= row.family_name%></option>
+<% }) %>
+<option value="0">No Player Home Team</option>
+<option value="0">No Player Away Team</option>

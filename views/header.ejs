@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- Google tag (gtag.js) -->
+    <script type="text/javascript" async src="https://www.googletagmanager.com/gtag/js?id=G-01JJPR11B6"></script>
+    
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+    </script>
+
+      <% if (typeof user !== 'undefined') { %>
+    <script>
+      gtag('config', 'G-01JJPR11B6',{'cookie_prefix': 'baddersCookie',
+  'cookie_domain': 'tameside-badminton.co.uk',
+  'cookie_expires': 28 * 24 * 60 * 60 ,  // 28 days, in seconds,
+  'user_id': '<%= user.user_id %>' });
+    gtag('set', 'user_properties', { 
+    'crm_id' : '<%= user.user_id %>' 
+    });
+
+    localStorage.setItem('user', JSON.stringify(<%- JSON.stringify(user) %>))
+    
+  window.sentryOnLoad = function () {
+      // in here, Sentry is ensured to be loaded & fully available
+      
+      Sentry.init({
+        dsn: "https://41a5442332daa78ebc9dba9dfe8da392@o4508301910540288.ingest.de.sentry.io/4508301914800208",
+        integrations: [
+          Sentry.replayIntegration({
+            maskAllText: false,
+            blockAllMedia: false
+          }),
+        ],
+      });
+      
+
+      Sentry.lazyLoadIntegration("captureConsoleIntegration").then(
+        (integration) => {
+          Sentry.addIntegration(integration());
+        },
+      );
+      Sentry.setUser({ id: '<%= user.user_id %>' });
+    };
+    
+  </script>    
+   <script type="text/javascript" src="https://js-de.sentry-cdn.com/41a5442332daa78ebc9dba9dfe8da392.min.js" crossorigin="anonymous"></script>   
+    <% } else{ %>
+  <script>
+        gtag('config', 'G-01JJPR11B6',{
+  'cookie_prefix': 'baddersCookie',
+  'cookie_domain': 'tameside-badminton.co.uk',
+  'cookie_expires': 28 * 24 * 60 * 60  // 28 days, in seconds
+});
+  </script>    
+      <% } %> 
+    
+    
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="theme-color" content="#673ab6"/>
+    <meta name="description" content="Tameside Badminton Association. <%= pageDescription %>">
+    <meta name="author" content="">
+    <meta property="og:title" content="Tameside Badminton League - <%= title %>">
+    <meta property="og:description" content="Tameside Badminton Association. <%= pageDescription %>">
+    <meta property="og:image" content="/static/images/Logo.png">
+    <meta property="og:url" content="https://tameside-badminton.co.uk">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta property="og:site_name" content="Tameside Badminton League">
+    <meta name="twitter:image:alt" content="Tameside Badminton League">
+
+    <title>Tameside Badminton League - <%= title %></title>
+
+    <!-- Bootstrap core CSS -->
+    <%- include('datatables-css.ejs') %>
+    <link rel="stylesheet" href="/static/css/style.css" type="text/css" />
+
+    <% if (title == 'Local Badminton Club Information'){ 
+      for (row of result ){ %>
+        <script type="application/ld+json">
+          {
+            "@context": "http://schema.org/",
+            "@type": "SportsClub",
+            "name": "<%= row.name %> Badminton Club",
+            "url": "<%= row.clubWebsite %>",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "<%= row.address %>",
+              "addressLocality": "<%= row.address.match(/(Knutsford|Cheadle Hulme|Macclesfield|Cheadle Heath|East Didsbury|Manchester|Whalley Range|Wilmslow|Mellor|Disley)/g) %>",
+              "addressRegion": "Cheshire",
+              "postalCode": "<%= row.address.match(/([A-Z0-9]{3,4})\s([A-Z0-9]{3,4})/g) %>",
+              "addressCountry": "GB"
+            }
+          }
+          </script>
+
+    <%  }
+
+     } %>
+
+     <% if (title.indexOf("Homepage") >= 0){ 
+
+      for (fixtureDetails of row){
+    
+      
+      var MyDate = new Date(fixtureDetails.date);
+      var MyDateString;
+    
+      // MyDate.setDate(MyDate.getDate() + 20);
+    
+      MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+                   + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+                   + MyDate.getFullYear();
+      let offset = (new Date(MyDate.getFullYear() + '-' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-' +('0' + MyDate.getDate()).slice(-2)).getTimezoneOffset())/60
+      let DSTOffset = offset < 0 ? '+01:00' : ''
+      OtherDateStringStartTime = MyDate.getFullYear() + '-' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-' +('0' + MyDate.getDate()).slice(-2) + 'T' + fixtureDetails.startTime + DSTOffset
+      OtherDateStringEndTime = MyDate.getFullYear() + '-' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-' +('0' + MyDate.getDate()).slice(-2) + 'T' + fixtureDetails.endTime + DSTOffset
+    %>
+      
+        <script type="application/ld+json">
+          {
+            "@context": "http://schema.org",
+              "@type": "SportsEvent",
+              "name": "<%= fixtureDetails.homeTeam %> vs <%= fixtureDetails.awayTeam %>",
+              "startDate": "<%= OtherDateStringStartTime %>",
+              "endDate": "<%= OtherDateStringEndTime %>",
+              "url": "https://tameside-badminton.co.uk/event/<%= fixtureDetails.id %>/<%= MyDateString.replaceAll("/","") %>-<%= fixtureDetails.homeTeam %>-<%= fixtureDetails.awayTeam %>",
+              "sport":"badminton",
+              "competitor":[{
+                "@type":"SportsTeam",
+                "homeTeam":"<%= fixtureDetails.homeTeam %>"
+              },{
+                "@type":"SportsTeam",
+                "awayTeam":"<%= fixtureDetails.awayTeam %>"
+              }],
+              "location":{
+                "@type":"Place",
+                "name":"<%= fixtureDetails.venueName %>",
+                "hasMap":"<%= fixtureDetails.venueLink %>",
+                "Lat":"<%= fixtureDetails.Lat %>",
+                "Lng":"<%= fixtureDetails.Lng %>",
+                "address":{
+                  "type":"PostalAddress",
+                  "streetAddress":"<%= fixtureDetails.venueAddress %>"
+                }
+              },
+              "description":"Badminton match: <%= fixtureDetails.homeTeam%> vs <%= fixtureDetails.awayTeam%>",
+              "eventAttendanceMode":"https://schema.org/OfflineEventAttendanceMode",
+              "eventStatus": "https://schema.org/EventScheduled",
+              "performer":{
+                "@type":"Organization",
+                "name":"<%= fixtureDetails.homeClub %>",
+                "url":"<%= typeof fixtureDetails.clubWebsite !== 'undefined' ? fixtureDetails.clubWebsite : 'https://tameside-badminton.co.uk' %>"
+              },
+              "organizer":{
+                "@type":"Organization",
+                "name":"<%= fixtureDetails.homeClub %>",
+                "url":"<%= typeof fixtureDetails.clubWebsite !== 'undefined' ? fixtureDetails.clubWebsite : 'https://tameside-badminton.co.uk' %>"
+              }
+            }
+          </script>
+    
+    <%}  }
+     %>
+
+     <% if (title.indexOf("Event") >= 0){ 
+
+  
+      var MyDate = new Date(fixtureDetails.date);
+      var MyDateString;
+    
+      // MyDate.setDate(MyDate.getDate() + 20);
+    
+      MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+                   + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+                   + MyDate.getFullYear();
+      let offset = (new Date(MyDate.getFullYear() + '-' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-' +('0' + MyDate.getDate()).slice(-2)).getTimezoneOffset())/60
+      let DSTOffset = offset < 0 ? '+01:00' : ''
+      OtherDateStringStartTime = MyDate.getFullYear() + '-' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-' +('0' + MyDate.getDate()).slice(-2) + 'T' + fixtureDetails.startTime + DSTOffset
+      OtherDateStringEndTime = MyDate.getFullYear() + '-' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-' +('0' + MyDate.getDate()).slice(-2) + 'T' + fixtureDetails.endTime + DSTOffset
+    %>
+      
+        <script type="application/ld+json">
+          {
+            "@context": "http://schema.org",
+              "@type": "SportsEvent",
+              "name": "<%= fixtureDetails.homeTeam %> vs <%= fixtureDetails.awayTeam %>",
+              "startDate": "<%= OtherDateStringStartTime %>",
+              "endDate": "<%= OtherDateStringEndTime %>",
+              "url": "https://tameside-badminton.co.uk/event/<%= fixtureDetails.id %>/<%= MyDateString.replaceAll("/","") %>-<%= fixtureDetails.homeTeam %>-<%= fixtureDetails.awayTeam %>",
+              "sport":"badminton",
+              "competitor":[{
+                "@type":"SportsTeam",
+                "homeTeam":"<%= fixtureDetails.homeTeam %>"
+              },{
+                "@type":"SportsTeam",
+                "awayTeam":"<%= fixtureDetails.awayTeam %>"
+              }],
+              "location":{
+                "@type":"Place",
+                "name":"<%= fixtureDetails.venueName %>",
+                "hasMap":"<%= fixtureDetails.venueLink %>",
+                "Lat":"<%= fixtureDetails.Lat %>",
+                "Lng":"<%= fixtureDetails.Lng %>",
+                "address":{
+                  "type":"PostalAddress",
+                  "streetAddress":"<%= fixtureDetails.venueAddress %>"
+                }
+              },
+              "description":"Badminton match: <%= fixtureDetails.homeTeam%> vs <%= fixtureDetails.awayTeam%>",
+              "eventAttendanceMode":"https://schema.org/OfflineEventAttendanceMode",
+              "eventStatus": "https://schema.org/EventScheduled",
+              "performer":{
+                "@type":"Organization",
+                "name":"<%= fixtureDetails.homeClub %>",
+                "url":"<%= typeof fixtureDetails.clubWebsite !== 'undefined' ? fixtureDetails.clubWebsite : 'https://tameside-badminton.co.uk' %>"
+              },
+              "organizer":{
+                "@type":"Organization",
+                "name":"<%= fixtureDetails.homeClub %>",
+                "url":"<%= typeof fixtureDetails.clubWebsite !== 'undefined' ? fixtureDetails.clubWebsite : 'https://tameside-badminton.co.uk' %>"
+              }
+            }
+          </script>
+          <style>
+            #eventMap {box-sizing: content-box;
+            height: 100%;}
+          </style>
+    <%  }
+     %>
+     
+  </head>
+
+  <body class="pt-5 mt-4">
+
+    <div class="container">
+      

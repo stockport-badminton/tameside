@@ -1,0 +1,162 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+
+
+    <h1>Fixture Players</h1>
+    <% if (typeof filter !== 'undefined' && filter == true){ %>
+      <%- include('filters.ejs') %>
+    <% } %>
+    <div class="table-responsive">
+    <table class="table" id="results-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Team</th>
+          <th>Opposition</th>
+          <th>Man 1</th>
+          <th>Man 2</th>
+          <th>Man 3</th>
+          <th>Man 4</th>
+          <th>Lady 1</th>
+          <th>Lady 2</th>
+        </tr>
+      </thead>
+      <tbody>
+    <% result.forEach(function(row){
+
+      var MyDate = new Date(row['date']);
+      var MyDateString;
+      // MyDate.setDate(MyDate.getDate() + 20);
+      MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+                   + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+                   + MyDate.getFullYear();
+
+        var Man1Status, Man1Note = ""
+        if (row['Man1TeamName'] != row['teamName']){
+          if (row['Man1Rank'] == null){
+            Man1Status = "table-danger";
+            Man1Note = "<br />" + row['Man1TeamName']
+          }
+          else{
+            Man1Status = "table-warning";
+            Man1Note = "<br />" + row['Man1TeamName']
+          }
+        }
+        else {
+          if (row['Man1Rank'] == null){
+            Man1Status = "table-warning";
+          }
+        }
+        var Man2Status, Man2Note = ""
+        if (row['Man2TeamName'] != row['teamName']){
+          if (row['Man2Rank'] == null){
+            Man2Status = "table-danger";
+            Man2Note = "<br />" + row['Man2TeamName']
+          }
+          else{
+            Man2Status = "table-warning";
+            Man2Note = "<br />" + row['Man2TeamName']
+          }
+        }
+        else {
+          if (row['Man2Rank'] == null){
+            Man2Status = "table-warning";
+          }
+        }
+        var Man3Status, Man3Note = ""
+        if (row['Man3TeamName'] != row['teamName']){
+          if (row['Man3Rank'] == null){
+            Man3Status = "table-danger";
+            Man3Note = "<br />" + row['Man3TeamName']
+          }
+          else{
+            Man3Status = "table-warning";
+            Man3Note = "<br />" + row['Man3TeamName']
+          }
+        }
+        else {
+          if (row['Man3Rank'] == null){
+            Man3Status = "table-warning";
+          }
+        }
+        var Man4Status, Man4Note = ""
+        if (row['Man4TeamName'] != row['teamName']){
+          if (row['Man4Rank'] == null){
+            Man4Status = "table-danger";
+            Man4Note = "<br />" + row['Man4TeamName']
+          }
+          else{
+            Man4Status = "table-warning";
+            Man4Note = "<br />" + row['Man4TeamName']
+          }
+        }
+        else {
+          if (row['Man4Rank'] == null){
+            Man4Status = "table-warning";
+          }
+        }
+        var Lady1Status, Lady1Note = ""
+        if (row['Lady1TeamName'] != row['teamName']){
+          if (row['Lady1Rank'] == null){
+            Lady1Status = "table-danger";
+            Lady1Note = "<br />" + row['Lady1TeamName']
+          }
+          else{
+            Lady1Status = "table-warning";
+            Lady1Note = "<br />" + row['Lady1TeamName']
+          }
+        }
+        else {
+          if (row['Lady1Rank'] == null){
+            Lady1Status = "table-warning";
+          }
+        }
+        var Lady2Status, Lady2Note = ""
+        if (row['Lady2TeamName'] != row['teamName']){
+          if (row['Lady2Rank'] == null){
+            Lady2Status = "table-danger";
+            Lady2Note = "<br />" + row['Lady2TeamName']
+          }
+          else{
+            Lady2Status = "table-warning";
+            Lady2Note = "<br />" + row['Lady2TeamName']
+          }
+        }
+        else {
+          if (row['Lady2Rank'] == null){
+            Lady2Status = "table-warning";
+          }
+        }
+        
+
+      %>
+      <tr>
+          <td><%= MyDateString %></td>
+          <td><%= row['teamName'] %></td>
+          <td><%= row['oppositionName'] %></td>
+          <td class="<%= Man1Status %>"><%= row['Man1'] %><%- Man1Note %></td>
+          <td class="<%= Man2Status %>"><%= row['Man2'] %><%- Man2Note %></td>
+          <td class="<%= Man3Status %>"><%= row['Man3'] %><%- Man3Note %></td>
+          <td class="<%= Man4Status %>"><%= row['Man4'] %><%- Man4Note %></td>
+          <td class="<%= Lady1Status %>"><%= row['Lady1'] %><%- Lady1Note %></td>
+          <td class="<%= Lady2Status %>"><%= row['Lady2'] %><%- Lady2Note %></td>
+      </tr>
+    <% }) %>
+      </tbody>
+    </table>
+  </div>
+
+
+
+
+<%- include('footer.ejs') %>
+<%- include('datatables.ejs') %>
+<script>
+  <% if (typeof filter !== 'undefined' && filter == true){ %>
+      <%- include('filtersJs.ejs') %>
+    <% } %>
+</script>
+
+</body>
+</html>

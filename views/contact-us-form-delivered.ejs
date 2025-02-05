@@ -1,0 +1,18 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<p><%= message %></p>
+<p><% if (typeof content !== 'undefined') {
+
+  content.forEach(function(error){
+    %>
+    <%= error.msg %><br />
+    <%
+  })
+
+  } %></p>
+<%- include('footer.ejs') %>
+
+
+</body>
+</html>

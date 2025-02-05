@@ -1,0 +1,22 @@
+<script type="text/javascript" src="https://cdn.datatables.net/v/bs4/jq-3.3.1/dt-1.10.20/b-1.6.1/b-colvis-1.6.1/fh-3.1.6/r-2.2.3/datatables.min.js"></script>
+<script type="text/javascript" src="//cdn.datatables.net/plug-ins/1.10.19/sorting/date-euro.js"></script>
+<script type="text/javascript" src="//cdn.datatables.net/plug-ins/1.12.0/api/page.jumpToData().js"></script>
+
+<script type="text/javascript">
+  $(document).ready( function () {
+      var table = $('#results-table').DataTable( {
+        "columnDefs": [
+          { "type": "date-euro", "targets": 0 }
+        ],
+        pageLength:20
+      });
+      var data = table.data().toArray();
+      var today = new Date()
+      currentDateString = ('0' + today.getDate()).slice(-2) + '/'
+             + ('0' + (today.getMonth()+1)).slice(-2) + '/'
+             + today.getFullYear();
+      console.log(currentDateString)
+      table.page.jumpToData(currentDateString, 0 );
+      
+  } );
+</script>

@@ -1,0 +1,70 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+
+<% if (error) { %>
+<p>Something seems to have gone wrong</p>
+<p>
+  <%= error %>
+</p>
+<% }
+  else { %>
+<div class="table-responsive">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>
+          <%= division %>
+        </th>
+        <th>p</th>
+        <th>w</th>
+        <th>l</th>
+        <th>avg</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% result.forEach(function(row){
+            var n = (row['pointsFor'] / row['played']);
+            if(Number.isNaN(n)){
+              var n = 0;
+            }
+            else{
+              if (!(Number.isInteger(n))){
+                n = n.toFixed(1);
+              }
+            }
+
+            %>
+      <tr>
+        <td>
+          <%= row['name'] %>
+        </td>
+        <td>
+          <%= row['played'] %>
+        </td>
+        <td>
+          <%= row['pointsFor'] %>
+        </td>
+        <td>
+          <%= row['pointsAgainst'] %>
+        </td>
+        <td>
+          <%= n %>
+        </td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+<% if (division == 'Division 3' && (typeof season === 'undefined' || season == '20192020')){ %>
+  <div class="col-12">
+  <p><strong class="font-weight-bold">Penalties: </strong>Disley B: fielding ineligible players: 36pts<br />Disley C: fielding ineligible players: 1pt</p>
+</div>
+<% } %>
+<%- include('footer.ejs') %>
+
+
+</body>
+
+</html>

@@ -1,0 +1,171 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+
+  <% if (error) { %>
+    <p>Something seems to have gone wrong</p>
+    <p><%= error %></p>
+  <% }
+  else { %>
+    <div id="map"></div>
+
+    <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Contact</th>
+          <% if (typeof user !== 'undefined' && user['_json']['https://my-app.example.com/role'] == "superadmin") { %>
+            <th>Manage Players</th>
+          <% } %>
+          <th>Match Details</th>
+          <th>Club Night</th>
+          <th>Venue</th>
+        </tr>
+      </thead>
+      <tbody>
+    <% result.forEach(function(row){ 
+      if (row['id'] != 63) { %>
+
+      
+
+      <tr>
+        <% if (row['clubWebsite'] != ''){ %>
+          <td><a href="<%= row['clubWebsite'] %>" target="_blank"><%= row['name'] %></a></td>
+        <% }
+        else { %>
+
+          <td><%= row['name'] %></td>
+        <% } %>
+          <td>
+            <button type="button" class="btn btn-primary openForm" data-bs-toggle="modal" data-bs-target="#exampleModal" data-club="<%= row['id'] %>">
+              Get in touch
+            </button><br/>
+            <a href="/club/<%= row['id'] %>">Login for Contact info</a>
+          </td>
+          <% if (typeof user !== 'undefined' && user['_json']['https://my-app.example.com/role'] == "superadmin") { %>
+            <td><a href="/manage-players/club-<%= row['name'] %>">Manage Players</a></th>
+          <% } %>
+          <td><% if (row.teams.length > 1){ 
+             for (team of row.teams){ %>
+              <%= team.name %>: <a href="<%= team.gMapURL %>" target="_blank"><%= team.address %></a><br />
+              <%= team.matchDay %><br />
+            <% }
+            %>
+            
+          <% } else { %>
+            All Teams: <a href="<%= row.teams[0].gMapURL %>" target="_blank"><%= row.teams[0].address %></a><br />
+            <%= row.teams[0].matchDay %><br />
+          <% } %>
+            </td>
+          <td><%= row['clubNightText'] %></td>
+          <td><a href="<%= row['gMapUrl'] %>" target="_blank"><%= row['address'] %></a></td>
+      </tr>
+    <% 
+     }
+      }) %>
+      </tbody>
+    </table>
+    </div>
+   <% } %>
+
+   <!-- Modal -->
+   <div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+     <div class="modal-dialog" role="document">
+       <div class="modal-content">
+         <div class="modal-header">
+           <h5 class="modal-title" id="exampleModalLabel">Get in touch with </h5>
+           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+           </button>
+         </div>
+         <form role="form" id="contactUs" action="/contact-us" method="post">
+         <div class="modal-body">
+            <input type="hidden" value="" id="clubSelect" name="clubSelect" />
+            <input type="hidden" value="Clubs" id="contactType" name="contactType" />
+
+             <div class="form-group">
+               <label for="contactEmail">Email address</label>
+               <input type="email" class="form-control" id="contactEmail" name="contactEmail" aria-describedby="emailHelp" placeholder="Enter email">
+               <small id="emailHelp" class="form-text text-muted">We'll never share your email with anyone else.</small>
+             </div>
+             <div class="form-group">
+               <label for="contactQuery">Message that you want to send to the club contact</label>
+               <textarea class="form-control" id="contactQuery" name="contactQuery" rows="3"></textarea>
+             </div>
+             <div class="form-group">
+               <div class="g-recaptcha" data-sitekey="<%= recaptcha %>"></div>
+             </div>
+
+
+         </div>
+         <div class="modal-footer">
+           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+           <button type="submit" class="btn btn-primary">Submit</button>
+         </div>
+         </form>
+       </div>
+     </div>
+   </div>
+
+<%- include('footer.ejs') %>
+
+
+<script>
+// Initialize and add the map
+function initMap() {
+
+  // The location of Uluru
+  var StockportTownHall = {lat:53.4060787,lng:-2.1606755};
+  var map = new google.maps.Map(
+      document.getElementById('map'), {zoom: 10, center: StockportTownHall, mapId: '28eeb908f19e8aab',});
+  var data = <%- venues %>
+  console.log(data)
+  console.log(<%- venues %>)
+  data.forEach(function(i){
+    if (i.Lat != null){
+        var point = {lat:i.Lat, lng:i.Lng}
+    console.log(i)
+    console.log(point)
+
+    var contentString = '<div id="content">'+
+      '<div id="siteNotice">'+
+      '</div>'+ i.venueInfoBox 
+      '</div>';
+
+  var infowindow = new google.maps.InfoWindow({
+    content: contentString
+  });
+    var clubMarker = new google.maps.marker.AdvancedMarkerElement({position:point, map:map})
+    clubMarker.addListener('click', function() {
+    infowindow.open(map, clubMarker);
+  });
+    }
+    
+  })
+
+  
+
+}
+</script>
+<script src="//maps.googleapis.com/maps/api/js?key=<%= mapsApiKey %>&libraries=marker&callback=initMap"></script>
+
+<script src="//www.google.com/recaptcha/api.js" async defer></script>
+
+
+
+<script type="text/javascript">
+  $(document).ready(function(){
+    $('.openForm').click(function(){
+      var clubName = $(this).attr('data-club')
+      console.log($(this).attr('data-club'))
+      $('#exampleModalLabel').html("Get in touch with " + clubName)
+      $('#clubSelect').val(clubName)
+    })
+    // google.maps.event.addDomListener(window, 'load', initMap);
+  })
+</script>
+
+
+
+</body>
+</html>

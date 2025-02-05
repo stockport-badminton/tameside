@@ -1,0 +1,118 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+
+<% if (typeof errors !== 'undefined') { %>
+<p>Something seems to have gone slightly wonky.</p>
+<p>
+  <%= error %>
+</p>
+<% }
+  if (typeof result !== 'undefined'){
+    var current = ""
+    result.forEach(function(row){
+      var n = (row['pointsFor'] / row['played']);
+      if(Number.isNaN(n)){
+        var n = 0;
+      }
+      else{
+        if (!(Number.isInteger(n))){
+          n = n.toFixed(1);
+        }
+      }
+      if (row['division'] == current) {
+        %>
+        <tr>
+          <td>
+            <%= row['name'] %>
+          </td>
+          <td>
+            <%= row['played'] %>
+          </td>
+          <td>
+            <%= row['pointsFor'] %>
+          </td>
+          <td>
+            <%= row['pointsAgainst'] %>
+          </td>
+          <td>
+            <%= n %>
+          </td>
+        </tr>
+        <%
+      }
+      else {
+        if (current != "" ){
+        %>
+      </tbody>
+    </table>
+  </div>
+  </div>
+        <%
+      }
+        current = row['division'];
+        %>
+  <div class="col-md-4">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>
+              <%= row['divisionName'] %>
+            </th>
+            <th>p</th>
+            <th>w</th>
+            <th>l</th>
+            <th>avg</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <%= row['name'] %>
+            </td>
+            <td>
+              <%= row['played'] %>
+            </td>
+            <td>
+              <%= row['pointsFor'] %>
+            </td>
+            <td>
+              <%= row['pointsAgainst'] %>
+            </td>
+            <td>
+              <%= n %>
+            </td>
+          </tr>
+          <%
+      }
+    })
+}
+  %>
+</tbody>
+</table>
+</div>
+</div>
+<% if (typeof season === 'undefined' || season == '20222023'){ %>
+  <!-- <div class="col-md-4">
+    <p><strong class="font-weight-bold">Penalties: </strong></p>
+  </div> -->
+  <% } %>
+<% if (season == '20212022'){ %>
+  <div class="col-md-4">
+    <p><strong class="font-weight-bold">Penalties: </strong>Shell C: fielding ineligible players: 43pts<br />
+    Disley A: All fixtures voided</p>
+  </div>
+  <% } %>
+
+  <% if (season == '20192020'){ %>
+  <div class="col-md-4">
+    <p><strong class="font-weight-bold">Penalties: </strong>Disley B: fielding ineligible players: 36pts<br />Disley C: fielding ineligible players: 1pt</p>
+  </div>
+  <% } %>
+<%- include('footer.ejs') %>
+
+
+</body>
+
+</html>

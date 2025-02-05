@@ -1,0 +1,205 @@
+<div class="modal" id="AddCreatePlayerModal">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+  
+        <!-- Modal Header -->
+        <div class="modal-header">
+          <h4 class="modal-title">Add Player</h4>
+          <button type="button" class="btn-close" data-bs-dismiss="modal">&times;</button>
+        </div>
+  
+        <!-- Modal body -->
+        <div class="modal-body text-left">
+          <form id="addPlayerForm">
+              <div class="form-group">
+                <label for="recipient-name" class="col-form-label">Name</label>
+                <input type="text" class="form-control" id="player-name">
+              </div>
+              <input type="hidden" id="playerGender" value="">
+              <input type="hidden" id="targetTeam" value="">
+              <input type="hidden" id="nomOrReserves" value="">
+            </form>
+        </div>
+  
+        <!-- Modal footer -->
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" id="searchPlayer">Search</button>
+          <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
+        </div>
+  
+      </div>
+    </div>
+  </div>
+  
+  
+  <script>
+      $("#AddCreatePlayerModal").on("show.bs.modal", function (event) {
+          var button = $(event.relatedTarget) // Button that triggered the modal
+          var teamName =              event.relatedTarget.parentElement.parentElement.parentElement.parentElement.parentElement.children[0].childNodes[0].nodeValue
+          var teamId =              event.relatedTarget.parentElement.parentElement.parentElement.parentElement.parentElement.children[0].attributes[1].nodeValue
+          var nominatedOrReserves =   event.relatedTarget.parentElement.parentElement.parentElement.parentElement.children[0].childNodes[0].nodeValue
+          var maleOrFemale = event.relatedTarget.parentElement.parentElement.children[0].childNodes[0].nodeValue
+          var modal = $(this)
+          modal.find('.modal-title').text("New player for "+teamName+" ("+teamId+") "+nominatedOrReserves)
+          modal.find('.modal-body input').val("")
+          modal.find('#playerGender').val(maleOrFemale)
+          modal.find('#targetTeam').val(teamId)
+          modal.find('#nomOrReserves').val(nominatedOrReserves)
+          if (document.getElementById("player-select") != null){
+            document.getElementById("player-select").remove();
+          }
+          var playerInput =  document.getElementById("player-name")
+          playerInput.value = "";
+          playerInput.style = "display:block;";
+      })
+      $("#searchPlayer").on("click",function(event){
+          console.log('/players/matching/'+$("#playerGender").val()+'/'+$("#player-name").val())
+          $.get('/players/matching/'+$("#player-name").val()+'/'+($("#playerGender").val() == "Men"?"Male":"Female"), function (data) {
+            console.log(data)
+            var playerInput =  document.getElementById("player-name")
+            // playerInput.parentNode.removeChild(playerInput);
+            var playerSelector = document.createElement("select")
+            playerSelector.id = "player-select"
+            playerSelector.name = "player-select"
+            var playerSelect = document.createElement("option")
+            playerSelect.value = $("#player-name").val()
+            playerSelect.text = $("#player-name").val() + "(New Player)"
+            playerSelect.class = "playerNew"
+            playerSelect.dataset.club = 
+            playerSelector.appendChild(playerSelect)
+            for (const p of data){
+              // console.log(p);
+              var playerSelect = document.createElement("option")
+              playerSelect.value = p.playerID
+              playerSelect.text = p.name + "("+p.clubName+")";
+              playerSelect.class = (p.clubId==63?"playerNoClub":"playerExisting")
+              playerSelector.appendChild(playerSelect)
+            }
+            playerInput.parentNode.appendChild(playerSelector)
+            playerInput.style = "display:none";
+            var addButton = document.createElement("button")
+            addButton.addEventListener("click",function(event){
+              var batchObj = {
+                "tablename":"player",
+                "fields":[
+                    "id","team","rank","club"
+                ],
+                "data":[]
+              }
+              var teamId = this.parentElement.parentElement.parentElement.children[0].children[1].children[0][3].value
+              var nominatedOrReserves = this.parentElement.parentElement.parentElement.children[0].children[1].children[0][4].value
+              var maleOrFemale = this.parentElement.parentElement.parentElement.children[0].children[1].children[0][2].value
+              var selectedPlayer = this.parentElement.parentElement.children[1].children.addPlayerForm[1].selectedOptions[0]
+              var targetTeamContainer = document.querySelectorAll("[data-teamid='"+teamId+"']")[0].parentElement.querySelectorAll("div."+nominatedOrReserves.toLowerCase()+"-container div."+maleOrFemale.toLowerCase())
+              var targetPlayers = [...targetTeamContainer[0].children].filter(n => n.classList.contains('player-box'))
+              if (selectedPlayer.class == "playerExisting"){
+                alert("Only the results secretary can transfer players between clubs, an email has been sent to request a transfer.")
+                console.log("adding player: "+ selectedPlayer.text +" id: "+parseInt(selectedPlayer.value));
+                <% if (typeof superadmin !== 'undefined' && superadmin) { %>
+                  var newPlayerElem = document.createElement("div")
+                  newPlayerElem.className = "player-box row border rounded p-3"
+                  newPlayerElem.draggable = true
+                  var playerName = document.createTextNode(selectedPlayer.text);
+                  newPlayerElem.appendChild(playerName);
+                  newPlayerElem.dataset.id = selectedPlayer.value
+                  newPlayerElem.dataset.team = teamId
+                  var removeButton = document.createElement("i")
+                  removeButton.className = "fa fa-times text-danger";
+                  newPlayerElem.appendChild(removeButton);
+                  var targetTeamContainer = document.querySelectorAll("[data-teamid='"+teamId+"']")[0].parentElement.querySelectorAll("div."+nominatedOrReserves.toLowerCase()+"-container div."+maleOrFemale.toLowerCase())[0]
+                  targetTeamContainer.insertBefore(newPlayerElem,targetTeamContainer.querySelectorAll("div.add-player-box")[0]);
+                  console.log(targetTeamContainer);
+                  targetPlayers = [...targetTeamContainer.children].filter(n => n.classList.contains('player-box'))
+                <% } %>
+                
+              }
+              else if (selectedPlayer.class == "playerNoClub"){
+                alert("adding player: "+ selectedPlayer.text +" id: "+parseInt(selectedPlayer.value));
+                var newPlayerElem = document.createElement("div")
+                newPlayerElem.className = "player-box row border rounded p-3"
+                newPlayerElem.draggable = true
+                var playerName = document.createTextNode(selectedPlayer.text);
+                newPlayerElem.appendChild(playerName);
+                newPlayerElem.dataset.id = selectedPlayer.value
+                newPlayerElem.dataset.team = teamId
+                var removeButton = document.createElement("i")
+                removeButton.className = "fa fa-times text-danger";
+                newPlayerElem.appendChild(removeButton);
+                var targetTeamContainer = document.querySelectorAll("[data-teamid='"+teamId+"']")[0].parentElement.querySelectorAll("div."+nominatedOrReserves.toLowerCase()+"-container div."+maleOrFemale.toLowerCase())[0]
+                targetTeamContainer.insertBefore(newPlayerElem,targetTeamContainer.querySelectorAll("div.add-player-box")[0]);
+                targetPlayers = [...targetTeamContainer.children].filter(n => n.classList.contains('player-box'))
+              }
+              else { //this section deals with creating a player from scratch, inserting into the DB, and adding the new playerelement to the UI
+                alert("creating player: "+ selectedPlayer.text +" id: "+parseInt(selectedPlayer.value));
+                var playerObject = {
+                  "first_name":selectedPlayer.text.slice(0,selectedPlayer.text.indexOf(" ")),
+                  "family_name":selectedPlayer.text.slice(selectedPlayer.text.indexOf(" "),selectedPlayer.text.indexOf("(New")),
+                  "team":teamId,
+                  "club": <%= clubId %>,
+                  "gender": (maleOrFemale == 'Men'?"Male":"Female")
+                }
+                console.log(playerObject);
+                
+                $.post('/manage-players/create',playerObject, function (data) {
+                  //console.log(data);
+                  var newPlayerElem = document.createElement("div")
+                  newPlayerElem.className = "player-box row border rounded p-3"
+                  newPlayerElem.draggable = true
+                  newPlayerElem.dataset.team = teamId
+                  var playerName = document.createTextNode(playerObject.first_name + " " + playerObject.family_name);
+                  newPlayerElem.appendChild(playerName);
+                  var removeButton = document.createElement("i")
+                  removeButton.className = "fa fa-times text-danger";
+                  newPlayerElem.appendChild(removeButton);
+                  newPlayerElem.dataset.id = data.insertId
+                  console.log(newPlayerElem);
+                  var targetTeamContainer = document.querySelectorAll("[data-teamid='"+teamId+"']")[0].parentElement.querySelectorAll("div."+nominatedOrReserves.toLowerCase()+"-container div."+maleOrFemale.toLowerCase())[0]
+                  targetTeamContainer.insertBefore(newPlayerElem,targetTeamContainer.querySelectorAll("div.add-player-box")[0]);
+                  targetPlayers = [...targetTeamContainer.children].filter(n => n.classList.contains('player-box'))
+                },"json")
+              }
+              
+              var rank = 1;
+              targetPlayers.forEach(function(player){
+                if (nominatedOrReserves == 'Reserves'){
+                  // console.log("update player set team = "+teamId+", rank = 99 where id = "+ player.attributes['data-id'].nodeValue)
+                  batchObj.data.push([parseInt(player.attributes['data-id'].nodeValue,10),parseInt(teamId,10),99,<%= clubId %>])  
+                }
+                else {
+                  // console.log("update player set team = "+teamId+", rank = "+rank+" where id = "+ player.attributes['data-id'].nodeValue)
+                  batchObj.data.push([parseInt(player.attributes['data-id'].nodeValue,10),parseInt(teamId,10),rank,<%= clubId %>])
+                  rank++;
+                }
+              })
+              console.log(batchObj);
+              fetch('/player/batch-update', {
+                method: 'POST', // or 'PUT'
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(batchObj),
+              })
+              .then((response) => {
+                response.json()
+              })
+              .then((data) => {
+                console.log('Success:', data);
+                var searchButton = document.getElementById("searchPlayer")
+                var newAddButton = searchButton.previousSibling
+                newAddButton.style = "display:none";
+                searchButton.style = "display:auto";
+              })
+              .catch((error) => {
+                console.error('Error:', error);
+              }); 
+            })
+            addButton.classList = "btn btn-primary";
+            addButton.type = "button";
+            addButton.textContent = "Add"
+            var searchButton = document.getElementById("searchPlayer")
+            searchButton.parentNode.insertBefore(addButton,searchButton)
+            searchButton.style = "display:none";
+  
+          })
+      })
+  </script>

@@ -1,0 +1,62 @@
+document.addEventListener('DOMContentLoaded', (event) => {
+
+
+
+    function updateFilter(e){
+      e.preventDefault()
+      let queryString = ""
+      for (row of document.forms[0]){
+          console.log(row.name)
+          console.log(row.value)
+          if (row.name.indexOf('division') >= 0 && row.value != 0) {
+              queryString+= '/'+row.value 
+          }
+          if (row.name.indexOf('division') >= 0 && row.value == 0 && window.location.pathname.indexOf('/results') > -1 ) {
+            queryString+= '/All'
+          }
+          if (row.name.indexOf('season') >= 0 && row.value != 0) {
+              queryString+= '/'+row.value 
+          }
+          if (row.name.indexOf('gender') >= 0 && row.value !=0) {
+              queryString+= '/gender-'+row.value 
+          }
+          if (row.name.indexOf('gameType') >= 0 && row.value != 0) {
+              queryString+= '/gameType-'+row.value 
+          }
+          if (row.name.indexOf('club') >= 0 && row.value != 0) {
+              queryString+= '/club-'+row.value 
+          }
+          if (row.name.indexOf('team') >= 0 && row.value != 0) {
+              queryString+= '/team-'+row.value 
+          }
+          if (row.name.indexOf('status') >= 0 && row.value != 0) {
+              queryString+= '/status-'+row.value 
+          }
+      }
+      console.log(queryString)
+      window.location.assign(window.location.origin + '/'+window.location.pathname.split('/')[1]+queryString)
+    }
+
+    function toggleFilter(e){
+        e.preventDefault()
+        
+        let element = document.querySelector("#statsFilter").style.display
+        console.log(element)
+        if (element.indexOf('none') > -1){
+            console.log("fired")
+            document.querySelector("#statsFilter").style.display = "block"
+            element = "block"
+        }
+        else {
+            console.log("fired none")
+            document.querySelector("#statsFilter").style.display = "none"
+            element = "none"
+        }
+    }
+
+    document.querySelector("#statsUpdate").addEventListener('click',updateFilter);
+    
+    if (window.location.pathname.indexOf('/results') > -1 ){
+        document.querySelector("#showFilter").addEventListener('click',toggleFilter);
+    }
+  })

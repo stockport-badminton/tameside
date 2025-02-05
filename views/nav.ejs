@@ -1,0 +1,62 @@
+<nav class="navbar navbar-expand-lg fixed-top bg-body-tertiary">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/">Tameside Badminton League</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNavDropdown">
+        <ul class="navbar-nav">
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Fixtures & Results
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="/email-scorecard">Enter Result</a></li>
+                    <li><a class="dropdown-item" href="/tables/All">Tables</a></li>
+                    <li><a class="dropdown-item" href="/results/All">All</a></li>
+                    <li><a class="dropdown-item" href="/results/Division 1">Division 1</a></li>
+                    <li><a class="dropdown-item" href="/results/Division 2">Division 2</a></li>
+                </ul>
+            </li>
+            <li class="nav-item"><a class="nav-link" href="/info/clubs">Clubs</a></li>
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Useful Files
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="/static/docs/scorecard.pdf">Scorecard</a></li>
+                </ul>
+            </li>
+            <li class="nav-item"><a class="nav-link" href="/lewis-shield">Lewis Shield</a></li>
+            <li class="nav-item"><a class="nav-link" href="/rules">Rules</a></li>
+            <li class="nav-item"><a class="nav-link" href="/contact-us">Contact Us</a></li>
+            <% if(locals.user) { %>
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" id="dropdown01" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Admin</a>
+                <div class="dropdown-menu" aria-labelledby="dropdown01">
+                  <a class="dropdown-item" href="/email-scorecard">Enter Result</a>
+                  <a class="dropdown-item" href="/admin/results/All">Results Detail</a>
+                  <% 
+                    if(locals.user._json['https://my-app.example.com/role'] == 'superadmin') { %>
+                      <a class="dropdown-item" href="/manage-players/club-Aerospace">Team Management</a>
+                      <a class="dropdown-item" href="/fixture-players">Fixture Players</a>
+                      <a class="dropdown-item" href="/player-stats">Individual Stats</a>
+                      <a class="dropdown-item" href="/pair-stats">Pair Stats</a>
+                   <% }
+                  %>
+                  
+                  <a class="dropdown-item" href="/logout" target="_blank">Logout</a>
+                </div>
+              </li>
+            <% } else { 
+              %>
+              <li class="nav-item"><a class="nav-link" id="loginLink" href="/login">Log in</a></li>
+            <% } %>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main role="main" class="container">
+    <div class="starter-template row">
+    

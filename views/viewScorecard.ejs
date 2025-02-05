@@ -1,0 +1,80 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+<%
+
+var MyDate = new Date(result[0].date);
+var MyDateString;
+MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+             + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+             + MyDate.getFullYear(); %>
+
+<h1 class="w-100">Scorecard</h1>
+<div class="col-md-12 col-lg-9 col-xl-6 no-gutters">
+
+<div id="FixtureSummary" class="row no-gutters col-12">
+  <div class="col-4">
+    Date : <%= MyDateString %>
+  </div>
+  <div class="col-8"></div>
+  <div class="col-4"><%= result[0].homeTeam %></div>
+  <div class="col-1">vs</div>
+  <div class="col-4"><%= result[0].awayTeam %></div>
+  <div class="col-3"></div>
+</div>
+<%
+var totalHomePoints = 0, totalAwayPoints = 0
+result.forEach(function(row,i){
+  %>
+
+  <%
+  totalHomePoints += row.homeScore
+  totalAwayPoints += row.awayScore
+  if (i%2 == 0){ 
+    gamesWonAway = 0;
+    gamesWonHome = 0;
+    if (row.homeScore > row.awayScore){
+      gamesWonHome++;
+    }
+    else {
+      gamesWonAway++;
+    }
+    %>
+    <div class="row no-gutters col-12">
+    <div class="col-4"><%= row.homePlayer1 %> &amp; <%= row.homePlayer2 %></div>
+    <div class="col-1">vs</div>
+    <div class="col-4"><%= row.awayPlayer1 %> &amp; <%= row.awayPlayer2 %></div>
+    <div class="col-2"><%= row.homeScore %>-<%= row.awayScore %>, 
+  <%
+  }
+  else{ 
+    if (row.homeScore > row.awayScore){
+      gamesWonHome++;
+    }
+    else {
+      gamesWonAway++;
+    }
+    %>
+    <%= row.homeScore %>-<%= row.awayScore %></div>
+    <div class="col-1"><%= gamesWonHome %>-<%= gamesWonAway %></div></div>
+  <% }
+  %>
+
+  <%
+})
+
+%>
+
+<div id="finalScore" class="row no-gutters col-12">
+  <div class="col-4"></div>
+  <div class="col-1"></div>
+  <div class="col-4"></div>
+  <div class="col-2"><%= totalHomePoints %>-<%= totalAwayPoints %></div>
+  <div class="col-1"><%= result[0].totalHomeScore %>-<%= result[0].totalAwayScore %></div>
+</div>
+</div>
+
+<%- include('footer.ejs') %>
+
+
+</body>
+</html>

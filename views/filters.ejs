@@ -1,0 +1,107 @@
+<div class="row col-12">
+      <form action="" id="statsFilter" class="col-auto">
+        <div class="form-group row">
+        <% if (typeof hideFilters !== "undefined" && hideFilters.indexOf("season") == -1){ %>
+          <div class="col-auto">
+            <label for="seasonSelect">Season</label>
+            <select class="form-control" name="seasonSelect" id="seasonSelect">
+              <option value="0">Current</option>
+              <option value="20232024">2023-2024</option>
+            </select>
+          </div>
+          <% } %>
+          <% if (typeof hideFilters !== "undefined" && hideFilters.indexOf("division") == -1){ %>
+          <div class="col-auto">
+            <label for="divisionSelect">Division</label>
+            <select class="form-control" name="divisionSelect" id="divisionSelect">
+              <option value="0">All</option>
+              <option value="Division-1">Division 1</option>
+              <option value="Division-2">Division 2</option>
+            </select>
+          </div>
+          <% } %>
+          <% if (typeof hideFilters !== "undefined" && hideFilters.indexOf("status") == -1){ %>
+            <div class="col-auto">
+              <label for="statusSelect">Status</label>
+              <select class="form-control" name="statusSelect" id="statusSelect">
+                <option value="0">All</option>
+                <option value="outstanding">Outstanding</option>
+                <option value="rearranging">Rearranging</option>
+                <option value="rearranged">Rearranged</option>
+                <option value="conceded">Conceded</option>
+                <option value="complete">Completed</option>
+              </select>
+            </div>
+            <% } %>
+          <% if (typeof hideFilters !== "undefined" && hideFilters.indexOf("gender") == -1){ %>
+          <div class="col-auto">
+            <label for="gender">Gender</label>
+            <select class="form-control" name="gender" id="gender">
+              <option value="0">All</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
+          </div>
+          <% } %>
+          <% if (typeof hideFilters !== "undefined" && hideFilters.indexOf("gametype") == -1){ %>
+          <div class="col-auto">
+            <label for="gameType">Game Type</label>
+            <select class="form-control" name="gameType" id="gameType">
+              <option value="0">All</option>
+              <option value="Mens">Mens</option>
+              <option value="Ladies">Ladies</option>
+              <option value="Mixed">Mixed</option>
+            </select>
+          </div>
+          <% } %>
+          <% if (typeof clubs !== "undefined"){ %>
+          <div class="col-auto">
+            <label for="club">Club</label>
+            <select class="form-control" name="club" id="club">
+              <option value="0">All</option>
+              <% 
+              for (row of clubs){ %>
+                <option value="<%= row %>"><%= row %></option>
+              <% }
+              %>
+            </select>
+          </div>
+          <% } %>
+          <% if (typeof teams !== "undefined"){ %>
+          <div class="col-auto">
+            <label for="team">Team</label>
+            <select class="form-control" name="team" id="team">
+              <option value="0">All</option>
+              <% 
+              for (row of teams){ %>
+                <option value="<%= row %>"><%= row %></option>
+              <% }
+              %>
+            </select>
+          </div>
+          <% } %>
+          <button class="w-auto mx-1 btn btn-primary" id="statsUpdate">Update</button>
+        </div>
+        
+      </form>
+      <% if(typeof title !== "undefined" && title.indexOf("Player Stats") > -1) { %>
+        <form action="" class="col-auto">
+          <label for="columnToggle" class="d-block">Show/Hide Columns</label>
+          <select multiple name="columnToggle" id="columnToggle">
+            <option value="0">Name</option>
+            <option value="1">Gender</option>
+            <option value="2">Team</option>
+            <option value="3">Club</option>
+            <option value="4">Aces For</option>
+            <option value="5">Aces Against</option>
+            <option value="6">P + W - L</option>
+            <option value="7">Games Played</option>
+            <option value="8">Games Won</option>
+            <option value="9">Games Won / Match</option>
+            <option value="10">Pts For / Game</option>
+            <option value="11">Pts Against / Game</option>
+            <option value="12">Rating</option>
+          </select>
+        </form>
+        <% } %>
+    </div>

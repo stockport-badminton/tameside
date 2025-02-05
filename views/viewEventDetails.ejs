@@ -1,0 +1,86 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+<%
+
+var MyDate = new Date(fixtureDetails.date);
+var MyDateString;
+MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+             + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+             + MyDate.getFullYear(); %>
+
+<h1 class="w-100"><%= fixtureDetails.homeTeam + " vs " + fixtureDetails.awayTeam %></h1>
+<div class="row g-0 w-100 align-self-start">
+    <div class="col-auto">
+      Date : <%= MyDateString %>
+    </div>
+    <div class="col-1"></div>
+    <div class="col-auto">Start Time: <%= fixtureDetails.startTime %></div>
+</div>
+<div class="row w-100 align-self-start">
+    <div class="col-auto text-left"><%= fixtureDetails.homeTeam %></div>
+    <div class="col-auto text-left">vs</div>
+    <div class="col-auto text-left"><%= fixtureDetails.awayTeam %></div>
+</div>
+<div class="row w-100 align-self-start">
+    <div class="col text-left">Venue: <%= fixtureDetails.venueName + " @ " + fixtureDetails.venueAddress %></div>
+</div>
+<div class="row align-self-start w-100">
+    <div class="col-auto text-left">Team Captain: <%= fixtureDetails.teamCaptain %></div>
+    <div class="col-1"></div>
+    <div class="col-auto text-left">Match Secretary: <%= fixtureDetails.matchSecretary %></div>
+</div>
+<div class="row  g-0 w-100">
+    <div id="eventMap" class="col-12 col-md-6"></div>
+    <div class="col-12 col-md-6">
+        <img src="https://res.cloudinary.com/hvunsveuh/image/upload/co_rgb:000,l_text:Roboto_110_bold:<%= fixtureDetails.homeTeam %>vs/fl_layer_apply,g_south_west,x_10,y_140/co_rgb:000,l_text:Roboto_110_bold:<%= fixtureDetails.awayTeam %>/fl_layer_apply,g_south_west,x_10,y_30/f_auto/q_auto/w_auto:breakpoints_200_1920_30_10:300/social-<%= fixtureDetails.divisionName %>.png" class="img-fluid" alt="<%= fixtureDetails.homeTeam + " vs " + fixtureDetails.awayTeam %>" />
+    </div>
+</div>
+
+
+<%- include('footer.ejs') %>
+<script>
+    (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+      key: "<%= mapsApiKey %>",
+      v: "weekly",
+      // Use the 'v' parameter to indicate the version to use (weekly, beta, alpha, etc.).
+      // Add other bootstrap parameters as needed, using camel case.
+    });
+  </script>
+
+<script>
+let map;
+
+async function initMap() {
+  const { Map } = await google.maps.importLibrary("maps");
+const { Place } = await google.maps.importLibrary("places");
+  const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+
+const place = new Place({
+    id: "<%= fixtureDetails.placeId %>",
+    requestedLanguage: "en", // optional
+  });
+await place.fetchFields({
+    fields: ["displayName", "formattedAddress", "location"],
+  });
+  console.log(place.location)
+
+  map = new Map(document.getElementById("eventMap"), {
+    center: place.location,
+    zoom: 15,
+    mapId: "DEMO_MAP_ID",
+  });
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+      position: place.location,
+      map: map,
+    });
+}
+  
+  initMap()
+  </script>
+  
+  
+  
+  
+
+</body>
+</html>

@@ -1,0 +1,89 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+
+  <% if (typeof errors !== 'undefined') { %>
+    <p>Something seems to have gone wrong</p>
+    <p><%= error %></p>
+  <% }
+  else { %>
+    <h1>Registered Players</h1>
+    <div class="table-responsive">
+    <table class="table" id="results-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Club</th>
+          <th>Team</th>
+          <th>Gender</th>
+          <th>Registered</th>
+        </tr>
+      </thead>
+      <tbody>
+    <% result.forEach(function(row){ %>
+      <%
+        var MyDate = new Date(row['date_of_registration']);
+        var MyDateString;
+
+        // MyDate.setDate(MyDate.getDate() + 20);
+
+        MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+                     + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+                     + MyDate.getFullYear();
+      %>
+
+      <tr>
+
+          <td><a href="/playerStats/<%= row['playerId'] %>/<%= row['name'] %>"><%= row['name'] %></a></td>
+          <td><%= row['clubName'] %></td>
+          <td><%= row['teamName'] %></td>
+          <td><%= row['gender'] %></td>
+          <td><%= MyDateString %></td>
+      </tr>
+    <% }) %>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+   <% } %>
+
+
+
+
+<%- include('footer.ejs') %>
+<script type="text/javascript" src="https://cdn.datatables.net/v/bs4/jq-3.3.1/dt-1.10.20/b-1.6.1/b-colvis-1.6.1/fh-3.1.6/r-2.2.3/datatables.min.js"></script>
+<script type="text/javascript" src="//cdn.datatables.net/plug-ins/1.10.19/sorting/date-euro.js"></script>
+
+<script type="text/javascript">
+  $(document).ready( function () {
+    $('#results-table thead tr').clone(true).appendTo( '#results-table thead' );
+    $('#results-table thead tr:eq(1) th').each( function (i) {
+        var title = $(this).text();
+        $(this).html( '<input type="text" placeholder="Search '+title+'" />' );
+ 
+        $( 'input', this ).on( 'keyup change', function () {
+            if ( table.column(i).search() !== this.value ) {
+                table
+                    .column(i)
+                    .search( this.value )
+                    .draw();
+            }
+        } );
+    } );
+ 
+    var table = $('#results-table').DataTable( {
+        orderCellsTop: true,
+        fixedHeader: true
+    } );
+  } );
+</script>
+
+</body>
+</html>

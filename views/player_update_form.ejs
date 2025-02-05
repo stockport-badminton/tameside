@@ -1,0 +1,56 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<div class="w-50">
+  <form id="signupForm" role="form" method="post" action="/player/<%= result[0].id %>">
+    <div class="modal-content">
+      <div class="modal-body row">
+          <div class="col-6">
+            <label for="first_name" >First Name</label>
+            <input type="text" class="form-control" id="first_name" name="first_name" placeholder="<%= result[0].first_name %>" value="<%= result[0].first_name %>">
+          </div>
+          <div class="col-6">
+            <label for="family_name">Family Name</label>
+            <input type="text" class="form-control" id="family_name" name="family_name" placeholder="<%= result[0].family_name %>" value="<%= result[0].family_name %>">
+          </div>
+          <div class="col-6">
+            <label for="playerEmail">Email</label>
+            <input type="email" class="form-control" id="playerEmail" name="playerEmail" placeholder="<%= result[0].playerEmail %>" value="<%= result[0].playerEmail %>">
+          </div>
+          <div class="col-6">
+            <label for="playerTel">Phone</label>
+            <input type="tel" class="form-control" id="playerTel" name="playerTel" placeholder="<%= result[0].playerTel %>" value="<%= result[0].playerTel %>">
+          </div>
+          <div class="col-6">
+            <label for="gender">Gender</label>
+            <select name="gender" id="gender" class="form-control">
+              <% if (result[0].gender == 'Male') { %>
+                <option value="Male" selected>Male</option>
+                <option value="Female">Female</option>
+              <% }
+              else { %>
+                <option value="Male">Male</option>
+                <option value="Female" selected>Female</option>
+              <% } %>
+            </select>
+          </div>
+          
+
+          <div class="btn-group-vertical col-6 mt-2">
+            <input type="checkbox" class="btn-check" id="teamCaptain" name="teamCaptain" value="1" <%= result[0].teamCaptain == 1 ? 'checked':'' %>>
+            <label for="teamCaptain" class="btn btn-outline-primary">Team Captain</label>
+            <input type="checkbox" class="btn-check" id="clubSecretary" name="clubSecretary" value="1" <%= result[0].clubSecretary == 1 ? 'checked':'' %>>
+            <label for="clubSecretary" class="btn btn-outline-primary">club Secretary</label>
+            <input type="checkbox" class="btn-check" id="matchSecrertary" name="matchSecrertary" value="1" <%= result[0].matchSecrertary == 1 ? 'checked':'' %>>
+            <label for="matchSecrertary" class="btn btn-outline-primary">match Secretary</label>
+            <input type="checkbox" class="btn-check" id="treasurer" name="treasurer" value="1" <%= result[0].treasurer == 1 ? 'checked':'' %>>
+            <label for="treasurer" class="btn btn-outline-primary">Treasurer</label>
+          </div>
+      </div>
+      <div class="row mt-1">
+        <button id="submit" type="submit" class="btn btn-primary">Submit</button>
+      </div>
+    </div>
+  </form>
+</div>
+<%- include('footer.ejs') %>

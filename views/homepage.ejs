@@ -1,0 +1,68 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<div class="col-md-4">
+      <h1>News</h1>
+      
+            <p class="lead">
+              <strong>Updates</strong><br />
+              Some improvements for you all. For all of you with scorecard photos on your phone, but entering results on another device<br />
+              Skip the photo stage for the initial entry, and then return to the <a href="/email-scorecard">Link</a> and you'll find a list of your scorecard that still need photos. Now you can enter the scorecard info in one place and then upload the photo from your phone separately<br /><br />
+              <strong>Player registrations</strong><br />
+              If captains / teams could endeavor to email me before/during a match where a new player is being added that will help smooth scorecard entry<br /><br />
+              There's no need to send scorecards directly to Jonny anymore - you can <a href="/email-scorecard">enter them online</a> and he will receive them<br /><br />
+              <a href="#" data-bs-toggle="modal" data-bs-target="#resultsEntryModal">A quick guide to results entry </a><br /><br />
+              Questions / suggestions are always welcome - use the contact us menu to get in touch with me. Neil<br />
+            </p>
+      </div>
+      <div class="col-md-4">
+        <h1>Recent Results</h1>
+        <% if (typeof result !== 'undefined') { %>
+        <% result.forEach(function(row){ %>
+          <div class="row">
+          <%
+            var MyDate = new Date(row['date']);
+            var MyDateString, otherDateString;
+      
+            // MyDate.setDate(MyDate.getDate() + 20);
+      
+            MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+                         + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+                         + MyDate.getFullYear();
+      
+             otherDateString = MyDate.getFullYear() + '/'
+                            + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+                            + ('0' + MyDate.getDate()).slice(-2)
+          %>
+          <div class="col-3"><%= MyDateString %></div>
+          <div class="col"><%= row['homeTeam'] %> vs <%= row['awayTeam'] %></div>
+          <div class="col-3"><%= row['homeScore'] %>-<%= row['awayScore'] %></div>
+          </div>
+        <% }) } %>
+      </div>
+      <div class="col-md-4">
+        <h1>Upcoming Fixtures</h1>
+        <% if (typeof row !== 'undefined') { %>
+        <% row.forEach(function(result){ %>
+          <div class="row">
+          <%
+            var MyDate = new Date(result['date']);
+            var MyDateString;
+      
+            // MyDate.setDate(MyDate.getDate() + 20);
+      
+            MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+                         + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+                         + MyDate.getFullYear();
+          %>
+          <div class="col-3"><%= MyDateString %></div>
+          <div class="col"><a href="<%= '/event/' + result.id + '/' + MyDateString.replaceAll("/","") + '-' + result.homeTeam + '-' + result.awayTeam %>"><%= result['homeTeam'] %> vs <%= result['awayTeam'] %></a></div>
+        </div>
+        <% }) } %>
+      </div>
+
+<%- include('resultsEntryModal.ejs') %>
+<%- include('footer.ejs') %>
+
+
+

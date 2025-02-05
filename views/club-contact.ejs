@@ -1,0 +1,79 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+
+<% if (error || typeof clubrow == 'undefined') { %>
+  <p>Something seems to have gone wrong</p>
+  <p><%= error %></p>
+<% }
+else { %>
+
+  <div class="col-12 alert alert-warning alert-dismissible fade show" role="alert">
+    <strong>PLEASE NOTE</strong> This is a secure area of the website containing personal information. Creation of this area was agreed by the management Committee at the start of the post-Covid season to address the lack of a physical handbook: users were assured of confidentiality.  This area is subject to GDPR rules and regulations.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close">
+    </button>
+  </div>
+<div class="row">
+<div class="col-md-6">
+<h1>Club Info</h1>
+  <h2><%= clubrow[0].clubName  %></h2>
+  <% if (clubrow[0].venueId == clubrow[0].matchVenueId) { %>
+    <h3>Address</h3>
+    <p>
+      <%= clubrow[0].venueName %><br />
+      <%= clubrow[0].address %><br /><br />
+    </p>
+  <% }
+  else { %>
+    <h3>Match Address</h3>
+    <p>
+      <%= clubrow[0].matchVenueName %><br />
+      <%= clubrow[0].matchVenueAddress %><br /><br />
+    </p>
+    <h3>Club Address</h3>
+    <p>
+      <%= clubrow[0].venueName %><br />
+      <%= clubrow[0].address %><br /><br />
+    </p>
+  <% } %>
+  
+  <h3>Secretary:</h3> <%= clubrow[0].clubSecretary %>, <%= clubrow[0].clubSecTel %>, <%= clubrow[0].clubSecEmail %> </h3>
+  <h3>Match Secretary:</h3> <%= clubrow[0].matchSecretary %>, <%= clubrow[0].matchSecTel %>, <%= clubrow[0].matchSecEmail %> </h3>
+  
+</div>
+<div class="col-md-6">
+  <h3>Teams</h3>
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Captain</th>
+          <th>Email</th>
+          <th>Telephone</th>
+        </tr>
+      </thead>
+      <tbody>
+  <% clubrow.forEach(function(teamRow){ %>
+    <tr>
+      <td><%= teamRow.teamName %></td>
+      <td><%= teamRow.teamCaptain %></td>
+      <td><%= teamRow.teamCaptainEmail %></td>
+      <td><%= teamRow.teamCaptainTel %></td>
+    </tr>
+  <% }) %>
+  </tbody>
+  </table>
+  </div>
+</div>
+</div>
+
+
+
+<% } %>
+<%- include('footer.ejs') %>
+
+
+
+</body>
+</html>
