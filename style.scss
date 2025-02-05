@@ -1,0 +1,158 @@
+
+$body-bg: #C0C0C0;
+
+@import "../node_modules/bootstrap/scss/bootstrap.scss";
+
+// importing core styling file
+
+@import '../node_modules/@fortawesome/fontawesome-free/scss/fontawesome.scss';
+
+// our project needs Classic Solid, Brands, and Sharp Solid
+@import '../node_modules/@fortawesome/fontawesome-free/scss/solid.scss';
+@import '../node_modules/@fortawesome/fontawesome-free/scss/brands.scss';
+@import '../node_modules/@fortawesome/fontawesome-free/scss/regular.scss';
+
+#map {
+      width:100%;
+      height:400px;
+}
+
+/* Style all font awesome icons */
+.fa, .fa-brands {
+      padding: 10px;
+      font-size: 30px;
+      text-align: center;
+      text-decoration: none;
+      float:right;
+      margin: 5px;
+    }
+    
+    /* Add a hover effect if you want */
+    .fa:hover, .fa-brands:hover {
+      opacity: 0.7;
+    }
+    
+    /* Set a specific color for each brand */
+    
+    /* Facebook */
+    .fa-facebook {
+      background: #3B5998;
+      color: white;
+    }
+    
+    /* Twitter */
+    .fa-twitter {
+      background: #55ACEE;
+      color: white;
+    }
+    
+    /* Instagram */
+    .fa-instagram {
+      background: #125688;
+      color: white;
+    }
+    
+    .fa-map-location-dot {
+      color: black;
+      font-size: 1.5em;
+      padding-right:1em
+    }
+    
+    .add-player-box .fa, .player-box .fa {
+      font-size:16px;
+      padding:0px;
+      position:absolute;
+      right:16px;
+      width: auto;
+    }
+    
+    .nominated-container, .reserves-container {
+      border-style: dashed !important;
+    }
+    
+    .alert {
+      height: 100%;
+    }
+    
+    .nav-link {
+      cursor: pointer;
+    }
+    
+    i.fa.fa-ellipsis-v.dropdown-toggle::after {
+      content:unset
+    }
+    
+    .h-13 {
+      height: 13%!important;
+    }
+    
+    .h-6 {
+      height: 6%!important;
+    }
+    .w-2 {
+      width: 2%!important;
+    }
+    .odd-fix{
+      border-width:1px 1px 0px 0px;
+      border-color: black;
+      border-style: solid;
+    }
+    
+    .even-fix{
+      border-width:0px 1px 1px 0px;
+      border-color: black;
+      border-style: solid;
+    }
+    
+    .bracket {
+      border-style:solid;
+      border-color:black;
+      display:block;
+      height:50%;
+      text-align: right;
+    }
+    
+    .bracket.even-fix{
+      position:relative;top:-25%;
+    }
+    .bracket.odd-fix{
+      position:relative;top:25%;
+    }
+    .bracket-container .row {
+      padding:5px 0px;
+      text-align: left;
+    }
+    .other-tooltip {
+      position:relative; /* making the .tooltip span a container for the tooltip text */
+      border-bottom:1px dashed #000; /* little indicater to indicate it's hoverable */
+    }
+    .other-tooltip:before {
+      content: attr(data-text); /* here's the magic */
+      position:absolute;
+      
+      /* vertically center */
+      top:50%;
+      transform:translateY(-50%);
+      
+      /* move to right */
+      left:100%;
+      margin-left:15px; /* and add a small left margin */
+      
+      /* basic styles */
+      width:10rem;
+      font-size:0.75rem;
+      padding:0.25rem;
+      border-radius:0.5rem;
+      background:#000;
+      color: #fff;
+      text-align:center;
+    
+      display:none; /* hide by default */
+    }
+    .other-tooltip:hover:before {
+      display:block;
+    }
+    .fixHeader > * {
+      width:auto;
+      padding:0;
+    }
