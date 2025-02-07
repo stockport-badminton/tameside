@@ -810,11 +810,11 @@ exports.fixture_detail_byDivision = function (req, res, next) {
             }
           }
         }
-        console.log(result)
-        let clubs = result.map(item => item.homeclub).filter((value, index, self) => self.indexOf(value) === index) 
-        let teams = result.map(item => item.hometeam).filter((value, index, self) => self.indexOf(value) === index)         
-        console.log(clubs)
-        console.log(teams)
+        // console.log(result)
+        let clubs = result.map(item => item.homeClub).filter((value, index, self) => self.indexOf(value) === index) 
+        let teams = result.map(item => item.homeTeam).filter((value, index, self) => self.indexOf(value) === index)         
+        // console.log(clubs)
+        // console.log(teams)
         let renderObject = {
           path: req.path,
           user: req.user,
