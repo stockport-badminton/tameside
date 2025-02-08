@@ -55,7 +55,7 @@
                         var resultValue = "Void"
                         var status = "Void"
                     }
-                    if (fix.hometeam == currhometeam) { 
+                    if (fix.homeTeam == currhometeam) { 
                     if (i%division.teams.length == 0 ){
                         %><td class="py-3 border">&nbsp;</td> <%
                     } %>
@@ -73,11 +73,11 @@
         </td>
         <% } 
                 else {
-                    currhometeam = fix.hometeam
+                    currhometeam = fix.homeTeam
                     %>
         </tr>
         <tr>
-            <th class="py-3 border"><%= fix.hometeam %></th>
+            <th class="py-3 border"><%= fix.homeTeam %></th>
             <% if (i%division.teams.length == 0 ){
                         %><td>&nbsp;</td> <%
                     } %>
