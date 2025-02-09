@@ -284,6 +284,7 @@ function secured(req, res, next) {
     req.session.returnTo = req.originalUrl; 
     res.redirect('/login?returnTo=' + encodeURIComponent(req.originalUrl));
   }
+
   app.get('/login', function(req, res, next) {
     const returnTo = req.query.returnTo;
     if (returnTo){
@@ -299,6 +300,7 @@ function secured(req, res, next) {
     passport.authenticate('auth0', function(err, user, info) {
       if (err) { return next(err); }
       if (!user) {
+        console.log("not user")
         /* res.render('failed-login', {
           static_path:'/static',
           theme:process.env.THEME || 'flatly',
@@ -314,6 +316,7 @@ function secured(req, res, next) {
           // console.log("callback currentUrl:" + currentURL)
           const returnTo = currentURL || '/'; // Retrieve the returnTo value from session
           delete req.session.returnTo; // Remove the returnTo value from session
+          console.log(returnTo)
           res.redirect(returnTo);
         });
       }
