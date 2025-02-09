@@ -291,8 +291,7 @@ function secured(req, res, next) {
       req.session.returnTo = returnTo
     }
     passport.authenticate('auth0', {
-      scope: 'openid email profile',
-      nonce: Math.random().toString(36).substr(2)
+      scope: 'openid email profile'
     })(req, res, next);
   });
 
