@@ -97,18 +97,18 @@ var strategy = new Auth0Strategy(
   // config express-session
   var sess = {
     secret: 'ThisisMySecret',
-    cookie: {sameSite:false},
+    cookie: {},
     resave: false,
     saveUninitialized: false
   };
   console.log("prod environment")
   app.set('trust proxy', 1); // trust first proxy
-  sess.cookie.secure = true; // serve secure cookies, requires https
+  // sess.cookie.secure = true; // serve secure cookies, requires https
   sess.proxy = true;
   if (app.get('env') === 'production') {
     console.log("prod environment")
     app.set('trust proxy', 1); // trust first proxy
-    sess.cookie.secure = true; // serve secure cookies, requires https
+    // sess.cookie.secure = true; // serve secure cookies, requires https
     sess.proxy = true;
     console.log("session:sess");
     console.log(sess);
