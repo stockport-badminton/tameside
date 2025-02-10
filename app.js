@@ -102,12 +102,12 @@ var strategy = new Auth0Strategy(
     saveUninitialized: false
   };
   if (app.get('env') === 'prod') {
-// console.log("prod environment")
+    console.log("prod environment")
     app.set('trust proxy', 1); // trust first proxy
     sess.cookie.secure = true; // serve secure cookies, requires https
     sess.proxy = true;
-    // console.log("session:sess");
-    // console.log(sess);
+    console.log("session:sess");
+    console.log(sess);
   }  
   app.use(session(sess));
   app.use(passport.initialize());
@@ -297,6 +297,9 @@ function secured(req, res, next) {
 
   app.get('/callback', function(req, res, next) {
     passport.authenticate('auth0', function(err, user, info) {
+      console.log(err);
+      console.log(user);
+      console.log(info);
       if (err) { return next(err); }
       if (!user) {
         console.log("not user")
