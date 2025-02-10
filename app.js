@@ -101,6 +101,10 @@ var strategy = new Auth0Strategy(
     resave: false,
     saveUninitialized: false
   };
+  console.log("prod environment")
+  app.set('trust proxy', 1); // trust first proxy
+  sess.cookie.secure = true; // serve secure cookies, requires https
+  sess.proxy = true;
   if (app.get('env') === 'prod') {
     console.log("prod environment")
     app.set('trust proxy', 1); // trust first proxy
