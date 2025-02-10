@@ -97,7 +97,7 @@ var strategy = new Auth0Strategy(
   // config express-session
   var sess = {
     secret: 'ThisisMySecret',
-    cookie: {},
+    cookie: {sameSite:false},
     resave: false,
     saveUninitialized: false
   };
