@@ -34,7 +34,10 @@ document.addEventListener('DOMContentLoaded', (event) => {
           }
       }
       console.log(queryString)
-      window.location.assign(window.location.origin + '/'+window.location.pathname.split('/')[1]+queryString)
+      var admin = window.location.pathname.indexOf('admin') > -1 ? 'admin/' : ''
+      var pathIndex = window.location.pathname.indexOf('admin') > -1 ? 2 : 1
+
+      window.location.assign(window.location.origin + '/'+admin+window.location.pathname.split('/')[pathIndex]+queryString)
     }
 
     function toggleFilter(e){

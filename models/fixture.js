@@ -528,22 +528,28 @@ FROM (SELECT "fixturePlayers".*, ${sql("club" + seasonName)}.name
         (updateObj.date == null || updateObj.date == "")
         ? sql`UPDATE fixture SET status = 'rearranging'`
         : sql`UPDATE fixture SET status = 'rearranged'`
-      } WHERE id = (SELECT b.id FROM (SELECT a.id, a."homeTeam", a."awayTeam", a."awayTeamName", team.name AS "homeTeamName" FROM (SELECT c.id, c."homeTeam", c."awayTeam", team.name AS "awayTeamName" FROM (SELECT fixture.id, fixture."homeTeam", fixture."awayTeam" FROM fixture JOIN season on season.name = ${SEASON} AND fixture.date > season."startDate") AS c JOIN team on c."awayTeam" = team.id) AS a JOIN team on a."homeTeam" = team.id) AS b WHERE (b."awayTeamName" like ${updateObj.awayteam} AND b."homeTeamName" like ${updateObj.hometeam}) order by id desc limit 1);`.catch(err => {
+      } WHERE id = ( 
+select fixture.id from fixture join 
+season on (fixture.date > season."startDate" and fixture.date < season."endDate")
+join team "homeTeam" on fixture."homeTeam" = "homeTeam".id 
+join team "awayTeam" on fixture."awayTeam" = "awayTeam".id
+where season.name like ${SEASON} and status = 'outstanding' and "homeTeam".name like ${updateObj.hometeam} and "awayTeam".name like ${updateObj.awayteam} limit 1);`.catch(err => {
         console.log(err)
         console.log(err.query)
         return done(err)
       })
-      let result = await sql`
-      ${
-        (updateObj.date == null || updateObj.date == "")
-        ? sql``
-        : sql`INSERT INTO fixture ("homeTeam", "awayTeam", "date", "status") VALUES ((Select id from team where name like ${updateObj.hometeam}), (SELECT id from team where name like ${updateObj.awayteam}), ${updateObj.date}, 'outstanding');`
-      }`.catch(err => {
-        console.log(err)
-        console.log(err.query)
-        return done(err)
-      })
-      done(null,result);
+      if (updateObj.date != null && updateObj.date != "") {
+        let result = await sql`INSERT INTO fixture ("homeTeam", "awayTeam", "date", "status") VALUES ((Select id from team where name like ${updateObj.hometeam}), (SELECT id from team where name like ${updateObj.awayteam}), ${updateObj.date}, 'outstanding');`.catch(err => {
+          console.log(err)
+          console.log(err.query)
+          return done(err)
+        })
+        done(null,result);
+      }
+      else {
+        done(null,rows)
+      } 
+      
     }
     else {
       return done(err);
