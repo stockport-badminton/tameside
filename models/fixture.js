@@ -54,6 +54,23 @@ exports.getOutstandingResults = async function(done){
     done(null,result);
 }
 
+exports.getOutstandingScorecards = async function(done){
+  let result = await sql`select * from 
+(select "homeTeam".name as "homeTeam", "homeTeam".id as "homeId", "awayTeam".name as "awayTeam", "awayTeam".id as "awayId", fixture.date,fixture.status, scorecardstore.id as "scoreCardId" from 
+fixture join 
+season on fixture.date > season."startDate" AND fixture.date < season."endDate" join 
+team "homeTeam" on fixture."homeTeam" = "homeTeam".id join 
+team "awayTeam" on fixture."awayTeam" = "awayTeam".id left join
+scorecardstore on (fixture.date = scorecardstore.date AND fixture."homeTeam" = scorecardstore."homeTeam" AND fixture."awayTeam" = scorecardstore."awayTeam")
+where season.name = ${SEASON} AND fixture.status not in ('rearranged','rearranging','conceded','void')
+order by date) as a 
+where date < NOW() and "scoreCardId" is null`.catch(err => {
+      return done(err)
+    })
+    //console.log(result.statement.query)
+    done(null,result);
+}
+
 
 
 

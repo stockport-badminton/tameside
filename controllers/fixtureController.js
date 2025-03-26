@@ -549,6 +549,12 @@ exports.validateScorecard = [
 ];
 
 exports.fixture_get_summary = function(req, res,next) {
+  Fixture.getOutstandingScorecards(function(err,scorecards){
+    if (err){
+      console.log(err);
+      next(err);
+    }
+    else {
   Fixture.getRecent(function(err,recentResults){
     if (err){
       console.log(err);
@@ -583,6 +589,7 @@ exports.fixture_get_summary = function(req, res,next) {
                   pageDescription : "Clubs: Aerospace, College Green, Disley, GHAP, Hyde, Manchester Edgeley, Manor, Mellor, Medlock, Shell. Social and Competitive badminton in and around Tameside.",
                   result : recentResults,
                   row : upcomingFixtures,
+                  scorecards:scorecards,
                   assets : JSON.parse(response.body).resources
               });
             }
@@ -590,6 +597,8 @@ exports.fixture_get_summary = function(req, res,next) {
       }
     })
   }
+})
+}
 })
 };
 

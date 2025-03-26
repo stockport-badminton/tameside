@@ -227,7 +227,7 @@ exports.contactus = function(req, res,next){
           msg.cc = null;
           break;
         case 'secretary':
-          msg.To = [{"Email":"santanareedy@btinernet.com"}]
+          msg.To = [{"Email":"santanareedy@btinternet.com"}]
           break;
         case 'chair':
           msg.To = [{"Email":"stuart728turner@btinternet.com"}]
