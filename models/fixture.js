@@ -62,7 +62,7 @@ season on fixture.date > season."startDate" AND fixture.date < season."endDate" 
 team "homeTeam" on fixture."homeTeam" = "homeTeam".id join 
 team "awayTeam" on fixture."awayTeam" = "awayTeam".id left join
 scorecardstore on (fixture.date = scorecardstore.date AND fixture."homeTeam" = scorecardstore."homeTeam" AND fixture."awayTeam" = scorecardstore."awayTeam")
-where season.name = ${SEASON} AND fixture.status not in ('rearranged','rearranging','conceded','void')
+where season.name = ${SEASON} AND fixture.status not in ('rearranged','rearranging','conceded','void','complete')
 order by date) as a 
 where date < NOW() and "scoreCardId" is null`.catch(err => {
       return done(err)
