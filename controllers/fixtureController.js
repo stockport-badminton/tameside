@@ -2089,8 +2089,11 @@ exports.fixture_event_detail = function(req, res,next) {
 };
 
 exports.fixture_reminder_post = function(req,res,next){
+  let toField = (req.body.email.indexOf(',') > 0 ? req.body.email.split(',') : [req.body.email])
+  toField = toField.map(row => { return { "Email": row } } )
+  console.log(toField)
   ejs.renderFile('views/emails/scorecardReminder.ejs', {}, {debug:true}, function(err, str){
-    if (err) console.log(err);
+    if (err) console.log("Error:" + err);
   msg = {
     "From": {
       "Email": "results@tameside-badminton.co.uk"
@@ -2098,11 +2101,7 @@ exports.fixture_reminder_post = function(req,res,next){
     "ReplyTo": {
       "Email": "tameside.badders.results@gmail.com"
     },
-    "To": [
-      {
-        "Email": (req.body.email.indexOf(',') > 0 ? req.body.email.split(',') : req.body.email)
-      }
-    ],
+    "To": toField,
     "Bcc": [
       {
         "Email": "bigcoops+tamesidewebsite@gmail.com"
@@ -2121,6 +2120,7 @@ const request = mailjet
   .then(() => {
     res.sendStatus(200)
   })
+  .catch((err) => next(err))
 })
 }
 
