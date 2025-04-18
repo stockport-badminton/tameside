@@ -622,6 +622,19 @@ exports.fixture_detail_byDivision = function (req, res, next) {
         if (err) {
           next(err);
         } else {
+          let today = new Date()
+          today.setHours(0);
+          today.setMinutes(0);
+          today.setSeconds(0);
+          today.setMilliseconds(0);
+          let nearestFixture = []
+          while (nearestFixture.length == 0 && (today - new Date('2025-06-01')) < 0 ){
+            today.setDate(today.getDate()+1)
+            nearestFixture = result
+            .map((row) => ({"date":row.date,"diff":new Date(row.date) - today}))
+            .filter(row => (row.diff > -86400000 && row.diff < 86400000))
+          }
+          console.log(`nearestFixture: ${nearestFixture[0].date}`)
           var type = "";
           var jsonResult = "";
           // console.log(req.path);
@@ -676,6 +689,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
             jsonResult: griddedData,
             error: false,
             division: divisionString,
+            nearestDate:nearestFixture[0].date
           };
           if (req.path.search("admin") != -1) {
             if (
@@ -757,6 +771,19 @@ exports.fixture_detail_byDivision = function (req, res, next) {
         next(err);
       } else {
         // console.log(result)
+        let today = new Date()
+        today.setHours(0);
+        today.setMinutes(0);
+        today.setSeconds(0);
+        today.setMilliseconds(0);
+        let nearestFixture = []
+        while (nearestFixture.length == 0 && (today - new Date('2025-06-01')) < 0 ){
+          today.setDate(today.getDate()+1)
+          nearestFixture = result
+          .map((row) => ({"date":row.date,"diff":new Date(row.date) - today}))
+          .filter(row => (row.diff > -86400000 && row.diff < 86400000))
+        }
+        console.log(`nearestFixture: ${nearestFixture[0].date}`)
         var type = "";
         var jsonResult = "";
         // console.log(req.path);
@@ -839,6 +866,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
           jsonResult: griddedData,
           error: false,
           division: divisionString,
+          nearestDate: nearestFixture[0].date
         };
         if (req.path.search("admin") != -1) {
           if (req.user._json["https://my-app.example.com/role"] !== undefined) {
