@@ -11,6 +11,11 @@
         pageLength:20
       });
       var data = table.data().toArray();
+      <%
+      if (typeof nearestDate === 'undefined'){
+        nearestDate = new Date()
+      }
+      %>
       var today = new Date("<%= nearestDate %>")
       currentDateString = ('0' + today.getDate()).slice(-2) + '/'
              + ('0' + (today.getMonth()+1)).slice(-2) + '/'
