@@ -632,7 +632,10 @@ exports.fixture_detail_byDivision = function (req, res, next) {
             today.setDate(today.getDate()+1)
             nearestFixture = result
             .map((row) => ({"date":row.date,"diff":new Date(row.date) - today}))
-            .filter(row => (row.diff > -86400000 && row.diff < 86400000))
+            .filter(row => (row.diff > -86400000))
+          }
+          if (nearestFixture.length == 0){
+            nearestFixture.push(result[result.length-1])
           }
           console.log(`nearestFixture: ${nearestFixture[0].date}`)
           var type = "";
@@ -712,7 +715,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
               }
             }
           }
-          // console.log(renderObject)
+          console.log(renderObject)
           res.render("beta/fixtures-results" + type, renderObject);
         }
       });
@@ -770,7 +773,6 @@ exports.fixture_detail_byDivision = function (req, res, next) {
       if (err) {
         next(err);
       } else {
-        // console.log(result)
         let today = new Date()
         today.setHours(0);
         today.setMinutes(0);
@@ -781,8 +783,13 @@ exports.fixture_detail_byDivision = function (req, res, next) {
           today.setDate(today.getDate()+1)
           nearestFixture = result
           .map((row) => ({"date":row.date,"diff":new Date(row.date) - today}))
-          .filter(row => (row.diff > -86400000 && row.diff < 86400000))
+          .filter(row => (row.diff > -86400000))
+
         }
+        if (nearestFixture.length == 0){
+          nearestFixture.push(result[result.length-1])
+        }
+        
         console.log(`nearestFixture: ${nearestFixture[0].date}`)
         var type = "";
         var jsonResult = "";
@@ -891,6 +898,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
         else{
           res.status(200);
         // console.log(result)
+        console.log(renderObject)
         res.render("fixtures-results" + type, renderObject);
         }
         
