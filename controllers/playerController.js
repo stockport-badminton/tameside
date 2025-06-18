@@ -640,13 +640,16 @@ exports.player_elo_populate = async function(req,res){
       let totalFixtures = rows.length
       let subLoopLength = 5
       let start = 0
+      let gamesprocessed = 0
+      let gamesskipped = 0
+      let fixGamesSkipped = 0
       do {
         let subFixtures = await rows.filter((el,i)=> i >= start && i < start + subLoopLength)
         start += subLoopLength
         for (fixture of subFixtures){
           let fixtureDate = await fixture.date
           let fixtureDivision = await fixture.division
-          console.log(`fixture: ${JSON.stringify(fixture)}`)
+          // console.log(`fixture: ${JSON.stringify(fixture)}`)
 
           let fixturePlayers = {}
           fixturePlayers[fixture.homeMan1] = await Player.getPrevRating(fixture.homeMan1,fixtureDate)
@@ -666,7 +669,7 @@ exports.player_elo_populate = async function(req,res){
               res.send(gameErr);
             }
             else {
-              console.log(`games found for fixture: ${fixture.id} : ${results.length}`)
+              // console.log(`games found for fixture: ${fixture.id} : ${results.length}`)
               for (game of results){
                 // console.log(`gameId: ${game.id}`)
                 await Game.calculateRating(game,fixturePlayers,fixtureDate,fixtureDivision, async function(rateErr, rateResult){
@@ -699,18 +702,18 @@ exports.player_elo_populate = async function(req,res){
               playerUpdate.data = []
               playerUpdate.fields = ["id","rating"]
               // console.log(`${rateResult.prevRatingDates.homePlayer1Start} vs ${fixtureDate}: ${rateResult.prevRatingDates.homePlayer1Start > fixtureDate}`)
-              console.log(`fixturePlayers: ${JSON.stringify(fixturePlayers)}`)
+              // console.log(`fixturePlayers: ${JSON.stringify(fixturePlayers)}`)
               for ([index,player] of Object.entries(fixturePlayers)){
                 playerUpdate.data.push([index,player.rating])
               }
               if (playerUpdate.data.length > 0){
-                console.log(`playerUpdate: ${JSON.stringify(playerUpdate)}`)
+                // console.log(`playerUpdate: ${JSON.stringify(playerUpdate)}`)
                 await Player.updateBulk(playerUpdate,async function(playerErr,updateRes){
                   if (playerErr){
                     console.error(`playerErr: ${playerErr}`)
                   }
                   else {
-                    console.log(`Player rankings updated again`)
+                    // console.log(`Player rankings updated again`)
                   }
                 })
               }
@@ -719,7 +722,7 @@ exports.player_elo_populate = async function(req,res){
         }
 
       } while ((start + subLoopLength) < totalFixtures)
-      res.send("all done")
+      res.send(`all done, total fixtures: ${totalFixtures}`)
     }
   })
 }

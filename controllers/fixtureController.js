@@ -1948,11 +1948,26 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                     game.awayPlayer1End = rateResult.updateObj.awayPlayer1End
                     game.awayPlayer2End = rateResult.updateObj.awayPlayer2End
                   }
+                  else {
+                    prevScores[game.homePlayer1].rating = rateResult.updateObj.homePlayer1End
+                    prevScores[game.homePlayer1].date = req.body.date
+                    prevScores[game.homePlayer2].rating = rateResult.updateObj.homePlayer2End, 
+                    prevScores[game.homePlayer2].date = req.body.date
+                    prevScores[game.awayPlayer1].rating = rateResult.updateObj.awayPlayer1End, 
+                    prevScores[game.awayPlayer1].date = req.body.date
+                    prevScores[game.awayPlayer2].rating = rateResult.updateObj.awayPlayer2End, 
+                    prevScores[game.awayPlayer2].date = req.body.date
+                    game.homePlayer1End = 1500
+                    game.homePlayer2End = 1500
+                    game.awayPlayer1End = 1500
+                    game.awayPlayer2End = 1500
+                  }
                 })
               }
+              console.log(gameObject)
               Game.createBatch(gameObject,function(err,gameResult){
                 if (err){
-                  console.log("createBatch err")
+                  console.log(`createBatch err: ${err}`)
                   // console.log(res)
                   res.send(err)
                 }
@@ -2007,7 +2022,8 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                                     },
                                     "To": [
                                       {
-                                        "Email": (typeof req.body.email !== 'undefined' ? (req.body.email.indexOf('@') > 1 ? req.body.email : 'stockport.badders.results@gmail.com') : 'stockport.badders.results@gmail.com')
+                                       "Email": (typeof req.body.email !== 'undefined' ? (req.body.email.indexOf('@') > 1 ? req.body.email : 'stockport.badders.results@gmail.com') : 'stockport.badders.results@gmail.com')
+                                       //"Email":"tameside.badders.results@gmail.com"
                                       }
                                     ],
                                     "Bcc": [
