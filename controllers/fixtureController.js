@@ -2113,7 +2113,7 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
             title : "Fixture Player Details",
             pageDescription : "Find out who played which matches and in what order",
             filter:true,
-            hideFilters:["season","division","gender","gametype"],
+            hideFilters:["division","gender","gametype"],
             teams:teams,
             clubs:clubs,
             result: row
