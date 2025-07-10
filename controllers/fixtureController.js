@@ -628,7 +628,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
           today.setSeconds(0);
           today.setMilliseconds(0);
           let nearestFixture = []
-          while (nearestFixture.length == 0 && (today - new Date('2025-06-01')) < 0 ){
+          while (nearestFixture.length == 0 && (today - new Date('2026-06-01')) < 0 ){
             today.setDate(today.getDate()+1)
             nearestFixture = result
             .map((row) => ({"date":row.date,"diff":new Date(row.date) - today}))
@@ -779,7 +779,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
         today.setSeconds(0);
         today.setMilliseconds(0);
         let nearestFixture = []
-        while (nearestFixture.length == 0 && (today - new Date('2025-06-01')) < 0 ){
+        while (nearestFixture.length == 0 && (today - new Date('2026-06-01')) < 0 ){
           today.setDate(today.getDate()+1)
           nearestFixture = result
           .map((row) => ({"date":row.date,"diff":new Date(row.date) - today}))
@@ -2101,6 +2101,7 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
       searchObj.club = req.params.club
     }
     Fixture.getMatchPlayerOrderDetails(searchObj,function(err,row){
+      console.log(row)
       if (err){
         res.send(err);
       }
