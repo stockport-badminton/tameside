@@ -21,13 +21,25 @@
             <li class="nav-item"><a class="nav-link" href="/info/clubs">Clubs</a></li>
             <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    History
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="/tables/All/20232024">2023/2024 Tables</a></li>
+                    <li><a class="dropdown-item" href="/results/All/20232024">2023/2024 Results</a></li>
+                    <li><a class="dropdown-item" href="/tables/All/20242025">2024/2025 Tables</a></li>
+                    <li><a class="dropdown-item" href="/results/All/20242025">2024/2025 Results</a></li>
+                </ul>
+            </li>
+            <li class="nav-item"><a class="nav-link" href="/lewis-shield">Lewis Shield</a></li>
+
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                     Useful Files
                 </a>
                 <ul class="dropdown-menu">
                     <li><a class="dropdown-item" href="/static/docs/scorecard.pdf">Scorecard</a></li>
                 </ul>
             </li>
-            <li class="nav-item"><a class="nav-link" href="/lewis-shield">Lewis Shield</a></li>
             <li class="nav-item"><a class="nav-link" href="/rules">Rules</a></li>
             <li class="nav-item"><a class="nav-link" href="/contact-us">Contact Us</a></li>
             <% if(locals.user) { %>
