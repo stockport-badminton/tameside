@@ -53,6 +53,7 @@ exports.rules = function(req, res, next) {
       renderedHtml = renderedHtml.replace(/Shuttles.<\/h3><ol>/g,"Shuttles.</h3><ol type=\"a\" start=\"16\">")
       renderedHtml = renderedHtml.replace(/Tournaments<\/h3><ol>/g,"Tournaments</h3><ol start=\"22\">")
       renderedHtml = renderedHtml.replace(/Officials<\/h3><ol>/g,"Officials</h3><ol start=\"23\">")
+      renderedHtml = renderedHtml.replaceAll(/\n/g,"<br />")
       // console.log(renderedHtml)
       res.render('rules',{
           pageHeading:"Tameside Badminton League Rules",
