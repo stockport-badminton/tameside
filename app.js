@@ -349,6 +349,7 @@ function secured(req, res, next) {
   app.get('/players/gender-:gender?', secured,player_controller.player_list_clubs_teams);
   app.get('/players', secured,player_controller.player_list_clubs_teams);
   app.get('/manage-players/club-:club?', secured,player_controller.manage_player_list_clubs_teams);
+  app.get('/manage-players/:season?/club-:club?', secured,player_controller.manage_player_list_clubs_teams);
   app.get('/email-scorecard', secured,fixture_controller.email_scorecard);
   app.post('/email-scorecard', fixture_controller.validateScorecard, fixture_controller.fixture_populate_scorecard_errors);
   app.post('/add-scorecard-photo/:id',fixture_controller.add_scorecard_photo)

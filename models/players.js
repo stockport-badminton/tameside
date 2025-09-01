@@ -195,14 +195,38 @@ exports.getMatchStats = async function(fixtureId,done){
 
 
 exports.getNamesClubsTeams = async function(searchTerms,done){
+
+    let season = ""
+    const checkSeason = async function(season){
+      let firstYear = parseInt(season.slice(0,4))
+      let secondYear = parseInt(season.slice(4))
+      //console.log(firstYear+ " "+ secondYear)
+      if (secondYear - firstYear != 1){
+        return false
+      }
+      else {
+        if (firstYear < 2018 || season == SEASON){
+          return false
+        }
+        else return true
+      }
+    }
+
+    if (searchTerms.season === undefined || !checkSeason(searchTerms.season)){
+      //console.log("no season");
+    }
+    else {
+      season = searchTerms.season;
+    }
+
     
-    let result = await sql`select * from (select "playerId", a.name, gender, date_of_registration, a.rank, club.id as "clubId", club.name as "clubName", "teamName", "teamId" from (SELECT player.id as "playerId", concat(first_name, ' ', family_name) as name, gender, date_of_registration, player.rank, team.id as "teamId", team.name as "teamName", player.club as "clubId" from player join team on team.id = player.team
+    let result = await sql`select * from (select "playerId", a.name, gender, date_of_registration, a.rank, club.id as "clubId", club.name as "clubName", "teamName", "teamId" from (SELECT player.id as "playerId", concat(first_name, ' ', family_name) as name, gender, date_of_registration, player.rank, team.id as "teamId", team.name as "teamName", player.club as "clubId" from ${sql("player" + season)} player join ${sql("team" + season)} team on team.id = player.team
     ${
         searchTerms.name !== undefined 
         ? sql`AND (player.first_name like ${searchTerms.name.substr(0,1)+"%"} OR player.family_name like ${searchTerms.name.substr(0,1)+"%"})`
         : sql``
     }
-    ) as a join club on a."clubId" = club.id ) as b where
+    ) as a join ${sql("club" + season)} club on a."clubId" = club.id ) as b where
     ${
         searchTerms.club !== undefined 
         ? sql`"clubName" like ${searchTerms.club}`
@@ -219,9 +243,10 @@ exports.getNamesClubsTeams = async function(searchTerms,done){
         : sql``
     }
     order by "teamName", gender,rank`.catch(err => {
+      console.log(err.query)
     return done(err) ;
     })
-    // console.log(result.statement.string)
+    
     done(null,result);
 }
 
