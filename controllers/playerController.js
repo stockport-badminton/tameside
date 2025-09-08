@@ -166,7 +166,7 @@ exports.manage_player_list_clubs_teams = function(req, res,next) {
           }
           if (user[0].app_metadata.club == req.params.club || user[0].app_metadata.club == "All"){
             Player.getNamesClubsTeams(req.params, function(err,rows){
-              console.log(rows);
+              // console.log(rows);
               if (err){
                 // console.log("all_player_stats controller error")
                 return next(err)

@@ -1396,7 +1396,7 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
             ],
             "Bcc": [
               {
-                "Email": "bigcoops+tamesidewebsite@gmail.com"
+                "Email": "tameside.badders.results@gmail.com"
               }
             ],
             "Subject": "scorecard received",
@@ -2028,7 +2028,7 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                                     ],
                                     "Bcc": [
                                       {
-                                        "Email": "bigcoops+tamesidewebsite@gmail.com"
+                                        "Email": "tameside.badders.results@gmail.com"
                                       }
                                     ],
                                     "Subject": "Website Updated: " + zapObject.homeTeam + " vs " + zapObject.awayTeam,
@@ -2157,7 +2157,7 @@ exports.fixture_reminder_post = function(req,res,next){
     "To": toField,
     "Bcc": [
       {
-        "Email": "bigcoops+tamesidewebsite@gmail.com"
+        "Email": "tameside.badders.results@gmail.com"
       }
     ],
     "Subject": `Reminder: ${req.body.hometeam} vs ${req.body.awayteam}`,
@@ -2198,7 +2198,7 @@ exports.add_scorecard_photo = function(req,res,next){
         ],
         "Bcc": [
           {
-            "Email": "bigcoops+tamesidewebsite@gmail.com"
+            "Email": "tameside.badders.results@gmail.com"
           }
         ],
         "Subject": "scorecard updated",

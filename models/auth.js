@@ -105,7 +105,7 @@ exports.getAPIKey = function(done){
             ],
             "Bcc": [
               {
-                "Email": "bigcoops+tamesidewebsite@gmail.com"
+                "Email": "tameside.badders.results@gmail.com"
               }
             ],
             "Subject": "Result Entry Access",

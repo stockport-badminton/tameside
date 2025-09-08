@@ -176,7 +176,7 @@ exports.contactus = function(req, res,next){
     ],
     "Bcc": [
       {
-        "Email": "bigcoops+tamesidewebsite@gmail.com"
+        "Email": "tameside.badders.results@gmail.com"
       }
     ],
     "TemplateID": 6134550,
@@ -223,7 +223,7 @@ exports.contactus = function(req, res,next){
     if (req.body.contactType == 'League'){
       switch (req.body.leagueSelect) {
         case 'results':
-          msg.To = [{"Email":"jbutleruk@gmail.com"}]
+          msg.To = [{"Email":"tameside.badders.results@gmail.com"}]
           msg.cc = null;
           break;
         case 'secretary':
@@ -236,10 +236,10 @@ exports.contactus = function(req, res,next){
           msg.To = [{"Email":"jbutleruk@gmail.com"}]
           break;
         case 'website':
-          msg.To = [{"Email":"bigcoops+tamesidewebsite@gmail.com"}]
+          msg.To = [{"Email":"tameside.badders.results@gmail.com"}]
           break;
           case 'fixtures':
-            msg.To = [{"Email":"bigcoops+tamesidefixtures@gmail.com"}]
+            msg.To = [{"Email":"tameside.badders.results@gmail.com"}]
             break;
         case 'treasurer':
           msg.To = [{"Email":"david.jackson@crawleyandco.com"}]
