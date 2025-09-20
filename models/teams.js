@@ -155,11 +155,13 @@ exports.getLewis = async function(searchTerms,done){
     "awayTeam".name as "awayTeamName",
     lewis."homeScore",
     lewis."awayScore",
-    lewis."drawPos"
+    lewis."drawPos",
+    season."lewisPrelims"
 FROM
     ${sql ("lewis" + season)} lewis join
     ${sql ("team" + season)} "homeTeam" on lewis."homeTeam" = "homeTeam".id join
-    ${sql ("team" + season)} "awayTeam" on lewis."awayTeam" = "awayTeam".id`.catch(err => {
+    ${sql ("team" + season)} "awayTeam" on lewis."awayTeam" = "awayTeam".id join 
+    season on season.name  = ${seasonVal}`.catch(err => {
       return done(err)
     })
     done(null,rows);

@@ -93,7 +93,7 @@ exports.lewis_draw = function(req, res,next) {
       // console.log(rows)
       var otherArray = rows.reduce(function(obj,row){
         // console.log(row)
-        obj[row.drawPos] = {"homeTeam":row.homeTeamName,"awayTeam":row.awayTeamName,"homeScore":row.homeScore,"awayScore":row.awayScore}; 
+        obj[row.drawPos] = {"homeTeam":row.homeTeamName,"awayTeam":row.awayTeamName,"homeScore":row.homeScore,"awayScore":row.awayScore,"prelims":row.lewisPrelims}; 
         return obj;
       }, {});
       
