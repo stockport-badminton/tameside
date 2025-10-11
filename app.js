@@ -247,14 +247,10 @@ app.get('/playerStats/:id/:fullName', player_controller.player_game_data);
 
 /* player stats routes and filters. */
 
-app.get('/player-stats/*', player_controller.all_player_stats);
-app.get('/player-stats', player_controller.all_player_stats);
 
-app.get('/pair-stats/*', player_controller.all_pair_stats);
-app.get('/pair-stats', player_controller.all_pair_stats);
 
 /* GET request for one Player. */
-app.get('/player-stats', player_controller.all_player_stats);
+// app.get('/player-stats', player_controller.all_player_stats);
 app.get('/lewis-shield', team_controller.lewis_draw);
 app.get('/lewis-shield/:season', team_controller.lewis_draw);
 
@@ -338,6 +334,12 @@ function secured(req, res, next) {
       res.redirect('https://'+ process.env.AUTH0_DOMAIN + '/v2/logout?clientid='+ process.env.AUTH0_CLIENTID +'&returnTo=https://'+ req.headers.host);
     });
   });
+
+  app.get('/player-stats/*',  secured, player_controller.all_player_stats);
+  app.get('/player-stats',  secured, player_controller.all_player_stats);
+
+  app.get('/pair-stats/*',  secured, player_controller.all_pair_stats);
+  app.get('/pair-stats',  secured, player_controller.all_pair_stats);
 
   app.get('/admin/results/*', secured,fixture_controller.fixture_detail_byDivision);
   app.get('/admin/results/:division/:season',  secured,fixture_controller.fixture_detail_byDivision);

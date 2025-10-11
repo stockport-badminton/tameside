@@ -55,9 +55,17 @@
                       <a class="dropdown-item" href="/fixture-players">Fixture Players</a>
                       <a class="dropdown-item" href="/player-stats">Individual Stats</a>
                       <a class="dropdown-item" href="/pair-stats">Pair Stats</a>
-                   <% }
+                   <% }    
+                    else if(locals.user._json['https://my-app.example.com/role'] == 'admin') { %>
+                      <a class="dropdown-item" href="/manage-players/club-<%= locals.user._json['https://my-app.example.com/club'] %>">Team Players</a>
+                      <% 
+                    if(locals.user._json['https://my-app.example.com/stats']) { %>
+                      <a class="dropdown-item" href="/player-stats">Individual Stats</a>
+                      <a class="dropdown-item" href="/pair-stats">Pair Stats</a>
+                      <% 
+                    }
+                  }
                   %>
-                  
                   <a class="dropdown-item" href="/logout" target="_blank">Logout</a>
                 </div>
               </li>

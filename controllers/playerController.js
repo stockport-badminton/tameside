@@ -435,16 +435,7 @@ exports.all_player_stats = function (req, res,next){
       const [key, value] = str.split("-");
       return { ...acc, [key]: value };
     }, {});
-    // console.log(req.session.user)
-    if (typeof req.session.user != 'undefined'){
-      if (req.user._json["https://my-app.example.com/role"] !== undefined){
-        if (req.user._json["https://my-app.example.com/role"] == "admin"){
-          if (req.user._json["https://my-app.example.com/club"] != "All" && req.user._json["https://my-app.example.com/club"] !== undefined){
-          searchObj.club = req.user._json["https://my-app.example.com/club"]
-          }
-        }
-      }
-    }
+    
 // console.log(searchObj)
   }
   else {
@@ -454,15 +445,26 @@ exports.all_player_stats = function (req, res,next){
   if (replacedMatches.length > 0){
     divisionString = replacedMatches[0]
   }
+  
+    if (typeof req.session.passport !== 'undefined'){
+      console.log(`sesion: ${JSON.stringify(req.session.passport.user)}`)
+      if (req.session.passport.user._json["https://my-app.example.com/role"] !== undefined){
+        if (req.session.passport.user._json["https://my-app.example.com/role"] == "admin"){
+          if (req.session.passport.user._json["https://my-app.example.com/club"] != "All" && req.session.passport.user._json["https://my-app.example.com/club"] !== undefined){
+          searchObj.club = req.session.passport.user._json["https://my-app.example.com/club"]
+          }
+        }
+      }
+    }
 
   // console.log(regexParams)
-  
+  console.log(searchObj)
   Player.newGetPlayerStats(searchObj,function(err,result){
     if (err){
       return next(err)
     }
     else {
-      console.log(result)
+      // console.log(result)
       let clubs = result.map(item => item.clubName).filter((value, index, self) => self.indexOf(value) === index) 
       let teams = result.map(item => item.teamName).filter((value, index, self) => self.indexOf(value) === index) 
 // console.log(req.params);
@@ -473,7 +475,7 @@ exports.all_player_stats = function (req, res,next){
            title : "Player Stats",
            pageDescription : "Geek out on Stockport League Player stats!",
            filter : true,
-           hideFilters:["season"],
+           hideFilters:["status"],
            result : result,
            clubs : clubs,
            teams : teams,
@@ -523,11 +525,12 @@ exports.all_pair_stats = function (req, res,next){
     }, {});
     // console.log(searchObj)
     // console.log(req.session.user)
-    if (typeof req.session.user != 'undefined'){
-      if (req.user._json["https://my-app.example.com/role"] !== undefined){
-        if (req.user._json["https://my-app.example.com/role"] == "admin"){
-          if (req.user._json["https://my-app.example.com/club"] != "All" && req.user._json["https://my-app.example.com/club"] !== undefined){
-          searchObj.club = req.user._json["https://my-app.example.com/club"]
+    if (typeof req.session.passport !== 'undefined'){
+      console.log(`sesion: ${JSON.stringify(req.session.passport.user)}`)
+      if (req.session.passport.user._json["https://my-app.example.com/role"] !== undefined){
+        if (req.session.passport.user._json["https://my-app.example.com/role"] == "admin"){
+          if (req.session.passport.user._json["https://my-app.example.com/club"] != "All" && req.session.passport.user._json["https://my-app.example.com/club"] !== undefined){
+          searchObj.club = req.session.passport.user._json["https://my-app.example.com/club"]
           }
         }
       }
@@ -563,7 +566,7 @@ exports.all_pair_stats = function (req, res,next){
            title : "Pair Stats",
            pageDescription : "Geek out on Stockport League Player stats!",
            filter:true,
-           hideFilters:["season"],
+           hideFilters:["status"],
            clubs:clubs,
            teams:teams,
            result : result,
