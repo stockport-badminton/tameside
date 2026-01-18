@@ -1,106 +1,159 @@
 <%- include('header.ejs') %>
 <%- include('nav.ejs') %>
 
-<div class="col-md-4">
-      <h1>News</h1>
-      
-            <p class="lead">
-              <strong>Updates</strong><br />
-              Some improvements for you all. For all of you with scorecard photos on your phone, but entering results on another device<br />
-              Skip the photo stage for the initial entry, and then return to the <a href="/email-scorecard">Link</a> and you'll find a list of your scorecard that still need photos. Now you can enter the scorecard info in one place and then upload the photo from your phone separately<br /><br />
-              <strong>Player registrations</strong><br />
-              If captains / teams could endeavor to email me before/during a match where a new player is being added that will help smooth scorecard entry<br /><br />
-              There's no need to send scorecards directly to Jonny anymore - you can <a href="/email-scorecard">enter them online</a> and he will receive them<br /><br />
-              <a href="#" data-bs-toggle="modal" data-bs-target="#resultsEntryModal">A quick guide to results entry </a><br /><br />
-              Questions / suggestions are always welcome - use the contact us menu to get in touch with me. Neil<br />
-            </p>
-      </div>
-      <div class="col-md-4">
-        <% if (typeof scorecards !== 'undefined' && scorecards.length > 0){ %>
-          <div class="col-12">
-            <h1>Outstanding Scorecards</h1>
-            <% scorecards.forEach(function(row){ 
-              var rowClass = "";
-              var MyDate = new Date(row['date']);
-                var NowDate = Date.now();
-                if((NowDate - MyDate) > (5 * 24 * 60 * 60* 1000)){
-                  rowClass = "bg-warning"
-                }
-                if((NowDate - MyDate) > (7 * 24 * 60 * 60* 1000)){
-                  rowClass = "bg-danger"
-                }
-              
-              %>
-        
-              <div class="row <%= rowClass %>">
-              <%
-                var MyDateString, otherDateString;
-        
-                // MyDate.setDate(MyDate.getDate() + 20);
-        
-                MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
-                            + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
-                            + MyDate.getFullYear();
-        
-                otherDateString = MyDate.getFullYear() + '/'
-                                + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
-                                + ('0' + MyDate.getDate()).slice(-2)
-              %>
-              <div class="col-3"><%= MyDateString %></div>
-              <div class="col"><%= row['homeTeam'] %> vs <%= row['awayTeam'] %></div>
-              </div>
-            <% }) %>
-          </div>
-          <% } %>
-        <div class="col-12">
-        <h1>Recent Results</h1>
-        <% if (typeof result !== 'undefined') { %>
-        <% result.forEach(function(row){ %>
-          <div class="row">
-          <%
-            var MyDate = new Date(row['date']);
-            var MyDateString, otherDateString;
-      
-            // MyDate.setDate(MyDate.getDate() + 20);
-      
-            MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
-                         + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
-                         + MyDate.getFullYear();
-      
-             otherDateString = MyDate.getFullYear() + '/'
-                            + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
-                            + ('0' + MyDate.getDate()).slice(-2)
-          %>
-          <div class="col-3"><%= MyDateString %></div>
-          <div class="col"><%= row['homeTeam'] %> vs <%= row['awayTeam'] %></div>
-          <div class="col-3"><%= row['homeScore'] %>-<%= row['awayScore'] %></div>
-          </div>
-        <% }) } %>
-      </div>
+<!-- Hero Section -->
+<section class="hero">
+    <h1>Tameside Badminton League</h1>
+    <p>Competitive badminton across Tameside and surrounding areas</p>
+    <div class="cta-buttons">
+        <a href="/email-scorecard" class="btn-modern-primary">
+            <i class="fas fa-pen-to-square"></i> Enter Result
+        </a>
+        <a href="/results/All" class="btn-modern-secondary">
+            <i class="fas fa-calendar-days"></i> View All Results
+        </a>
     </div>
-      <div class="col-md-4">
-        <h1>Upcoming Fixtures</h1>
-        <% if (typeof row !== 'undefined') { %>
-        <% row.forEach(function(result){ %>
-          <div class="row">
-          <%
-            var MyDate = new Date(result['date']);
-            var MyDateString;
-      
-            // MyDate.setDate(MyDate.getDate() + 20);
-      
-            MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
-                         + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
-                         + MyDate.getFullYear();
-          %>
-          <div class="col-3"><%= MyDateString %></div>
-          <div class="col"><a href="<%= '/event/' + result.id + '/' + MyDateString.replaceAll("/","") + '-' + result.homeTeam + '-' + result.awayTeam %>"><%= result['homeTeam'] %> vs <%= result['awayTeam'] %></a></div>
+</section>
+
+<!-- News Section -->
+<section class="section">
+    <div class="container">
+        <h2 class="section-title">
+            <i class="fas fa-newspaper"></i> News
+        </h2>
+        
+        <div class="news-card">
+            <h3>Updates</h3>
+            <p>Some improvements for you all. For all of you with scorecard photos on your phone, but entering results on another device:</p>
+            <p>Skip the photo stage for the initial entry, and then return to the <a href="/email-scorecard">results entry page</a> and you'll find a list of your scorecards that still need photos. Now you can enter the scorecard info in one place and then upload the photo from your phone separately.</p>
         </div>
-        <% }) } %>
-      </div>
+
+        <div class="news-card">
+            <h3>Player Registrations</h3>
+            <p>If captains / teams could endeavor to email me before/during a match where a new player is being added that will help smooth scorecard entry.</p>
+            <p>There's no need to send scorecards directly to Jonny anymore - you can <a href="/email-scorecard">enter them online</a> and he will receive them.</p>
+        </div>
+
+        <div class="news-card">
+            <h3>Results Entry System</h3>
+            <p><a href="#" data-bs-toggle="modal" data-bs-target="#resultsEntryModal">A quick guide to results entry</a></p>
+            <p>Questions / suggestions are always welcome - use the contact us menu to get in touch with me.</p>
+            <p style="margin-top: 1rem;"><strong>Neil</strong></p>
+        </div>
+    </div>
+</section>
+
+<!-- Outstanding Scorecards (if any) -->
+<% if (typeof scorecards !== 'undefined' && scorecards.length > 0) { %>
+<section class="section" style="background: #fff3cd; padding: 3rem 0;">
+    <div class="container">
+        <h2 class="section-title" style="color: #856404;">
+            <i class="fas fa-triangle-exclamation"></i> Outstanding Scorecards
+        </h2>
+        <div class="results-grid">
+            <% scorecards.forEach(function(row){ 
+                var MyDate = new Date(row['date']);
+                var NowDate = Date.now();
+                var cardClass = "result-card";
+                if((NowDate - MyDate) > (5 * 24 * 60 * 60 * 1000)){
+                    cardClass = "result-card" + " bg-warning";
+                }
+                if((NowDate - MyDate) > (7 * 24 * 60 * 60 * 1000)){
+                    cardClass = "result-card" + " bg-danger text-white";
+                }
+                
+                var MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+                    + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+                    + MyDate.getFullYear();
+            %>
+            <div class="<%= cardClass %>">
+                <div class="result-date">
+                    <i class="far fa-calendar"></i> <%= MyDateString %>
+                </div>
+                <div class="result-teams">
+                    <span class="team-name"><%= row['homeTeam'] %></span>
+                    <span style="padding: 0 1rem; font-weight: 700;">vs</span>
+                    <span class="team-name" style="text-align: right;"><%= row['awayTeam'] %></span>
+                </div>
+            </div>
+            <% }) %>
+        </div>
+    </div>
+</section>
+<% } %>
+
+<!-- Recent Results -->
+<section class="section" style="background: white; padding: 4rem 0;">
+    <div class="container">
+        <h2 class="section-title">
+            <i class="fas fa-list-check"></i> Recent Results
+        </h2>
+        
+        <div class="results-grid">
+            <% if (typeof result !== 'undefined' && result.length > 0) { %>
+                <% result.forEach(function(row){ 
+                    var MyDate = new Date(row['date']);
+                    var MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+                        + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+                        + MyDate.getFullYear();
+                %>
+                <div class="result-card">
+                    <div class="result-date">
+                        <i class="far fa-calendar"></i> <%= MyDateString %>
+                    </div>
+                    <div class="result-teams">
+                        <span class="team-name"><%= row['homeTeam'] %></span>
+                        <span class="score"><%= row['homeScore'] %> - <%= row['awayScore'] %></span>
+                        <span class="team-name" style="text-align: right;"><%= row['awayTeam'] %></span>
+                    </div>
+                </div>
+                <% }) %>
+            <% } else { %>
+                <p>No recent results available.</p>
+            <% } %>
+        </div>
+        
+        <div style="text-align: center; margin-top: 2rem;">
+            <a href="/results/All" class="btn-modern-primary">
+                <i class="fas fa-list"></i> View All Results
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- Upcoming Fixtures -->
+<section class="section">
+    <div class="container">
+        <h2 class="section-title">
+            <i class="fas fa-calendar-days"></i> Upcoming Fixtures
+        </h2>
+        
+        <div class="results-grid">
+            <% if (typeof row !== 'undefined' && row.length > 0) { %>
+                <% row.forEach(function(fixture){ 
+                    var MyDate = new Date(fixture['date']);
+                    var MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+                        + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+                        + MyDate.getFullYear();
+                %>
+                <div class="fixture-card">
+                    <div class="fixture-date">
+                        <i class="far fa-calendar"></i> <%= MyDateString %>
+                    </div>
+                    <div class="fixture-teams">
+                        <%= fixture['homeTeam'] %> vs <%= fixture['awayTeam'] %>
+                    </div>
+                    <a href="<%= '/event/' + fixture.id + '/' + MyDateString.replaceAll("/","") + '-' + fixture.homeTeam + '-' + fixture.awayTeam %>">
+                        View details <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+                <% }) %>
+            <% } else { %>
+                <p>No upcoming fixtures scheduled.</p>
+            <% } %>
+        </div>
+    </div>
+</section>
 
 <%- include('resultsEntryModal.ejs') %>
 <%- include('footer.ejs') %>
-
-
-

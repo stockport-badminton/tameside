@@ -74,8 +74,16 @@
     <title>Tameside Badminton League - <%= title %></title>
 
     <!-- Bootstrap core CSS -->
-    <%- include('datatables-css.ejs') %>
-    <link rel="stylesheet" href="/static/css/style.css" type="text/css" />
+<%- include('datatables-css.ejs') %>
+<link rel="stylesheet" href="/static/css/style.css" type="text/css" />
+
+<!-- Font Awesome Icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<!-- Modern Styles - MUST come after Bootstrap -->
+<link rel="stylesheet" href="/static/css/modern-styles.css" type="text/css" />
+
+
 
     <% if (title == 'Local Badminton Club Information'){ 
       for (row of result ){ %>

@@ -1,7 +1,11 @@
 <%- include('header.ejs') %>
 <%- include('nav.ejs') %>
 
-
+<section class="hero" style="padding: 4rem 2rem 3rem;">
+  <h1><i class="fas fa-table"></i> Tables </h1>
+</section>
+<section class="section all-tables">
+    <div class="container">
 <% if (typeof errors !== 'undefined') { %>
 <p>Something seems to have gone slightly wonky.</p>
 <p>
@@ -110,6 +114,8 @@
     <p><strong class="font-weight-bold">Penalties: </strong>Disley B: fielding ineligible players: 36pts<br />Disley C: fielding ineligible players: 1pt</p>
   </div>
   <% } %>
+</div>
+</section>
 <%- include('footer.ejs') %>
 
 

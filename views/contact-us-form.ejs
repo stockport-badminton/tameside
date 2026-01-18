@@ -1,6 +1,11 @@
 <%- include('header.ejs') %>
 
 <%- include('nav.ejs') %>
+<section class="hero" style="padding: 4rem 2rem 3rem;">
+  <h1><i class="fas fa-envelope"></i> Contact Us</h1>
+</section>
+<section class="section">
+    <div class="container">
 
 <form role="form" id="contactUs" action="/contact-us" method="post">
   <div class="form-group">
@@ -49,6 +54,8 @@
   </div>
   <button type="submit" class="btn btn-primary">Submit</button>
 </form>
+</div>
+</section>
 
 <%- include('footer.ejs') %>
 

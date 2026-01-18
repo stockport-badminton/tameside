@@ -1,287 +1,371 @@
 <%- include('header.ejs') %>
 <%- include('nav.ejs') %>
 
-
-  <% if (error) { %>
-    <p>Something seems to have gone wrong</p>
-    <p><%= error %></p>
-  <% }
-  else { %>
-    
-    <div class="row col-12 fixHeader">
-      <h1><%= division %></h1>
-      <a class="text-secondary other-tooltip" href="<%= path.replace('\/results\/','\/results-grid\/') %>" data-text="Grid view"><i class="fa fa-th"></i></a><br />
-      <a class="text-secondary other-tooltip" href="<%= path.replace('\/results\/','\/calendars\/') %>" data-text="download the calendar or copy the link"><i class="fa fa-calendar"></i></a>
-      <a id="showFilter" class="text-secondary other-tooltip" href="" data-text="show/hide filters"><i class="fa fa-filter"></i></a>
+<% if (error) { %>
+  <div class="container my-5">
+    <div class="alert alert-danger" role="alert">
+      <i class="fas fa-triangle-exclamation"></i> <strong>Something went wrong</strong>
+      <p class="mb-0 mt-2"><%= error %></p>
     </div>
-    <% if (typeof admin !== 'undefined') { %>
-    <div class="row col-12">
-        <p>Welcome!<br />
-          <%= user.nickname %><br />
-          Club:<%= user._json["https://my-app.example.com/club"] %><br />
-          Role:<%= user._json["https://my-app.example.com/role"] %>
-        </p>  
+  </div>
+<% } else { %>
+
+<!-- Page Header with Actions -->
+<section class="results-header">
+  <div class="container">
+    <div class="results-header-content">
+      <h1><i class="fas fa-trophy"></i> <%= division %></h1>
+      <div class="header-actions">
+        <a class="action-btn" href="<%= path.replace('\/results\/','\/results-grid\/') %>" 
+           title="Switch to grid view">
+          <i class="fa fa-th"></i>
+          <span>Grid View</span>
+        </a>
+        <a class="action-btn" href="<%= path.replace('\/results\/','\/calendars\/') %>" 
+           title="Download calendar">
+          <i class="fa fa-calendar"></i>
+          <span>Calendar</span>
+        </a>
+        <a class="action-btn" id="showFilter" href="#" 
+           title="Toggle filters">
+          <i class="fa fa-filter"></i>
+          <span>Filters</span>
+        </a>
+      </div>
     </div>
-      
-    <% } %>
+  </div>
+</section>
 
-    <% if (typeof filter !== 'undefined' && filter == true){ %>
-      <%- include('filters.ejs') %>
-    <% } %>
-    <div class="table-responsive">
-    <table class="table" id="results-table">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Home Team</th>
-          <th>Away Team</th>
-          <th>Result</th>
-          <% if (typeof admin !== 'undefined') { %>
-            <th>Details</th>
-          <% } %>
-          <% if (typeof superadmin !== 'undefined' && superadmin) { %>
-            <th>Rearrange?</th>
-            <th>Confirm/Enter</th>
-          <% } %>
-        </tr>
-      </thead>
-      <tbody>
-    <% var tournamentReminder = false %>
-    <% var tournament2Reminder = false %>
-    <% result.forEach(function(row){ %>
-      <%
-        var rowClass = '';
-        var resultValue = '';
-        var status = ""
-        var MyDate = new Date(row['date']);
-        var NowDate = Date.now();
-        if ((MyDate < NowDate) && (row['homeScore'] == null) && (row['status'] != 'void')) {
-          rowClass = 'table-danger'
-          var resultValue = 'Awaiting Result';
-        }
-        var MyDateString;
+<!-- Admin Info (if applicable) -->
+<% if (typeof admin !== 'undefined') { %>
+<section class="admin-info">
+  <div class="container">
+    <div class="info-card">
+      <i class="fas fa-user-shield"></i>
+      <div>
+        <strong>Welcome, <%= user.nickname %></strong><br />
+        <span class="text-muted">
+          Club: <%= user._json["https://my-app.example.com/club"] %> | 
+          Role: <%= user._json["https://my-app.example.com/role"] %>
+        </span>
+      </div>
+    </div>
+  </div>
+</section>
+<% } %>
 
-        // MyDate.setDate(MyDate.getDate() + 20);
+<!-- Filters Section -->
+<% if (typeof filter !== 'undefined' && filter == true){ %>
+<section class="filters-section" style="display: none;">
+  <div class="container">
+    <%- include('filters.ejs') %>
+  </div>
+</section>
+<% } %>
 
-        MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
-                     + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
-                     + MyDate.getFullYear();
-      %>
-
-      <% if (row['status'] == 'rearranging'){
-        var rowClass = 'table-warning';
-        var resultValue = 'Rearranging';
-        var status = ""
-       }
-       %>
-
-       <% if (row['homeTeam'].indexOf('Tournament') > -1 || row['homeTeam'].indexOf('Messer') > -1 ){
-         var rowClass = 'table-danger';
-         var status = ""
-        }
-        %>
-       <% if (row['status'] == 'rearranged'){
-        var rowClass = 'table-warning';
-        var resultValue = 'Rearranged';
-        var status = ""
-       }
-       %>
-
-       <% if (row['status'] == 'conceded'){
-        var rowClass = 'table-danger';
-        var resultValue = 'Conceded';
-        var status = "Conceded"
-       }
-       %>
-
-       <% if (row['status'] == 'void'){
-         var rowClass = 'table-danger';
-         var resultValue = "Void"
-         var status = "Void"
-        }
-        %>
-
-      <tr class="<%= rowClass %>">
-
-          <td><%= MyDateString %></td>
-          <td data-hometeam="<%= row['homeClubId'] %>"><a href="<%= row['venuelink'] %>" target="_blank"><i class="fa-solid fa-map-location-dot"></i></a><%= row['homeTeam'] %></td>
-          <td data-awayteam="<%= row['awayteamId'] %>"><%= row['awayTeam'] %></td>
-          <% if(row['homeScore'] != null){ %>
-          <td><%= row['homeScore'] %>-<%= row['awayScore'] %> <%= status %>
-            <% if (typeof superadmin !== 'undefined' && superadmin) { %><br /><a href="/resultImage/<%= row['hometeam'] %>/<%= row['awayteam'] %>/<%= row['homeScore'] %>/<%= row['awayScore'] %>/<%= row['divisionName'] %>">Social Image</a><% } %></td>
+<!-- Results Table -->
+<section class="results-section">
+  <div class="container">
+    <div class="table-container">
+      <table class="table modern-table" id="results-table">
+        <thead>
+          <tr>
+            <th><i class="far fa-calendar"></i> Date</th>
+            <th><i class="fas fa-house"></i> Home Team</th>
+            <th><i class="fas fa-plane-departure"></i> Away Team</th>
+            <th><i class="fas fa-trophy"></i> Result</th>
             <% if (typeof admin !== 'undefined') { %>
-            <td><a href="/scorecard/fixture/<%= row['id'] %>">Details</a></td>
+              <th><i class="fas fa-circle-info"></i> Details</th>
             <% } %>
-          <% }
-          else { %>
-           <td><%= resultValue %></td>
-           <% if (typeof admin !== 'undefined') { %>
-            <td></td>
+            <% if (typeof superadmin !== 'undefined' && superadmin) { %>
+              <th><i class="fas fa-calendar-days"></i> Rearrange</th>
+              <th><i class="fas fa-pen-to-square"></i> Action</th>
             <% } %>
-          <% } %>
-          <% if (typeof superadmin !== 'undefined' && superadmin) { %>
+          </tr>
+        </thead>
+        <tbody>
+          <% var tournamentReminder = false %>
+          <% var tournament2Reminder = false %>
+          <% result.forEach(function(row){ %>
+            <%
+              var rowClass = '';
+              var resultValue = '';
+              var status = ""
+              var MyDate = new Date(row['date']);
+              var NowDate = Date.now();
+              if ((MyDate < NowDate) && (row['homeScore'] == null) && (row['status'] != 'void')) {
+                rowClass = 'status-overdue'
+                var resultValue = 'Awaiting Result';
+              }
+              var MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+                               + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
+                               + MyDate.getFullYear();
+            %>
 
-            <td><% if (row['status'] === 'outstanding' || row['status'] === 'rearranged' || row['status'] === 'rearranging') { %>
-                  <a data-bs-toggle="modal" data-bs-target="#exampleModal" data-club="<%= row['name'] %>" data-fixtureId="<%= row['fixtureid'] %>">Rearrange</a> 
-                  <% if(resultValue === 'Awaiting Result'){ %>
-                  <br /><a data-bs-toggle="modal" data-bs-target="#reminderModal">Send Reminder</a> 
-                <% } } %>
-            </td>
-            
-            <% if (user._json["https://my-app.example.com/club"] == 'All' || user._json["https://my-app.example.com/club"] == row['homeClubName']){ %>
-              <td><a href="/fixtures/edit/<%= row['fixtureid'] %>">Enter</a></td> 
-            <% } 
-            else { %>
-              <td><a href="/fixtures/edit/<%= row['fixtureid'] %>">Confirm</a></td> 
-            <% } %>
-          <% } %>
-      </tr>
-    <% }) %>
-      </tbody>
-      <tfoot>
-        <tr>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-        </tr>
-      </tfoot>
-    </table>
+            <% if (row['status'] == 'rearranging'){
+              var rowClass = 'status-rearranging';
+              var resultValue = 'Rearranging';
+              var status = ""
+             }
+             %>
+
+             <% if (row['homeTeam'].indexOf('Tournament') > -1 || row['homeTeam'].indexOf('Messer') > -1 ){
+               var rowClass = 'status-tournament';
+               var status = ""
+              }
+              %>
+             <% if (row['status'] == 'rearranged'){
+              var rowClass = 'status-rearranged';
+              var resultValue = 'Rearranged';
+              var status = ""
+             }
+             %>
+
+             <% if (row['status'] == 'conceded'){
+              var rowClass = 'status-conceded';
+              var resultValue = 'Conceded';
+              var status = "Conceded"
+             }
+             %>
+
+             <% if (row['status'] == 'void'){
+               var rowClass = 'status-void';
+               var resultValue = "Void"
+               var status = "Void"
+              }
+              %>
+
+            <tr class="<%= rowClass %>">
+              <td class="date-cell"><%= MyDateString %></td>
+              <td data-hometeam="<%= row['homeClubId'] %>">
+                <a href="<%= row['venuelink'] %>" target="_blank" class="venue-icon" title="View venue">
+                  <i class="fa-solid fa-map-location-dot"></i>
+                </a>
+                <span class="team-name"><%= row['homeTeam'] %></span>
+              </td>
+              <td data-awayteam="<%= row['awayteamId'] %>">
+                <span class="team-name"><%= row['awayTeam'] %></span>
+              </td>
+              <% if(row['homeScore'] != null){ %>
+                <td class="result-cell">
+                  <span class="score"><%= row['homeScore'] %> - <%= row['awayScore'] %></span>
+                  <% if(status){ %>
+                    <span class="status-badge"><%= status %></span>
+                  <% } %>
+                  <% if (typeof superadmin !== 'undefined' && superadmin) { %>
+                    <br />
+                    <a href="/resultImage/<%= row['hometeam'] %>/<%= row['awayteam'] %>/<%= row['homeScore'] %>/<%= row['awayScore'] %>/<%= row['divisionName'] %>" 
+                       class="social-link">
+                      <i class="fas fa-image"></i> Social Image
+                    </a>
+                  <% } %>
+                </td>
+                <% if (typeof admin !== 'undefined') { %>
+                  <td>
+                    <a href="/scorecard/fixture/<%= row['id'] %>" class="details-link">
+                      <i class="fas fa-file-lines"></i> Details
+                    </a>
+                  </td>
+                <% } %>
+              <% } else { %>
+                <td class="result-cell">
+                  <span class="status-badge status-pending"><%= resultValue %></span>
+                </td>
+                <% if (typeof admin !== 'undefined') { %>
+                  <td></td>
+                <% } %>
+              <% } %>
+              
+              <% if (typeof superadmin !== 'undefined' && superadmin) { %>
+                <td>
+                  <% if (row['status'] === 'outstanding' || row['status'] === 'rearranged' || row['status'] === 'rearranging') { %>
+                    <a data-bs-toggle="modal" 
+                       data-bs-target="#exampleModal" 
+                       data-club="<%= row['name'] %>" 
+                       data-fixtureId="<%= row['fixtureid'] %>"
+                       class="action-link">
+                      <i class="fas fa-calendar-days"></i> Rearrange
+                    </a> 
+                    <% if(resultValue === 'Awaiting Result'){ %>
+                      <br />
+                      <a data-bs-toggle="modal" 
+                         data-bs-target="#reminderModal"
+                         class="action-link">
+                        <i class="fas fa-bell"></i> Send Reminder
+                      </a> 
+                    <% } %>
+                  <% } %>
+                </td>
+                
+                <% if (user._json["https://my-app.example.com/club"] == 'All' || user._json["https://my-app.example.com/club"] == row['homeClubName']){ %>
+                  <td>
+                    <a href="/fixtures/edit/<%= row['fixtureid'] %>" class="btn-modern-primary btn-sm">
+                      <i class="fas fa-pen"></i> Enter
+                    </a>
+                  </td> 
+                <% } else { %>
+                  <td>
+                    <a href="/fixtures/edit/<%= row['fixtureid'] %>" class="btn-modern-secondary btn-sm">
+                      <i class="fas fa-check"></i> Confirm
+                    </a>
+                  </td> 
+                <% } %>
+              <% } %>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
   </div>
-   <% } %>
+</section>
 
-   <% if (typeof superadmin !== 'undefined' && superadmin) { %>
-   
-   <div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="exampleModalLabel">Rearrangement</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
-          </button>
-        </div>
-        <form role="form" id="contactUs" action="/fixture/rearrangement" method="post">
+<% } %>
+
+<!-- Rearrangement Modal -->
+<% if (typeof superadmin !== 'undefined' && superadmin) { %>
+<div class="modal fade" id="exampleModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-calendar-days"></i> Rearrange Fixture
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form role="form" id="contactUs" action="/fixture/rearrangement" method="post">
         <div class="modal-body" id="rearrangementModal">
-          <div class="formMessage" style="display:none">Fixture Updated!</div>
-            <div id="rearrangementForm" class="form-group">
-              <label for="contactEmail">New Fixture Date</label>
-              <input type="date" class="form-control" id="date" name="date" placeholder="DD/MM/YYYY">
-              <small id="emailHelp" class="form-text text-muted">Leave this blank if you haven't fixed a date yet.</small>
-              <input type="hidden" name="fixtureId" id="fixtureId" value="" />
-              <input type="hidden" name="hometeam" id="hometeam" value="" />
-              <input type="hidden" name="awayteam" id="awayteam" value="" />
+          <div class="formMessage" style="display:none">
+            <div class="alert alert-success">
+              <i class="fas fa-check-circle"></i> Fixture Updated!
             </div>
+          </div>
+          <div id="rearrangementForm" class="form-group">
+            <label for="date">
+              <i class="far fa-calendar"></i> New Fixture Date
+            </label>
+            <input type="date" class="form-control" id="date" name="date">
+            <small class="form-text text-muted">Leave blank if date not yet confirmed.</small>
+            <input type="hidden" name="fixtureId" id="fixtureId" value="" />
+            <input type="hidden" name="hometeam" id="hometeam" value="" />
+            <input type="hidden" name="awayteam" id="awayteam" value="" />
+          </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          <button type="button" id="fixtureRearange" class="btn btn-primary">Submit</button>
-        </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="reminderModal" tabindex="-1" role="dialog" aria-labelledby="reminderModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="reminderModalLabel">Rearrangement</h5>
-          <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> Close
+          </button>
+          <button type="button" id="fixtureRearange" class="btn-modern-primary">
+            <i class="fas fa-check"></i> Submit
           </button>
         </div>
-        <form role="form" id="reminderForm" action="/fixture/reminder" method="post">
-        <div class="modal-body" id="reminderModalBody">
-
-            <div class="form-group">
-              <label for="contactEmail">Email contact</label>
-              <input type="email" class="form-control" id="email" name="email" placeholder="enter team captains email">
-              <input type="hidden" name="reminderhometeam" id="reminderhometeam" value="" />
-              <input type="hidden" name="reminderawayteam" id="reminderawayteam" value="" />
-            </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          <button type="button" id="remindFixture" class="btn btn-primary">Submit</button>
-        </div>
-        </form>
-      </div>
+      </form>
     </div>
   </div>
+</div>
 
-  <% } %>
-
+<!-- Reminder Modal -->
+<div class="modal fade" id="reminderModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-bell"></i> Send Reminder
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form role="form" id="reminderForm" action="/fixture/reminder" method="post">
+        <div class="modal-body" id="reminderModalBody">
+          <div class="form-group">
+            <label for="email">
+              <i class="fas fa-envelope"></i> Email Contact
+            </label>
+            <input type="email" class="form-control" id="email" name="email" 
+                   placeholder="captain@example.com">
+            <input type="hidden" name="reminderhometeam" id="reminderhometeam" value="" />
+            <input type="hidden" name="reminderawayteam" id="reminderawayteam" value="" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> Close
+          </button>
+          <button type="button" id="remindFixture" class="btn-modern-primary">
+            <i class="fas fa-paper-plane"></i> Send
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<% } %>
 
 <%- include('footer.ejs') %>
 <%- include('datatables.ejs') %>
+
 <% if (typeof filter !== 'undefined' && filter == true){ %>
-  <script type="text/javascript">
-        <%- include('filtersJs.ejs') %>
-  </script>
-  <% } %>
+<script type="text/javascript">
+  <%- include('filtersJs.ejs') %>
+  
+  // Toggle filter visibility
+  $('#showFilter').click(function(e){
+    e.preventDefault();
+    $('.filters-section').slideToggle(300);
+    $(this).toggleClass('active');
+  });
+</script>
+<% } %>
 
 <% if (typeof superadmin !== 'undefined' && superadmin) { %>
-  <script type="text/javascript">
+<script type="text/javascript">
+  $('a[data-bs-target="#exampleModal"]').click(function(){
+    $('#rearrangementModal > .formMessage').hide();
+    $('#rearrangementForm > #date').show()
+    $('#rearrangementForm > label').show()
+    $('#fixtureRearange').show();
+    $('#emailHelp').show()
+    $('#rearrangementForm > #date')[0].value = "";
+    $('#fixtureId')[0].value = $(this)[0]['attributes']['data-fixtureId'].value;
+    $('#hometeam')[0].value = $(this).parent().siblings()[1].textContent;
+    $('#awayteam')[0].value = $(this).parent().siblings()[2].textContent;
+  })
 
-    
-      $('a[data-bs-target="#exampleModal"]').click(function(){
-        $('#rearrangementModal > .formMessage').hide();
-        $('#rearrangementForm > #date').show()
-        $('#rearrangementForm > label').show()
-        $('#fixtureRearange').show();
-        $('#emailHelp').show()
-        $('#rearrangementForm > #date')[0].value = "";
-        $('#fixtureId')[0].value = $(this)[0]['attributes']['data-fixtureId'].value;
-        $('#hometeam')[0].value = $(this).parent().siblings()[1].textContent;
-        $('#awayteam')[0].value = $(this).parent().siblings()[2].textContent;
-      })
+  $('a[data-bs-target="#reminderModal"]').click(function(){
+    $('#reminderhometeam')[0].value = $(this).parent().siblings()[1].textContent;
+    $('#reminderawayteam')[0].value = $(this).parent().siblings()[2].textContent;
+    var hometeamId = this.parentElement.parentElement.children[1].getAttribute('data-hometeam').valueOf()
+    var hometeamName = this.parentElement.parentElement.children[1].textContent
+    $.get('/club-api/'+hometeamId, function(data){ 
+      var filterTeams = data.filter(row => row.teamName == hometeamName)
+      let emails = filterTeams.map(row => row.teamCaptainEmail)
+      $('#reminderModalBody > div.form-group > input#email')[0].value = filterTeams[0].matchSecEmail + "," + emails.join(",")
+    })
+  })
 
-      $('a[data-bs-target="#reminderModal"]').click(function(){
-        $('#reminderhometeam')[0].value = $(this).parent().siblings()[1].textContent;
-        $('#reminderawayteam')[0].value = $(this).parent().siblings()[2].textContent;
-        var hometeamId = this.parentElement.parentElement.children[1].getAttribute('data-hometeam').valueOf()
-        var hometeamName = this.parentElement.parentElement.children[1].textContent
-        $.get('/club-api/'+hometeamId, function(data){ 
-          var filterTeams = data.filter(row => row.teamName == hometeamName)
-          let emails = filterTeams.map(row => row.teamCaptainEmail)
-          // console.log(emails)
-          $('#reminderModalBody > div.form-group > input#email')[0].value = filterTeams[0].matchSecEmail + "," + emails.join(",")
-        })
-      })
+  $('#fixtureRearange').click(function(){
+    $.post('/fixture/rearrangement', {
+      'date':$('#date')[0].value,
+      'hometeam':$('#hometeam')[0].value,
+      'awayteam':$('#awayteam')[0].value 
+    }, function (data) {
+      $('#rearrangementModal > .formMessage').show();
+      $('#rearrangementForm > label').hide()
+      $('#rearrangementForm > #date').hide()
+      $('#emailHelp').hide()
+      $('#fixtureRearange').hide();
+    });
+  })
 
-     /*  $('#fixtureRearange').click(function(){
-        $.post('/fixture/rearrangement', {'date':$('#date')[0].value,'hometeam':$('#hometeam')[0].value,'awayteam':$('#awayteam')[0].value }, function (data) {
-               console.log({'date':$('#date')[0].value,'hometeam':$('#hometeam')[0].value,'awayteam':$('#awayteam')[0].value });
-               console.log(data);
-               $('#rearrangementModal').html('<p>Fixture Updated!</p>');
-               $('#fixtureRearange').remove();
-            });
-      }) */
-
-      $('#fixtureRearange').click(function(){
-        $.post('/fixture/rearrangement', {'date':$('#date')[0].value,'hometeam':$('#hometeam')[0].value,'awayteam':$('#awayteam')[0].value }, function (data) {
-          console.log({'date':$('#date')[0].value,'hometeam':$('#hometeam')[0].value,'awayteam':$('#awayteam')[0].value });
-          $('#rearrangementModal > .formMessage').show();
-          $('#rearrangementForm > label').hide()
-          $('#rearrangementForm > #date').hide()
-          $('#emailHelp').hide()
-          $('#fixtureRearange').hide();
-      });
-               
-               
-      })
-
-      $('#remindFixture').click(function(){
-        $.post('/fixture/reminder', {'email':$('#email')[0].value,'hometeam':$('#reminderhometeam')[0].value,'awayteam':$('#reminderawayteam')[0].value }, function (data) {
-               // console.log({'date':$('#date')[0].value,'hometeam':$('#hometeam')[0].value,'awayteam':$('#awayteam')[0].value });
-               console.log(data);
-               $('#reminderModalBody').html('<p>Reminder sent!</p>');
-               $('#remindFixture').remove();
-            });
-      })
-
-    
-  </script>
+  $('#remindFixture').click(function(){
+    $.post('/fixture/reminder', {
+      'email':$('#email')[0].value,
+      'hometeam':$('#reminderhometeam')[0].value,
+      'awayteam':$('#reminderawayteam')[0].value 
+    }, function (data) {
+      $('#reminderModalBody').html('<div class="alert alert-success"><i class="fas fa-check-circle"></i> Reminder sent!</div>');
+      $('#remindFixture').remove();
+    });
+  })
+</script>
 <% } %>
 
 </body>

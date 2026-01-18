@@ -1,80 +1,155 @@
 <%- include('header.ejs') %>
 <%- include('nav.ejs') %>
 
-<h1>Lewis Shield Draw</h1>
+<!-- Page Header -->
+<section class="hero" style="padding: 4rem 2rem 3rem;">
+  <h1><i class="fas fa-shield-halved"></i> Lewis Shield Draw</h1>
+  <p>Tournament knockout bracket</p>
+</section>
 
-<div class="row col-12 bracket-container">
-    <% 
-    let fixCount=0
-    let offset = 0
-    let prelims = teams[1].prelims.split(",")
-    preLimnumbers = prelims.map(row => parseInt(row))
-    let bracketsOffset = preLimnumbers.length % 2
-    // console.log(`Prelims: ${prelims}, ${prelims.length}`)
-    for (let i=0; i < 4; i++) { %>
-        <div class="col">      
-<%
-        for (let j=0; j < 16; j++){ 
-            if (j % Math.pow(2,i) == 0){ 
-                if (i == 0){
-                    // console.log(preLimnumbers)
-                    if (preLimnumbers.includes(j)){ 
-                        fixCount++
-                        %>
-                        <div class="row align-middle d-flex align-items-center h-6 <%= fixCount % 2 == 1 ? '' : 'pt-5' %>">
-                            <%
-                                if (fixCount % 2 == 1){ %>
-                                    <div class="bracket <%= fixCount % 2 == 0 ? 'even' : 'odd' %>-fix d-flex flex-fill">&nbsp;</div>
-                                <% }
-                            %>
-                            <div class="row col-12 g-0 p-0 m-0 d-flex">
-                        <% if (typeof teams[fixCount+offset] !== 'undefined'){ %>
-                        <%= teams[fixCount+offset].homeTeam %><span class="px-1">vs</span></div><div class="row col-12 g-0 p-0 m-0 d-flex"><%= teams[fixCount+offset].awayTeam %> <strong class="px-1"><% if (teams[fixCount+offset].homeScore != null) { %><%= teams[fixCount+offset].homeScore + "-"+ teams[fixCount+offset].awayScore %><% } %></strong></div> <% } %>
-                             <%
-                                if (fixCount % 2 == 0){ %>
-                                    <div class="bracket <%= fixCount % 2 == 0 ? 'even' : 'odd' %>-fix d-flex flex-fill">&nbsp;</div>
-                                <% }
-                            %>
-                        </div>
-                   <%  }
-                    else { %>
-                        <div class="row align-middle d-flex align-items-center h-6">&nbsp;</div>
-                    <% }
-                }
-                else { 
+<!-- Tournament Bracket -->
+<section class="bracket-section">
+  <div class="container-fluid">
+    <div class="tournament-bracket">
+      <% 
+      let fixCount = 0
+      let offset = 0
+      let prelims = teams[1].prelims.split(",")
+      let preLimnumbers = prelims.map(row => parseInt(row))
+      let bracketsOffset = preLimnumbers.length % 2
+      
+      const roundNames = ['Prelim','Round 1', 'Quarter Finals', 'Semi Finals', 'Final']
+      
+      for (let i = 0; i < 4; i++) { %>
+        <div class="bracket-round" data-round="<%= i + 1 %>">
+          <h3 class="round-title"><%= roundNames[i] %></h3>
+          <div class="round-matches">
+            <%
+            for (let j = 0; j < 16; j++) { 
+              if (j % Math.pow(2, i) == 0) { 
+                if (i == 0) {
+                  // First round with prelims
+                  if (preLimnumbers.includes(j)) { 
                     fixCount++
                     %>
-                    <div class="row align-middle d-flex align-items-center h-<%= i > 0 ? (i > 1 ? ( i > 2 ? (i > 3 ? 100 : 50) : 25 ) : 13 ) : 6 %>  <%= fixCount % 2 == 1 ? '' : 'pt-5' %>">
-                        
-                        <%
-                                if (fixCount % 2 == 1){ %>
-                                    <div class="bracket <%= fixCount % 2 == 0 ? 'even' : 'odd' %>-fix d-flex flex-fill">&nbsp;</div>
-                                <% }
-                            %>
-                        <% if (typeof teams[fixCount+offset] !== 'undefined'){ %>
-
-                            <div class="row col-12 g-0 p-0 m-0 d-flex <%= fixCount % 2 == 0 ? '' : 'pt-2' %>">
-                        <%= teams[fixCount+offset].homeTeam  %><span class="px-1">vs</span></div><div class="row col-12 g-0 p-0 m-0 d-flex"><%= teams[fixCount+offset].awayTeam %> <strong class="px-1"><% if (teams[fixCount+offset].homeScore != null) { %><%= teams[fixCount+offset].homeScore + "-"+ teams[fixCount+offset].awayScore %><% } %></strong></div> <% } %>
-                        <%
-                                if (fixCount % 2 == 0){ %>
-                                    <div class="bracket <%= fixCount % 2 == 0 ? 'even' : 'odd' %>-fix d-flex flex-fill">&nbsp;</div>
-                                <% }
-                            %>
+                    <div class="match-wrapper">
+                      <% if (typeof teams[fixCount + offset] !== 'undefined') { %>
+                        <div class="match-card <%= teams[fixCount + offset].homeScore != null ? 'completed' : 'pending' %>">
+                          <div class="match-header">
+                            <span class="match-number">Match <%= fixCount %></span>
+                            <% if (teams[fixCount + offset].homeScore != null) { %>
+                              <span class="match-status completed">
+                                <i class="fas fa-check-circle"></i> Complete
+                              </span>
+                            <% } else { %>
+                              <span class="match-status pending">
+                                <i class="far fa-clock"></i> Pending
+                              </span>
+                            <% } %>
+                          </div>
+                          <div class="match-teams">
+                            <div class="team <%= teams[fixCount + offset].homeScore != null && teams[fixCount + offset].homeScore > teams[fixCount + offset].awayScore ? 'winner' : '' %>">
+                              <span class="team-name"><%= teams[fixCount + offset].homeTeam %></span>
+                              <% if (teams[fixCount + offset].homeScore != null) { %>
+                                <span class="team-score"><%= teams[fixCount + offset].homeScore %></span>
+                              <% } %>
+                            </div>
+                            <div class="team <%= teams[fixCount + offset].homeScore != null && teams[fixCount + offset].awayScore > teams[fixCount + offset].homeScore ? 'winner' : '' %>">
+                              <span class="team-name"><%= teams[fixCount + offset].awayTeam %></span>
+                              <% if (teams[fixCount + offset].homeScore != null) { %>
+                                <span class="team-score"><%= teams[fixCount + offset].awayScore %></span>
+                              <% } %>
+                            </div>
+                          </div>
+                        </div>
+                      <% } %>
+                      <div class="connector"></div>
                     </div>
+                                      <% } else { %>
+                    <div class="match-wrapper spacer">
+                      <div class="match-card" style="visibility: hidden;">
+                        <div class="match-header"><span class="match-number">-</span></div>
+                        <div class="match-teams">
+                          <div class="team"><span class="team-name">-</span></div>
+                          <div class="team"><span class="team-name">-</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  <% }
+                } else { 
+                  // Later rounds
+                  fixCount++
+                  %>
+                  <div class="match-wrapper">
+                    <% if (typeof teams[fixCount + offset] !== 'undefined') { %>
+                      <div class="match-card <%= teams[fixCount + offset].homeScore != null ? 'completed' : 'pending' %>">
+                        <div class="match-header">
+                          <span class="match-number">Match <%= fixCount %></span>
+                          <% if (teams[fixCount + offset].homeScore != null) { %>
+                            <span class="match-status completed">
+                              <i class="fas fa-check-circle"></i> Complete
+                            </span>
+                          <% } else { %>
+                            <span class="match-status pending">
+                              <i class="far fa-clock"></i> Pending
+                            </span>
+                          <% } %>
+                        </div>
+                        <div class="match-teams">
+                          <div class="team <%= teams[fixCount + offset].homeScore != null && teams[fixCount + offset].homeScore > teams[fixCount + offset].awayScore ? 'winner' : '' %>">
+                            <span class="team-name"><%= teams[fixCount + offset].homeTeam %></span>
+                            <% if (teams[fixCount + offset].homeScore != null) { %>
+                              <span class="team-score"><%= teams[fixCount + offset].homeScore %></span>
+                            <% } %>
+                          </div>
+                          <div class="team <%= teams[fixCount + offset].homeScore != null && teams[fixCount + offset].awayScore > teams[fixCount + offset].homeScore ? 'winner' : '' %>">
+                            <span class="team-name"><%= teams[fixCount + offset].awayTeam %></span>
+                            <% if (teams[fixCount + offset].homeScore != null) { %>
+                              <span class="team-score"><%= teams[fixCount + offset].awayScore %></span>
+                            <% } %>
+                          </div>
+                        </div>
+                      </div>
+                    <% } %>
+                    <div class="connector"></div>
+                  </div>
                 <% } 
-                
-            } 
-            
-         } %> 
+              } 
+            } %>
+          </div>
         </div>
-   <%  } %>
- 
-</div>
+      <% } %>
+    </div>
+
+    <!-- Champion Display -->
+    <% 
+    // Find the final match (last in the array)
+    let finalMatch = teams[teams.length - 1]
+    if (finalMatch && finalMatch.homeScore != null) {
+      let champion = finalMatch.homeScore > finalMatch.awayScore ? finalMatch.homeTeam : finalMatch.awayTeam
+    %>
+    <div class="champion-section">
+      <div class="champion-card">
+        <div class="trophy-icon">
+          <i class="fas fa-trophy"></i>
+        </div>
+        <h2>Champion</h2>
+        <h3><%= champion %></h3>
+        <p class="score-display">
+          <%= finalMatch.homeTeam %> <%= finalMatch.homeScore %> - <%= finalMatch.awayScore %> <%= finalMatch.awayTeam %>
+        </p>
+      </div>
+    </div>
+    <% } %>
+  </div>
+</section>
 
 <%- include('footer.ejs') %>
-<script>
 
-    <%- JSON.stringify(teams) %>
+<script>
+  // Store teams data for potential future use
+  const teamsData = <%- JSON.stringify(teams) %>;
+  console.log('Lewis Shield Teams:', teamsData);
 </script>
 
 </body>

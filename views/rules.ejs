@@ -1,7 +1,12 @@
 <%- include('header.ejs') %>
 <%- include('nav.ejs') %>
 
-<h2><%= pageHeading %></h2>
+<!-- Hero Section -->
+<section class="hero" style="padding: 4rem 2rem 3rem;">
+  <h1><i class="fas fa-book"></i> <%= pageHeading %></h1>
+</section>
+<section class="section">
+    <div class="container">
       <%- entry %>
       <%
             if (title == "How to Find Us"){
@@ -10,5 +15,7 @@
                   <%
             }
       %>
+    </div>
+    </section>
 
 <%- include('footer.ejs') %>
