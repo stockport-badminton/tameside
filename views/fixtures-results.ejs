@@ -325,15 +325,15 @@
     $('#emailHelp').show()
     $('#rearrangementForm > #date')[0].value = "";
     $('#fixtureId')[0].value = $(this)[0]['attributes']['data-fixtureId'].value;
-    $('#hometeam')[0].value = $(this).parent().siblings()[1].textContent;
-    $('#awayteam')[0].value = $(this).parent().siblings()[2].textContent;
+    $('#hometeam')[0].value = $(this).parent().siblings()[1].innerText.trim();
+    $('#awayteam')[0].value = $(this).parent().siblings()[2].innerText.trim();
   })
 
   $('a[data-bs-target="#reminderModal"]').click(function(){
-    $('#reminderhometeam')[0].value = $(this).parent().siblings()[1].textContent;
-    $('#reminderawayteam')[0].value = $(this).parent().siblings()[2].textContent;
+    $('#reminderhometeam')[0].value = $(this).parent().siblings()[1].innerText.trim();
+    $('#reminderawayteam')[0].value = $(this).parent().siblings()[2].innerText.trim();
     var hometeamId = this.parentElement.parentElement.children[1].getAttribute('data-hometeam').valueOf()
-    var hometeamName = this.parentElement.parentElement.children[1].textContent
+    var hometeamName = this.parentElement.parentElement.children[1].innerText.trim()
     $.get('/club-api/'+hometeamId, function(data){ 
       var filterTeams = data.filter(row => row.teamName == hometeamName)
       let emails = filterTeams.map(row => row.teamCaptainEmail)
