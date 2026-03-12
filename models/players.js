@@ -246,7 +246,8 @@ exports.getNamesClubsTeams = async function(searchTerms,done){
       console.log(err.query)
     return done(err) ;
     })
-    
+    console.log("Result" + JSON.stringify(result['Result']))
+
     done(null,result);
 }
 
@@ -335,6 +336,136 @@ player oppo2 on oppo2.id = "allGames".oppo2
     console.log(`err: ${err.query}`)
     return done(err) ;
   })
+  done(null,result);
+}
+
+exports.getPlayedUpCounts = async function(done){
+  let result = await sql`with
+  "seasonFixture" as (
+    SELECT
+      "fixture".id,
+      "fixture"."homeTeam",
+      "fixture"."awayTeam",
+      "fixture"."homeMan1",
+      "fixture"."homeMan2",
+      "fixture"."homeMan3",
+      "fixture"."homeMan4",
+      "fixture"."homeLady1",
+      "fixture"."homeLady2",
+      "fixture"."awayMan1",
+      "fixture"."awayMan2",
+      "fixture"."awayMan3",
+      "fixture"."awayMan4",
+      "fixture"."awayLady1",
+      "fixture"."awayLady2",
+      "homeTeam".rank as "homeRank",
+      "awayTeam".rank as "awayRank"
+    FROM
+      "fixture"
+      JOIN "season" ON "season".name like '20252026'
+      AND "fixture".date > "season"."startDate"
+      AND "fixture".date < "season"."endDate"
+      JOIN team "homeTeam" on "homeTeam".id = fixture."homeTeam"
+      JOIN team "awayTeam" on "awayTeam".id = fixture."awayTeam"
+  ),
+  "fixtureSummary" as (
+    select
+      "seasonFixture"."homeMan1" as "playerId",
+      "seasonFixture"."homeRank" as "teamRank"
+      from "seasonFixture"
+    union all
+    select 
+      "seasonFixture"."homeMan2" as "playerId",
+      "seasonFixture"."homeRank" as "teamRank"
+      from "seasonFixture"
+    union all
+    select 
+      "seasonFixture"."homeMan3" as "playerId",
+      "seasonFixture"."homeRank" as "teamRank"
+      from "seasonFixture"
+    union all
+    select 
+      "seasonFixture"."homeMan4" as "playerId",
+      "seasonFixture"."homeRank" as "teamRank"
+      from "seasonFixture"
+    union all
+    select 
+      "seasonFixture"."homeLady1" as "playerId",
+      "seasonFixture"."homeRank" as "teamRank"
+      from "seasonFixture"
+    union all
+    select 
+      "seasonFixture"."homeLady2" as "playerId",
+      "seasonFixture"."homeRank" as "teamRank"
+      from "seasonFixture"
+    union all
+    select
+      "seasonFixture"."awayMan1" as "playerId",
+      "seasonFixture"."awayRank" as "teamRank"
+      from "seasonFixture"
+    union all
+    select 
+      "seasonFixture"."awayMan2" as "playerId",
+      "seasonFixture"."awayRank" as "teamRank"
+      from "seasonFixture"
+    union all
+    select 
+      "seasonFixture"."awayMan3" as "playerId",
+      "seasonFixture"."awayRank" as "teamRank"
+      from "seasonFixture"
+    union all
+    select 
+      "seasonFixture"."awayMan4" as "playerId",
+      "seasonFixture"."awayRank" as "teamRank"
+      from "seasonFixture"
+    union all
+    select 
+      "seasonFixture"."awayLady1" as "playerId",
+      "seasonFixture"."awayRank" as "teamRank"
+      from "seasonFixture"
+    union all
+    select 
+      "seasonFixture"."awayLady2" as "playerId",
+      "seasonFixture"."awayRank" as "teamRank"
+      from "seasonFixture"
+  ),
+  "playerSummary" as (
+  select 
+    player.id,
+    player."first_name",
+    player."family_name",
+    team.name as "teamName",
+    team.rank from
+    player 
+  join team 
+  on team.id = player.team)
+  select * from (
+  select 
+    MIN("playerSummary"."first_name") as "firstName",
+    MIN("playerSummary"."family_name") as "familyName",
+    MIN("playerSummary"."teamName") as "teamName",
+    "fixtureSummary"."playerId",
+    SUM(CASE
+        WHEN "fixtureSummary"."teamRank" < "playerSummary"."rank"  THEN 1
+        ELSE 0
+    END) as "playedUp",
+    SUM(CASE
+        WHEN "fixtureSummary"."teamRank" = "playerSummary"."rank"  THEN 1
+        ELSE 0
+    END) as "playedOwnTeam"
+    from "playerSummary" join 
+    "fixtureSummary" on 
+    "playerSummary".id = "fixtureSummary"."playerId"
+    group by "playerId"
+    order by "teamName", "playedUp" DESC) as a where a."playedUp" > 2
+    `.catch(err => {
+  console.log(err.query)
+  return done(err)
+  
+   ;
+  })
+  // console.log(result)
+  // console.log(result.statement.string)
   done(null,result);
 }
 

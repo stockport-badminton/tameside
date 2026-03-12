@@ -55,6 +55,7 @@
                             <% if(locals.user._json['https://my-app.example.com/role'] == 'superadmin') { %>
                                 <a class="dropdown-item" href="/manage-players/club-Aerospace">Team Management</a>
                                 <a class="dropdown-item" href="/fixture-players">Fixture Players</a>
+                                <a class="dropdown-item" href="/played-up-counts">Played Up Counts</a>
                                 <a class="dropdown-item" href="/player-stats">Individual Stats</a>
                                 <a class="dropdown-item" href="/pair-stats">Pair Stats</a>
                             <% } else if(locals.user._json['https://my-app.example.com/role'] == 'admin') { %>

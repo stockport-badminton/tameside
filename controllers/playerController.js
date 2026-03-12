@@ -45,6 +45,23 @@ exports.player_list = function(req, res) {
     })
 };
 
+// Display list of all Players
+exports.player_played_up_counts = function(req, res) {
+    Player.getPlayedUpCounts(function(err,rows){
+      if (err) return next(err)
+      res.render('played-up-counts', {
+           static_path: '/static',
+           theme: process.env.THEME || 'flatly',
+           flask_debug: process.env.FLASK_DEBUG || 'false',
+           title : "Played Up Counts",
+           pageDescription : "Played Up Counts",
+           result : rows
+       });
+    })
+};
+
+
+
 
 // Display list of all Players
 exports.player_game_data = function(req, res,next) {
