@@ -24,6 +24,7 @@
                         <p>Men</p>
                         <% team.nominated.men.forEach(function(player){ %>
                             <div class="player-box row border rounded p-3" draggable="true" data-team="<%= player.teamId %>" data-rank="<%= player.rank %>" data-id="<%= player.playerId %>"><%= player.name %>
+                              <% if (typeof superadmin !== 'undefined' && superadmin) { %>
                               <i class="fa fa-ellipsis-v dropdown-toggle" type="button" id="dropdownMenu2" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></i>
                               <div class="dropdown-menu" aria-labelledby="dropdownMenu2">
                                 <button class="dropdown-item" type="button">Remove<i class="fa fa-times text-danger"></i></button>
@@ -31,14 +32,18 @@
                                 <button class="dropdown-item" type="button">Move Up<i class="fa fa-arrow-up text-success"></i></button>
                                 <button class="dropdown-item" type="button">Move Down<i class="fa fa-arrow-down text-danger"></i></button>
                               </div>
+                              <% } %>
                             </div>
                         <% }) %>
+                        <% if (typeof superadmin !== 'undefined' && superadmin) { %>
                         <div class="add-player-box row border rounded p-3"><i class="fa fa-user-plus text-success" data-bs-toggle="modal" data-bs-target="#AddCreatePlayerModal"></i> Add Player</div>
+                        <% } %>
                     </div>
                     <div class="col-6 ladies">
                         <p>Ladies</p>
                         <% team.nominated.ladies.forEach(function(player){ %>
                             <div class="player-box row border rounded p-3" draggable="true" data-team="<%= player.teamId %>" data-rank="<%= player.rank %>" data-id="<%= player.playerId %>"><%= player.name %>
+                              <% if (typeof superadmin !== 'undefined' && superadmin) { %>
                               <i class="fa fa-ellipsis-v dropdown-toggle" type="button" id="dropdownMenu2" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></i>
                               <div class="dropdown-menu" aria-labelledby="dropdownMenu2">
                                 <button class="dropdown-item" type="button">Remove<i class="fa fa-times text-danger"></i></button>
@@ -46,9 +51,12 @@
                                 <button class="dropdown-item" type="button">Move Up<i class="fa fa-arrow-up text-success"></i></button>
                                 <button class="dropdown-item" type="button">Move Down<i class="fa fa-arrow-down text-danger"></i></button>
                               </div>
+                              <% } %>
                             </div>
                         <% }) %>
+                        <% if (typeof superadmin !== 'undefined' && superadmin) { %>
                         <div class="add-player-box row border rounded p-3"><i class="fa fa-user-plus text-success" data-bs-toggle="modal" data-bs-target="#AddCreatePlayerModal"></i> Add Player</div>
+                        <% } %>
                     </div>
                 </div>
             </div>
@@ -60,6 +68,7 @@
                         <p>Men</p>
                         <% team.reserves.men.forEach(function(player){ %>
                             <div class="player-box row border rounded p-3" draggable="true" data-team="<%= player.teamId %>" data-rank="<%= player.rank %>" data-id="<%= player.playerId %>"><%= player.name %>
+                              <% if (typeof superadmin !== 'undefined' && superadmin) { %>
                               <i class="fa fa-ellipsis-v dropdown-toggle" type="button" id="dropdownMenu2" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></i>
                               <div class="dropdown-menu" aria-labelledby="dropdownMenu2">
                                 <button class="dropdown-item" type="button">Remove<i class="fa fa-times text-danger"></i></button>
@@ -67,14 +76,18 @@
                                 <button class="dropdown-item" type="button">Move Up<i class="fa fa-arrow-up text-success"></i></button>
                                 <button class="dropdown-item" type="button">Move Down<i class="fa fa-arrow-down text-danger"></i></button>
                               </div>
+                              <% } %>
                             </div>
                         <% }) %>
+                        <% if (typeof superadmin !== 'undefined' && superadmin) { %>
                         <div class="add-player-box row border rounded p-3"><i class="fa fa-user-plus text-success" data-bs-toggle="modal" data-bs-target="#AddCreatePlayerModal"></i> Add Player</div>
+                        <% } %>
                     </div>
                     <div class="col-6 ladies">
                         <p>Ladies</p>
                         <% team.reserves.ladies.forEach(function(player){ %>
                             <div class="player-box row border rounded p-3" draggable="true" data-team="<%= player.teamId %>" data-rank="<%= player.rank %>" data-id="<%= player.playerId %>"><%= player.name %>
+                              <% if (typeof superadmin !== 'undefined' && superadmin) { %>
                               <i class="fa fa-ellipsis-v dropdown-toggle" type="button" id="dropdownMenu2" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></i>
                               <div class="dropdown-menu" aria-labelledby="dropdownMenu2">
                                 <button class="dropdown-item" type="button">Remove<i class="fa fa-times text-danger"></i></button>
@@ -82,9 +95,12 @@
                                 <button class="dropdown-item" type="button">Move Up<i class="fa fa-arrow-up text-success"></i></button>
                                 <button class="dropdown-item" type="button">Move Down<i class="fa fa-arrow-down text-danger"></i></button>
                               </div>
+                              <% } %>
                             </div>
                         <% }) %>
+                        <% if (typeof superadmin !== 'undefined' && superadmin) { %>
                         <div class="add-player-box row border rounded p-3"><i class="fa fa-user-plus text-success" data-bs-toggle="modal" data-bs-target="#AddCreatePlayerModal"></i> Add Player</div>
+                        <% } %>
                     </div>
                 </div>
             </div>
@@ -95,11 +111,15 @@
               <div class="row">
                   <div class="col-6 men">
                       <p>Men</p>  
-                      <div class="add-player-box row border rounded p-3"><i class="fa fa-user-plus text-success" data-bs-toggle="modal" data-bs-target="#AddCreatePlayerModal"></i> Add Player</div>                    
+                      <% if (typeof superadmin !== 'undefined' && superadmin) { %>
+                      <div class="add-player-box row border rounded p-3"><i class="fa fa-user-plus text-success" data-bs-toggle="modal" data-bs-target="#AddCreatePlayerModal"></i> Add Player</div>   
+                      <% } %>                 
                   </div>
                   <div class="col-6 ladies">
                       <p>Ladies</p>
+                      <% if (typeof superadmin !== 'undefined' && superadmin) { %>
                       <div class="add-player-box row border rounded p-3"><i class="fa fa-user-plus text-success" data-bs-toggle="modal" data-bs-target="#AddCreatePlayerModal"></i> Add Player</div>
+                      <% } %>
                   </div>
               </div>
           </div>
