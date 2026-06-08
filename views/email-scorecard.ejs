@@ -1755,6 +1755,8 @@
     }(jQuery);
 
     sendEvent = function(page) {
+      console.log($(this))
+      console.log(`clicked continue on page: ${page}`)
     $('#signupModal').trigger('next.m.' + page);
     }
     <% } %>

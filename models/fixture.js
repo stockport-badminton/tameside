@@ -1,6 +1,4 @@
-let postgres = require('postgres')
-const sql = postgres(`postgres://postgres.tdsvugmbkgakgbtmoajj:${encodeURIComponent(process.env.PGPASSWORD)}@aws-0-eu-west-2.pooler.supabase.com:5432/postgres`,{ ssl : { rejectUnauthorized : false }})
-var request = require('request');
+const { sql } = require('../utils/db_connect');
 /*
 
 finding mixedcase column names in sql queries:
@@ -496,38 +494,24 @@ FROM (SELECT "fixturePlayers".*, club.name
     done(null,rows);
   }
 
-  exports.sendResultZap = function(zapObject,done){
+  exports.sendResultZap = async function(zapObject, done){
     if (typeof zapObject.homeTeam !== 'undefined' && (zapObject.host !== '127.0.0.1:8080' || typeof zapObject.host === 'undefined')){
-      var options = {
-        method:'POST',
-        url:'https://hook.integromat.com/uihmc7g54i8xrvdvpsec2f6ejfqul70g',
-        headers:{
-          'content-type':'application/json'
-        },
-        body:{
-          "imgGen":"https://tameside-badminton.co.uk/resultImage/"+zapObject.homeTeam+"/"+zapObject.awayTeam+"/"+zapObject.homeScore+"/"+zapObject.awayScore+"/"+zapObject.division,
-          "message" : "Result: "+zapObject.homeTeam+" vs "+zapObject.awayTeam+" : "+zapObject.homeScore+"-"+zapObject.awayScore+" #tameside #badminton #tdbl #result #bulutangkis #badminton🏸 #badmintonclub https://tameside-badminton.co.uk",
-          "imgUrl":"https://tameside-badminton.co.uk/static/images/generated/"+ zapObject.homeTeam.replace(/([\s]{1,})/g,'-') + zapObject.awayTeam.replace(/([\s]{1,})/g,'-') +".png"
-        },
-        json:true
-      };
-      request(options,function(err,res,body){
-        if(err){
-          // console.log(err)
-          return done(err);
-        }
-        else { 
-            // console.log(body); 
-            request(`https://tameside-badminton.co.uk/resultImage/${zapObject.homeTeam}/${zapObject.awayTeam}/${zapObject.homeScore}/${zapObject.awayScore}/${zapObject.division}`,function(err,res,body){
-              if(err){
-                return done(err);
-              }
-              else { 
-                return done(null,body)
-              }
-            })
-          }
-       })
+      try {
+        await fetch('https://hook.integromat.com/uihmc7g54i8xrvdvpsec2f6ejfqul70g', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imgGen: `https://tameside-badminton.co.uk/resultImage/${zapObject.homeTeam}/${zapObject.awayTeam}/${zapObject.homeScore}/${zapObject.awayScore}/${zapObject.division}`,
+            message: `Result: ${zapObject.homeTeam} vs ${zapObject.awayTeam} : ${zapObject.homeScore}-${zapObject.awayScore} #tameside #badminton #tdbl #result #bulutangkis #badminton🏸 #badmintonclub https://tameside-badminton.co.uk`,
+            imgUrl: `https://tameside-badminton.co.uk/static/images/generated/${zapObject.homeTeam.replace(/([\s]{1,})/g,'-')}${zapObject.awayTeam.replace(/([\s]{1,})/g,'-')}.png`
+          })
+        });
+        const imgRes = await fetch(`https://tameside-badminton.co.uk/resultImage/${zapObject.homeTeam}/${zapObject.awayTeam}/${zapObject.homeScore}/${zapObject.awayScore}/${zapObject.division}`);
+        const body = await imgRes.text();
+        return done(null, body);
+      } catch(err) {
+        return done(err);
+      }
     }
     else if (zapObject.host == '127.0.0.1:8080'){
       console.log("zap not sent!");

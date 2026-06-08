@@ -2,14 +2,20 @@
 .env
 dev.env
 
-# Node.js dependencies:
+# Node.js dependencies
 node_modules/
-node_modules
-node_modules
-namecheap SPF record
-Dockerfile-old
-.gitignore
+
+# Archived/legacy files
+oldstuff/
+
+# Generated & local files
 .DS_Store
-bootstrap/.DS_Store
-bootstrap/.DS_Store
+.gitignore
+namecheap SPF record
 docker-compose.debug.yml
+scorecard-analysis/
+static/images/generated/
+static/docs/Aerospace.docx
+static/docs/College Green.docx
+static/docs/Medlock.docx
+static/docs/Mellor.docx

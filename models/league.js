@@ -1,5 +1,4 @@
-let postgres = require('postgres')
-const sql = postgres(`postgres://postgres.tdsvugmbkgakgbtmoajj:${encodeURIComponent(process.env.PGPASSWORD)}@aws-0-eu-west-2.pooler.supabase.com:5432/postgres`,{ ssl : { rejectUnauthorized : false } })
+const { sql } = require('../utils/db_connect');
 
 let  SEASON = '';
  if (new Date().getMonth() < 6){
@@ -10,44 +9,43 @@ let  SEASON = '';
  }
 
 // POST
-exports.create = function(name,admin,url,done){
-    let result = sql`
+exports.create = async function(name,admin,url,done){
+    let result = await sql`
     INSERT INTO league ("name","admin","url") VALUES (${name},${admin},${url})
     `.catch(err => {
         return done(err)
     })
-    done(null,result.insertId);
-
+    done(null,result);
   }
-  
+
   // GET
-  exports.getAll = function(done){
-    let rows = sql`SELECT * FROM "league"
+  exports.getAll = async function(done){
+    let rows = await sql`SELECT * FROM "league"
     `.catch(err => {
         return done(err)
     })
     done(null,rows);
   }
-  
+
   // GET
-  exports.getById = function(leagueId,done){
-    let rows = sql`SELECT * FROM "league" WHERE "id" = ${leagueId}`.catch(err => {
+  exports.getById = async function(leagueId,done){
+    let rows = await sql`SELECT * FROM "league" WHERE "id" = ${leagueId}`.catch(err => {
         return done(err)
     })
     done(null,rows);
   }
-  
+
   // DELETE
-  exports.deleteById = function(leagueId,done){
-    let rows = sql`DELETE FROM "league" WHERE "id" = ${leagueId}`.catch(err => {
+  exports.deleteById = async function(leagueId,done){
+    let rows = await sql`DELETE FROM "league" WHERE "id" = ${leagueId}`.catch(err => {
         return done(err)
     })
     done(null,rows);
   }
-  
+
   // PATCH
-  exports.updateById = function(name, admin, url, leagueId,done){
-    let rows = sql`UPDATE "league" SET "name" = ${name}, "admin" = ${admin}, "url" = ${url} WHERE "id" = ${leagueId}`.catch(err => {
+  exports.updateById = async function(name, admin, url, leagueId,done){
+    let rows = await sql`UPDATE "league" SET "name" = ${name}, "admin" = ${admin}, "url" = ${url} WHERE "id" = ${leagueId}`.catch(err => {
         return done(err)
     })
     done(null,rows);

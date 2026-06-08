@@ -4,7 +4,6 @@ let Team = require("../models/teams");
 let Player = require("../models/players");
 let Game = require("../models/game");
 let Auth = require("../models/auth");
-var request = require("request");
 const ejs = require('ejs');
 const ICAL = require("ical.js");
 const mailjet = require ('node-mailjet').apiConnect(process.env.MAILJET_KEY, process.env.MAILJET_SECRET)
@@ -567,22 +566,11 @@ exports.fixture_get_summary = function(req, res,next) {
           next(err);
         }
         else{
-          var options = {
-            'method': 'GET',
-            'url': 'https://api.cloudinary.com/v1_1/hvunsveuh/resources/image/tags/messer2024?max_results=30&context=true',
-            'headers': {
-              'Authorization': 'Basic '+process.env.CLOUDINARY_AUTH
-            }
-          }
-          //console.log(options);
-          request(options,function(err,response,assets){
-            //console.log(options);
-            if (err){
-              //console.log(err)
-              return false
-            }
-            else{
-              // console.log(JSON.parse(response.body).resources);
+          fetch('https://api.cloudinary.com/v1_1/hvunsveuh/resources/image/tags/messer2024?max_results=30&context=true', {
+            headers: { 'Authorization': 'Basic ' + process.env.CLOUDINARY_AUTH }
+          })
+          .then(r => r.json())
+          .then(function(assets){
               res.render('homepage', {
                   static_path: '/static',
                   title : "Homepage",
@@ -590,10 +578,10 @@ exports.fixture_get_summary = function(req, res,next) {
                   result : recentResults,
                   row : upcomingFixtures,
                   scorecards:scorecards,
-                  assets : JSON.parse(response.body).resources
+                  assets : assets.resources
               });
-            }
-        })
+          })
+          .catch(() => false)
       }
     })
   }
@@ -1026,44 +1014,27 @@ exports.email_scorecard = function (req, res, next) {
           next(err);
         } else {
           // console.log(req.session)
-          var options = {
-            method: "GET",
-            headers: {
-              Authorization: "Bearer " + apiKey,
-            },
-            url:
-              "https://" +
-              process.env.AUTH0_DOMAIN +
-              "/api/v2/users?q=user_id:" +
-              req.user.id +
-              "&fields=app_metadata,nickname,email",
-          };
-          //console.log(options);
-          request(options, function (err, response, userBody) {
-            //console.log(options);
-            if (err) {
-              console.log(err)
-              return false;
-            } else {
-              var user = JSON.parse(userBody);
-              Fixture.getMissingScorecardPhotos(user[0].email, function (err, fixtures) {
-                if (err) {
-                  next(err);
-                } else {
-                  
-                  console.log(user)
-                  res.render("email-scorecard", {
-                    static_path: "/static",
-                    theme: process.env.THEME || "flatly",
-                    title: "Scorecard",
-                    pageDescription: "Enter some results!",
-                    result: rows,
-                    fixtures:fixtures
-                  })
-                };
-              })
-            }
-          });
+          fetch(`https://${process.env.AUTH0_DOMAIN}/api/v2/users?q=user_id:${req.user.id}&fields=app_metadata,nickname,email`, {
+            headers: { Authorization: "Bearer " + apiKey }
+          })
+          .then(r => r.json())
+          .then(function(user) {
+            Fixture.getMissingScorecardPhotos(user[0].email, function (err, fixtures) {
+              if (err) {
+                next(err);
+              } else {
+                res.render("email-scorecard", {
+                  static_path: "/static",
+                  theme: process.env.THEME || "flatly",
+                  title: "Scorecard",
+                  pageDescription: "Enter some results!",
+                  result: rows,
+                  fixtures: fixtures
+                });
+              }
+            });
+          })
+          .catch(err => { console.log(err); return false; });
         }
       });
     }

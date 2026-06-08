@@ -6,7 +6,6 @@ var Game = require('../models/game');
 var async = require('async');
 var jp = require('jsonpath');
 const {distance, closest} = require('fastest-levenshtein');
-var request = require('request');
 var Auth = require('../models/auth.js');
 const { validationResult } = require('express-validator');
 const docx = require("docx");
@@ -151,22 +150,12 @@ exports.manage_player_list_clubs_teams = function(req, res,next) {
       next(err);
     }
     else{
-      var options = {
-        method:'GET',
-        headers:{
-          "Authorization":"Bearer "+apiKey
-        },
-        url:'https://'+process.env.AUTH0_DOMAIN+'/api/v2/users?q=user_id:'+req.user.id+'&fields=app_metadata,nickname,email'
-      }
-      //console.log(options);
-      request(options,function(err,response,userBody){
-        //console.log(options);
-        if (err){
-          //console.log(err)
-          return false
-        }
-        else{
-          var user = JSON.parse(userBody);
+      fetch(`https://${process.env.AUTH0_DOMAIN}/api/v2/users?q=user_id:${req.user.id}&fields=app_metadata,nickname,email`, {
+        method: 'GET',
+        headers: { "Authorization": "Bearer " + apiKey }
+      })
+      .then(response => response.json())
+      .then(function(user){
           if (user[0].app_metadata.role) {
             if (user[0].app_metadata.role == "superadmin"){
               var superadmin = true;
@@ -395,7 +384,6 @@ exports.manage_player_list_clubs_teams = function(req, res,next) {
           else {
             return next("Sorry you don't have access to this page");
           }
-        }
       })
     }
   })

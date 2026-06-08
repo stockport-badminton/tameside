@@ -12,8 +12,6 @@ let { expressjwt: jwt } = require("express-jwt");
 let jwksRsa = require('jwks-rsa');
 let sassMiddleware = require('express-dart-sass')
 let path = require('path')
-let postgres = require('postgres')
-const sql = postgres(`postgres://postgres.tdsvugmbkgakgbtmoajj:${encodeURIComponent(process.env.PGPASSWORD)}@aws-0-eu-west-2.pooler.supabase.com:5432/postgres`,{ ssl : { rejectUnauthorized : false } })
 const {
   S3Client,
   PutObjectCommand,
@@ -97,25 +95,19 @@ var strategy = new Auth0Strategy(
   // config express-session
   var sess = {
     name:'__session',
-    secret: 'ThisisMySecret',
-    cookie: {},
+    secret: process.env.SESSION_SECRET || 'ThisisMySecret',
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+    },
     resave: false,
     saveUninitialized: false
   };
-  console.log("prod environment")
-  app.set('trust proxy', 1); // trust first proxy
-  // sess.cookie.secure = true; // serve secure cookies, requires https
-  sess.proxy = true;
-  console.log("session:sess");
-  console.log(sess);
   if (app.get('env') === 'production') {
-    console.log("prod environment")
-    app.set('trust proxy', 1); // trust first proxy
-    // sess.cookie.secure = true; // serve secure cookies, requires https
+    app.set('trust proxy', 1);
     sess.proxy = true;
-    console.log("session:sess");
-    console.log(sess);
-  }  
+    sess.cookie.secure = true;
+  }
   app.use(session(sess));
   app.use(passport.initialize());
   app.use(passport.session());
@@ -131,7 +123,6 @@ let userInViews = require(__dirname + '/models/userInViews');
 var auth_controller = require(__dirname + '/models/auth.js');
 let social_controller = require(__dirname + '/controllers/social_controller')
 
-let currentURL = ''
 app.use(userInViews())
 
     
@@ -179,7 +170,7 @@ app.get('/mailjet', contactus_controller.mailjet_test)
 app.get('/event/:id/:date-:homeTeam-:awayTeam', fixture_controller.fixture_event_detail);
 
 /* POST request for batch creating Fixture. */
-app.post('/fixture/rearrangement', fixture_controller.fixture_rearrange_by_team_name);
+app.post('/fixture/rearrangement', secured, fixture_controller.fixture_rearrange_by_team_name);
 
 app.get('/fixture-players', fixture_controller.get_fixture_players_details);
 app.get('/fixture-players/team-:team?', fixture_controller.get_fixture_players_details);
@@ -233,7 +224,7 @@ app.get('/eligiblePlayers/:id/:gender', player_controller.eligible_players_list)
 /* GET request for list of all Player items. */
 app.get('/players/club-:clubid?/team-:teamid?/gender-:gender?', player_controller.player_list);
 app.get('/players/matching/:name/:gender',player_controller.find_closest_matched_player);
-app.post('/player/create', player_controller.player_create);
+app.post('/player/create', secured, player_controller.player_create);
 
 app.get('/players/eloPop', player_controller.player_elo_populate);
 
@@ -256,7 +247,7 @@ app.get('/lewis-shield/:season', team_controller.lewis_draw);
 
 
 
-app.post('/manage-players/create', player_controller.player_create_from_team);
+app.post('/manage-players/create', secured, player_controller.player_create_from_team);
 app.get('/populated-scorecard/:division/:home_team/:away_team/:home_man_1/:home_man_2/:home_man_3/:home_man_4/:home_lady_1/:home_lady_2/:away_man_1/:away_man_2/:away_man_3/:away_man_4/:away_lady_1/:away_lady_2/:Game1homeScore/:Game1awayScore/:Game2homeScore/:Game2awayScore/:Game3homeScore/:Game3awayScore/:Game4homeScore/:Game4awayScore/:Game5homeScore/:Game5awayScore/:Game6homeScore/:Game6awayScore/:Game7homeScore/:Game7awayScore/:Game8homeScore/:Game8awayScore/:Game9homeScore/:Game9awayScore/:Game10homeScore/:Game10awayScore/:Game11homeScore/:Game11awayScore/:Game12homeScore/:Game12awayScore/:Game13homeScore/:Game13awayScore/:Game14homeScore/:Game14awayScore/:Game15homeScore/:Game15awayScore/:Game16homeScore/:Game16awayScore/:Game17homeScore/:Game17awayScore/:Game18homeScore/:Game18awayScore', (req,res,next) => {
   console.log(req.params)
   fixture_controller.fixture_populate_scorecard_fromUrl(req,res,next)
@@ -267,8 +258,7 @@ app.get('/scorecard/fixture/:id', fixture_controller.getScorecard);
 
 
 
-//POST for processing results entry form - possibly redundant.
-app.post('/scorecard-beta',fixture_controller.validateScorecard, fixture_controller.full_fixture_post);
+app.post('/scorecard-beta', secured, fixture_controller.validateScorecard, fixture_controller.full_fixture_post);
 
 app.get('/populated-scorecard-beta/:id',(req,res,next) => {
   console.log(req.body);
@@ -277,22 +267,13 @@ app.get('/populated-scorecard-beta/:id',(req,res,next) => {
 
 function secured(req, res, next) {
     if (req.isAuthenticated()) {
-      console.log(`user: ${req.user.displayName}`)
-      console.log(`page: ${req.url}`)
       return next();
     }
-    // console.log('Original URL:', req.originalUrl);
-    currentURL = req.originalUrl
-    // const returnTo = req.query.state || req.originalUrl;
-    req.session.returnTo = req.originalUrl; 
-    res.redirect('/login?returnTo=' + encodeURIComponent(req.originalUrl));
+    req.session.returnTo = req.originalUrl;
+    res.redirect('/login');
   }
 
   app.get('/login', function(req, res, next) {
-    const returnTo = req.query.returnTo;
-    if (returnTo){
-      req.session.returnTo = returnTo
-    }
     passport.authenticate('auth0', {
       scope: 'openid email profile'
     })(req, res, next);
@@ -316,13 +297,12 @@ function secured(req, res, next) {
         return res.redirect('/login')
       } else {
         req.logIn(user, function (err) {
-          if (err) {console.log(err); return next(err); }
-          // console.log("callback session returnTo:" + req.session.returnTo)
-          // console.log("callback currentUrl:" + currentURL)
-          const returnTo = currentURL || '/'; // Retrieve the returnTo value from session
-          delete req.session.returnTo; // Remove the returnTo value from session
-          console.log(returnTo)
-          res.redirect(returnTo);
+          if (err) { return next(err); }
+          const returnTo = req.session.returnTo;
+          delete req.session.returnTo;
+          // Only redirect to same-site paths
+          const safePath = (returnTo && returnTo.startsWith('/')) ? returnTo : '/';
+          res.redirect(safePath);
         });
       }
     })(req, res, next);
@@ -362,8 +342,6 @@ function secured(req, res, next) {
   app.get('/player/create', secured,player_controller.player_create_get);
   app.post('/player/batch-update',player_controller.player_batch_update);
   app.post('/player/:id',secured, player_controller.player_update_post);
-  // TODO: Create page showing teams, venue, club night and match night details, player stats for the club, team registrations
-  app.get('/club/:id', secured,club_controller.club_detail);
   app.get('/club-api/:id', secured,club_controller.club_detail_api);
   app.get('/admin/info/clubs', secured,club_controller.club_list_detail);
 

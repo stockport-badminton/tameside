@@ -1,7 +1,5 @@
-let postgres = require('postgres')
-const sql = postgres(`postgres://postgres.tdsvugmbkgakgbtmoajj:${encodeURIComponent(process.env.PGPASSWORD)}@aws-0-eu-west-2.pooler.supabase.com:5432/postgres`,{ ssl : { rejectUnauthorized : false },connect_timeout:120, idle_timeout:120 })
+const { sql } = require('../utils/db_connect');
 const levenshtein = require('js-levenshtein');
-const { restart } = require('nodemon');
 var SEASON = '';
 if (new Date().getMonth() < 7){
   SEASON = '' + new Date().getFullYear()-1 +''+ new Date().getFullYear();

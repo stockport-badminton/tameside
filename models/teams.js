@@ -1,5 +1,4 @@
-let postgres = require("postgres")
-const sql = postgres(`postgres://postgres.tdsvugmbkgakgbtmoajj:${encodeURIComponent(process.env.PGPASSWORD)}@aws-0-eu-west-2.pooler.supabase.com:5432/postgres`,{ ssl : { rejectUnauthorized : false } })
+const { sql } = require('../utils/db_connect');
 
 let  SEASON = "";
  if (new Date().getMonth() < 6){

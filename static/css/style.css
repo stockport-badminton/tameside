@@ -17302,14 +17302,13 @@ i.fa.fa-ellipsis-v.dropdown-toggle::after {
   display: block;
   height: 50%;
   text-align: right; }
-
-.bracket.even-fix {
-  position: relative;
-  top: -25%; }
-
-.bracket.odd-fix {
-  position: relative;
-  top: 25%; }
+    
+  .bracket.even-fix{
+    position:relative;top:-45%;
+  }
+  .bracket.odd-fix{
+    position:relative;top:45%;
+  }
 
 .bracket-container .row {
   padding: 5px 0px;

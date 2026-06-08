@@ -1,5 +1,4 @@
-let postgres = require('postgres')
-const sql = postgres(`postgres://postgres.tdsvugmbkgakgbtmoajj:${encodeURIComponent(process.env.PGPASSWORD)}@aws-0-eu-west-2.pooler.supabase.com:5432/postgres`,{ ssl : { rejectUnauthorized : false } })
+const { sql } = require('../utils/db_connect');
 
 
 // POST
@@ -107,8 +106,8 @@ FROM club
     JOIN team ON team."club" = club."id"
     JOIN venue ON club."venue" = venue."id"
     JOIN venue "matchVenue" ON club."matchVenue" = "matchVenue"."id"
-    JOIN player "matchSec" ON club."id" = "matchSec"."club"
-    and "matchSec"."matchSecrertary" = 1
+    JOIN player "matchSec" ON (club."id" = "matchSec"."club"
+    and "matchSec"."matchSecrertary" = 1)
     JOIN player "clubSec" ON (
         (
             club."id" = "clubSec"."club"
