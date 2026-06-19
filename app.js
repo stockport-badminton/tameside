@@ -297,11 +297,11 @@ function secured(req, res, next) {
         }); */
         return res.redirect('/login')
       } else {
+        const returnTo = req.session.returnTo;
+        delete req.session.returnTo;
         req.logIn(user, function (err) {
           if (err) { return next(err); }
-          const returnTo = req.session.returnTo;
-          delete req.session.returnTo;
-          // Only redirect to same-site paths
+          // Only redirect to same-site paths (captured before logIn regenerates the session)
           const safePath = (returnTo && returnTo.startsWith('/')) ? returnTo : '/';
           res.redirect(safePath);
         });
