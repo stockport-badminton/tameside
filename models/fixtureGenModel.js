@@ -13,7 +13,7 @@ exports.getTeamsForScheduler = async function (done) {
       SELECT
         t.id,
         t.name,
-        t."matchDay"   AS "homeNight",
+        t."matchNight"  AS "homeNight",
         d.id           AS "divisionId",
         d.name         AS "divisionName",
         c.id           AS "clubId",
@@ -57,13 +57,17 @@ exports.getDraftFixtures = async function (season, done) {
         div.name             AS "divisionName",
         d."homeTeam"         AS "homeTeamId",
         ht.name              AS "homeTeamName",
+        hc.name              AS "homeClubName",
         d."awayTeam"         AS "awayTeamId",
         at.name              AS "awayTeamName",
+        ac.name              AS "awayClubName",
         d."generatedAt"
       FROM tameside_draft_fixture d
-      JOIN division div ON d.division = div.id
+      JOIN division div ON d.division   = div.id
       JOIN team     ht  ON d."homeTeam" = ht.id
+      JOIN club     hc  ON ht.club      = hc.id
       JOIN team     at  ON d."awayTeam" = at.id
+      JOIN club     ac  ON at.club      = ac.id
       WHERE d.season = ${season}
       ORDER BY d.date, div.id
     `;
@@ -83,10 +87,10 @@ exports.saveDraftFixtures = async function (seasonCalendar, season, done) {
       for (const fixture of dateRow.fixtures || []) {
         rows.push({
           season,
-          '"homeTeam"':  fixture.homeTeam.id,
-          '"awayTeam"':  fixture.awayTeam.id,
-          date:          dateRow.dbDate,
-          division:      fixture.divisionId,
+          homeTeam:  fixture.homeTeam.id,
+          awayTeam:  fixture.awayTeam.id,
+          date:      dateRow.dbDate,
+          division:  fixture.divisionId,
         });
       }
     }

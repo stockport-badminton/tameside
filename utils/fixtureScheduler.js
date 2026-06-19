@@ -323,7 +323,50 @@ function generateFixtureCalendar(divisions, seasonStart, seasonEnd, xmasDate, ea
   });
 
   seasonCalendar.sort((a, b) => new Date(a.dateObj) - new Date(b.dateObj));
-  return seasonCalendar;
+
+  const stats = computeStats(seasonCalendar);
+  stats.extensions = seasonExtensions;
+  stats.unplaced   = unplaced.length;
+  return { calendar: seasonCalendar, stats };
+}
+
+// Derive schedule quality stats from any completed calendar array
+function computeStats(seasonCalendar) {
+  const totalFixtures = seasonCalendar.reduce((sum, row) => sum + (row.fixtures || []).length, 0);
+  const datesUsed = seasonCalendar.length;
+
+  // Build dbDate → Set<clubName>
+  const dateClubs = new Map();
+  for (const row of seasonCalendar) {
+    const clubs = new Set();
+    for (const f of row.fixtures || []) {
+      if (f.homeTeam && f.homeTeam.club) clubs.add(f.homeTeam.club);
+      if (f.awayTeam && f.awayTeam.club) clubs.add(f.awayTeam.club);
+    }
+    dateClubs.set(row.dbDate, clubs);
+  }
+
+  // Count consecutive nights per club
+  const consecutiveCount = new Map();
+  for (const [dateStr, clubs] of dateClubs) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const prev = new Date(Date.UTC(y, m - 1, d));
+    prev.setUTCDate(prev.getUTCDate() - 1);
+    const prevKey = `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, '0')}-${String(prev.getUTCDate()).padStart(2, '0')}`;
+    const prevClubs = dateClubs.get(prevKey);
+    if (!prevClubs) continue;
+    for (const club of clubs) {
+      if (prevClubs.has(club)) {
+        consecutiveCount.set(club, (consecutiveCount.get(club) || 0) + 1);
+      }
+    }
+  }
+
+  const consecutiveNights = Array.from(consecutiveCount.entries())
+    .map(([club, count]) => ({ club, count }))
+    .sort((a, b) => b.count - a.count);
+
+  return { totalFixtures, datesUsed, consecutiveNights };
 }
 
 // Butcher's algorithm for Easter Sunday
@@ -362,4 +405,4 @@ function getSeasonDates() {
   };
 }
 
-module.exports = { generateFixtureCalendar, getSeasonDates, getEasterDate };
+module.exports = { generateFixtureCalendar, getSeasonDates, getEasterDate, computeStats };

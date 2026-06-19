@@ -1,21 +1,21 @@
-const { generateFixtureCalendar, getSeasonDates } = require('../utils/fixtureScheduler');
+const { generateFixtureCalendar, getSeasonDates, computeStats } = require('../utils/fixtureScheduler');
 const fixtureGenModel = require('../models/fixtureGenModel');
 
-function buildRenderContext(req, seasonCalendar, divisions, seasonDates, meta = {}) {
+function buildRenderContext(req, seasonCalendar, divisions, seasonDates, stats, meta = {}) {
   // Flatten fixtures per division for the client-side spreadsheet builder
   function flattenDiv(divName) {
     return seasonCalendar.flatMap(dateRow =>
       (dateRow.fixtures || [])
         .filter(f => f.division === divName)
         .map(f => ({
-          date: `${dateRow.dateObj.getMonth() + 1}-${dateRow.dateObj.getDate()}-${dateRow.dateObj.getFullYear()}`,
+          date: dateRow.dbDate,
           homeTeam: f.homeTeam.name,
           awayTeam: f.awayTeam.name,
         }))
     );
   }
 
-  // Build teams-by-name map per division for the spreadsheet builder
+  // Build teams-by-id map per division for the spreadsheet builder
   function teamsMap(div) {
     return div.teams.reduce((acc, t) => { acc[t.id] = t; return acc; }, {});
   }
@@ -28,12 +28,13 @@ function buildRenderContext(req, seasonCalendar, divisions, seasonDates, meta = 
 
   return {
     static_path:     '/static',
-    pageTitle:       'Fixture Generator',
+    title:           'Fixture Generator',
     pageDescription: `Tameside ${seasonDates.season} fixture generator`,
     canonical:       `https://${req.get('host')}/fixture-gen`,
     fixturesOutput:  seasonCalendar,
-    divData:         divData,
-    seasonDates:     {
+    divData,
+    stats,
+    seasonDates: {
       season:     seasonDates.season,
       seasonYear: seasonDates.seasonYear,
       start:      seasonDates.seasonStart.toISOString().split('T')[0],
@@ -56,11 +57,11 @@ function calendarFromDraftRows(draftRows, divisions) {
     // Reconstruct team objects from DB row + divisions lookup
     const div = divisions.find(d => d.id === row.divisionId) || { name: row.divisionName };
     const homeTeam = div.teams
-      ? div.teams.find(t => t.id === row.homeTeamId) || { id: row.homeTeamId, name: row.homeTeamName }
-      : { id: row.homeTeamId, name: row.homeTeamName };
+      ? div.teams.find(t => t.id === row.homeTeamId) || { id: row.homeTeamId, name: row.homeTeamName, club: row.homeClubName }
+      : { id: row.homeTeamId, name: row.homeTeamName, club: row.homeClubName };
     const awayTeam = div.teams
-      ? div.teams.find(t => t.id === row.awayTeamId) || { id: row.awayTeamId, name: row.awayTeamName }
-      : { id: row.awayTeamId, name: row.awayTeamName };
+      ? div.teams.find(t => t.id === row.awayTeamId) || { id: row.awayTeamId, name: row.awayTeamName, club: row.awayClubName }
+      : { id: row.awayTeamId, name: row.awayTeamName, club: row.awayClubName };
 
     dateMap.get(key).fixtures.push({
       homeTeam,
@@ -87,16 +88,19 @@ exports.renderFixtures = function (req, res) {
   const seasonDates = getSeasonDates();
 
   fixtureGenModel.getTeamsForScheduler(function (err, divisions) {
-    if (err) return res.status(500).render('500-error', { static_path: '/static', pageTitle: '500', pageDescription: '500', error: err });
+    if (err) return res.status(500).render('500-error', { static_path: '/static', title: '500', pageDescription: '500', error: err });
 
     fixtureGenModel.getDraftFixtures(seasonDates.season, function (err, draftRows) {
-      if (err) return res.status(500).render('500-error', { static_path: '/static', pageTitle: '500', pageDescription: '500', error: err });
+      if (err) return res.status(500).render('500-error', { static_path: '/static', title: '500', pageDescription: '500', error: err });
 
       if (draftRows.length > 0) {
-        // Existing draft — display without regenerating
+        // Existing draft — recompute stats from the saved calendar
         const calendar = calendarFromDraftRows(draftRows, divisions);
+        const stats = computeStats(calendar);
+        stats.extensions = null; // not stored — only known at generation time
+        stats.unplaced   = null;
         const generatedAt = draftRows[0].generatedAt;
-        return res.render('fixtures-gen', buildRenderContext(req, calendar, divisions, seasonDates, {
+        return res.render('fixtures-gen', buildRenderContext(req, calendar, divisions, seasonDates, stats, {
           isDraft: true,
           generatedAt,
           flash: req.query.published ? 'Fixtures published to live schedule.' : null,
@@ -104,7 +108,7 @@ exports.renderFixtures = function (req, res) {
       }
 
       // No draft — generate fresh and save
-      const calendar = generateFixtureCalendar(
+      const { calendar, stats } = generateFixtureCalendar(
         divisions,
         seasonDates.seasonStart,
         seasonDates.seasonEnd,
@@ -115,7 +119,7 @@ exports.renderFixtures = function (req, res) {
 
       fixtureGenModel.saveDraftFixtures(calendar, seasonDates.season, function (err) {
         if (err) console.error('Failed to save draft fixtures:', err);
-        res.render('fixtures-gen', buildRenderContext(req, calendar, divisions, seasonDates, {
+        res.render('fixtures-gen', buildRenderContext(req, calendar, divisions, seasonDates, stats, {
           isDraft: false,
           generatedAt: new Date(),
           flash: null,
@@ -133,7 +137,7 @@ exports.regenerateFixtures = function (req, res) {
   fixtureGenModel.getTeamsForScheduler(function (err, divisions) {
     if (err) return res.status(500).send('Error loading teams');
 
-    const calendar = generateFixtureCalendar(
+    const { calendar } = generateFixtureCalendar(
       divisions,
       seasonDates.seasonStart,
       seasonDates.seasonEnd,

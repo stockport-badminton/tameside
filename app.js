@@ -355,7 +355,7 @@ app.use(function(req, res) {
   res.status(404);
   res.render('404-error', {
       pageHeading: "404",
-      pageTitle: "404",
+      title: "404",
       static_path: "/static",
       title : "Can't find the page your looking for",
       pageDescription : "Can't find the page your looking for",
@@ -367,7 +367,7 @@ app.use(function(error, req, res) {
     res.status(500);
     res.render('500-error', {
         pageHeading: "500",
-        pageTitle: "500",
+        title: "500",
         static_path: "/static",
         title : "Sorry - theres been an error",
         pageDescription : "Sorry - theres been an error",
