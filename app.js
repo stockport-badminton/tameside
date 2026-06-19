@@ -122,6 +122,7 @@ let player_controller = require(__dirname + '/controllers/playerController');
 let userInViews = require(__dirname + '/models/userInViews');
 var auth_controller = require(__dirname + '/models/auth.js');
 let social_controller = require(__dirname + '/controllers/social_controller')
+let fixture_gen_controller = require(__dirname + '/controllers/fixtureGenController')
 
 app.use(userInViews())
 
@@ -323,6 +324,11 @@ function secured(req, res, next) {
 
   app.get('/admin/results/*', secured,fixture_controller.fixture_detail_byDivision);
   app.get('/admin/results/:division/:season',  secured,fixture_controller.fixture_detail_byDivision);
+  // Fixture generator (secured — admin only)
+  app.get('/fixture-gen', secured, fixture_gen_controller.renderFixtures);
+  app.post('/fixture-gen/regenerate', secured, fixture_gen_controller.regenerateFixtures);
+  app.post('/fixture-gen/publish', secured, fixture_gen_controller.publishFixtures);
+
   app.get('/club/:id', secured,club_controller.club_detail);
   
   app.get('/players/club-:club?/team-:team?/gender-:gender?', secured,player_controller.player_list_clubs_teams);
@@ -349,7 +355,7 @@ app.use(function(req, res) {
   res.status(404);
   res.render('404-error', {
       pageHeading: "404",
-      pageTitle: "404",
+      title: "404",
       static_path: "/static",
       title : "Can't find the page your looking for",
       pageDescription : "Can't find the page your looking for",
@@ -361,7 +367,7 @@ app.use(function(error, req, res) {
     res.status(500);
     res.render('500-error', {
         pageHeading: "500",
-        pageTitle: "500",
+        title: "500",
         static_path: "/static",
         title : "Sorry - theres been an error",
         pageDescription : "Sorry - theres been an error",

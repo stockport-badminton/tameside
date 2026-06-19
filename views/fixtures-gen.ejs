@@ -1,0 +1,340 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<div class="container-fluid mt-3">
+
+<% if (flash) { %>
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  <%= flash %>
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<% } %>
+
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="mb-0">Fixture Generator — <%= seasonDates.season.slice(0,4) %>/<%= seasonDates.season.slice(4) %></h1>
+    <small class="text-muted">
+      Season: <%= seasonDates.start %> → <%= seasonDates.end %> &nbsp;|&nbsp;
+      Easter: <%= seasonDates.easter %> &nbsp;|&nbsp;
+      <% if (isDraft) { %>
+        Loaded from saved draft
+        <% if (generatedAt) { %>(generated <%= new Date(generatedAt).toLocaleDateString('en-GB') %>)<% } %>
+      <% } else { %>
+        Freshly generated &amp; saved as draft
+      <% } %>
+    </small>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <form method="POST" action="/fixture-gen/regenerate" style="display:inline">
+      <button class="btn btn-warning btn-sm" onclick="return confirm('Regenerate? This will replace the current draft.')">
+        Regenerate
+      </button>
+    </form>
+    <form method="POST" action="/fixture-gen/publish" style="display:inline">
+      <button class="btn btn-danger btn-sm" onclick="return confirm('Publish to live fixture schedule? This will overwrite any unplayed fixtures for this season.')">
+        Publish to Season
+      </button>
+    </form>
+    <button id="dlSpreadsheet" class="btn btn-success btn-sm">Download Spreadsheet</button>
+  </div>
+</div>
+
+<% if (typeof stats !== 'undefined' && stats) { %>
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-3 text-center mb-3">
+      <div class="col-6 col-md-3">
+        <div class="fw-bold fs-4"><%= stats.totalFixtures %></div>
+        <small class="text-muted">Fixtures scheduled</small>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="fw-bold fs-4"><%= stats.datesUsed %></div>
+        <small class="text-muted">Dates used</small>
+      </div>
+      <div class="col-6 col-md-3">
+        <% if (stats.extensions !== null) { %>
+          <div class="fw-bold fs-4 <%= stats.extensions > 0 ? 'text-warning' : 'text-success' %>"><%= stats.extensions %></div>
+        <% } else { %>
+          <div class="fw-bold fs-4 text-muted">—</div>
+        <% } %>
+        <small class="text-muted">Season extensions</small>
+      </div>
+      <div class="col-6 col-md-3">
+        <% if (stats.unplaced !== null) { %>
+          <div class="fw-bold fs-4 <%= stats.unplaced > 0 ? 'text-danger' : 'text-success' %>"><%= stats.unplaced %></div>
+        <% } else { %>
+          <div class="fw-bold fs-4 text-muted">—</div>
+        <% } %>
+        <small class="text-muted">Unplaced fixtures</small>
+      </div>
+    </div>
+    <h6 class="text-muted mb-2">Consecutive nights per club</h6>
+    <% if (stats.consecutiveNights && stats.consecutiveNights.length > 0) { %>
+      <div class="d-flex flex-wrap gap-2">
+        <% stats.consecutiveNights.forEach(function(cn) { %>
+          <span class="badge <%= cn.count > 2 ? 'bg-danger' : cn.count > 1 ? 'bg-warning text-dark' : 'bg-secondary' %>">
+            <%= cn.club %>: <%= cn.count %>
+          </span>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <span class="text-success small">No consecutive nights for any club.</span>
+    <% } %>
+  </div>
+</div>
+<% } %>
+
+<% if (typeof fixturesOutput !== 'undefined') { %>
+<div class="table-responsive mb-4">
+  <table class="table table-sm table-striped" id="results-table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Home Team</th>
+        <th>Away Team</th>
+        <th>Division</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% fixturesOutput.forEach(function(dateRow){ %>
+        <% if (typeof dateRow.fixtures !== 'undefined') { dateRow.fixtures.forEach(function(fixture){ %>
+        <tr>
+          <td><%= dateRow.date %></td>
+          <td><%= fixture.homeTeam.name %></td>
+          <td><%= fixture.awayTeam.name %></td>
+          <td><%= fixture.division %></td>
+        </tr>
+        <% }) } %>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
+<% divData.forEach(function(div, idx) { %>
+<hr />
+<h2><%= div.name %></h2>
+<div id="divOutput_<%= idx %>"></div>
+<% }) %>
+
+</div>
+
+<%- include('footer.ejs') %>
+<%- include('datatables.ejs') %>
+
+<script>
+    var seasonDates = <%- JSON.stringify(seasonDates) %>;
+    var xmasDate      = new Date(seasonDates.xmas);
+    var easterDate    = new Date(seasonDates.easter);
+    var seasonStart   = new Date(seasonDates.start);
+    var seasonEnd     = new Date(seasonDates.end);
+
+    var nearEaster = function(d) {
+        var s = new Date(+easterDate); s.setDate(easterDate.getDate() - 4);
+        var e = new Date(+easterDate); e.setDate(easterDate.getDate() + 2);
+        return d > s && d < e;
+    };
+
+    var nearXmas = function(d) {
+        var s = new Date(+xmasDate); s.setDate(xmasDate.getDate() - xmasDate.getDay());
+        var e = new Date(+s); e.setDate(s.getDate() + 14);
+        return d >= s && d <= e;
+    };
+
+    var islewisShieldWeek = function(d) {
+        var xmasStart = new Date(+xmasDate); xmasStart.setDate(xmasDate.getDate() - xmasDate.getDay());
+        var xmasEnd   = new Date(+xmasStart); xmasEnd.setDate(xmasStart.getDate() + 14);
+        var ls1s = new Date(+xmasEnd);
+        var ls1e = new Date(+ls1s); ls1e.setDate(ls1s.getDate() + 21);
+        var ls2s = new Date(+ls1e); ls2s.setDate(ls1e.getDate() + 21);
+        var ls2e = new Date(+ls2s); ls2e.setDate(ls2s.getDate() + 14);
+        var es   = new Date(+easterDate); es.setDate(easterDate.getDate() - 7);
+        var ee   = new Date(+easterDate); ee.setDate(easterDate.getDate() + 7);
+        var ls3s = (seasonEnd - ee < 14 * 86400000)
+            ? new Date(+es - 14 * 86400000)
+            : new Date(+ee);
+        var ls3e = new Date(+ls3s); ls3e.setDate(ls3s.getDate() + 14);
+        return (d > ls1s && d < ls1e) || (d > ls2s && d < ls2e) || (d > ls3s && d < ls3e);
+    };
+
+    function buildDivisionTables(fixtures, divisionTeams, startDate) {
+        var weekdays = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+        var html = "<table border='1' cellpadding='4' cellspacing='0'>\n";
+
+        // 3 header rows
+        for (var i = 0; i < 3; i++) {
+            var row = [(i === 2 ? "Match day" : " "), " "];
+            for (var k in divisionTeams) {
+                if (i === 0) row.push(" ");
+                else if (i === 1) row.push(divisionTeams[k].name);
+                else row.push(divisionTeams[k].homeNight);
+            }
+            html += "<tr><td>" + row.join("</td><td>") + "</td></tr>\n";
+        }
+
+        var day = new Date(startDate);
+        while (day <= seasonEnd) {
+            var row = [weekdays[day.getDay()], day.getDate() + "/" + (day.getMonth()+1) + "/" + day.getFullYear()];
+            for (var k in divisionTeams) {
+                if (nearXmas(day)) {
+                    row.push(day.getDay() === 3 ? "XMAS BREAK" : "X");
+                } else if (nearEaster(day)) {
+                    row.push(day.getDay() === 3 ? "EASTER BREAK" : "X");
+                } else if (islewisShieldWeek(day)) {
+                    row.push(day.getDay() === 3 ? "LEWIS SHIELD" : "X");
+                } else {
+                    var dd = day.getFullYear() + '-' + String(day.getMonth()+1).padStart(2,'0') + '-' + String(day.getDate()).padStart(2,'0');
+                    var tf = fixtures.filter(function(f) { return f.date === dd; });
+                    var cellVal = " ";
+                    for (var j = 0; j < tf.length; j++) {
+                        if (tf[j].homeTeam === divisionTeams[k].name) { cellVal = "<strong>" + tf[j].homeTeam + "</strong>"; break; }
+                        if (tf[j].awayTeam === divisionTeams[k].name) { cellVal = "<em>" + tf[j].awayTeam + "</em>"; break; }
+                    }
+                    row.push(cellVal);
+                }
+            }
+            html += "<tr><td>" + row.join("</td><td>") + "</td></tr>\n";
+            day.setDate(day.getDate() + 1);
+        }
+        html += "</table>\n";
+
+        // Cross-reference grid
+        var grid = "<table border='1' cellpadding='4' cellspacing='0'>\n<tr><td>&nbsp;</td>";
+        for (var k in divisionTeams) grid += "<td>" + divisionTeams[k].name + "</td>";
+        grid += "</tr>\n";
+        for (var hk in divisionTeams) {
+            grid += "<tr><td>" + divisionTeams[hk].name + "</td>";
+            for (var ak in divisionTeams) {
+                if (hk === ak) {
+                    grid += "<td>&nbsp;</td>";
+                } else {
+                    var match = fixtures.filter(function(f) { return f.homeTeam === divisionTeams[hk].name && f.awayTeam === divisionTeams[ak].name; });
+                    grid += match.length
+                        ? "<td>" + match[0].date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$3/$2/$1") + "</td>"
+                        : "<td>0/0/0000</td>";
+                }
+            }
+            grid += "</tr>\n";
+        }
+        grid += "</table>";
+
+        return { html: html, grid: grid };
+    }
+
+    // Render each division's tables into the page
+    var divData = <%- JSON.stringify(divData) %>;
+    var allDivFixtures = [];
+    var allDivTeams    = [];
+
+    divData.forEach(function(div, idx) {
+        var fixtures = JSON.parse(div.fixtures);
+        var teams    = JSON.parse(div.teams);
+        allDivFixtures.push(fixtures);
+        allDivTeams.push(teams);
+        var result = buildDivisionTables(fixtures, teams, seasonStart);
+        document.getElementById('divOutput_' + idx).innerHTML = result.html + result.grid;
+    });
+
+    // ── Spreadsheet download (SpreadsheetML, 2 tabs per division: Calendar + Grid) ──
+
+    function buildSpreadsheet(allDivFixtures, allDivTeams) {
+        var weekdays = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+        function xmlEsc(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+        function xcell(text, sid) {
+            return '<Cell' + (sid ? ' ss:StyleID="'+sid+'"' : '') + '><Data ss:Type="String">' + xmlEsc(text||'') + '</Data></Cell>';
+        }
+
+        function calSheet(name, fixtures, teams) {
+            var keys = Object.keys(teams);
+            var out = '<Worksheet ss:Name="' + xmlEsc(name) + '"><Table>\n';
+            out += '<Row>' + xcell('') + xcell('');
+            keys.forEach(function(k){ out += xcell(teams[k].name,'Hdr'); });
+            out += '</Row>\n<Row>' + xcell('') + xcell('Home night');
+            keys.forEach(function(k){ out += xcell(teams[k].homeNight,'Sub'); });
+            out += '</Row>\n';
+
+            var day = new Date(seasonStart);
+            while (day <= seasonEnd) {
+                out += '<Row>' + xcell(weekdays[day.getDay()]) + xcell(day.getDate()+'/'+(day.getMonth()+1)+'/'+day.getFullYear());
+                keys.forEach(function(k) {
+                    var tn = teams[k].name;
+                    if (nearXmas(day))          { out += xcell(day.getDay()===3?'XMAS BREAK':'X','Brk'); }
+                    else if (nearEaster(day))   { out += xcell(day.getDay()===3?'EASTER BREAK':'X','Brk'); }
+                    else if (islewisShieldWeek(day)) { out += xcell(day.getDay()===3?'LEWIS SHIELD':'X','Shld'); }
+                    else {
+                        var dd = day.getFullYear() + '-' + String(day.getMonth()+1).padStart(2,'0') + '-' + String(day.getDate()).padStart(2,'0');
+                        var tf = fixtures.filter(function(f){ return f.date === dd; });
+                        var text='', style='';
+                        for (var i=0;i<tf.length;i++){
+                            if(tf[i].homeTeam===tn){text=tn;style='Bold';break;}
+                            if(tf[i].awayTeam===tn){text=tn;style='Ital';break;}
+                        }
+                        out += xcell(text, style);
+                    }
+                });
+                out += '</Row>\n';
+                day.setDate(day.getDate()+1);
+            }
+            out += '</Table></Worksheet>\n';
+            return out;
+        }
+
+        function gridSheet(name, fixtures, teams) {
+            var keys = Object.keys(teams);
+            var out = '<Worksheet ss:Name="' + xmlEsc(name) + '"><Table>\n';
+            out += '<Row>' + xcell('','Hdr');
+            keys.forEach(function(k){ out += xcell(teams[k].name,'Hdr'); });
+            out += '</Row>\n';
+            keys.forEach(function(hk){
+                out += '<Row>' + xcell(teams[hk].name,'Hdr');
+                keys.forEach(function(ak){
+                    if(hk===ak){ out += xcell('-'); }
+                    else {
+                        var m = fixtures.filter(function(f){ return f.homeTeam===teams[hk].name && f.awayTeam===teams[ak].name; });
+                        out += xcell(m.length ? m[0].date.replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$3/$2/$1') : '0/0/0000');
+                    }
+                });
+                out += '</Row>\n';
+            });
+            out += '</Table></Worksheet>\n';
+            return out;
+        }
+
+        var xml = '<?xml version="1.0"?>\n<?mso-application progid="Excel.Sheet"?>\n';
+        xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
+        xml += '<Styles>\n';
+        xml += '<Style ss:ID="Hdr"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#4472C4" ss:Pattern="Solid"/></Style>\n';
+        xml += '<Style ss:ID="Sub"><Font ss:Italic="1"/><Interior ss:Color="#D9E1F2" ss:Pattern="Solid"/></Style>\n';
+        xml += '<Style ss:ID="Bold"><Font ss:Bold="1"/></Style>\n';
+        xml += '<Style ss:ID="Ital"><Font ss:Italic="1"/></Style>\n';
+        xml += '<Style ss:ID="Brk"><Font ss:Bold="1"/><Interior ss:Color="#FFE699" ss:Pattern="Solid"/></Style>\n';
+        xml += '<Style ss:ID="Shld"><Font ss:Bold="1"/><Interior ss:Color="#B4C7E7" ss:Pattern="Solid"/></Style>\n';
+        xml += '</Styles>\n';
+
+        divData.forEach(function(div, idx) {
+            xml += calSheet(div.name + ' Calendar', allDivFixtures[idx], allDivTeams[idx]);
+            xml += gridSheet(div.name + ' Grid',     allDivFixtures[idx], allDivTeams[idx]);
+        });
+
+        xml += '</Workbook>';
+        return xml;
+    }
+
+    document.getElementById('dlSpreadsheet').addEventListener('click', function() {
+        var xml = buildSpreadsheet(allDivFixtures, allDivTeams);
+        var season = seasonDates.season;
+        var blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
+        var url  = URL.createObjectURL(blob);
+        var a    = document.createElement('a');
+        a.href = url; a.download = 'tameside-fixtures-' + season + '.xls';
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+</script>
+
+</body>
+</html>
