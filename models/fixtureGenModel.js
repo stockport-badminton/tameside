@@ -117,8 +117,8 @@ exports.publishDraftFixtures = async function (season, done) {
     `;
 
     const result = await sql`
-      INSERT INTO fixture ("homeTeam", "awayTeam", date, division, season, status)
-      SELECT "homeTeam", "awayTeam", date, division, season, 'unplayed'
+      INSERT INTO fixture ("homeTeam", "awayTeam", date, status)
+      SELECT "homeTeam", "awayTeam", date, 'outstanding'
       FROM tameside_draft_fixture
       WHERE season = ${season}
     `;

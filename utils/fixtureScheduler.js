@@ -132,17 +132,23 @@ function canPlaceFixture(fixture, date, calendar, teamAllDates, clubLastPlayed, 
   // Two home teams from the same club on the same night → always a venue conflict
   if (existing.some(f => f.homeTeam.club === fixture.homeTeam.club)) return false;
 
-  // Any other same-club involvement on the same night — only allowed if the home teams
-  // are index 1 + 3 (club with 3 teams, one home + one away at a different venue)
+  // Any other same-club involvement on the same night — only allowed if the two teams
+  // from the overlapping club are exactly A (index 1) + C (index 3).
+  // The old check compared home/away indices across fixtures without verifying they
+  // belonged to the overlapping club, which let B+C slip through when unrelated A and C
+  // teams from other clubs happened to satisfy the index condition.
   const sameClubConflict = existing.some(f => {
     const clubs = new Set([f.homeTeam.club, f.awayTeam.club]);
     const newClubs = [fixture.homeTeam.club, fixture.awayTeam.club];
-    return newClubs.some(c => clubs.has(c)) && !(
-      (f.homeTeam.teamindex === 1 && fixture.homeTeam.teamindex === 3) ||
-      (f.homeTeam.teamindex === 3 && fixture.homeTeam.teamindex === 1) ||
-      (f.awayTeam.teamindex === 1 && fixture.awayTeam.teamindex === 3) ||
-      (f.awayTeam.teamindex === 3 && fixture.awayTeam.teamindex === 1)
-    );
+    const overlapping = newClubs.filter(c => clubs.has(c));
+    if (overlapping.length === 0) return false;
+    for (const club of overlapping) {
+      const existingTeams = [f.homeTeam, f.awayTeam].filter(t => t.club === club);
+      const newTeams = [fixture.homeTeam, fixture.awayTeam].filter(t => t.club === club);
+      const indices = new Set([...existingTeams, ...newTeams].map(t => t.teamindex));
+      if (!(indices.size === 2 && indices.has(1) && indices.has(3))) return true;
+    }
+    return false;
   });
   if (sameClubConflict) return false;
 
