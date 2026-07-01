@@ -611,19 +611,10 @@ exports.fixture_detail_byDivision = function (req, res, next) {
           next(err);
         } else {
           let today = new Date()
-          today.setHours(0);
-          today.setMinutes(0);
-          today.setSeconds(0);
-          today.setMilliseconds(0);
-          let nearestFixture = []
-          while (nearestFixture.length == 0 && (today - new Date('2026-06-01')) < 0 ){
-            today.setDate(today.getDate()+1)
-            nearestFixture = result
-            .map((row) => ({"date":row.date,"diff":new Date(row.date) - today}))
-            .filter(row => (row.diff > -86400000))
-          }
+          today.setHours(0, 0, 0, 0);
+          let nearestFixture = result.filter(row => new Date(row.date) >= today);
           if (nearestFixture.length == 0){
-            nearestFixture.push(result[result.length-1])
+            nearestFixture = [result[result.length-1]];
           }
           console.log(`nearestFixture: ${nearestFixture[0].date}`)
           var type = "";
@@ -762,22 +753,11 @@ exports.fixture_detail_byDivision = function (req, res, next) {
         next(err);
       } else {
         let today = new Date()
-        today.setHours(0);
-        today.setMinutes(0);
-        today.setSeconds(0);
-        today.setMilliseconds(0);
-        let nearestFixture = []
-        while (nearestFixture.length == 0 && (today - new Date('2026-06-01')) < 0 ){
-          today.setDate(today.getDate()+1)
-          nearestFixture = result
-          .map((row) => ({"date":row.date,"diff":new Date(row.date) - today}))
-          .filter(row => (row.diff > -86400000))
-
-        }
+        today.setHours(0, 0, 0, 0);
+        let nearestFixture = result.filter(row => new Date(row.date) >= today);
         if (nearestFixture.length == 0){
-          nearestFixture.push(result[result.length-1])
+          nearestFixture = [result[result.length-1]];
         }
-        
         console.log(`nearestFixture: ${nearestFixture[0].date}`)
         var type = "";
         var jsonResult = "";
