@@ -231,7 +231,8 @@ exports.getFixtureDetails = async function(searchObj, done){
       fixture."homeScore",
       fixture."awayScore",
       fixture."homeTeam" as hometeamid,
-      fixture."awayTeam" as awayteamid
+      fixture."awayTeam" as awayteamid,
+      fixture.lewis_round
       from
       fixture
       ${

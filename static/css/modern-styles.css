@@ -790,6 +790,21 @@ footer {
     color: #856404;
 }
 
+.status-badge.lewis-prelim {
+    background: #ddeeff;
+    color: #1a4a7a;
+}
+
+.status-badge.lewis-r1 {
+    background: #c0d8f8;
+    color: #0d3566;
+}
+
+.status-badge.lewis-qf {
+    background: #2980b9;
+    color: #fff;
+}
+
 .social-link,
 .details-link,
 .action-link {

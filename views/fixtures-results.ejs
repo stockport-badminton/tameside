@@ -92,6 +92,8 @@
               var resultValue = '';
               var status = ""
               var MyDate = new Date(row['date']);
+              var lewisLabels = {1: 'LS Prelim', 2: 'LS R1', 3: 'LS QF'};
+              var lewisClasses = {1: 'lewis-prelim', 2: 'lewis-r1', 3: 'lewis-qf'};
               var NowDate = Date.now();
               if ((MyDate < NowDate) && (row['homeScore'] == null) && (row['status'] != 'void')) {
                 rowClass = 'status-overdue'
@@ -152,6 +154,9 @@
                   <% if(status){ %>
                     <span class="status-badge"><%= status %></span>
                   <% } %>
+                  <% if(row['lewis_round']){ %>
+                    <span class="status-badge <%= lewisClasses[row['lewis_round']] %>"><%= lewisLabels[row['lewis_round']] %></span>
+                  <% } %>
                   <% if (typeof superadmin !== 'undefined' && superadmin) { %>
                     <br />
                     <a href="/resultImage/<%= row['hometeam'] %>/<%= row['awayteam'] %>/<%= row['homeScore'] %>/<%= row['awayScore'] %>/<%= row['divisionName'] %>" 
@@ -170,6 +175,9 @@
               <% } else { %>
                 <td class="result-cell">
                   <span class="status-badge status-pending"><%= resultValue %></span>
+                  <% if(row['lewis_round']){ %>
+                    <span class="status-badge <%= lewisClasses[row['lewis_round']] %>"><%= lewisLabels[row['lewis_round']] %></span>
+                  <% } %>
                 </td>
                 <% if (typeof admin !== 'undefined') { %>
                   <td></td>

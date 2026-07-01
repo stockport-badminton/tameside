@@ -61,6 +61,7 @@ exports.getDraftFixtures = async function (season, done) {
         d."awayTeam"         AS "awayTeamId",
         at.name              AS "awayTeamName",
         ac.name              AS "awayClubName",
+        d.lewis_round    AS "lewisRound",
         d."generatedAt"
       FROM tameside_draft_fixture d
       JOIN division div ON d.division   = div.id
@@ -85,12 +86,14 @@ exports.saveDraftFixtures = async function (seasonCalendar, season, done) {
     const rows = [];
     for (const dateRow of seasonCalendar) {
       for (const fixture of dateRow.fixtures || []) {
+        const lewisRound = fixture.lewisR1 ? 1 : fixture.lewisR2 ? 2 : fixture.lewisQF ? 3 : null;
         rows.push({
           season,
-          homeTeam:  fixture.homeTeam.id,
-          awayTeam:  fixture.awayTeam.id,
-          date:      dateRow.dbDate,
-          division:  fixture.divisionId,
+          homeTeam:    fixture.homeTeam.id,
+          awayTeam:    fixture.awayTeam.id,
+          date:        dateRow.dbDate,
+          division:    fixture.divisionId,
+          lewis_round: lewisRound,
         });
       }
     }
@@ -108,22 +111,30 @@ exports.saveDraftFixtures = async function (seasonCalendar, season, done) {
 // Publish draft fixtures into the live fixture table
 exports.publishDraftFixtures = async function (season, done) {
   try {
-    // Prevent double-publishing — delete any existing unplayed fixtures for this season first
-    await sql`
-      DELETE FROM fixture
-      WHERE season = ${season}
-        AND "homeScore" IS NULL
-        AND status NOT IN ('complete', 'conceded', 'void')
-    `;
+    const count = await sql.begin(async sql => {
+      // Delete unplayed fixtures for this season — join season table since fixture has no season column
+      await sql`
+        DELETE FROM fixture
+        WHERE id IN (
+          SELECT f.id FROM fixture f
+          JOIN season s ON f.date > s."startDate" AND f.date < s."endDate"
+          WHERE s.name = ${season}
+            AND f."homeScore" IS NULL
+            AND f.status NOT IN ('complete', 'conceded', 'void')
+        )
+      `;
 
-    const result = await sql`
-      INSERT INTO fixture ("homeTeam", "awayTeam", date, status)
-      SELECT "homeTeam", "awayTeam", date, 'outstanding'
-      FROM tameside_draft_fixture
-      WHERE season = ${season}
-    `;
+      const result = await sql`
+        INSERT INTO fixture ("homeTeam", "awayTeam", date, status, lewis_round)
+        SELECT "homeTeam", "awayTeam", date, 'outstanding', lewis_round
+        FROM tameside_draft_fixture
+        WHERE season = ${season}
+      `;
 
-    done(null, result.count);
+      return result.count;
+    });
+
+    done(null, count);
   } catch (err) {
     done(err);
   }
