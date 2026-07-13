@@ -1,0 +1,33 @@
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#6D8BB2">
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .catch(function(err) { console.warn('SW registration failed:', err); });
+  }
+</script>
+<script>
+  (function() {
+    var banner;
+    function ensureBanner() {
+      if (banner) { return banner; }
+      banner = document.createElement('div');
+      banner.textContent = "You're offline — showing a saved copy, some content may be out of date";
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;' +
+        'background:#6D8BB2;color:#fff;text-align:center;padding:6px 12px;' +
+        'font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:none;';
+      document.body.appendChild(banner);
+      return banner;
+    }
+    function updateBanner() {
+      ensureBanner().style.display = navigator.onLine ? 'none' : 'block';
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', updateBanner);
+    } else {
+      updateBanner();
+    }
+    window.addEventListener('online', updateBanner);
+    window.addEventListener('offline', updateBanner);
+  })();
+</script>

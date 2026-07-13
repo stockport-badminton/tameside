@@ -51,6 +51,16 @@ app.set('views', __dirname + '/views');
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended:false}));
+
+// Must be registered before the `rootfiles` static mount below, or that
+// mount shadows this route and the service worker never gets a fresh
+// per-deploy cache version.
+app.get('/sw.js', function(req, res) {
+  res.set('Content-Type', 'application/javascript');
+  res.set('Cache-Control', 'no-cache');
+  res.render('sw', { cacheVersion: process.env.K_REVISION || 'dev-local' });
+});
+
 app.use(express.static('rootfiles'));
 app.use('/static', express.static(path.join(__dirname,'/static'),{ maxAge: (30 * 24 * 60 * 60 * 1000) }));
 app.use('/scripts', express.static(__dirname + '/node_modules',{ maxAge: (30 * 24 * 60 * 60 * 1000)} ));

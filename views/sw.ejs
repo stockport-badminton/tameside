@@ -1,0 +1,158 @@
+var CACHE_VERSION = 'tameside-static-<%= cacheVersion %>';
+var OFFLINE_URL = '/offline.html';
+
+var PRECACHE_URLS = [
+  OFFLINE_URL,
+  '/static/css/style.css',
+  '/static/css/modern-styles.css',
+  '/touch-icon-192x192.png',
+  '/favicon.ico'
+];
+
+// Static-content pages precached as an anonymous (logged-out) snapshot, so a
+// failed navigation to one of these can show real content instead of the
+// generic offline page. Fetched with credentials: 'omit' below so the
+// cached copy is always the logged-out render, regardless of whether the
+// installing browser happens to be logged in - never a personalized page.
+var OFFLINE_SNAPSHOT_PATHS = [
+  '/rules',
+  '/contact-us',
+  '/info/clubs'
+];
+
+// Anything under these prefixes is never handled by this service worker at
+// all (no respondWith) - auth flows, write/admin endpoints, personalized
+// pages, and the iCal route (which manages its own Cache-Control/ETag
+// headers).
+var EXCLUDED_PATH_PREFIXES = [
+  '/login',
+  '/callback',
+  '/logout',
+  '/sign-s3',
+  '/admin',
+  '/fixture-gen',
+  '/manage-players',
+  '/players',
+  '/player-stats',
+  '/pair-stats',
+  '/scorecard-beta',
+  '/email-scorecard',
+  '/add-scorecard-photo',
+  '/populated-scorecard',
+  '/calendars',
+  '/club',
+  '/eligiblePlayers',
+  '/new-users-v2',
+  '/mailjet'
+];
+
+self.addEventListener('install', function(event) {
+  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_VERSION).then(function(cache) {
+      return Promise.all([
+        cache.addAll(PRECACHE_URLS),
+        Promise.all(OFFLINE_SNAPSHOT_PATHS.map(function(path) {
+          return fetch(path, { credentials: 'omit' }).then(function(response) {
+            return cache.put(path, response);
+          });
+        }))
+      ]);
+    })
+  );
+});
+
+self.addEventListener('activate', function(event) {
+  event.waitUntil(
+    caches.keys().then(function(keys) {
+      return Promise.all(
+        keys.filter(function(key) { return key !== CACHE_VERSION; })
+            .map(function(key) { return caches.delete(key); })
+      );
+    }).then(function() {
+      return self.clients.claim();
+    })
+  );
+});
+
+function isExcludedPath(pathname) {
+  return EXCLUDED_PATH_PREFIXES.some(function(prefix) {
+    return pathname.indexOf(prefix) === 0;
+  });
+}
+
+function isGeneratedData(pathname) {
+  return pathname.indexOf('/static/generated/') === 0;
+}
+
+function isStaticAsset(pathname) {
+  if (isGeneratedData(pathname)) { return false; }
+  return pathname.indexOf('/static/') === 0
+    || pathname.indexOf('/scripts/') === 0
+    || pathname === '/favicon.ico'
+    || pathname.indexOf('/touch-icon') === 0
+    || pathname.indexOf('/apple-touch-icon') === 0
+    || pathname === '/manifest.json';
+}
+
+self.addEventListener('fetch', function(event) {
+  var request = event.request;
+  var url = new URL(request.url);
+
+  // Guard clauses first: never touch non-GET requests, cross-origin
+  // requests, or excluded paths - let the browser handle those natively.
+  if (request.method !== 'GET') { return; }
+  if (url.origin !== self.location.origin) { return; }
+  if (isExcludedPath(url.pathname)) { return; }
+
+  // Full page navigations: network-only, never cached. Every server-rendered
+  // page embeds per-user nav/admin state, so caching full HTML risks leaking
+  // one user's page to another session on a shared device.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(function() {
+        if (OFFLINE_SNAPSHOT_PATHS.indexOf(url.pathname) !== -1) {
+          return caches.match(url.pathname).then(function(cached) {
+            return cached || caches.match(OFFLINE_URL);
+          });
+        }
+        return caches.match(OFFLINE_URL);
+      })
+    );
+    return;
+  }
+
+  // Generated data files that live under /static but are periodically
+  // regenerated (e.g. social images) - network-first, short fallback.
+  if (isGeneratedData(url.pathname)) {
+    event.respondWith(
+      fetch(request).then(function(response) {
+        var copy = response.clone();
+        caches.open(CACHE_VERSION).then(function(cache) { cache.put(request, copy); });
+        return response;
+      }).catch(function() {
+        return caches.match(request);
+      })
+    );
+    return;
+  }
+
+  // True static shell assets: cache-first, versioned by CACHE_VERSION so a
+  // new deploy (new K_REVISION) purges these on activate.
+  if (isStaticAsset(url.pathname)) {
+    event.respondWith(
+      caches.match(request).then(function(cached) {
+        if (cached) { return cached; }
+        return fetch(request).then(function(response) {
+          var copy = response.clone();
+          caches.open(CACHE_VERSION).then(function(cache) { cache.put(request, copy); });
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Everything else (dynamic JSON/API reads, etc.): don't call respondWith,
+  // let the browser fetch it natively.
+});
