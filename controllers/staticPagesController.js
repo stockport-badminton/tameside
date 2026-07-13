@@ -7,7 +7,6 @@ else {
     SEASON = '' + new Date().getFullYear() +'/'+ (new Date().getFullYear()+1);
 }
 const contentful = require('contentful')
-let { BLOCKS } = require('@contentful/rich-text-types') 
 let { documentToHtmlString } = require('@contentful/rich-text-html-renderer');
 
 const client = contentful.createClient({
@@ -64,93 +63,6 @@ exports.rules = function(req, res, next) {
       })
     }) 
   .catch(console.error) 
-}
-
-exports.howToFindUs = (req, res, next) => {
-    client.getEntry('4QOXYKaCKzdOrJAuXhraa')
-    .then((entry) => {
-        // console.log(entry)
-        const rawRichTextField = entry.fields.richTextField;
-        // console.log(rawRichTextField)
-        return documentToHtmlString(rawRichTextField);
-      })
-      .then((renderedHtml) => {
-        res.render('homepage',{
-            pageHeading:"How to Find Us",
-            title:"How to Find Us",
-            entry:renderedHtml,
-            static_path : "/static" 
-        })
-      }) 
-    .catch(console.error) 
-  }
-
-exports.linksPage = (req, res, next) => {
-    client.getEntry('5FLeCM0Gnxal5sOQoim0Kx')
-    .then((entry) => {
-        // console.log(entry)
-        const rawRichTextField = entry.fields.richTextField;
-        // console.log(rawRichTextField)
-        return documentToHtmlString(rawRichTextField);
-      })
-      .then((renderedHtml) => {
-        res.render('homepage',{
-            pageHeading:"Links",
-            title:"Links",
-            entry:renderedHtml.replace(/\n/g, "</br>"),
-            static_path : "/static" 
-        })
-      }) 
-    .catch(console.error) 
-  }
-
-exports.galleryPage = (req, res, next) => {
-    client.getEntry('IKaXhRQqSysI0udkAcZXZ')
-    .then((entry) => {
-        let carouselData = entry.fields.carouselImages.map(image => ({name:image.fields.imageName, caption:image.fields.imageCaption, source:image.fields.imageSource.fields.file.url}))
-        // console.log(carouselData)
-        res.render('gallery',{
-            pageHeading:"Gallery",
-            title:"Gallery",
-            entry:carouselData,
-            static_path : "/static" 
-        })
-      }) 
-    .catch(console.error) 
-  }
-
-exports.newsPage = (req, res, next) => {
-    client.getEntry('4wpiyFP9LOHKkl0x4xfOSi')
-    .then((entry) => {
-        // console.log(entry)
-        let newsField = {}
-        let pageHtml = ""
-        for (newsItem of entry.fields.newsItems){
-            pageHtml += "<div class=\"row\"><p class=\"mb-1\">"
-            pageHtml += "<strong>"+ new Date(newsItem.fields.newsDate).toLocaleDateString("en-GB",{
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })+ "</strong>&nbsp;"
-            newsField = newsItem.fields.newsInfo
-            // console.log(newsField)
-            const options = {
-                renderNode: {
-                  [BLOCKS.PARAGRAPH]: (node,next) => next(node.content) + "</p>"
-                }
-              }
-            pageHtml += documentToHtmlString(newsField,options);
-            pageHtml += "</div>"
-            // console.log(pageHtml)
-        }
-        res.render('homepage',{
-          pageHeading:"News",
-          title:"News",
-          entry:pageHtml,
-          static_path : "/static" 
-        })
-      }) 
-    .catch(console.error) 
 }
 
 exports.contactUs = (req, res, next) => {

@@ -169,10 +169,6 @@ app.get('/resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division',socia
 app.get('/tables-social',social_controller.social_get_tables)
 
 app.get('/', fixture_controller.fixture_get_summary)
-app.get('/how-to-find-us', static_controller.howToFindUs)
-app.get('/links', static_controller.linksPage)
-app.get('/gallery', static_controller.galleryPage)
-app.get('/news', static_controller.newsPage)
 app.get('/contact-us', contactus_controller.contactus_get)
 app.post('/contact-us',contactus_controller.validateContactUs, contactus_controller.contactus);
 app.get('/info/clubs', club_controller.club_list_detail)
