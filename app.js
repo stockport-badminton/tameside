@@ -133,6 +133,8 @@ let userInViews = require(__dirname + '/models/userInViews');
 var auth_controller = require(__dirname + '/models/auth.js');
 let social_controller = require(__dirname + '/controllers/social_controller')
 let fixture_gen_controller = require(__dirname + '/controllers/fixtureGenController')
+let homepage_content_controller = require(__dirname + '/controllers/homepageContentController')
+let site_settings_controller = require(__dirname + '/controllers/siteSettingsController')
 
 app.use(userInViews())
 
@@ -233,7 +235,17 @@ app.get('/players/club-:clubid?/team-:teamid?/gender-:gender?', player_controlle
 app.get('/players/matching/:name/:gender',player_controller.find_closest_matched_player);
 app.post('/player/create', secured, player_controller.player_create);
 
-app.get('/players/eloPop', player_controller.player_elo_populate);
+/* ELO ratings: chart page (login required), public JSON APIs, admin backfill
+   (secured + superadmin check in controller), DEV_MODE-only diagnostics. */
+app.get('/elo-chart', secured, player_controller.player_elo_chart);
+app.get('/api/player-elo', player_controller.player_elo_history_api);
+app.get('/api/players/search', player_controller.player_search_api);
+app.get('/api/seasons', player_controller.get_seasons_api);
+app.get('/players/eloBackfillAdmin', secured, player_controller.player_elo_backfill_admin);
+app.get('/players/eloBackfillAll', secured, player_controller.player_elo_backfill_all);
+app.get('/players/eloFullRecalc', secured, player_controller.player_elo_full_recalc);
+app.get('/dev/elo-audit', player_controller.player_elo_audit);
+app.get('/dev/elo-raw/:playerId', player_controller.player_elo_raw);
 
 /* GET request to update Player. */
 app.get('/player/:id/update', player_controller.player_update_get);
@@ -264,6 +276,17 @@ app.get('/scorecard/fixture/:id', fixture_controller.getScorecard);
 
 
 
+
+/* Homepage content management (announcements + site settings) — secured,
+   with a superadmin check inside each controller handler. */
+app.get('/admin/homepage-content', secured, homepage_content_controller.list);
+app.get('/admin/homepage-content/create', secured, homepage_content_controller.createForm);
+app.post('/admin/homepage-content', secured, homepage_content_controller.create);
+app.get('/admin/homepage-content/:id', secured, homepage_content_controller.editForm);
+app.post('/admin/homepage-content/:id', secured, homepage_content_controller.update);
+app.post('/admin/homepage-content/:id/delete', secured, homepage_content_controller.remove);
+app.get('/admin/site-settings', secured, site_settings_controller.form);
+app.post('/admin/site-settings', secured, site_settings_controller.update);
 
 app.post('/scorecard-beta', secured, fixture_controller.validateScorecard, fixture_controller.full_fixture_post);
 

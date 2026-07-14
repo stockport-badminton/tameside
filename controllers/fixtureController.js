@@ -3,6 +3,8 @@ let Division = require("../models/division");
 let Team = require("../models/teams");
 let Player = require("../models/players");
 let Game = require("../models/game");
+let HomepageContent = require("../models/homepageContent");
+let SiteSettings = require("../models/siteSettings");
 let Auth = require("../models/auth");
 const ejs = require('ejs');
 const ICAL = require("ical.js");
@@ -566,22 +568,41 @@ exports.fixture_get_summary = function(req, res,next) {
           next(err);
         }
         else{
-          fetch('https://api.cloudinary.com/v1_1/hvunsveuh/resources/image/tags/messer2024?max_results=30&context=true', {
-            headers: { 'Authorization': 'Basic ' + process.env.CLOUDINARY_AUTH }
+          HomepageContent.getActive(function(err,announcements){
+            if (err){
+              console.log(err);
+              next(err);
+              return;
+            }
+            SiteSettings.get('homepage_gallery_tag', function(err,galleryTag){
+              if (err){
+                console.log(err);
+                galleryTag = undefined;
+              }
+              const renderHomepage = function(assets){
+                res.render('homepage', {
+                    static_path: '/static',
+                    title : "Homepage",
+                    pageDescription : "Clubs: Aerospace, College Green, Disley, GHAP, Hyde, Manchester Edgeley, Manor, Mellor, Medlock, Shell. Social and Competitive badminton in and around Tameside.",
+                    result : recentResults,
+                    row : upcomingFixtures,
+                    scorecards:scorecards,
+                    announcements : announcements,
+                    assets : assets
+                });
+              }
+              fetch('https://api.cloudinary.com/v1_1/hvunsveuh/resources/image/tags/' + encodeURIComponent(galleryTag || 'messer2024') + '?max_results=30&context=true', {
+                headers: { 'Authorization': 'Basic ' + process.env.CLOUDINARY_AUTH }
+              })
+              .then(r => r.json())
+              .then(function(assets){
+                renderHomepage(assets.resources)
+              })
+              // A Cloudinary failure must never take the homepage down —
+              // render with an empty gallery instead of hanging the request.
+              .catch(function(){ renderHomepage([]) })
+            })
           })
-          .then(r => r.json())
-          .then(function(assets){
-              res.render('homepage', {
-                  static_path: '/static',
-                  title : "Homepage",
-                  pageDescription : "Clubs: Aerospace, College Green, Disley, GHAP, Hyde, Manchester Edgeley, Manor, Mellor, Medlock, Shell. Social and Competitive badminton in and around Tameside.",
-                  result : recentResults,
-                  row : upcomingFixtures,
-                  scorecards:scorecards,
-                  assets : assets.resources
-              });
-          })
-          .catch(() => false)
       }
     })
   }
@@ -1872,48 +1893,27 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                   }
                 ]
               }
-              for (game of gameObject.data){
-                // console.log(`gameId: ${game.id}`)
-                game.homePlayer1Start = prevScores[game.homePlayer1].rating
-                game.homePlayer2Start = prevScores[game.homePlayer2].rating
-                game.awayPlayer1Start = prevScores[game.awayPlayer1].rating
-                game.awayPlayer2Start = prevScores[game.awayPlayer2].rating
-                // console.log("FixtureID Rank: "+FixtureIdResult[0].rank)
-                let fixtureRank = FixtureIdResult[0].rank
-                await Game.calculateRating(game,prevScores,req.body.date,fixtureRank, async function(rateErr, rateResult){
-                  // console.log(`rateResult: ${JSON.stringify(rateResult)}`)
-                  if (rateErr){
-                    console.error(`rateErr: ${JSON.stringify(rateErr)}`)
+              // Lewis Shield (cup) fixtures don't count towards ELO: leave the
+              // Start/End columns to their DB defaults (End = 0 = unrated).
+              const isLewisFixture = FixtureIdResult[0].lewis_round != null
+              if (!isLewisFixture){
+                const fixtureRank = FixtureIdResult[0].rank
+                for (game of gameObject.data){
+                  const { updateObj } = Game.calculateRating(game, prevScores, req.body.date, fixtureRank)
+                  Object.assign(game, updateObj)
+                  for (const [pidKey, endKey] of [
+                    ['homePlayer1', 'homePlayer1End'],
+                    ['homePlayer2', 'homePlayer2End'],
+                    ['awayPlayer1', 'awayPlayer1End'],
+                    ['awayPlayer2', 'awayPlayer2End'],
+                  ]){
+                    const pid = game[pidKey]
+                    if (pid && pid != 0 && prevScores[pid]){
+                      prevScores[pid].rating = updateObj[endKey]
+                      prevScores[pid].date = req.body.date
+                    }
                   }
-                  else if (rateResult && (game.homePlayer1 != 0 || game.homePlayer2 != 0 || game.awayPlayer1 != 0 || game.awayPlayer2 != 0 )){
-                    prevScores[game.homePlayer1].rating = rateResult.updateObj.homePlayer1End
-                    prevScores[game.homePlayer1].date = req.body.date
-                    prevScores[game.homePlayer2].rating = rateResult.updateObj.homePlayer2End, 
-                    prevScores[game.homePlayer2].date = req.body.date
-                    prevScores[game.awayPlayer1].rating = rateResult.updateObj.awayPlayer1End, 
-                    prevScores[game.awayPlayer1].date = req.body.date
-                    prevScores[game.awayPlayer2].rating = rateResult.updateObj.awayPlayer2End, 
-                    prevScores[game.awayPlayer2].date = req.body.date
-                    game.homePlayer1End = rateResult.updateObj.homePlayer1End
-                    game.homePlayer2End = rateResult.updateObj.homePlayer2End
-                    game.awayPlayer1End = rateResult.updateObj.awayPlayer1End
-                    game.awayPlayer2End = rateResult.updateObj.awayPlayer2End
-                  }
-                  else {
-                    prevScores[game.homePlayer1].rating = rateResult.updateObj.homePlayer1End
-                    prevScores[game.homePlayer1].date = req.body.date
-                    prevScores[game.homePlayer2].rating = rateResult.updateObj.homePlayer2End, 
-                    prevScores[game.homePlayer2].date = req.body.date
-                    prevScores[game.awayPlayer1].rating = rateResult.updateObj.awayPlayer1End, 
-                    prevScores[game.awayPlayer1].date = req.body.date
-                    prevScores[game.awayPlayer2].rating = rateResult.updateObj.awayPlayer2End, 
-                    prevScores[game.awayPlayer2].date = req.body.date
-                    game.homePlayer1End = 1500
-                    game.homePlayer2End = 1500
-                    game.awayPlayer1End = 1500
-                    game.awayPlayer2End = 1500
-                  }
-                })
+                }
               }
               console.log(gameObject)
               Game.createBatch(gameObject,function(err,gameResult){
@@ -1924,6 +1924,23 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                 }
                 else {
  // console.log("createBatch sucess")
+                  // Persist the updated player ratings (fire-and-forget so a
+                  // failure never blocks the scorecard flow). updateBulk
+                  // mutates its inputs, so build fresh arrays here.
+                  if (!isLewisFixture){
+                    const playerUpdate = {
+                      tablename: 'player',
+                      fields: ['id', 'rating'],
+                      data: Object.entries(prevScores)
+                        .filter(([id, p]) => parseInt(id, 10) > 0 && p && typeof p.rating !== 'undefined')
+                        .map(([id, p]) => [parseInt(id, 10), 1 * p.rating])
+                    }
+                    if (playerUpdate.data.length > 0){
+                      Player.updateBulk(playerUpdate, function(rateErr){
+                        if (rateErr) console.error(`elo rating persist err: ${JSON.stringify(rateErr)}`)
+                      })
+                    }
+                  }
                   Fixture.getFixtureDetailsById(FixtureIdResult[0].id,function(err,getFixtureDetailsResult){
                     if(err) res.send(err)
                     zapObject = {

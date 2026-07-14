@@ -1,0 +1,39 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<div class="col-12">
+  <h1>Homepage Content</h1>
+  <p><a href="/admin/site-settings">Site Settings</a></p>
+  <a class="btn btn-primary mb-3" href="/admin/homepage-content/create">+ New Announcement</a>
+
+  <table class="table table-bordered">
+    <thead>
+      <tr>
+        <th>Order</th>
+        <th>Title</th>
+        <th>Has Modal?</th>
+        <th>Active</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% announcements.forEach(function(a){ %>
+        <tr>
+          <td><%= a.sort_order %></td>
+          <td><%= a.title %></td>
+          <td><%= a.modal_body_html ? 'Yes' : 'No' %></td>
+          <td><%= a.active ? 'Active' : 'Hidden' %></td>
+          <td>
+            <a href="/admin/homepage-content/<%= a.id %>">Edit</a>
+            &nbsp;|&nbsp;
+            <form style="display:inline" method="post" action="/admin/homepage-content/<%= a.id %>/delete" onsubmit="return confirm('Delete this announcement?');">
+              <button type="submit" class="btn btn-link btn-sm text-danger p-0">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<%- include('../footer.ejs') %>

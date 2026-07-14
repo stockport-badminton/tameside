@@ -1,0 +1,273 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<div class="col-12 p-0">
+
+<h1>ELO Rating Chart</h1>
+<p class="text-muted">Compare up to <%= maxPlayers %> players' ELO ratings over time.</p>
+
+<div class="row g-0">
+
+  <!-- Left panel: filters + search + player badges -->
+  <div class="col-12 col-md-2 pe-md-2 mb-2 mb-md-0">
+    <div class="card h-100">
+      <div class="card-body p-2">
+
+        <label class="small fw-bold mb-1">Filter</label>
+        <select class="form-select form-select-sm mb-1" id="filter-division">
+          <option value="">All divisions</option>
+          <% divisions.forEach(function(d){ %>
+            <option value="<%= d.name %>"><%= d.name %></option>
+          <% }) %>
+        </select>
+        <select class="form-select form-select-sm mb-1" id="filter-club">
+          <option value="">All clubs</option>
+          <% clubs.forEach(function(c){ %>
+            <option value="<%= c.name %>"><%= c.name %></option>
+          <% }) %>
+        </select>
+        <select class="form-select form-select-sm mb-1" id="filter-team">
+          <option value="">All teams</option>
+          <% teams.forEach(function(t){ %>
+            <option value="<%= t.name %>"><%= t.name %></option>
+          <% }) %>
+        </select>
+        <select class="form-select form-select-sm mb-2" id="filter-gender">
+          <option value="">All genders</option>
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+        </select>
+
+        <label for="player-search" class="small fw-bold mb-1">Search for a player</label>
+        <div style="position:relative;">
+          <input type="text" id="player-search" class="form-control form-control-sm" placeholder="Type a name…" autocomplete="off">
+          <div id="search-results" class="list-group mt-1" style="position:absolute;z-index:1000;width:100%;display:none;"></div>
+        </div>
+        <div id="selected-players" class="mt-2"></div>
+        <button id="clear-btn" class="btn btn-sm btn-outline-secondary mt-2 w-100">Clear all</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right panel: chart. The canvas wrapper must have a FIXED height —
+       Chart.js with maintainAspectRatio:false resizes to fill its parent, so
+       an auto/min-height parent creates an endless grow loop. -->
+  <div class="col-12 col-md-10">
+    <div class="card">
+      <div class="card-body p-2">
+        <div style="position:relative;height:calc(100vh - 280px);min-height:400px;">
+          <canvas id="elo-chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</div><!-- /col-12 -->
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+<script>
+(function() {
+  var MAX_PLAYERS = <%= maxPlayers %>;
+  var selectedPlayers = [];  // [{id, name}]
+  var chart = null;
+
+  // Evenly spaced, distinct hues — works for any count up to MAX_PLAYERS
+  // without needing a hand-picked color list.
+  function colorFor(index) {
+    var hue = Math.round((index * 360) / MAX_PLAYERS);
+    return 'hsl(' + hue + ', 65%, 45%)';
+  }
+
+  // ---- chart init ----
+  var ctx = document.getElementById('elo-chart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets: [] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          type: 'time',
+          time: { unit: 'month', tooltipFormat: 'dd MMM yyyy' },
+          title: { display: true, text: 'Date' }
+        },
+        y: { title: { display: true, text: 'ELO Rating' } }
+      },
+      plugins: {
+        legend: { display: true },
+        tooltip: {
+          mode: 'nearest',
+          intersect: false
+        }
+      }
+    }
+  });
+
+  // ---- seed from URL query (?players=1,2) ----
+  var seedIds = '<%- selectedIds %>'.split(',').map(Number).filter(Boolean);
+  if (seedIds.length > 0) {
+    fetchAndRender(seedIds);
+  }
+
+  function fetchAndRender(ids) {
+    fetch('/api/player-elo?players=' + ids.join(','))
+      .then(function(r){ return r.json() })
+      .then(function(series) {
+        selectedPlayers = series.map(function(s){ return { id: s.id, name: s.name } });
+        rebuildBadges();
+        rebuildChart(series);
+        updateUrl();
+      });
+  }
+
+  function addPlayer(id, name) {
+    if (selectedPlayers.length >= MAX_PLAYERS) return alert('Maximum ' + MAX_PLAYERS + ' players');
+    if (selectedPlayers.find(function(p){ return p.id === id })) return;
+    selectedPlayers.push({ id: id, name: name });
+    fetchAndRender(selectedPlayers.map(function(p){ return p.id }));
+  }
+
+  function removePlayer(id) {
+    selectedPlayers = selectedPlayers.filter(function(p){ return p.id !== id });
+    fetchAndRender(selectedPlayers.map(function(p){ return p.id }));
+  }
+
+  function rebuildBadges() {
+    var container = document.getElementById('selected-players');
+    container.innerHTML = '';
+    selectedPlayers.forEach(function(p, i) {
+      var badge = document.createElement('div');
+      badge.className = 'badge rounded-pill d-flex align-items-center justify-content-between mb-1 px-2 py-1';
+      badge.style.backgroundColor = colorFor(i);
+      badge.style.color = '#fff';
+      badge.style.fontSize = '0.8rem';
+      badge.style.whiteSpace = 'normal';
+      badge.style.wordBreak = 'break-word';
+      var nameSpan = document.createElement('span');
+      nameSpan.textContent = p.name;
+      var closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'btn-close btn-close-white ms-1';
+      closeBtn.style.fontSize = '0.6rem';
+      closeBtn.setAttribute('data-id', p.id);
+      closeBtn.addEventListener('click', function(e){
+        removePlayer(parseInt(e.target.getAttribute('data-id'), 10));
+      });
+      badge.appendChild(nameSpan);
+      badge.appendChild(closeBtn);
+      container.appendChild(badge);
+    });
+  }
+
+  function rebuildChart(series) {
+    chart.data.datasets = series.map(function(s, i) {
+      var color = colorFor(i);
+      return {
+        label: s.name,
+        data: s.data,
+        borderColor: color,
+        backgroundColor: color,
+        fill: false,
+        tension: 0,
+        pointRadius: 2,
+        pointHoverRadius: 5
+      };
+    });
+    chart.update();
+  }
+
+  function updateUrl() {
+    var ids = selectedPlayers.map(function(p){ return p.id }).join(',');
+    var url = ids ? '/elo-chart?players=' + ids : '/elo-chart';
+    history.replaceState(null, '', url);
+  }
+
+  // ---- filters + player search ----
+  var searchInput    = document.getElementById('player-search');
+  var searchResult   = document.getElementById('search-results');
+  var filterDivision = document.getElementById('filter-division');
+  var filterClub     = document.getElementById('filter-club');
+  var filterTeam     = document.getElementById('filter-team');
+  var filterGender   = document.getElementById('filter-gender');
+  var searchTimer    = null;
+
+  function activeFilters() {
+    return {
+      division: filterDivision.value,
+      club: filterClub.value,
+      team: filterTeam.value,
+      gender: filterGender.value
+    };
+  }
+
+  function runSearch() {
+    var q = searchInput.value.trim();
+    var filters = activeFilters();
+    var hasFilter = filters.division || filters.club || filters.team || filters.gender;
+    if (q.length < 2 && !hasFilter) { searchResult.style.display = 'none'; return; }
+
+    var params = new URLSearchParams({ q: q });
+    Object.keys(filters).forEach(function(k) { if (filters[k]) params.set(k, filters[k]); });
+
+    fetch('/api/players/search?' + params.toString())
+      .then(function(r){ return r.json() })
+      .then(function(players) {
+        var selectedIds = selectedPlayers.map(function(p){ return p.id });
+        players = players.filter(function(p){ return selectedIds.indexOf(p.id) === -1; });
+        searchResult.innerHTML = '';
+        if (players.length === 0) { searchResult.style.display = 'none'; return; }
+        players.forEach(function(p) {
+          var item = document.createElement('a');
+          item.href = '#';
+          item.className = 'list-group-item list-group-item-action py-1 small';
+          var strong = document.createElement('strong');
+          strong.textContent = p.name;
+          var teamSpan = document.createElement('span');
+          teamSpan.className = 'text-muted';
+          teamSpan.textContent = p.teamName || '';
+          item.appendChild(strong);
+          item.appendChild(document.createElement('br'));
+          item.appendChild(teamSpan);
+          item.addEventListener('click', function(e) {
+            e.preventDefault();
+            addPlayer(p.id, p.name);
+            // Keep the list open (minus the player just added) so a filter or
+            // search can be used to add several players in a row.
+            runSearch();
+          });
+          searchResult.appendChild(item);
+        });
+        searchResult.style.display = 'block';
+      });
+  }
+
+  searchInput.addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(runSearch, 250);
+  });
+
+  [filterDivision, filterClub, filterTeam, filterGender].forEach(function(el) {
+    el.addEventListener('change', runSearch);
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!searchInput.contains(e.target) && !searchResult.contains(e.target)) {
+      searchResult.style.display = 'none';
+    }
+  });
+
+  document.getElementById('clear-btn').addEventListener('click', function() {
+    selectedPlayers = [];
+    rebuildBadges();
+    rebuildChart([]);
+    updateUrl();
+  });
+})();
+</script>
+
+<%- include('footer.ejs') %>

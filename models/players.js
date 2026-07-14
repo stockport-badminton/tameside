@@ -1225,26 +1225,28 @@ exports.deleteById = async function(playerId,done){
 }
 
 exports.getPrevRating = async function(player,endDate){
-    let result = await sql`with "gameRows" as (select game.*, fixture.date, player.id as "playerId", division.rank as division from game 
-join fixture on game.fixture = fixture.id 
+    // End = 0 is the "unrated" sentinel (reset rows, Lewis Shield games) —
+    // never treat it as a real previous rating.
+    let result = await sql`with "gameRows" as (select game.*, fixture.date, player.id as "playerId", division.rank as "rank" from game
+join fixture on game.fixture = fixture.id
 join season on (fixture.date > season."startDate" and fixture.date < season."endDate")
 join player on (game."homePlayer1" = player.id OR game."homePlayer2" = player.id OR game."awayPlayer1" = player.id OR game."awayPlayer2" = player.id)
 join team on player.team = team.id
 join division on team.division = division.id
-where 
+where
 ("homePlayer1" = ${player} OR
 "homePlayer2" = ${player} OR
 "awayPlayer1" = ${player} OR
 "awayPlayer2" = ${player}) and season.name = ${SEASON} and (
-  "homePlayer1End" is not null and
-  "homePlayer2End" is not null and
-  "awayPlayer1End" is not null and
-  "awayPlayer2End" is not null
+  "homePlayer1End" is not null and "homePlayer1End" != 0 and
+  "homePlayer2End" is not null and "homePlayer2End" != 0 and
+  "awayPlayer1End" is not null and "awayPlayer1End" != 0 and
+  "awayPlayer2End" is not null and "awayPlayer2End" != 0
 )
 and date < ${endDate}
 order by date desc, id desc
 limit 1)
-select case 
+select case
   when "homePlayer1" = ${player} then "homePlayer1End"
   when "homePlayer2" = ${player} then "homePlayer2End"
   when "awayPlayer1" = ${player} then "awayPlayer1End"
@@ -1252,11 +1254,11 @@ select case
   end as "rating",
   date,
   "playerId",
-  division
+  "rank"
 from "gameRows"
 union all
-select player.rating, ${endDate} as date, player.id as "playerId", division.rank as division from player join 
-team on player.team = team.id join 
+select coalesce(player.rating, 1500), ${endDate} as date, player.id as "playerId", division.rank as "rank" from player join
+team on player.team = team.id join
 division on team.division = division.id
 where player.id = ${player}
 limit 1`.catch(err => {
@@ -1269,9 +1271,141 @@ limit 1`.catch(err => {
     return result[0]
   }
   else {
-    let result = {"rating":1500, "date":"2000-01-01 00:00:00","playerId":player,"division":1}
+    let result = {"rating":1500, "date":"2000-01-01 00:00:00","playerId":player,"rank":1}
     // console.log(`prevResult: ${JSON.stringify(result)}`)
     return result
   }
-  
+
+}
+
+// Batched previous-rating lookup for the ELO backfill: one query for all
+// requested players instead of one round-trip each. Returns a map of
+// playerId -> { rating, date, rank, gamesCount } with 1500/rank 1 defaults
+// for players with no rated history (or no current registration).
+// End = 0 rows (reset / Lewis Shield games) are ignored so they fall through
+// to earlier games or the defaults.
+exports.getPrevRatingBatch = async function(endDate, playerIds){
+  const ids = [...new Set(playerIds.map(id => 1 * id).filter(id => id > 0))]
+  const results = {}
+  if (ids.length === 0) return results
+
+  const ratingRows = await sql`
+    WITH candidates AS (
+      SELECT p.pid,
+        CASE WHEN g."homePlayer1" = p.pid THEN g."homePlayer1End"
+             WHEN g."homePlayer2" = p.pid THEN g."homePlayer2End"
+             WHEN g."awayPlayer1" = p.pid THEN g."awayPlayer1End"
+             WHEN g."awayPlayer2" = p.pid THEN g."awayPlayer2End" END AS rating,
+        f.date, g.id
+      FROM unnest(${ids}::int[]) AS p(pid)
+      JOIN game g ON (g."homePlayer1" = p.pid OR g."homePlayer2" = p.pid
+                   OR g."awayPlayer1" = p.pid OR g."awayPlayer2" = p.pid)
+      JOIN fixture f ON g.fixture = f.id
+      WHERE f.date < ${endDate}
+    )
+    SELECT DISTINCT ON (pid) pid, rating, date
+    FROM candidates WHERE rating IS NOT NULL AND rating > 0
+    ORDER BY pid, date DESC, id DESC
+  `
+  const rankRows = await sql`
+    SELECT player.id, division.rank AS "rank"
+    FROM player
+    JOIN team ON player.team = team.id
+    JOIN division ON team.division = division.id
+    WHERE player.id = ANY(${ids})
+  `
+
+  const ratingById = {}
+  ratingRows.forEach(r => { ratingById[r.pid] = r })
+  const rankById = {}
+  rankRows.forEach(r => { rankById[r.id] = 1 * r.rank })
+
+  ids.forEach(id => {
+    const prev = ratingById[id]
+    results[id] = {
+      rating: prev ? 1 * prev.rating : 1500,
+      date: prev ? prev.date : '2020-01-01 00:00:00',
+      rank: rankById[id] !== undefined ? rankById[id] : 1,
+      gamesCount: 0,
+    }
+  })
+  return results
+}
+
+// Returns ELO rating time-series for one or more player IDs.
+// Crosses season boundaries — used by the ELO chart pages.
+exports.getPlayerEloTimeSeries = async function(playerIds) {
+  if (!playerIds || playerIds.length === 0) return []
+
+  const numIds = playerIds.map(id => id * 1)
+
+  // One batched query for every requested player instead of one query each —
+  // a single ANY() scan over the four player columns.
+  const rows = await sql`
+    SELECT
+      fixture.date,
+      game."homePlayer1", game."homePlayer2", game."awayPlayer1", game."awayPlayer2",
+      game."homePlayer1End", game."homePlayer2End", game."awayPlayer1End", game."awayPlayer2End"
+    FROM game
+    JOIN fixture ON game.fixture = fixture.id
+    WHERE (game."homePlayer1" = ANY(${numIds}) OR game."homePlayer2" = ANY(${numIds}) OR game."awayPlayer1" = ANY(${numIds}) OR game."awayPlayer2" = ANY(${numIds}))
+      AND game."homePlayer1End" IS NOT NULL AND game."homePlayer1End" != 0
+      AND game."homePlayer2End" IS NOT NULL AND game."homePlayer2End" != 0
+      AND game."awayPlayer1End" IS NOT NULL AND game."awayPlayer1End" != 0
+      AND game."awayPlayer2End" IS NOT NULL AND game."awayPlayer2End" != 0
+    ORDER BY fixture.date ASC, game.id ASC
+  `
+
+  const nameRows = await sql`SELECT id, CONCAT(first_name, ' ', family_name) AS name FROM player WHERE id = ANY(${numIds})`
+  const nameById = {}
+  nameRows.forEach(r => { nameById[r.id] = r.name })
+
+  // One point per fixture date per player (rows ordered ASC by date, id — last game wins)
+  const byDateByPlayer = {}
+  numIds.forEach(id => { byDateByPlayer[id] = {} })
+  const slots = [
+    ['homePlayer1', 'homePlayer1End'],
+    ['homePlayer2', 'homePlayer2End'],
+    ['awayPlayer1', 'awayPlayer1End'],
+    ['awayPlayer2', 'awayPlayer2End'],
+  ]
+  rows.forEach(row => {
+    slots.forEach(([idKey, endKey]) => {
+      const pid = row[idKey]
+      if (pid != null && byDateByPlayer[pid] !== undefined && row[endKey] != null && row[endKey] > 0) {
+        byDateByPlayer[pid][new Date(row.date).toISOString().slice(0, 10)] = parseInt(row[endKey])
+      }
+    })
+  })
+
+  return numIds.map(id => ({
+    id,
+    name: nameById[id] || `Player ${id}`,
+    data: Object.entries(byDateByPlayer[id]).map(([x, y]) => ({ x, y }))
+  }))
+}
+
+// Name-fragment search, optionally narrowed by division/club/team/gender —
+// used by the ELO comparison page. Note: player.club is the club FK on
+// tameside (not team.club).
+exports.searchPlayers = async function(query, filters = {}) {
+  // player.id is bigint — cast to int so the JSON carries a number, not a
+  // string (the chart page compares ids with strict equality).
+  const result = await sql`
+    SELECT player.id::int AS id,
+           CONCAT(player.first_name, ' ', player.family_name) AS name,
+           team.name AS "teamName"
+    FROM player
+    JOIN team ON team.id = player.team
+    JOIN club ON club.id = player.club
+    JOIN division ON division.id = team.division
+    WHERE LOWER(CONCAT(player.first_name, ' ', player.family_name)) LIKE LOWER(${'%' + (query || '') + '%'})
+    ${filters.division ? sql`AND division.name = ${filters.division}` : sql``}
+    ${filters.club ? sql`AND club.name = ${filters.club}` : sql``}
+    ${filters.team ? sql`AND team.name = ${filters.team}` : sql``}
+    ${filters.gender ? sql`AND player.gender = ${filters.gender}` : sql``}
+    ORDER BY player.family_name, player.first_name
+    LIMIT 20
+  `
+  return result
 }

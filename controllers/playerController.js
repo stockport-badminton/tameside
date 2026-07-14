@@ -3,6 +3,7 @@ var Player = require('../models/players');
 var Team = require('../models/teams');
 var Fixture = require('../models/fixture');
 var Game = require('../models/game');
+var Division = require('../models/division');
 var async = require('async');
 var jp = require('jsonpath');
 const {distance, closest} = require('fastest-levenshtein');
@@ -639,100 +640,406 @@ For Player 1: Rating adjustment = 32 * (1 - 0.240) = 32 * 0.760 = 24.32
 For Player 2: Rating adjustment = 32 * (0 - 0.760) = 32 * -0.760 = -24.32 
 */
 
-exports.player_elo_populate = async function(req,res){
-  await Fixture.getFixtureDetails({"status":"complete","type":"eloSetting"},async function(err,rows){
-    if (err){
-      res.send(err);
+// Promise wrappers for the callback-style model functions used by the backfill.
+const promisify = fn => (...args) => new Promise((resolve, reject) =>
+  fn(...args, (err, result) => err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result)))
+const getFixtureDetailsP = promisify(Fixture.getFixtureDetails)
+const getGamesByFixtureP = promisify(Game.getByFixture)
+const updateGameByIdP = promisify(Game.updateById)
+const updatePlayersBulkP = promisify(Player.updateBulk)
+
+// Tameside season convention (month < 6): July onwards belongs to the new season.
+function currentSeasonName() {
+  const year = new Date().getFullYear()
+  return new Date().getMonth() < 6 ? `${year - 1}${year}` : `${year}${year + 1}`
+}
+
+// Guard against Fixture.getFixtureDetails silently substituting the current
+// season when handed a name its checkSeason rejects — validate here and skip
+// bad names explicitly instead.
+function isValidSeasonName(name) {
+  if (!/^\d{8}$/.test(name)) return false
+  const firstYear = parseInt(name.slice(0, 4), 10)
+  const secondYear = parseInt(name.slice(4), 10)
+  return secondYear - firstYear === 1 && firstYear >= 2012
+}
+
+// Shared helper: process all complete fixtures for one season and update game ELO.
+// seasonParam is a season name string (e.g. '20242025') or undefined for current season.
+// Returns { fixtures, gamesProcessed, gamesSkipped, knownRatings }.
+// carryoverRatings: optional map of { playerId: { rating, date, rank, gamesCount } }
+// seeded from a previous season's run so ratings carry across season boundaries
+// without a DB round-trip. Lewis Shield fixtures are skipped — cup games don't
+// count towards ELO and keep the End = 0 "unrated" sentinel.
+async function recalcSeasonElo(seasonParam, carryoverRatings = {}) {
+  await Game.resetSeasonElo(seasonParam)
+
+  const searchObj = { status: 'complete' }
+  if (seasonParam) searchObj.season = seasonParam
+
+  const rows = await getFixtureDetailsP(searchObj)
+  let gamesProcessed = 0
+  let gamesSkipped = 0
+  let lewisFixturesSkipped = 0
+
+  // knownRatings accumulates every player's latest End rating across fixtures so we
+  // never need to re-query the DB mid-season (which was resetting everyone to 1500).
+  const knownRatings = { ...carryoverRatings }
+
+  for (const fixture of rows) {
+    if (fixture.lewis_round != null) { lewisFixturesSkipped++; continue }
+
+    // Collect all player IDs for this fixture (0 = walkover slot, never tracked).
+    let fixturePlayers = {}
+    for (const key of ['homeMan1','homeMan2','homeMan3','homeMan4','homeLady1','homeLady2',
+                        'awayMan1','awayMan2','awayMan3','awayMan4','awayLady1','awayLady2']) {
+      const pid = fixture[key]
+      if (pid != null && pid != 0) fixturePlayers[pid] = {}
     }
-    else {
-      let totalFixtures = rows.length
-      let subLoopLength = 5
-      let start = 0
-      let gamesprocessed = 0
-      let gamesskipped = 0
-      let fixGamesSkipped = 0
-      do {
-        let subFixtures = await rows.filter((el,i)=> i >= start && i < start + subLoopLength)
-        start += subLoopLength
-        for (fixture of subFixtures){
-          let fixtureDate = await fixture.date
-          let fixtureDivision = await fixture.division
-          // console.log(`fixture: ${JSON.stringify(fixture)}`)
 
-          let fixturePlayers = {}
-          fixturePlayers[fixture.homeMan1] = await Player.getPrevRating(fixture.homeMan1,fixtureDate)
-          fixturePlayers[fixture.homeMan2] = await Player.getPrevRating(fixture.homeMan2,fixtureDate)
-          fixturePlayers[fixture.homeMan3] = await Player.getPrevRating(fixture.homeMan3,fixtureDate)
-          fixturePlayers[fixture.homeMan4] = await Player.getPrevRating(fixture.homeMan4,fixtureDate)
-          fixturePlayers[fixture.homeLady1] = await Player.getPrevRating(fixture.homeLady1,fixtureDate)
-          fixturePlayers[fixture.homeLady2] = await Player.getPrevRating(fixture.homeLady2,fixtureDate)
-          fixturePlayers[fixture.awayMan1] = await Player.getPrevRating(fixture.awayMan1,fixtureDate)
-          fixturePlayers[fixture.awayMan2] = await Player.getPrevRating(fixture.awayMan2,fixtureDate)
-          fixturePlayers[fixture.awayMan3] = await Player.getPrevRating(fixture.awayMan3,fixtureDate)
-          fixturePlayers[fixture.awayMan4] = await Player.getPrevRating(fixture.awayMan4,fixtureDate)
-          fixturePlayers[fixture.awayLady1] = await Player.getPrevRating(fixture.awayLady1,fixtureDate)
-          fixturePlayers[fixture.awayLady2] = await Player.getPrevRating(fixture.awayLady2,fixtureDate)
-          await Game.getByFixture(fixture.id,async function(gameErr,results){
-            if (gameErr){
-              res.send(gameErr);
-            }
-            else {
-              // console.log(`games found for fixture: ${fixture.id} : ${results.length}`)
-              for (game of results){
-                // console.log(`gameId: ${game.id}`)
-                await Game.calculateRating(game,fixturePlayers,fixtureDate,fixtureDivision, async function(rateErr, rateResult){
-                  // console.log(`rateResult: ${JSON.stringify(rateResult)}`)
-                  if (rateErr){
-                    console.error(`rateErr: ${JSON.stringify(rateErr)}`)
-                  }
-                  else if (rateResult && (game.homePlayer1 != 0 || game.homePlayer2 != 0 || game.awayPlayer1 != 0 || game.awayPlayer2 != 0 )){
-                    fixturePlayers[game.homePlayer1].rating = rateResult.updateObj.homePlayer1End
-                    fixturePlayers[game.homePlayer1].date = fixtureDate
-                    fixturePlayers[game.homePlayer2].rating = rateResult.updateObj.homePlayer2End
-                    fixturePlayers[game.homePlayer2].date = fixtureDate
-                    fixturePlayers[game.awayPlayer1].rating = rateResult.updateObj.awayPlayer1End
-                    fixturePlayers[game.awayPlayer1].date = fixtureDate
-                    fixturePlayers[game.awayPlayer2].rating = rateResult.updateObj.awayPlayer2End
-                    fixturePlayers[game.awayPlayer2].date = fixtureDate
-                    await Game.updateById(rateResult.updateObj,game.id, async function(ratingErr, ratingResult){
-                      if (ratingErr){
-                        console.error(`gameObj: ${JSON.stringify(rateResult)}`)
-                        console.error(`ratingErr: ${ratingErr}`)
-                      }
-                    })
-                  }
-                })
-              }
+    let games = await getGamesByFixtureP(fixture.id)
+    if (games.length > 18) {
+      // A re-entered scorecard appends another 18 rows to the same fixture —
+      // rate only the latest entry (getByFixture orders by id ASC). The older
+      // duplicate rows keep the End = 0 sentinel from the reset.
+      games = games.slice(-18)
+    }
+    for (const game of games) {
+      for (const pid of [game.homePlayer1, game.homePlayer2, game.awayPlayer1, game.awayPlayer2]) {
+        if (pid != null && pid != 0 && !(pid in fixturePlayers)) fixturePlayers[pid] = {}
+      }
+    }
 
+    // For players already seen this (or a prior) season, carry their rating forward
+    // directly — no DB query needed. Only query for genuinely new players.
+    const newPlayers = []
+    for (const pid of Object.keys(fixturePlayers)) {
+      if (pid in knownRatings) {
+        fixturePlayers[pid] = { ...knownRatings[pid] }
+      } else {
+        newPlayers.push(pid)
+      }
+    }
+    if (newPlayers.length > 0) {
+      // gamesCount isn't tracked in the DB — a player loaded here is treated as
+      // starting fresh for provisional-K purposes. Full accuracy (a true
+      // lifetime games-played count) requires running eloBackfillAll from the
+      // start of records rather than a single isolated season recalc.
+      const loaded = await Player.getPrevRatingBatch(fixture.date, newPlayers)
+      for (const [pid, val] of Object.entries(loaded)) {
+        fixturePlayers[pid] = { ...val }
+        knownRatings[pid] = fixturePlayers[pid]
+      }
+    }
 
-              let playerUpdate = {}
-              playerUpdate.tablename = "player"
-              playerUpdate.data = []
-              playerUpdate.fields = ["id","rating"]
-              // console.log(`${rateResult.prevRatingDates.homePlayer1Start} vs ${fixtureDate}: ${rateResult.prevRatingDates.homePlayer1Start > fixtureDate}`)
-              // console.log(`fixturePlayers: ${JSON.stringify(fixturePlayers)}`)
-              for ([index,player] of Object.entries(fixturePlayers)){
-                playerUpdate.data.push([index,player.rating])
-              }
-              if (playerUpdate.data.length > 0){
-                // console.log(`playerUpdate: ${JSON.stringify(playerUpdate)}`)
-                await Player.updateBulk(playerUpdate,async function(playerErr,updateRes){
-                  if (playerErr){
-                    console.error(`playerErr: ${playerErr}`)
-                  }
-                  else {
-                    // console.log(`Player rankings updated again`)
-                  }
-                })
-              }
-            }
+    for (const game of games) {
+      const rateResult = Game.calculateRating(game, fixturePlayers, fixture.date, fixture.rank)
+      if (rateResult && (game.homePlayer1 != 0 || game.homePlayer2 != 0 || game.awayPlayer1 != 0 || game.awayPlayer2 != 0)) {
+        for (const [slot, endKey] of [
+          [game.homePlayer1, 'homePlayer1End'],
+          [game.homePlayer2, 'homePlayer2End'],
+          [game.awayPlayer1, 'awayPlayer1End'],
+          [game.awayPlayer2, 'awayPlayer2End'],
+        ]) {
+          if (slot != null && slot != 0 && fixturePlayers[slot]) {
+            fixturePlayers[slot].rating = rateResult.updateObj[endKey]
+            fixturePlayers[slot].date = fixture.date
+            fixturePlayers[slot].gamesCount = (fixturePlayers[slot].gamesCount || 0) + 1
+            knownRatings[slot] = { ...fixturePlayers[slot] }
+          }
+        }
+        await updateGameByIdP(rateResult.updateObj, game.id)
+        gamesProcessed++
+      } else {
+        gamesSkipped++
+      }
+    }
+
+    // updateBulk mutates its inputs, so build fresh arrays per fixture.
+    const playerUpdate = {
+      tablename: 'player',
+      data: Object.entries(fixturePlayers)
+        .filter(([id]) => parseInt(id, 10) > 0)
+        .map(([id, p]) => [parseInt(id, 10), p.rating]),
+      fields: ['id', 'rating']
+    }
+    if (playerUpdate.data.length > 0) await updatePlayersBulkP(playerUpdate)
+  }
+
+  return { fixtures: rows.length, gamesProcessed, gamesSkipped, lewisFixturesSkipped, knownRatings }
+}
+
+function isEloAdmin(req) {
+  const isSuperAdmin = req.user && req.user._json &&
+    req.user._json['https://my-app.example.com/role'] === 'superadmin'
+  return isSuperAdmin || (process.env.DEV_MODE === 'true' && process.env.NODE_ENV !== 'production')
+}
+
+// GET /players/eloFullRecalc?season=20242025  (superadmin or DEV_MODE only)
+// Zeros ELO for one season then reprocesses every complete fixture in date order.
+// Omit ?season to target the current season.
+exports.player_elo_full_recalc = async function(req, res, next) {
+  if (!isEloAdmin(req)) return res.status(403).send('Forbidden')
+  try {
+    const seasonParam = req.query.season || undefined
+    if (seasonParam && !isValidSeasonName(seasonParam)) {
+      return res.status(400).send(`Invalid season name: ${seasonParam}`)
+    }
+    const result = await recalcSeasonElo(seasonParam)
+    res.send(`Full recalc complete (season: ${seasonParam || 'current'}). Fixtures: ${result.fixtures}; games processed: ${result.gamesProcessed}; skipped: ${result.gamesSkipped}; Lewis fixtures skipped: ${result.lewisFixturesSkipped}`)
+  } catch (err) {
+    next(err)
+  }
+}
+
+// GET /players/eloBackfillAll  (superadmin or DEV_MODE only)
+// Reprocesses ALL seasons from oldest to newest so the ELO chain is consistent
+// across season boundaries.  Ratings carry over: each season seeds from the
+// previous season's final game ratings.
+exports.player_elo_backfill_all = async function(req, res, next) {
+  if (!isEloAdmin(req)) return res.status(403).send('Forbidden')
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  res.setHeader('Transfer-Encoding', 'chunked')
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  try {
+    const allSeasons = await Fixture.getAllSeasons()
+    const currentSeason = currentSeasonName()
+
+    const flush = () => { if (typeof res.flush === 'function') res.flush() }
+
+    res.write('Resetting all ELO values...\n'); flush()
+    await Game.resetAllElo()
+    res.write(`Done. Processing ${allSeasons.length} seasons:\n\n`); flush()
+
+    const results = []
+    let carryoverRatings = {}
+
+    for (const s of allSeasons) {
+      res.write(`  ${s.name}... `); flush()
+      const isCurrentSeason = s.name === currentSeason
+      if (!isCurrentSeason && !isValidSeasonName(s.name)) {
+        res.write(`skipped (invalid season name)\n`); flush()
+        continue
+      }
+      try {
+        const seasonParam = isCurrentSeason ? undefined : s.name
+        const r = await recalcSeasonElo(seasonParam, carryoverRatings)
+        carryoverRatings = r.knownRatings
+        results.push({ season: s.name, ...r })
+        res.write(`${r.fixtures} fixtures, ${r.gamesProcessed} games processed, ${r.lewisFixturesSkipped} Lewis fixtures skipped\n`); flush()
+      } catch (seasonErr) {
+        res.write(`skipped (${seasonErr.message})\n`); flush()
+      }
+    }
+
+    const totalFixtures = results.reduce((a, r) => a + r.fixtures, 0)
+    const totalProcessed = results.reduce((a, r) => a + r.gamesProcessed, 0)
+    const totalSkipped = results.reduce((a, r) => a + r.gamesSkipped, 0)
+
+    res.write(`\nAll done. Total: ${totalFixtures} fixtures, ${totalProcessed} games processed, ${totalSkipped} skipped.`)
+    res.end()
+  } catch (err) {
+    res.write(`\nERROR: ${err.message}`)
+    res.end()
+  }
+}
+
+// GET /api/seasons
+// Returns the list of seasons from the database.
+exports.get_seasons_api = async function(req, res, next) {
+  try {
+    const seasons = await Fixture.getAllSeasons()
+    res.json(seasons)
+  } catch (err) {
+    next(err)
+  }
+}
+
+// GET /players/eloBackfillAdmin  (secured)
+// Admin page for triggering per-season or all-season ELO backfill.
+exports.player_elo_backfill_admin = async function(req, res, next) {
+  if (!isEloAdmin(req)) return res.status(403).send('Forbidden')
+  try {
+    const seasons = await Fixture.getAllSeasons()
+    res.render('elo-backfill', {
+      static_path: '/static',
+      theme: process.env.THEME || 'flatly',
+      title: 'ELO Backfill Admin',
+      pageDescription: 'ELO rating backfill admin tool',
+      seasons
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// GET /api/player-elo?players=1,2,3
+// Returns ELO time-series JSON for use by the chart pages.
+const ELO_CHART_MAX_PLAYERS = 20
+
+exports.player_elo_history_api = async function(req, res, next) {
+  try {
+    const rawIds = (req.query.players || '').split(',').map(s => parseInt(s, 10)).filter(n => !isNaN(n)).slice(0, ELO_CHART_MAX_PLAYERS)
+    if (rawIds.length === 0) return res.json([])
+    const data = await Player.getPlayerEloTimeSeries(rawIds)
+    res.json(data)
+  } catch (err) {
+    next(err)
+  }
+}
+
+// GET /api/players/search?q=Smith&division=Premier&club=Dome&team=Dome+A&gender=Male
+// Returns player name/id matches for the comparison page search, optionally
+// narrowed by the same division/club/team/gender filters used on /player-stats.
+exports.player_search_api = async function(req, res, next) {
+  try {
+    const q = (req.query.q || '').trim()
+    const filters = {
+      division: (req.query.division || '').trim(),
+      club: (req.query.club || '').trim(),
+      team: (req.query.team || '').trim(),
+      gender: (req.query.gender || '').trim(),
+    }
+    const hasFilter = Object.values(filters).some(v => v.length > 0)
+    if (q.length < 2 && !hasFilter) return res.json([])
+    const results = await Player.searchPlayers(q, filters)
+    res.json(results)
+  } catch (err) {
+    next(err)
+  }
+}
+
+// GET /elo-chart
+// Renders the multi-player ELO comparison page.
+exports.player_elo_chart = async function(req, res, next) {
+  try {
+    const rawIds = (req.query.players || '').split(',').map(s => parseInt(s, 10)).filter(n => !isNaN(n)).slice(0, ELO_CHART_MAX_PLAYERS)
+    const [seriesData, divisions, clubs, teams] = await Promise.all([
+      rawIds.length > 0 ? Player.getPlayerEloTimeSeries(rawIds) : [],
+      promisify(Division.getAll)(),
+      promisify(Club.getAll)(),
+      promisify(Team.getAll)(),
+    ])
+    res.render('elo-chart', {
+      static_path: '/static',
+      theme: process.env.THEME || 'flatly',
+      title: 'ELO Chart',
+      pageDescription: 'Compare player ELO ratings over time',
+      seriesData: JSON.stringify(seriesData),
+      selectedIds: rawIds.join(','),
+      maxPlayers: ELO_CHART_MAX_PLAYERS,
+      divisions,
+      clubs,
+      teams
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// GET /dev/elo-raw/:playerId  (DEV_MODE only)
+// Shows raw Start/End ELO values from game records for a player across all seasons,
+// in chronological order. Use this to diagnose whether the stored values are correct.
+exports.player_elo_raw = async function(req, res, next) {
+  if (process.env.DEV_MODE !== 'true' || process.env.NODE_ENV === 'production') {
+    return res.status(404).send('Not found')
+  }
+  try {
+    const playerId = parseInt(req.params.playerId, 10)
+    const { sql } = require('../utils/db_connect')
+    const rows = await sql`
+      SELECT
+        fixture.date,
+        game.id AS "gameId",
+        game.fixture AS "fixtureId",
+        CASE
+          WHEN game."homePlayer1" = ${playerId} THEN 'homePlayer1'
+          WHEN game."homePlayer2" = ${playerId} THEN 'homePlayer2'
+          WHEN game."awayPlayer1" = ${playerId} THEN 'awayPlayer1'
+          WHEN game."awayPlayer2" = ${playerId} THEN 'awayPlayer2'
+        END AS slot,
+        CASE
+          WHEN game."homePlayer1" = ${playerId} THEN game."homePlayer1Start"
+          WHEN game."homePlayer2" = ${playerId} THEN game."homePlayer2Start"
+          WHEN game."awayPlayer1" = ${playerId} THEN game."awayPlayer1Start"
+          WHEN game."awayPlayer2" = ${playerId} THEN game."awayPlayer2Start"
+        END AS "startVal",
+        CASE
+          WHEN game."homePlayer1" = ${playerId} THEN game."homePlayer1End"
+          WHEN game."homePlayer2" = ${playerId} THEN game."homePlayer2End"
+          WHEN game."awayPlayer1" = ${playerId} THEN game."awayPlayer1End"
+          WHEN game."awayPlayer2" = ${playerId} THEN game."awayPlayer2End"
+        END AS "endVal"
+      FROM game
+      JOIN fixture ON game.fixture = fixture.id
+      WHERE game."homePlayer1" = ${playerId} OR game."homePlayer2" = ${playerId} OR game."awayPlayer1" = ${playerId} OR game."awayPlayer2" = ${playerId}
+      ORDER BY fixture.date ASC, game.id ASC
+    `
+
+    // Flag places where startVal doesn't match previous game's endVal.
+    // End = 0 rows are unrated (Lewis Shield) — they don't advance the chain.
+    let prevEnd = null
+    const annotated = rows.map(r => {
+      const isRated = r.endVal !== null && parseInt(r.endVal) !== 0
+      const gap = isRated && prevEnd !== null && r.startVal !== null && parseInt(r.startVal) !== prevEnd
+        ? { expectedStart: prevEnd, diff: parseInt(r.startVal) - prevEnd }
+        : null
+      if (isRated) prevEnd = parseInt(r.endVal)
+      return { ...r, gap }
+    })
+
+    res.json({ playerId, totalGames: rows.length, games: annotated })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// GET /dev/elo-audit  (DEV_MODE only)
+// Scans all current-season games in date order and reports cases where a
+// player's start rating doesn't match the end rating from their previous game.
+exports.player_elo_audit = async function(req, res, next) {
+  if (process.env.DEV_MODE !== 'true' || process.env.NODE_ENV === 'production') {
+    return res.status(404).send('Not found')
+  }
+  try {
+    const games = await Game.getSeasonGamesOrdered(req.query.season || undefined)
+
+    // Track each player's most recently seen end rating
+    const lastEnd = {}
+    const discrepancies = []
+
+    for (const g of games) {
+      const positions = [
+        { id: g.homePlayer1, start: g.homePlayer1Start, end: g.homePlayer1End },
+        { id: g.homePlayer2, start: g.homePlayer2Start, end: g.homePlayer2End },
+        { id: g.awayPlayer1, start: g.awayPlayer1Start, end: g.awayPlayer1End },
+        { id: g.awayPlayer2, start: g.awayPlayer2Start, end: g.awayPlayer2End },
+      ]
+      for (const p of positions) {
+        if (!p.id || p.id === 0) continue
+        if (lastEnd[p.id] !== undefined && lastEnd[p.id] !== p.start) {
+          discrepancies.push({
+            playerId: p.id,
+            gameId: g.id,
+            fixtureId: g.fixtureId,
+            date: g.date,
+            expectedStart: lastEnd[p.id],
+            actualStart: p.start,
+            diff: p.start - lastEnd[p.id]
           })
         }
-
-      } while ((start + subLoopLength) < totalFixtures)
-      res.send(`all done, total fixtures: ${totalFixtures}`)
+        lastEnd[p.id] = p.end
+      }
     }
-  })
+
+    res.json({
+      gamesScanned: games.length,
+      discrepanciesFound: discrepancies.length,
+      discrepancies
+    })
+  } catch (err) {
+    next(err)
+  }
 }
 
 // Handle Player create on POST

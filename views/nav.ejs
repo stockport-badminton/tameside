@@ -45,6 +45,7 @@
                 <li class="nav-item"><a class="nav-link" href="/rules"><i class="fas fa-book"></i> Rules</a></li>
                 <li class="nav-item"><a class="nav-link" href="/contact-us"><i class="fas fa-envelope"></i> Contact</a></li>
                 <% if(locals.user) { %>
+                    <li class="nav-item"><a class="nav-link" href="/elo-chart"><i class="fas fa-chart-line"></i> Ratings</a></li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
                             <i class="fas fa-user-gear"></i> Admin
@@ -58,6 +59,9 @@
                                 <a class="dropdown-item" href="/played-up-counts">Played Up Counts</a>
                                 <a class="dropdown-item" href="/player-stats">Individual Stats</a>
                                 <a class="dropdown-item" href="/pair-stats">Pair Stats</a>
+                                <a class="dropdown-item" href="/players/eloBackfillAdmin">ELO Backfill</a>
+                                <a class="dropdown-item" href="/admin/homepage-content">Manage Homepage</a>
+                                <a class="dropdown-item" href="/admin/site-settings">Site Settings</a>
                             <% } else if(locals.user._json['https://my-app.example.com/role'] == 'admin') { %>
                                 <a class="dropdown-item" href="/manage-players/club-<%= locals.user._json['https://my-app.example.com/club'] %>">Team Players</a>
                                 <% if(locals.user._json['https://my-app.example.com/stats']) { %>

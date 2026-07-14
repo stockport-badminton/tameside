@@ -350,11 +350,16 @@ exports.getScorecardById = async function(fixtureId,done){
   
 }
 
+// All seasons oldest-first — used by the ELO backfill and season pickers.
+exports.getAllSeasons = async function(){
+  return await sql`SELECT name, "startDate", "endDate" FROM season ORDER BY "startDate" ASC`
+}
+
 exports.getOutstandingFixtureId = async function(obj,done){
   if(typeof obj.homeTeam !== undefined && typeof obj.awayTeam !== undefined){
     // var sql = 'select id from (select fixture.id, homeTeam, awayTeam, status from fixture join season where season.name=? AND fixture.date > season.startDate) as a where awayTeam = ? AND homeTeam = ? AND status = "outstanding"';
     console.log(`select a.id, division.name, division.rank from (SELECT id, homeTeam FROM (SELECT fixture.id, homeTeam, awayTeam, status FROM fixture JOIN season on season.name = ${SEASON} AND fixture.date > season.startDate) AS a WHERE awayTeam = ${obj.awayTeam} AND homeTeam = ${obj.homeTeam} AND status like 'outstanding') as a join team on a.homeTeam = team.id join division on team.division = division.id`)
-    let result = await sql`select a.id, division.name, division.rank from (SELECT id, "homeTeam" FROM (SELECT fixture.id, "homeTeam", "awayTeam", status FROM fixture JOIN season on season.name like ${SEASON} AND fixture.date > season."startDate") AS a WHERE "awayTeam" = ${obj.awayTeam} AND "homeTeam" = ${obj.homeTeam} AND status like 'outstanding') as a join team on a."homeTeam" = team.id join division on team.division = division.id`.catch(err => {
+    let result = await sql`select a.id, division.name, division.rank, a.lewis_round from (SELECT id, "homeTeam", lewis_round FROM (SELECT fixture.id, "homeTeam", "awayTeam", status, lewis_round FROM fixture JOIN season on season.name like ${SEASON} AND fixture.date > season."startDate") AS a WHERE "awayTeam" = ${obj.awayTeam} AND "homeTeam" = ${obj.homeTeam} AND status like 'outstanding') as a join team on a."homeTeam" = team.id join division on team.division = division.id`.catch(err => {
       return done(err)
     })
     console.log(result.statement.string)

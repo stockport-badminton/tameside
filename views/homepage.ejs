@@ -22,24 +22,15 @@
             <i class="fas fa-newspaper"></i> News
         </h2>
         
+        <% (typeof announcements !== 'undefined' ? announcements : []).forEach(function(a){ %>
         <div class="news-card">
-            <h3>Updates</h3>
-            <p>Some improvements for you all. For all of you with scorecard photos on your phone, but entering results on another device:</p>
-            <p>Skip the photo stage for the initial entry, and then return to the <a href="/email-scorecard">results entry page</a> and you'll find a list of your scorecards that still need photos. Now you can enter the scorecard info in one place and then upload the photo from your phone separately.</p>
+            <h3><%= a.title %></h3>
+            <%- a.teaser_html %>
+            <% if (a.modal_body_html) { %>
+            <p><a href="#" data-bs-toggle="modal" data-bs-target="#announcementModal<%= a.id %>">Read more</a></p>
+            <% } %>
         </div>
-
-        <div class="news-card">
-            <h3>Player Registrations</h3>
-            <p>If captains / teams could endeavor to email me before/during a match where a new player is being added that will help smooth scorecard entry.</p>
-            <p>There's no need to send scorecards directly to Jonny anymore - you can <a href="/email-scorecard">enter them online</a> and he will receive them.</p>
-        </div>
-
-        <div class="news-card">
-            <h3>Results Entry System</h3>
-            <p><a href="#" data-bs-toggle="modal" data-bs-target="#resultsEntryModal">A quick guide to results entry</a></p>
-            <p>Questions / suggestions are always welcome - use the contact us menu to get in touch with me.</p>
-            <p style="margin-top: 1rem;"><strong>Neil</strong></p>
-        </div>
+        <% }) %>
     </div>
 </section>
 
@@ -156,4 +147,7 @@
 </section>
 
 <%- include('resultsEntryModal.ejs') %>
+<% (typeof announcements !== 'undefined' ? announcements : []).forEach(function(a){ if (a.modal_body_html) { %>
+<%- include('announcementModal.ejs', {a: a}) %>
+<% } }) %>
 <%- include('footer.ejs') %>

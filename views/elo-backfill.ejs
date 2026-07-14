@@ -1,0 +1,79 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<div class="col-12">
+
+<h1>ELO Backfill Admin</h1>
+<p class="text-muted">Recalculate ELO ratings from raw game data. Seasons are processed using stored game results — existing ELO values for the selected season are zeroed and recomputed in date order. Ratings carry over between seasons. Lewis Shield fixtures are skipped (cup games don't count towards ELO).</p>
+
+<div class="alert alert-warning" role="alert">
+  <strong>Warning:</strong> These operations rewrite ELO values in the database. Run <em>Backfill All Seasons</em> from oldest to newest for the most accurate results. Individual season recalc is useful when only one season's data has changed.
+</div>
+
+<div class="card mb-4">
+  <div class="card-header"><strong>Backfill All Seasons</strong></div>
+  <div class="card-body">
+    <p>Reprocesses every season from oldest to newest in one go. Player ratings carry over across season boundaries automatically.</p>
+    <button class="btn btn-danger" id="backfill-all-btn" onclick="runBackfill('all')">Backfill All Seasons</button>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header"><strong>Recalculate Single Season</strong></div>
+  <div class="card-body">
+    <p>Select a season and recalculate only that season's ELO. Useful for patching one season without touching others — note that later seasons will not automatically update.</p>
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <select id="season-select" class="form-select">
+          <% seasons.forEach(function(s) { %>
+            <option value="<%= s.name %>"><%= s.name.slice(0,4) %>/<%= s.name.slice(4) %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-warning" onclick="runBackfill('single')">Recalculate Season</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-4" id="result-card" style="display:none">
+  <div class="card-header"><strong>Result</strong></div>
+  <div class="card-body">
+    <pre id="result-output" style="white-space:pre-wrap;margin:0"></pre>
+  </div>
+</div>
+
+<script>
+function runBackfill(type) {
+  var url = type === 'all'
+    ? '/players/eloBackfillAll'
+    : '/players/eloFullRecalc?season=' + document.getElementById('season-select').value;
+
+  var card = document.getElementById('result-card');
+  var output = document.getElementById('result-output');
+
+  output.textContent = '';
+  card.style.display = 'block';
+
+  fetch(url).then(function(r) {
+    var reader = r.body.getReader();
+    var decoder = new TextDecoder();
+    function read() {
+      return reader.read().then(function(chunk) {
+        if (chunk.done) return;
+        output.textContent += decoder.decode(chunk.value);
+        output.scrollTop = output.scrollHeight;
+        return read();
+      });
+    }
+    return read();
+  }).catch(function(err) {
+    output.textContent += '\nError: ' + err.message;
+  });
+}
+</script>
+
+</div><!-- /col-12 -->
+
+<%- include('footer.ejs') %>
