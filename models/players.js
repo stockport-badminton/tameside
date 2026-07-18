@@ -13,17 +13,6 @@ exports.create = async function(first_name,family_name,team,club,gender,done){
 
 }
 
-exports.createByName = async function(obj,done){
-  if(db.isObject(obj)){
-    result = await sql`insert into player (first_name, family_name, gender, club, team, date_of_registration) values (${obj.first_name}, ${obj.family_name}, ${obj.gender},(select id from club where name = ${obj.clubName}),(select id from team where name = ${obj.teamName}),${obj.date})`.catch(err => {
-    return done(err) ;
-    })
-    done(null,result);
-  }
-  else {
-    return done('not object');
-  }
-}
 
 exports.createBatch = async function(BatchObj,done){
     if(db.isObject(BatchObj)){
@@ -46,12 +35,6 @@ exports.createBatch = async function(BatchObj,done){
   }
 
 // PATCH
-exports.updateById = async function(first_name,family_name,team,club,gender,playerId,done){
-  let result = await sql`UPDATE player SET first_name = ${first_name}, family_name = ${family_name}, team = ${team}, club = ${club}, gender = ${gender} WHERE id = ${playerId}`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
 
 exports.updateBulk = async function(BatchObj,done){
   if(typeof BatchObj.tablename !== undefined && typeof BatchObj.data !== undefined && typeof BatchObj.fields !== undefined){
@@ -161,12 +144,6 @@ exports.updateBulk = async function(BatchObj,done){
 }
 
 // GET
-exports.getAll = async function(done){
-  let result = await sql`SELECT * FROM player`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
 
 // GET
 exports.getNominatedPlayers = async function(teamName,done){
@@ -1077,12 +1054,6 @@ exports.findElgiblePlayersFromTeamId = async function(id,gender,done){
   done(null,result);
 }
 
-exports.findElgiblePlayersFromTeamIdAndSelected = async function(teamName,gender, first, second, third,done){
-  let result = await sql`SELECT player.id, player.first_name, player.family_name, CASE WHEN LEVENSHTEIN(CONCAT(player.first_name, " ", player.family_name), ?) < 6 THEN TRUE ELSE FALSE END AS first, CASE WHEN LEVENSHTEIN(CONCAT(player.first_name, " ", player.family_name), ?) < 6 THEN TRUE ELSE FALSE END AS second, CASE WHEN LEVENSHTEIN(CONCAT(player.first_name, " ", player.family_name), ?) < 6 THEN TRUE ELSE FALSE END AS third FROM (SELECT team.id, team.name, team.rank FROM (SELECT club.id, club.name, team.rank AS originalRank FROM team JOIN club on team.club = club.id AND levenshtein(team.name,?) < 1) AS a JOIN team on a.id = team.club AND team.rank >= originalRank) AS b JOIN player on player.team = b.id AND player.gender = ?',[first, second, third, teamName, gender]`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
 
 exports.getEligiblePlayersAndSelectedById = async function(first, second, teamId,gender,done,third = 0, fourth = 0){
   console.log(`SELECT player.id ,player.first_name ,player.family_name, case when player.id = ${first} then 1 else 0 end as first, case when player.id = ${second} then 1 else 0 end as second, case when player.id = ${third} then 1 else 0 end as third, case when player.id = ${fourth} then 1 else 0 end as fourth FROM ( SELECT team.id ,team.name ,team.rank FROM ( SELECT club.id ,club.name ,team.rank AS originalRank FROM team JOIN club on team.club = club.id AND team.id = ${teamId} ) AS a JOIN team on a.id = team.club AND team.rank >= originalRank ) AS b JOIN player on player.team = b.id AND player.gender like ${gender}`)
@@ -1093,61 +1064,7 @@ exports.getEligiblePlayersAndSelectedById = async function(first, second, teamId
   done(null,result);
 }
 
-exports.findElgiblePlayersFromTeamNameAndSelectedSansLevenshtein = async function(teamName,gender,first, second,third,done){
-  let row = await sql`SELECT player.id ,player.first_name ,player.family_name FROM ( SELECT team.id ,team.name ,team.rank FROM ( SELECT club.id ,club.name ,team.rank AS originalRank FROM team JOIN club on team.club = club.id AND team.name like ? ) AS a JOIN team on a.id = team.club AND team.rank >= originalRank ) AS b JOIN on player.team = b.id AND player.gender = ?',[teamName, gender]`.catch(err => {
-    return done(err) ;
-    })
-      rows[0].first = 1;
-      rows[0].second = 1;
-      rows[0].third = 1;
-      let lowestFirstIndex = [0,levenshtein(rows[0].first_name + " " + rows[0].family_name,first)];
-      let lowestSecondIndex = [0,levenshtein(rows[0].first_name + " " + rows[0].family_name,second)];
-      let lowestThirdIndex = [0,levenshtein(rows[0].first_name + " " + rows[0].family_name,third)]
-      for (let i = 1; i < rows.length; i++){ 
-        rowFirstLevenshtein = levenshtein(rows[i].first_name + " " + rows[i].family_name,first);
-        rowSecondLevenshtein = levenshtein(rows[i].first_name + " " + rows[i].family_name,second);
-        rowThirdLevenshtein = levenshtein(rows[i].first_name + " " + rows[i].family_name,third);
-        if (lowestFirstIndex[1] > rowFirstLevenshtein) {
-          rows[lowestFirstIndex[0]].first = 0;
-          rows[i].first = 1;
-          lowestFirstIndex[0] = i;
-          lowestFirstIndex[1] = rowFirstLevenshtein;
-        } 
-        else {
-          rows[i].first = 0;
-        }
-        if (lowestSecondIndex[1] > rowSecondLevenshtein) {
-          rows[lowestSecondIndex[0]].second = 0;
-          rows[i].second = 1;
-          lowestSecondIndex[0] = i;
-          lowestSecondIndex[1] = rowSecondLevenshtein;
-        } 
-        else {
-          rows[i].second = 0;
-        }
 
-        if (lowestThirdIndex[1] > rowThirdLevenshtein) {
-          rows[lowestThirdIndex[0]].third = 0;
-          rows[i].third = 1;
-          lowestThirdIndex[0] = i;
-          lowestThirdIndex[1] = rowThirdLevenshtein;
-        } 
-        else {
-          rows[i].third = 0;
-        }
-      }
-      
-      done(null,rows)
-    
-    
-  }
-
-exports.findElgiblePlayersFromTeamIdAndSelectedNew = async function(teamName,gender, first, second, third,done){
-  let result = await sql`SELECT player.id, player.first_name, player.family_name, LEVENSHTEIN(CONCAT(player.first_name, ' ', player.family_name), ?) AS first, LEVENSHTEIN(CONCAT(player.first_name, ' ', player.family_name), ?) AS second, LEVENSHTEIN(CONCAT(player.first_name, ' ', player.family_name), ?) AS third, (LEVENSHTEIN(CONCAT(player.first_name,' ',player.family_name),?) + LEVENSHTEIN(CONCAT(player.first_name,' ',player.family_name),?) + LEVENSHTEIN(CONCAT(player.first_name,' ',player.family_name),?)) as totalLev FROM (SELECT team.id, team.name, team.rank FROM (SELECT club.id, club.name, team.rank AS originalRank FROM team JOIN club on team.club = club.id AND LEVENSHTEIN(team.name, ?) < 1) AS a JOIN team on a.id = team.club AND team.rank >= originalRank) AS b JOIN player on player.team = b.id AND player.gender = ? Order by totalLev asc, first asc, second asc, third asc",[first, second, third, first, second, third,teamName, gender]`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
 
 exports.count = async function(searchTerm,done){
   if (searchTerm == ""){
@@ -1166,19 +1083,7 @@ exports.count = async function(searchTerm,done){
 }
 
 // GET
-exports.getByName = async function(playerName,done){
-  let result = await sql`SELECT * FROM player where levenshtein(concat(first_name," ",family_name), ?) < 4',playerName`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
 
-exports.getByNameAndTeam = async function(playerName,teamId,distance,done){
-  let result = await sql`select * from (select player.id as playerId, concat(first_name," ",family_name) as playerName, team.id as teamId, team.name as teamName from player join team where player.team = team.id) as playerClub where teamId=? AND levenshtein(playerName,?) < ?',[teamid,playerName,distance]`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
 
 exports.getById = async function(playerId,done){
   let result = await sql`SELECT * FROM player WHERE id = ${ playerId }`.catch(err => {
@@ -1202,12 +1107,6 @@ exports.getPlayerClubandTeamById = async function(playerId,done){
 }
 
 // GET
-exports.findByName = async function(searchObject,done){
-  let result = await sql`SELECT * FROM player WHERE id = ?`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
 
 // DELETE
 exports.deleteById = async function(playerId,done){

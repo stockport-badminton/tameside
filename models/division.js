@@ -1,13 +1,6 @@
 const { sql } = require('../utils/db_connect');
 
 // POST
-exports.create = async function(name,league,rank,done){
-  let result = await sql`INSERT INTO "division" ("name","league","rank") VALUES (?,?,?)`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-
-}
 
 // GET
 exports.getAll = async function(done){
@@ -33,12 +26,6 @@ exports.getById = async function(divisionId,done){
   done(null,result);
 }
 
-exports.getByName = async function(divisionName,done){
-  let result = await sql`SELECT * FROM "division" WHERE name = ${divisionName}`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
 
 
 exports.getIdByURLParam = async function(divisionName,done){
@@ -49,12 +36,6 @@ exports.getIdByURLParam = async function(divisionName,done){
   done(null,result);
 }
 
-exports.getAllAndSelectedByName = async function(leagueId,divisionName,done){
-  let result = await sql`select *, CASE WHEN division.name = ${divisionName} THEN true ELSE false END as selected from division WHERE league = ${leagueId}`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
 
 exports.getAllAndSelectedById = async function(leagueId,divisionId,done){
   let result = await sql`select *, CASE WHEN division.id = ${divisionId} THEN true ELSE false END as selected from division WHERE league = ${leagueId}`.catch(err => {
@@ -64,17 +45,5 @@ exports.getAllAndSelectedById = async function(leagueId,divisionId,done){
 }
 
 // DELETE
-exports.deleteById = async function(divisionId,done){
-  let result = await sql`DELETE FROM "division" WHERE "id" = ${divisionId}`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
 
 // PATCH
-exports.updateById = async function(name, league, rank, divisionId,done){
-  let result = await sql`UPDATE "division" SET "name" = ${name}, "league" = ${league}, "rank" = ${rank} WHERE "id" = ${divisionId}`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}

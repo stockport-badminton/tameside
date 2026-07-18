@@ -27,24 +27,6 @@ const client = contentful.createClient({
     accessToken: process.env.CONTENTFUL_KEY
 })
 
-exports.homepage = function(req, res, next) {
-    client.getEntry('11CRuC0Q5OJb5a8vi4jsjX')
-    .then((entry) => {
-        // console.log(entry)
-        const rawRichTextField = entry.fields.richTextField;
-        // console.log(rawRichTextField)
-        return documentToHtmlString(rawRichTextField);
-      })
-      .then((renderedHtml) => {
-        res.render('homepage',{
-            pageHeading:"Hyde Badminton Club",
-            title:"Hyde Badminton Club",
-            entry:renderedHtml,
-            static_path : "/static" 
-        })
-      }) 
-    .catch(console.error) 
-}
 
 exports.rules = function(req, res, next) {
   client.getEntry('1MRfswcqj2z6h7Ph47LFHs')
@@ -77,21 +59,3 @@ exports.rules = function(req, res, next) {
   .catch(console.error) 
 }
 
-exports.contactUs = (req, res, next) => {
-    client.getEntry('3iaUrVGwS68yA2R1AlioPL')
-    .then((entry) => {
-        // console.log(entry)
-        const rawRichTextField = entry.fields.richTextField;
-        // console.log(rawRichTextField)
-        return documentToHtmlString(rawRichTextField);
-      })
-      .then((renderedHtml) => {
-        res.render('homepage',{
-            pageHeading:"Contact Us",
-            title:"Contact Us",
-            entry:renderedHtml.replaceAll("<table>","<table class=\"table-responsive table-bordered text-center\" style=\"max-width: 30rem\">").replaceAll("<td>","<td class=\"w-25\">"),
-            static_path : "/static" 
-        })
-      }) 
-    .catch(console.error) 
-  }

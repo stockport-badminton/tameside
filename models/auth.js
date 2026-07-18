@@ -23,28 +23,6 @@ exports.getManagementAPIKey = async function(done){
   }
 }
 
-exports.getAPIKey = async function(done){
-  try {
-    const res = await fetch(`https://${process.env.AUTH0_DOMAIN}/oauth/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: process.env.AUTH0_CLIENTID,
-        client_secret: process.env.AUTH0_CLIENT_SECRET,
-        audience: 'http://tameside-badminton.co.uk',
-        grant_type: 'client_credentials'
-      })
-    });
-    const body = await res.json();
-    if (body.access_token) {
-      done(body.access_token);
-    } else {
-      done('token fail');
-    }
-  } catch(err) {
-    done(err);
-  }
-}
 
 exports.grantResultsAccess = function(req, res, next){
   module.exports.getManagementAPIKey(async function(err, apiKey){

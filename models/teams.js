@@ -2,12 +2,6 @@ const { sql } = require('../utils/db_connect');
 const seasonModel = require('./season');
 
 // POST
-exports.create = async function(name,starttime,endtime,matchDay,venue,courtspace,club,division,rank,done){
-  let rows = await sql`INSERT INTO "team" ("name","starttime","endtime","matchDay","venue","courtspace","club","division","rank") VALUES (${name},${starttime},${endtime},${matchDay},${venue},${courtspace},${club},${division},${rank})`.catch(err => {
-        return done(err)
-    })
-    done(null,rows);
-  }
 
   exports.createBatch = async function(BatchObj,done){
     if(typeof BatchObj.data !== undefined && typeof BatchObj.fields !== undefined && typeof BatchObj.tablename !== undefined){
@@ -83,19 +77,7 @@ exports.getById = async function(teamId,done){
   }
 
 // GET
-exports.getByName = async function(teamName,done){
-  let rows = await sql`SELECT * FROM "team" WHERE "name" = ${teamName}`.catch(err => {
-        return done(err)
-    })
-    done(null,rows);
-  }
 
-exports.getAllAndSelectedByName = async function(teamName,divisionId,done){
-  let rows = await sql`select *, CASE WHEN team.name = ${teamName} THEN true ELSE false END as selected from team WHERE division = ${divisionId}`.catch(err => {
-        return done(err)
-    })
-    done(null,rows);
-  }
 
 exports.getAllAndSelectedById = async function(teamId,divisionId,done){
   let rows = await sql`select *, CASE WHEN team.id = ${teamId} THEN true ELSE false END as selected from team WHERE division = ${divisionId}`.catch(err => {
@@ -235,31 +217,8 @@ exports.setDivision = async function(teamId,divisionId,done){
 }
 
 // DELETE
-exports.deleteById = async function(teamId,done){
-  let rows = await sql`DELETE FROM "team" WHERE "id" = ${teamId}`.catch(err => {
-        return done(err)
-    })
-    done(null,rows);
-  }
 
 // PATCH
-exports.updateById = async function(teamObj,teamId,done){
-  if (typeof teamObj !== undefined){
-    let rows = await sql`
-      update team set ${
-        sql(Object.values(teamObj), Object.keys(teamObj))
-      }
-      where id = ${ teamId }
-    `.catch(err => {
-      return done(err)
-    })
-    done(null,rows);
-  }
-  else {
-    return done(err);
-  }
-
-}
 
 exports.getLewis = async function(searchTerms,done){
   var season = ""

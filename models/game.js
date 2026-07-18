@@ -2,32 +2,6 @@ const { sql } = require('../utils/db_connect');
 const seasonModel = require('./season');
 
 // POST
-exports.create = function(gameObj,done){
-  if (db.isObject(gameObj)){
-    var sql = 'INSERT INTO `game` (';
-    var updateArray = [];
-    var updateArrayVars = [];
-    var updateArrayValues = []
-    for (x in gameObj){
-      // console.log(gameObj[x]);
-      updateArray.push('`'+ x +'`');
-      updateArrayVars.push(gameObj[x]);
-      updateArrayValues.push('?');
-    }
-    var updateVars = updateArray.join(',');
-    var updateValues = updateArrayValues.join(',');
-    // console.log(updateVars);
-    sql = sql + updateVars + ') VALUES (' + updateValues + ')';
-    // console.log(sql);
-    db.get().query(sql,updateArrayVars,function(err,result){
-      if (err) return done(err);
-      done(null,result);
-    });
-  }
-  else {
-    return done(err);
-  }
-}
 
 exports.createBatch = async function(BatchObj,done){
     if(typeof BatchObj.fields !== undefined){
@@ -53,35 +27,12 @@ exports.createBatch = async function(BatchObj,done){
   }
 
 // GET
-exports.getAll = async function(done){
-    let rows = await sql`SELECT * FROM "game"`.catch(err => {
-          return done(err)
-      })
-      done(null,rows);
-    }
-
-// GET
-exports.getById = async function(gameId,done){
-    let rows = await sql`SELECT * FROM "game" WHERE "id" = ${gameId}`.catch(err => {
-          return done(err)
-      })
-      done(null,rows);
-    }
-
 exports.getByFixture = async function(fixtureId,done){
   let rows = await sql`SELECT * FROM "game" WHERE "fixture" = ${fixtureId} order by id asc`.catch(err => {
         return done(err)
     })
     done(null,rows);
   }
-
-// DELETE
-exports.getById = async function(gameId,done){
-    let rows = await sql`DELETE FROM "game" WHERE "id" = ${gameId}`.catch(err => {
-          return done(err)
-      })
-      done(null,rows);
-    }
 
 // PATCH
 exports.updateById = async function(gameObj,gameId,done){

@@ -269,11 +269,3 @@ exports.getLewisConstraints = async function (season, done) {
 };
 
 // Clear the draft for a season (used by regenerate)
-exports.clearDraftFixtures = async function (season, done) {
-  try {
-    await sql`DELETE FROM tameside_draft_fixture WHERE season = ${season}`;
-    done(null);
-  } catch (err) {
-    done(err);
-  }
-};

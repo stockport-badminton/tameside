@@ -128,31 +128,9 @@ exports.club_detail = function(req, res,next) {
 };
 
 // Display Club create form on GET
-exports.club_create_get = function(req, res) {
-    res.send('NOT IMPLEMENTED: Club create GET');
-};
 
 // Handle Club create on POST
-exports.club_create_post = function(req, res) {
-  Club.create(req.body.name, req.body.venue, function(err,row){
-    //console.log(req.body);
-    //console.log(row);
-    res.send(row);
-  })
-};
 
-exports.club_batch_create = function(req, res){
-  Club.createBatch(req.body,function(err,result){
-    if(err){
-      res.send(err);
-      //console.log(err);
-    }
-    else{
-      // console.log(result)
-      res.send(result);
-    }
-  })
-}
 
 // Display Club delete form on GET
 exports.club_delete_get = function(req, res) {

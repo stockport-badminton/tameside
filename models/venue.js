@@ -1,33 +1,7 @@
 const { sql } = require('../utils/db_connect');
 
 // POST
-exports.create = async function(name,address,gMapUrl,done){
-  let result = await sql`INSERT INTO venue (name,address,gMapUrl) VALUES (?,?,?)`.catch(err => {
-        return done(err)
-    })
-    done(null,result.insertId);
 
-  }
-
-exports.createBatch = async function(BatchObj,done){
-    if(db.isObject(BatchObj)){
-      let bulkobj = BatchObj.data.map(row => {
-        // Use reduce() to create an object for each row
-        return row.reduce((obj, value, index) => {
-            obj[BatchObj.fields[index]] = value; // Assign value to corresponding key
-            return obj;
-        }, {});
-      })
-      
-      let rows = sql`insert into ${BatchObj.tablename} ${ sql(bulkobj) }`.catch(err => {
-        return done(err)
-      })
-      done(null,rows);
-    }
-    else{
-      return done('not object');
-    }
-  }
 
 // GET
 exports.getAll = async function(done){
@@ -111,28 +85,7 @@ group by
   }
 
 // GET
-exports.getById = async function(venueId,done){
-  let result = await sql`SELECT * FROM venue WHERE id = ?`.catch(err => {
-        return done(err)
-    })
-    done(null,result.insertId);
-
-  }
 
 // DELETE
-exports.deleteById = async function(venueId,done){
-  let result = await sql`DELETE FROM venue WHERE id = ?`.catch(err => {
-        return done(err)
-    })
-    done(null,result.insertId);
-
-  }
 
 // PATCH
-exports.updateById = async function(name,address,gMapUrl, venueId,done){
-  let result = await sql`UPDATE venue SET name = ?, address = ?, gMapUrl = ? WHERE id = ?`.catch(err => {
-        return done(err)
-    })
-    done(null,result.insertId);
-
-  }

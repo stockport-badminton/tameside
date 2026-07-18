@@ -36,13 +36,6 @@ exports.getRecent = async function(done){
     done(null,result);
 }
 
-exports.getOutstandingResults = async function(done){
-  let result = await sql`SELECT a.id, a.date, a."homeTeam", a."homeTeamId", team.name AS "awayTeam", team.id AS "awayTeamId", a."homeScore", a."awayScore" FROM (SELECT fixture.id, fixture.date, team.name AS "homeTeam", team.id AS "homeTeamId", fixture."homeScore", fixture."awayScore", fixture."awayTeam" FROM fixture JOIN team WHERE fixture."homeTeam" = team.id AND fixture.status NOT IN ('rearranged' , 'rearranging')) AS a JOIN team WHERE a."awayTeam" = team.id AND "homeScore" IS NULL AND date BETWEEN ADDDATE(NOW(), - 7) AND ADDDATE(NOW(), 1) ORDER BY date`.catch(err => {
-      return done(err)
-    })
-    console.log(result.statement.query)
-    done(null,result);
-}
 
 exports.getOutstandingScorecards = async function(done){
   let result = await sql`select * from 
@@ -64,13 +57,6 @@ where date < NOW() and "scoreCardId" is null`.catch(err => {
 
 
 
-exports.getCardsDueToday = async function(done){
-  let result = await sql`select "fixId", date, status, "homeTeam", team.name as "awayTeam", "homeScore", "awayScore" from  (select fixture.id as "fixId", fixture.date, fixture.status, team.name as "homeTeam", fixture."homeScore", fixture."awayScore", fixture."awayTeam" from fixture join team where fixture."homeTeam" = team.id AND fixture.status not in ('rearranged','rearranging')) as a join team where a."awayTeam" = team.id AND "homeScore" is null AND date between (current_date -7) and (current_date -6) order by date`.catch(err => {
-      return done(err)
-    })
-    console.log(result.statement.query)
-    done(null,result);
-}
 
 exports.getupComing = async function(done){
   let result = await sql`SELECT distinct on (date, "fixture".id)
@@ -299,25 +285,6 @@ exports.getFixtureDetails = async function(searchObj, done){
     done(null,result);
 }
 
-exports.createBatch = async function(BatchObj,done){
-  if(db.isObject(BatchObj)){
-    let bulkobj = BatchObj.data.map(row => {
-      // Use reduce() to create an object for each row
-      return row.reduce((obj, value, index) => {
-          obj[BatchObj.fields[index]] = value; // Assign value to corresponding key
-          return obj;
-      }, {});
-    })
-    
-    let rows = sql`insert into ${sql(BatchObj.tablename)} ${ sql(bulkobj) }`.catch(err => {
-      return done(err)
-    })
-    done(null,rows);
-  }
-  else{
-    return done('not object');
-  }
-}
     
 exports.createScorecard = async function(fixtureObj,done){
   console.log(fixtureObj)

@@ -2,14 +2,6 @@ const { sql } = require('../utils/db_connect');
 const seasonModel = require('./season');
 
 // POST
-exports.create = async function(name,admin,url,done){
-    let result = await sql`
-    INSERT INTO league ("name","admin","url") VALUES (${name},${admin},${url})
-    `.catch(err => {
-        return done(err)
-    })
-    done(null,result);
-  }
 
   // GET
   exports.getAll = async function(done){

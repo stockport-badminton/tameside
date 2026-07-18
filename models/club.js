@@ -67,12 +67,6 @@ order by
   done(null,result);
 }
 
-exports.clubDetailbyId = async function(clubId,done){
-  let result = await sql`SELECT a."clubId", a."name", a."venue", a."address", a."gMapURL" AS clubVenueURL, a."matchNightText",a."clubNightText", a."clubWebsite", venue."name" AS matchVenueName, venue."gMapUrl" AS matchVenueURL, venue."Lat", venue."Lng" FROM (SELECT club."id" as clubId, club."name", venue."name" AS venue, venue."gMapUrl",venue."address", club."matchNightText", club."clubNightText", club."clubWebsite",club."matchVenue" FROM club JOIN venue WHERE venue."id" =club."venue") AS a JOIN venue WHERE (a."matchVenue" = venue."id" OR a."matchVenue" = NULL) ORDER BY a."name"`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
 
 
 exports.getContactDetailsById = async function(clubId,done){

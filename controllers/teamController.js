@@ -13,38 +13,6 @@ const client = contentful.createClient({
   accessToken: process.env.CONTENTFUL_KEY
 })
 
-exports.teamFixtures = (req, res, next) => {
-    let contentItem = ""
-    switch (req.params.team){
-      case "Hyde A":
-        contentItem = "2MGjt27j2YDOCmproHPIhT"
-        break;
-      case "Hyde B":
-        contentItem = "5PAAihSZxv7fxVNQSVzJLF"
-        break;
-      case "Hyde C":
-        contentItem = "3BFebk0B2Hy4gP9YITzYsC"
-        break;
-      default:
-        contentItem = "2MGjt27j2YDOCmproHPIhT"
-    }
-    client.getEntry(contentItem)
-    .then((entry) => {
-        // console.log(entry)
-        const rawRichTextField = entry.fields.richTextField;
-        return documentToHtmlString(rawRichTextField);
-      })
-      .then((renderedHtml) => {
-        // console.log(renderedHtml)
-        res.render('homepage',{
-            pageHeading:req.params.team + " Fixtures",
-            title:req.params.team + " Fixtures",
-            entry:renderedHtml.replace("<table>","<table class=\"table-responsive table-bordered text-center\">"),
-            static_path : "/static" 
-        })
-      }) 
-    .catch(console.error) 
-}
 
 
 exports.team_list = function(req,res,next) {

@@ -13,30 +13,6 @@ const { validationResult } = require('express-validator');
 const docx = require("docx");
 const fs = require("fs")
 
-exports.index = function(req, res) {
-
-    async.parallel({
-        player_count: function(done) {
-            Player.count("",done);
-        },
-        player_female_count: function(done) {
-            Player.count("Female", done);
-        },
-        player_male_count: function(done) {
-            Player.count("Male", done);
-        },
-/*       team_count: function(callback) {
-            Team.count(callback);
-        },
-        venue_count: function(callback) {
-            Venue.count(callback);
-        },*/
-    }, function(err, results) {
-      // console.log("results: " + results);
-      var flattenedResult = JSON.stringify(results);
-      res.render('index', { title: 'Tameside League website',pageDescription: 'Tameside League website', static_path:'/static', theme:'flatly', error: err, data: results, dataString:flattenedResult });
-    });
-};
 
 // Display list of all Players
 exports.player_list = function(req, res) {
@@ -1066,77 +1042,7 @@ exports.player_create = function(req,res){
 
 }
 
-exports.player_create_post = async function(req, res, next) {
 
-    await check('first_name').notEmpty().withMessage('First name must be specified.').run(req); //We won't force Alphanumeric, because people might have spaces.
-    await check('family_name').notEmpty().withMessage('Family name must be specified.').run(req);
-    await check('family_name').isAlpha().withMessage('Family name must be alphanumeric text.').run(req);
-    await check('gender').isIn(['Male','Female']).withMessage('must be Male or Female.').run(req);
-
-    await check('first_name').escape().trim().run(req);
-    await check('family_name').escape().trim().run(req);
-    await check('date_of_registration').toDate().run(req);
-    await check('gender').escape().trim().run(req);
-
-    var errors = validationResult(req);
-
-
-    var player = new Player(
-      { first_name: req.body.first_name,
-        family_name: req.body.family_name,
-        date_of_registration: Date.now(),
-        gender: req.body.gender,
-        team: req.body.team
-       });
-
-
-
-    if (errors) {
-        res.render('player_form', { title: 'Create Player - Error',pageDescription: 'Create Player - Error', static_path:'/static', theme:'flatly', player: player, errors: errors});
-    return;
-    }
-    else {
-    // Data from form is valid
-        async.waterfall(
-          [
-            //create new player document
-            function(callback){
-              player.save(function(err,player){
-                callback(err,player);
-              })
-            },
-            //add that player to the specific team.players subdocument.
-            function(player,callback){
-              Team.findOneAndUpdate(
-                {"_id":player.team},
-                {"$push":{"players":player._id}},
-                function(err,team){
-                  callback(err,team);
-                }
-              )
-            }
-          ]
-          ,function (err,result) {
-            if (err) { return next(err); }
-               //successful - redirect to new author record.
-               res.redirect('/player/'+player._id);
-          });
-    }
-
-};
-
-exports.player_batch_create = function(req, res){
-  Player.createBatch(req.body,function(err,result){
-    if(err){
-      res.send(err);
-// console.log(err);
-    }
-    else{
-      // console.log(result)
-      res.send(result);
-    }
-  })
-}
 
 exports.player_batch_update = function(req, res){
   Player.updateBulk(req.body,function(err,result){
@@ -1152,39 +1058,8 @@ exports.player_batch_update = function(req, res){
 }
 
 // Display Player delete form on GET
-exports.player_delete_get = function(req, res) {
-  async.waterfall([
-    function(callback){
-        Player.findOneAndRemove({'_id':req.params.id},function(err,player){
-          callback(err, player);
-        })
-    },
-    function(player,callback){
-      Team.findOneAndUpdate({"_id":player.team},
-      {"$pull":{"players":player._id}},
-      function(err,team){
-        callback(err,team);
-      }
-    )
-    }
-
-
-  ],
-function(err, result){
-  if(err) {return next(err);}
-  res.redirect('/players/All/All/Both');
-})
-
-};
 
 // Handle Player delete on POST
-exports.player_delete = function(req, res) {
-    Player.deleteById(req.params.id,function(err,row){
-      // console.log(req.params)
-      // console.log(row);
-      res.send(row);
-    })
-};
 
 // Display Player update form on GET
 exports.player_update_get = function(req, res,next) {
