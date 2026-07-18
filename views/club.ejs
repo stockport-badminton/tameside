@@ -225,11 +225,14 @@ function initMap() {
       });
       
       var clubMarker = new google.maps.marker.AdvancedMarkerElement({
-        position: point, 
-        map: map
+        position: point,
+        map: map,
+        gmpClickable: true
       });
-      
-      clubMarker.addListener('click', function() {
+
+      // AdvancedMarkerElement emits 'gmp-click', not 'click' — using 'click'
+      // logs a deprecation warning (gmpClickable must be true for it to fire).
+      clubMarker.addListener('gmp-click', function() {
         infowindow.open(map, clubMarker);
       });
     }
