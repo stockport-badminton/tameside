@@ -147,6 +147,10 @@ var strategy = new Auth0Strategy(
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Local-only superadmin injection (no-op unless DEV_MODE=true && not production).
+  // Must come after passport.session() so it isn't overwritten.
+  app.use(require('./middleware/devMode'));
+
 let static_controller = require(__dirname + '/controllers/staticPagesController');
 let team_controller = require(__dirname + '/controllers/teamController');
 let fixture_controller = require(__dirname + '/controllers/fixtureController');

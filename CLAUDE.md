@@ -50,6 +50,7 @@ Sensitive columns (player phone, email) are PgP-encrypted in the DB; decrypted w
 - **Auth0** (`stockport-badminton.eu.auth0.com`) via `passport-auth0`. Login at `/login`, callback at `/callback`, logout at `/logout`.
 - **Session**: `express-session` with cookie name `__session`.
 - **Protected routes**: wrapped with `secured()` middleware — checks `req.isAuthenticated()`, redirects to `/login` if not.
+- **Local dev bypass**: `middleware/devMode.js` injects a mock **superadmin** `req.user` when `DEV_MODE=true` and `NODE_ENV !== 'production'`, so admin/superadmin routes can be exercised locally without a real Auth0 login. No-op on Cloud Run (which sets `NODE_ENV=production`). Run locally with `DEV_MODE=true NODE_ENV=development npm run dev`.
 - **JWT**: `checkJwt` middleware (RS256, JWKS from Auth0) used on API-style routes like `PATCH /club/:id` and `DELETE /club/:id`.
 
 ### Season Detection
