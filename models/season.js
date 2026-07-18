@@ -46,7 +46,11 @@ exports.previous = function () { return _previous || dateBasedSeason(1); };
 // missing team<season> table.
 exports.getAll = async function () {
   const rows = await sql`
-    SELECT s.name, s."startDate", s."endDate"
+    SELECT s.name, s."startDate", s."endDate",
+      EXISTS (
+        SELECT 1 FROM information_schema.tables t
+        WHERE t.table_name = 'lewis' || s.name
+      ) AS "hasLewis"
     FROM season s
     WHERE EXISTS (
       SELECT 1 FROM information_schema.tables t

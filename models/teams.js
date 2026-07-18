@@ -183,5 +183,9 @@ FROM
     season on season.name  = ${seasonVal}`.catch(err => {
       return done(err)
     })
+    // If the query errored (e.g. no lewis<season> table for that season), the
+    // .catch above already called done(err); bail out so we don't call done a
+    // second time with undefined rows (which crashed the caller's .reduce).
+    if (!rows) return;
     done(null,rows);
   }

@@ -25,7 +25,7 @@
             <th scope="row"><%= label %></th>
             <td><a href="/tables/All/<%= s.name %>">View tables</a></td>
             <td><a href="/results/All/<%= s.name %>">View results</a></td>
-            <td><a href="/lewis-shield/<%= s.name %>">View Lewis</a></td>
+            <td><% if (s.hasLewis) { %><a href="/lewis-shield/<%= s.name %>">View Lewis</a><% } else { %><span class="text-muted">—</span><% } %></td>
           </tr>
           <% }); %>
         </tbody>
