@@ -1,0 +1,128 @@
+<%- include('./header.ejs'); -%>
+<%- include('./nav.ejs'); -%>
+
+<% if (error) { %>
+  <div class="container my-5">
+    <div class="alert alert-danger" role="alert">
+      <i class="fas fa-triangle-exclamation"></i> <strong>Something went wrong</strong>
+      <p class="mb-0 mt-2"><%= error %></p>
+    </div>
+  </div>
+<% } else { %>
+
+<!-- Page Header with Actions -->
+<section class="results-header">
+  <div class="container">
+    <div class="results-header-content">
+      <h1><i class="fas fa-th"></i> <%= division.replace('-',' ') %></h1>
+      <div class="header-actions">
+        <a class="action-btn" href="<%= path.replace('\/results-grid\/','\/results\/') %>" 
+           title="Switch to list view">
+          <i class="fa fa-bars"></i>
+          <span>List View</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Grid Results -->
+<section class="results-section">
+  <div class="container">
+    <% for (division of jsonResult){ %>
+      
+      <% if (jsonResult.length > 1) { %>
+        <div class="division-header">
+          <h3><i class="fas fa-trophy"></i> <%= division.division %></h3>
+        </div>
+      <% } %>
+      
+      <div class="grid-table-wrapper">
+        <div class="table-container">
+          <table class="table grid-table" id="results-grid">
+            <tr class="grid-header">
+              <th class="corner-cell">&nbsp;</th>
+              <% for (team of division.teams){ %>
+                <th class="team-header"><span style="writing-mode: vertical-rl;"><%= team %></span></th>
+              <% } %>
+            </tr>
+
+            <% var currhometeam = ""
+               for (const [i,fix] of division.fixtures.entries()){ 
+                 var cellClass = '';
+                 var resultValue = '';
+                 var status = ""
+                 var NowDate = Date.now();
+                 var MyDate = new Date(fix.date);
+                 
+                 if ((MyDate < NowDate) && (fix.homeScore == null) && (fix.status != 'void')) {
+                   cellClass = 'cell-overdue'
+                   resultValue = 'Awaiting';
+                 }
+                 
+                 var MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/' 
+                                  + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/' 
+                                  + MyDate.getFullYear();
+                 
+                 if (fix.status == 'rearranging'){
+                   var cellClass = 'cell-rearranging';
+                   var resultValue = 'Rearranging';
+                   var status = ""
+                 }
+                 if (fix.status == 'conceded'){
+                   var cellClass = 'cell-conceded';
+                   var resultValue = 'Conceded';
+                   var status = "Conceded"
+                 }
+                 if (fix.status == 'void'){
+                   var cellClass = 'cell-void';
+                   var resultValue = "Void"
+                   var status = "Void"
+                 }
+                 
+                 if (fix.homeTeam == currhometeam) { 
+                   if (i%division.teams.length == 0 ){ %>
+                     <td class="empty-cell">&nbsp;</td>
+                   <% } %>
+                   <td class="result-cell <%= cellClass %>">
+                     <% if(fix.homeScore === null && fix.status != 'void'){ %>
+                       <span class="date-mini"><%= MyDateString %></span>
+                     <% } else if (fix.status == 'void'){ %>
+                       <span class="void-text"><%= resultValue %></span>
+                     <% } else { %>
+                       <span class="score-display"><%= fix.homeScore %> - <%= fix.awayScore %></span>
+                     <% } %>
+                   </td>
+                 <% } else {
+                   currhometeam = fix.homeTeam %>
+                   </tr>
+                   <tr>
+                     <th class="team-row-header"><%= fix.homeTeam %></th>
+                     <% if (i%division.teams.length == 0 ){ %>
+                       <td class="empty-cell">&nbsp;</td>
+                     <% } %>
+                     <td class="result-cell <%= cellClass %>">
+                       <% if(fix.homeScore === null && fix.status != 'void'){ %>
+                         <span class="date-mini"><%= MyDateString %></span>
+                       <% } else if (fix.status == 'void'){ %>
+                         <span class="void-text"><%= resultValue %></span>
+                       <% } else { %>
+                         <span class="score-display"><%= fix.homeScore %> - <%= fix.awayScore %></span>
+                       <% } %>
+                     </td>
+                 <% } 
+               } %>
+            </tr>
+          </table>
+        </div>
+      </div>
+    <% } %>
+  </div>
+</section>
+
+<% } %>
+
+<%- include('footer.ejs') %>
+
+</body>
+</html>
