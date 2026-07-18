@@ -138,7 +138,17 @@
               %>
 
             <tr class="<%= rowClass %>">
+              <% if (typeof superadmin !== 'undefined' && superadmin) {
+                   var MyDateISO = MyDate.getFullYear() + '-'
+                                 + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-'
+                                 + ('0' + MyDate.getDate()).slice(-2); %>
+              <td class="date-cell" data-fixture-id="<%= row['id'] %>" data-date-iso="<%= MyDateISO %>">
+                <span class="date-display"><%= MyDateString %></span>
+                <button type="button" class="btn btn-sm btn-link p-0 ms-1 date-edit-btn" title="Edit date"><i class="fas fa-pencil"></i></button>
+              </td>
+              <% } else { %>
               <td class="date-cell"><%= MyDateString %></td>
+              <% } %>
               <td data-hometeam="<%= row['homeClubId'] %>">
                 <a href="<%= row['venuelink'] %>" target="_blank" class="venue-icon" title="View venue">
                   <i class="fa-solid fa-map-location-dot"></i>
@@ -325,6 +335,48 @@
 
 <% if (typeof superadmin !== 'undefined' && superadmin) { %>
 <script type="text/javascript">
+  // Inline fixture-date editing: click the pencil to edit a fixture's date in
+  // place (distinct from Rearrange, which archives + re-inserts). POSTs to
+  // /admin/fixture/:id/date; the cell updates on success.
+  $(document).on('click', '.date-edit-btn', function () {
+    var $cell = $(this).closest('.date-cell');
+    if ($cell.find('input.date-input').length) return; // already editing
+    var iso = $cell.attr('data-date-iso');
+    $cell.find('.date-display, .date-edit-btn').hide();
+    $('<input type="date" class="date-input form-control form-control-sm d-inline-block" style="width:auto">')
+      .val(iso).appendTo($cell).focus();
+  });
+
+  function saveDate($cell) {
+    var $input = $cell.find('input.date-input');
+    var newDate = $input.val();
+    var id = $cell.attr('data-fixture-id');
+    if (!newDate) { cancelEdit($cell); return; }
+    $input.prop('disabled', true);
+    $.post('/admin/fixture/' + id + '/date', { date: newDate })
+      .done(function () {
+        var d = newDate.split('-'); // YYYY-MM-DD -> DD/MM/YYYY
+        $cell.attr('data-date-iso', newDate);
+        $cell.find('.date-display').text(d[2] + '/' + d[1] + '/' + d[0]);
+        cancelEdit($cell);
+      })
+      .fail(function (xhr) {
+        alert('Could not update date: ' + ((xhr.responseJSON && xhr.responseJSON.error) || xhr.statusText));
+        $input.prop('disabled', false);
+      });
+  }
+
+  function cancelEdit($cell) {
+    $cell.find('input.date-input').remove();
+    $cell.find('.date-display, .date-edit-btn').show();
+  }
+
+  $(document).on('keydown', 'input.date-input', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); saveDate($(this).closest('.date-cell')); }
+    else if (e.key === 'Escape') { cancelEdit($(this).closest('.date-cell')); }
+  });
+  $(document).on('blur', 'input.date-input', function () { saveDate($(this).closest('.date-cell')); });
+
   $('a[data-bs-target="#exampleModal"]').click(function(){
     $('#rearrangementModal > .formMessage').hide();
     $('#rearrangementForm > #date').show()

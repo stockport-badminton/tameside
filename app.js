@@ -327,6 +327,7 @@ app.post('/admin/teams', secured, team_controller.admin_team_create);
 app.post('/admin/teams/:id(\\d+)/move', secured, team_controller.admin_team_move);
 app.get('/admin/teams/:id(\\d+)', secured, team_controller.admin_team_editForm);
 app.post('/admin/teams/:id(\\d+)', secured, team_controller.admin_team_update);
+app.post('/admin/fixture/:id(\\d+)/date', secured, fixture_controller.admin_fixture_date_update);
 
 app.post('/scorecard-beta', secured, fixture_controller.validateScorecard, fixture_controller.full_fixture_post);
 
