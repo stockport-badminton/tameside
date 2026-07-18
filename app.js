@@ -200,6 +200,7 @@ app.get('/contact-us', contactus_controller.contactus_get)
 app.post('/contact-us',contactus_controller.validateContactUs, contactus_controller.contactus);
 app.get('/info/clubs', club_controller.club_list_detail)
 app.get('/rules', static_controller.rules)
+app.get('/history', static_controller.history)
 app.get('/mailjet', contactus_controller.mailjet_test)
 app.get('/event/:id/:date-:homeTeam-:awayTeam', fixture_controller.fixture_event_detail);
 

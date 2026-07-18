@@ -1,6 +1,25 @@
 require('dotenv').config()
 const contentful = require('contentful')
 let { documentToHtmlString } = require('@contentful/rich-text-html-renderer');
+const seasonModel = require('../models/season');
+
+// Season archive: lists every past season that has an archived data snapshot,
+// newest first. Reads live from the DB so newly-archived seasons appear without
+// a redeploy.
+exports.history = async function(req, res, next) {
+    try {
+        const seasons = await seasonModel.getAll();
+        res.render('history', {
+            pageHeading: 'Season Archive',
+            title: 'Season Archive',
+            pageDescription: 'Final league tables and results for past Tameside Badminton League seasons.',
+            static_path: '/static',
+            seasons: seasons
+        });
+    } catch (err) {
+        next(err);
+    }
+}
 
 const client = contentful.createClient({
     space: process.env.CONTENTFUL_SPACE,

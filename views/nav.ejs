@@ -32,11 +32,13 @@
                         <i class="fas fa-clock-rotate-left"></i> History
                     </a>
                     <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="/tables/All/20232024">2023/2024 Tables</a></li>
-                        <li><a class="dropdown-item" href="/results/All/20232024">2023/2024 Results</a></li>
-                        <li><a class="dropdown-item" href="/tables/All/20242025">2024/2025 Tables</a></li>
-                        <li><a class="dropdown-item" href="/results/All/20242025">2024/2025 Results</a></li>
-                        <li><a class="dropdown-item" href="/lewis-shield/20242025">2024/2025 Lewis</a></li>
+                        <% var _past = (typeof pastSeasons !== 'undefined' && pastSeasons) ? pastSeasons : []; %>
+                        <% _past.slice(0, 4).forEach(function(s) { var label = s.name.slice(0,4) + '/' + s.name.slice(4); %>
+                        <li><a class="dropdown-item" href="/tables/All/<%= s.name %>"><%= label %> Tables</a></li>
+                        <li><a class="dropdown-item" href="/results/All/<%= s.name %>"><%= label %> Results</a></li>
+                        <% }); %>
+                        <% if (_past.length) { %><li><hr class="dropdown-divider"></li><% } %>
+                        <li><a class="dropdown-item" href="/history">All seasons &amp; documents</a></li>
                     </ul>
                 </li>
                 <li class="nav-item"><a class="nav-link" href="/lewis-shield"><i class="fas fa-shield-halved"></i> Lewis Shield</a></li>

@@ -1,0 +1,40 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<div class="container my-4">
+  <h1 class="mb-3"><i class="fas fa-clock-rotate-left"></i> Season Archive</h1>
+  <p class="text-muted">Final league tables and results for every past season we hold data for.</p>
+
+  <% var _seasons = (typeof seasons !== 'undefined' && seasons) ? seasons : []; %>
+  <% if (!_seasons.length) { %>
+    <p>No archived seasons are available yet.</p>
+  <% } else { %>
+    <div class="table-responsive">
+      <table class="table table-striped align-middle">
+        <thead>
+          <tr>
+            <th scope="col">Season</th>
+            <th scope="col">Tables</th>
+            <th scope="col">Results</th>
+            <th scope="col">Lewis Shield</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% _seasons.forEach(function(s) { var label = s.name.slice(0,4) + '/' + s.name.slice(4); %>
+          <tr>
+            <th scope="row"><%= label %></th>
+            <td><a href="/tables/All/<%= s.name %>">View tables</a></td>
+            <td><a href="/results/All/<%= s.name %>">View results</a></td>
+            <td><a href="/lewis-shield/<%= s.name %>">View Lewis</a></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('footer.ejs') %>
+
+</body>
+</html>
