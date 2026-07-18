@@ -104,6 +104,33 @@ exports.getAllAndSelectedById = async function(teamId,divisionId,done){
     done(null,rows);
   }
 
+// Superadmin admin UI helpers — explicit column handling so they don't depend
+// on the legacy updateById's sql(values, keys) shape.
+
+// Insert a team from a plain {column: value} object.
+exports.adminCreate = async function(teamObj,done){
+  let rows = await sql`insert into "team" ${ sql(teamObj) }`.catch(err => {
+    return done(err)
+  })
+  done(null,rows);
+}
+
+// Update the given columns on a team from a plain {column: value} object.
+exports.adminUpdate = async function(teamObj,teamId,done){
+  let rows = await sql`update "team" set ${ sql(teamObj) } where "id" = ${ teamId }`.catch(err => {
+    return done(err)
+  })
+  done(null,rows);
+}
+
+// Promotion / relegation: move a team to a different division.
+exports.setDivision = async function(teamId,divisionId,done){
+  let rows = await sql`update "team" set "division" = ${ divisionId } where "id" = ${ teamId }`.catch(err => {
+    return done(err)
+  })
+  done(null,rows);
+}
+
 // DELETE
 exports.deleteById = async function(teamId,done){
   let rows = await sql`DELETE FROM "team" WHERE "id" = ${teamId}`.catch(err => {

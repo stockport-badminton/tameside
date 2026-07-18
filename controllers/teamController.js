@@ -3,6 +3,9 @@ const contentful = require('contentful')
 let { BLOCKS } = require('@contentful/rich-text-types') 
 let { documentToHtmlString } = require('@contentful/rich-text-html-renderer');
 let Team = require('../models/teams');
+let Club = require('../models/club');
+let Division = require('../models/division');
+let Venue = require('../models/venue');
 
 const client = contentful.createClient({
   space: process.env.CONTENTFUL_SPACE,
@@ -112,3 +115,132 @@ exports.lewis_draw = function(req, res,next) {
     }
   })
 }
+/* ------------------------------------------------------------------ *
+ * Superadmin team admin UI: list (grouped by division), add/edit, and
+ * one-click promotion / relegation between adjacent divisions.
+ * Secured route + role check here.
+ * ------------------------------------------------------------------ */
+
+const promisify = fn => (...args) => new Promise((resolve, reject) =>
+  fn(...args, (err, result) => err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result)));
+
+function isSuperAdmin(req) {
+  return !!(req.user && req.user._json && req.user._json['https://my-app.example.com/role'] === 'superadmin');
+}
+
+const getAllTeamsP    = promisify(Team.getAll);
+const getTeamByIdP    = promisify(Team.getById);
+const adminCreateTeamP = promisify(Team.adminCreate);
+const adminUpdateTeamP = promisify(Team.adminUpdate);
+const setTeamDivisionP = promisify(Team.setDivision);
+const getAllClubsP    = promisify(Club.getAll);
+const getAllDivisionsP = promisify(Division.getAll);
+const getDivisionByIdP = promisify(Division.getById);
+const getAllVenuesP   = promisify(Venue.getAll);
+
+function adminRenderOpts(title, extra) {
+  return Object.assign({ static_path: '/static', title, pageDescription: title }, extra);
+}
+
+// Only these columns are accepted from the team form (whitelist). NOT NULL
+// columns (name, venue, club, division, rank) are only included when non-empty
+// so an update never nulls a required column; the form marks them required.
+function teamFieldsFromBody(body) {
+  const obj = {};
+  if (body.name)     obj.name = body.name;
+  if (body.venue)    obj.venue = body.venue;
+  if (body.club)     obj.club = body.club;
+  if (body.division) obj.division = body.division;
+  if (body.rank !== undefined && body.rank !== '') obj.rank = body.rank;
+  if (body.matchDay !== undefined) obj.matchDay = body.matchDay || null;
+  return obj;
+}
+
+exports.admin_team_list = async function(req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    const [teams, divisions, clubs] = await Promise.all([
+      getAllTeamsP(), getAllDivisionsP(), getAllClubsP()
+    ]);
+    const clubName = {};
+    clubs.forEach(c => { clubName[c.id] = c.name; });
+    // Group teams by division, ordered by division rank (unassigned last).
+    const sortedDivs = divisions.slice().sort((a, b) => (a.rank || 0) - (b.rank || 0));
+    // NB: division.id is a bigint (returned as a string by postgres.js) while
+    // team.division is an int (returned as a number) — compare as strings.
+    const groups = sortedDivs.map(d => ({
+      division: d,
+      teams: teams
+        .filter(t => String(t.division) === String(d.id))
+        .map(t => ({ ...t, clubName: clubName[t.club] || '' }))
+        .sort((a, b) => (a.divRank || 0) - (b.divRank || 0) || String(a.name).localeCompare(String(b.name)))
+    }));
+    const unassigned = teams.filter(t => !divisions.some(d => String(d.id) === String(t.division)))
+      .map(t => ({ ...t, clubName: clubName[t.club] || '' }));
+    res.render('admin/team-list', adminRenderOpts('Team Admin', { groups, unassigned }));
+  } catch (err) { next(err); }
+};
+
+exports.admin_team_createForm = async function(req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    const [clubs, divisions, venues] = await Promise.all([getAllClubsP(), getAllDivisionsP(), getAllVenuesP()]);
+    res.render('admin/team-form', adminRenderOpts('Add Team', { team: null, clubs, divisions, venues }));
+  } catch (err) { next(err); }
+};
+
+exports.admin_team_create = async function(req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    await adminCreateTeamP(teamFieldsFromBody(req.body));
+    res.redirect('/admin/teams');
+  } catch (err) { next(err); }
+};
+
+exports.admin_team_editForm = async function(req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    const [rows, clubs, divisions, venues] = await Promise.all([
+      getTeamByIdP(req.params.id), getAllClubsP(), getAllDivisionsP(), getAllVenuesP()
+    ]);
+    const team = rows && rows[0];
+    if (!team) return res.status(404).send('Team not found');
+    res.render('admin/team-form', adminRenderOpts('Edit Team', { team, clubs, divisions, venues }));
+  } catch (err) { next(err); }
+};
+
+exports.admin_team_update = async function(req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    await adminUpdateTeamP(teamFieldsFromBody(req.body), req.params.id);
+    res.redirect('/admin/teams');
+  } catch (err) { next(err); }
+};
+
+// Promote (dir=up) or relegate (dir=down): move the team to the division in the
+// same league whose rank is adjacent to its current division's rank.
+exports.admin_team_move = async function(req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    const dir = req.body.dir === 'up' ? 'up' : 'down';
+    const teamRows = await getTeamByIdP(req.params.id);
+    const team = teamRows && teamRows[0];
+    if (!team || team.division == null) return res.redirect('/admin/teams');
+
+    const curDivRows = await getDivisionByIdP(team.division);
+    const curDiv = curDivRows && curDivRows[0];
+    if (!curDiv) return res.redirect('/admin/teams');
+
+    const divisions = await getAllDivisionsP();
+    const sameLeague = divisions
+      .filter(d => d.league === curDiv.league)
+      .sort((a, b) => (a.rank || 0) - (b.rank || 0));
+    const idx = sameLeague.findIndex(d => d.id === curDiv.id);
+    // up = promote = lower rank number = previous entry; down = next entry.
+    const target = dir === 'up' ? sameLeague[idx - 1] : sameLeague[idx + 1];
+    if (target) {
+      await setTeamDivisionP(req.params.id, target.id);
+    }
+    res.redirect('/admin/teams');
+  } catch (err) { next(err); }
+};

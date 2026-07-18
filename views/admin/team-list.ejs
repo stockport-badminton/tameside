@@ -1,0 +1,66 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<% var _groups = (typeof groups !== 'undefined' && groups) ? groups : []; %>
+<% var _unassigned = (typeof unassigned !== 'undefined' && unassigned) ? unassigned : []; %>
+
+<div class="container my-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0"><i class="fas fa-people-group"></i> Team Admin</h1>
+    <a class="btn btn-primary" href="/admin/teams/create"><i class="fas fa-plus"></i> Add Team</a>
+  </div>
+  <p class="text-muted">Use the arrows to promote (▲) or relegate (▼) a team to the adjacent division. Boundary divisions have their unavailable direction disabled.</p>
+
+  <% _groups.forEach(function(g, gi) { %>
+    <h2 class="h5 mt-4"><%= g.division.name %></h2>
+    <div class="table-responsive">
+      <table class="table table-sm table-striped align-middle">
+        <thead>
+          <tr><th scope="col">Team</th><th scope="col">Club</th><th scope="col" class="text-end">Move / Edit</th></tr>
+        </thead>
+        <tbody>
+          <% g.teams.forEach(function(t) { %>
+          <tr>
+            <th scope="row"><%= t.name %></th>
+            <td><%= t.clubName %></td>
+            <td class="text-end">
+              <form method="POST" action="/admin/teams/<%= t.id %>/move" class="d-inline">
+                <input type="hidden" name="dir" value="up">
+                <button type="submit" class="btn btn-sm btn-outline-success" title="Promote" <%= gi === 0 ? 'disabled' : '' %>>▲</button>
+              </form>
+              <form method="POST" action="/admin/teams/<%= t.id %>/move" class="d-inline">
+                <input type="hidden" name="dir" value="down">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Relegate" <%= gi === _groups.length - 1 ? 'disabled' : '' %>>▼</button>
+              </form>
+              <a class="btn btn-sm btn-outline-secondary" href="/admin/teams/<%= t.id %>">Edit</a>
+            </td>
+          </tr>
+          <% }); %>
+          <% if (!g.teams.length) { %><tr><td colspan="3" class="text-muted">No teams in this division.</td></tr><% } %>
+        </tbody>
+      </table>
+    </div>
+  <% }); %>
+
+  <% if (_unassigned.length) { %>
+    <h2 class="h5 mt-4 text-muted">Unassigned</h2>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <tbody>
+          <% _unassigned.forEach(function(t) { %>
+          <tr>
+            <th scope="row"><%= t.name %></th>
+            <td><%= t.clubName %></td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="/admin/teams/<%= t.id %>">Edit</a></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../footer.ejs') %>
+
+</body>
+</html>

@@ -1,0 +1,33 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<% var _club = (typeof club !== 'undefined' && club) ? club : null; %>
+<% var _venues = (typeof venues !== 'undefined' && venues) ? venues : []; %>
+<% var _action = _club ? ('/admin/clubs/' + _club.id) : '/admin/clubs'; %>
+
+<div class="container my-4">
+  <h1 class="mb-3"><i class="fas fa-users"></i> <%= _club ? 'Edit Club' : 'Add Club' %></h1>
+
+  <form method="POST" action="<%= _action %>" class="col-12 col-md-6">
+    <div class="mb-3">
+      <label class="form-label" for="name">Club name</label>
+      <input class="form-control" id="name" name="name" required value="<%= _club ? _club.name : '' %>">
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="venue">Home venue</label>
+      <select class="form-select" id="venue" name="venue">
+        <option value="">— none —</option>
+        <% _venues.forEach(function(v) { %>
+        <option value="<%= v.id %>" <%= (_club && String(_club.venue) === String(v.id)) ? 'selected' : '' %>><%= v.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a class="btn btn-link" href="/admin/clubs">Cancel</a>
+  </form>
+</div>
+
+<%- include('../footer.ejs') %>
+
+</body>
+</html>

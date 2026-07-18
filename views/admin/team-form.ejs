@@ -1,0 +1,62 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<% var _team = (typeof team !== 'undefined' && team) ? team : null; %>
+<% var _clubs = (typeof clubs !== 'undefined' && clubs) ? clubs : []; %>
+<% var _divisions = (typeof divisions !== 'undefined' && divisions) ? divisions : []; %>
+<% var _venues = (typeof venues !== 'undefined' && venues) ? venues : []; %>
+<% var _action = _team ? ('/admin/teams/' + _team.id) : '/admin/teams'; %>
+<% var _sortedDivs = _divisions.slice().sort(function(a,b){ return (a.rank||0)-(b.rank||0); }); %>
+
+<div class="container my-4">
+  <h1 class="mb-3"><i class="fas fa-people-group"></i> <%= _team ? 'Edit Team' : 'Add Team' %></h1>
+
+  <form method="POST" action="<%= _action %>" class="col-12 col-md-6">
+    <div class="mb-3">
+      <label class="form-label" for="name">Team name</label>
+      <input class="form-control" id="name" name="name" required value="<%= _team ? _team.name : '' %>">
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="club">Club</label>
+      <select class="form-select" id="club" name="club" required>
+        <option value="">— select a club —</option>
+        <% _clubs.forEach(function(c) { %>
+        <option value="<%= c.id %>" <%= (_team && String(_team.club) === String(c.id)) ? 'selected' : '' %>><%= c.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="division">Division</label>
+      <select class="form-select" id="division" name="division" required>
+        <option value="">— select a division —</option>
+        <% _sortedDivs.forEach(function(d) { %>
+        <option value="<%= d.id %>" <%= (_team && String(_team.division) === String(d.id)) ? 'selected' : '' %>><%= d.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="venue">Home venue</label>
+      <select class="form-select" id="venue" name="venue" required>
+        <option value="">— select a venue —</option>
+        <% _venues.forEach(function(v) { %>
+        <option value="<%= v.id %>" <%= (_team && String(_team.venue) === String(v.id)) ? 'selected' : '' %>><%= v.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="rank">Club team rank <span class="text-muted">(1 = first team; used for player eligibility)</span></label>
+      <input class="form-control" id="rank" name="rank" type="number" min="1" value="<%= (_team && _team.rank != null) ? _team.rank : '' %>">
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="matchDay">Match day</label>
+      <input class="form-control" id="matchDay" name="matchDay" value="<%= (_team && _team.matchDay != null) ? _team.matchDay : '' %>">
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a class="btn btn-link" href="/admin/teams">Cancel</a>
+  </form>
+</div>
+
+<%- include('../footer.ejs') %>
+
+</body>
+</html>

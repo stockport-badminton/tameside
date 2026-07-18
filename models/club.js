@@ -3,7 +3,7 @@ const { sql } = require('../utils/db_connect');
 
 // POST
 exports.create = async function(name,venue,done){
-  let result = await sql`INSERT INTO club ("name","venue") VALUES (${name},${venue})')`.catch(err => {
+  let result = await sql`INSERT INTO club ("name","venue") VALUES (${name},${venue})`.catch(err => {
     return done(err) ;
   })
   done(null,result);

@@ -181,3 +181,66 @@ exports.club_update_post = function(req, res) {
       res.send(row);
     })
 };
+
+/* ------------------------------------------------------------------ *
+ * Superadmin club admin UI (secured route + role check here).
+ * ------------------------------------------------------------------ */
+
+const promisify = fn => (...args) => new Promise((resolve, reject) =>
+  fn(...args, (err, result) => err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result)));
+
+function isSuperAdmin(req) {
+  return !!(req.user && req.user._json && req.user._json['https://my-app.example.com/role'] === 'superadmin');
+}
+
+const getAllClubsP = promisify(Club.getAll);
+const getClubByIdP = promisify(Club.getById);
+const createClubP = promisify(Club.create);
+const updateClubP = promisify(Club.updateById);
+const getAllVenuesP = promisify(Venue.getAll);
+
+function adminRenderOpts(title, extra) {
+  return Object.assign({ static_path: '/static', title, pageDescription: title }, extra);
+}
+
+exports.admin_club_list = async function(req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    const clubs = await getAllClubsP();
+    res.render('admin/club-list', adminRenderOpts('Club Admin', { clubs }));
+  } catch (err) { next(err); }
+};
+
+exports.admin_club_createForm = async function(req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    const venues = await getAllVenuesP();
+    res.render('admin/club-form', adminRenderOpts('Add Club', { club: null, venues }));
+  } catch (err) { next(err); }
+};
+
+exports.admin_club_create = async function(req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    await createClubP(req.body.name, req.body.venue);
+    res.redirect('/admin/clubs');
+  } catch (err) { next(err); }
+};
+
+exports.admin_club_editForm = async function(req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    const [rows, venues] = await Promise.all([getClubByIdP(req.params.id), getAllVenuesP()]);
+    const club = rows && rows[0];
+    if (!club) return res.status(404).send('Club not found');
+    res.render('admin/club-form', adminRenderOpts('Edit Club', { club, venues }));
+  } catch (err) { next(err); }
+};
+
+exports.admin_club_update = async function(req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    await updateClubP(req.body.name, req.body.venue, req.params.id);
+    res.redirect('/admin/clubs');
+  } catch (err) { next(err); }
+};

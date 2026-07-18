@@ -314,6 +314,20 @@ app.post('/admin/homepage-content/:id/delete', secured, homepage_content_control
 app.get('/admin/site-settings', secured, site_settings_controller.form);
 app.post('/admin/site-settings', secured, site_settings_controller.update);
 
+/* League structure admin (superadmin only — secured route + role check in the
+   controller). Clubs, teams, and one-click promotion/relegation. */
+app.get('/admin/clubs', secured, club_controller.admin_club_list);
+app.get('/admin/clubs/create', secured, club_controller.admin_club_createForm);
+app.post('/admin/clubs', secured, club_controller.admin_club_create);
+app.get('/admin/clubs/:id(\\d+)', secured, club_controller.admin_club_editForm);
+app.post('/admin/clubs/:id(\\d+)', secured, club_controller.admin_club_update);
+app.get('/admin/teams', secured, team_controller.admin_team_list);
+app.get('/admin/teams/create', secured, team_controller.admin_team_createForm);
+app.post('/admin/teams', secured, team_controller.admin_team_create);
+app.post('/admin/teams/:id(\\d+)/move', secured, team_controller.admin_team_move);
+app.get('/admin/teams/:id(\\d+)', secured, team_controller.admin_team_editForm);
+app.post('/admin/teams/:id(\\d+)', secured, team_controller.admin_team_update);
+
 app.post('/scorecard-beta', secured, fixture_controller.validateScorecard, fixture_controller.full_fixture_post);
 
 app.get('/populated-scorecard-beta/:id',(req,res,next) => {
