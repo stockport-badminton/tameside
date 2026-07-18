@@ -1,0 +1,61 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<% var _rounds = (typeof rounds !== 'undefined' && rounds) ? rounds : []; %>
+
+<div class="container my-4">
+  <h1 class="mb-3"><i class="fas fa-shield-halved"></i> Lewis Shield Results</h1>
+  <p class="text-muted">Enter a result and the winner is advanced into the next round automatically. Matches waiting on an earlier-round winner show <em>TBD</em>.</p>
+
+  <% if (typeof notice !== 'undefined' && notice) { %>
+    <div class="alert alert-success"><%= notice %></div>
+  <% } %>
+  <% if (typeof error !== 'undefined' && error) { %>
+    <div class="alert alert-danger"><%= error %></div>
+  <% } %>
+
+  <% if (!_rounds.length) { %>
+    <p>No Lewis bracket set up for the current season.</p>
+  <% } %>
+
+  <% _rounds.forEach(function(round) { %>
+    <h2 class="h5 mt-4"><%= round.label %></h2>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <tbody>
+          <% round.matches.forEach(function(m) { %>
+          <tr>
+            <td style="width:40%">
+              <span class="<%= (m.played && Number(m.homeScore) > Number(m.awayScore)) ? 'fw-bold' : '' %>"><%= m.homeName %></span>
+              <span class="text-muted">v</span>
+              <span class="<%= (m.played && Number(m.awayScore) > Number(m.homeScore)) ? 'fw-bold' : '' %>"><%= m.awayName %></span>
+            </td>
+            <td>
+              <% if (!m.playable) { %>
+                <span class="badge bg-secondary">awaiting teams</span>
+              <% } else { %>
+                <form method="POST" action="/admin/lewis/<%= m.drawPos %>/result" class="d-flex align-items-center gap-2 mb-0">
+                  <input type="number" min="0" name="homeScore" class="form-control form-control-sm" style="width:5rem"
+                         value="<%= m.homeScore != null ? m.homeScore : '' %>" required aria-label="Home score">
+                  <span class="text-muted">–</span>
+                  <input type="number" min="0" name="awayScore" class="form-control form-control-sm" style="width:5rem"
+                         value="<%= m.awayScore != null ? m.awayScore : '' %>" required aria-label="Away score">
+                  <button type="submit" class="btn btn-sm btn-primary"><%= m.played ? 'Update' : 'Save' %></button>
+                  <% if (m.played) { %><span class="badge bg-success">played</span><% } %>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% }); %>
+
+  <p class="text-muted small mt-3">Note: editing an already-played match will not re-advance the winner if the next round already has a result.</p>
+</div>
+
+<%- include('../footer.ejs') %>
+
+</body>
+</html>

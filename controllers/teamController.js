@@ -244,3 +244,78 @@ exports.admin_team_move = async function(req, res, next) {
     res.redirect('/admin/teams');
   } catch (err) { next(err); }
 };
+
+/* ------------------------------------------------------------------ *
+ * Superadmin Lewis Shield result entry + winner auto-progression.
+ * Enter a result for a bracket match; the winner is written into its
+ * next-round slot automatically (no full scorecards needed).
+ * ------------------------------------------------------------------ */
+
+const getLewisBracketP = promisify(Team.getLewisBracket);
+const getLewisMetaP    = promisify(Team.getLewisMeta);
+const saveLewisResultP = (drawPos, hs, as, pc, jv) =>
+  new Promise((resolve, reject) => Team.saveLewisResult(drawPos, hs, as, pc, jv,
+    (err, r) => err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(r)));
+
+const LEWIS_ROUND_LABELS = ['Preliminary Round', 'Round 1', 'Quarter-Finals', 'Semi-Finals', 'Final'];
+
+// Group bracket rows into rounds by drawPos, given the prelim count.
+function lewisRounds(bracket, prelimCount) {
+  const P = prelimCount;
+  const bands = [
+    { label: LEWIS_ROUND_LABELS[0], lo: 1,      hi: P },
+    { label: LEWIS_ROUND_LABELS[1], lo: P + 1,  hi: P + 8 },
+    { label: LEWIS_ROUND_LABELS[2], lo: P + 9,  hi: P + 12 },
+    { label: LEWIS_ROUND_LABELS[3], lo: P + 13, hi: P + 14 },
+    { label: LEWIS_ROUND_LABELS[4], lo: P + 15, hi: P + 15 },
+  ];
+  return bands
+    .map(b => ({ label: b.label, matches: bracket.filter(m => Number(m.drawPos) >= b.lo && Number(m.drawPos) <= b.hi) }))
+    .filter(b => b.matches.length);
+}
+
+exports.admin_lewis_form = async function (req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    const [bracket, meta, teams] = await Promise.all([getLewisBracketP(), getLewisMetaP(), getAllTeamsP()]);
+    const teamName = { 52: 'TBD' };
+    teams.forEach(t => { teamName[t.id] = t.name; });
+    const rounds = lewisRounds(bracket, meta.prelimCount).map(round => ({
+      label: round.label,
+      matches: round.matches.map(m => ({
+        drawPos: Number(m.drawPos),
+        homeTeam: m.homeTeam, awayTeam: m.awayTeam,
+        homeName: teamName[m.homeTeam] || ('#' + m.homeTeam),
+        awayName: teamName[m.awayTeam] || ('#' + m.awayTeam),
+        homeScore: m.homeScore, awayScore: m.awayScore,
+        // Playable once both teams are known (not the 52 placeholder).
+        playable: Number(m.homeTeam) !== 52 && Number(m.awayTeam) !== 52,
+        played: m.homeScore != null || m.awayScore != null
+      }))
+    }));
+    res.render('admin/lewis-results', adminRenderOpts('Lewis Shield Results', {
+      rounds: rounds,
+      notice: req.query.msg || null,
+      error: req.query.err || null
+    }));
+  } catch (err) { next(err); }
+};
+
+exports.admin_lewis_result = async function (req, res, next) {
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    const meta = await getLewisMetaP();
+    const result = await saveLewisResultP(
+      req.params.drawPos, req.body.homeScore, req.body.awayScore, meta.prelimCount, meta.jValues
+    );
+    let msg = 'Result saved';
+    if (result.advance && result.advance.advanced) {
+      msg += `; winner advanced to slot ${result.advance.targetDrawPos} (${result.advance.side})`;
+    } else if (result.advance && result.advance.reason === 'target-already-played') {
+      msg += '; next round already has a result, winner NOT advanced';
+    }
+    res.redirect('/admin/lewis?msg=' + encodeURIComponent(msg));
+  } catch (err) {
+    res.redirect('/admin/lewis?err=' + encodeURIComponent(err.message || 'Could not save result'));
+  }
+};

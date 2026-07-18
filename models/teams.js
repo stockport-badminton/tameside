@@ -104,6 +104,109 @@ exports.getAllAndSelectedById = async function(teamId,divisionId,done){
     done(null,rows);
   }
 
+/* ------------------------------------------------------------------ *
+ * Lewis Shield bracket — result entry + winner auto-progression.
+ * ------------------------------------------------------------------ */
+
+// Pure bracket topology: where does the winner of `drawPos` advance to?
+// Layout (standard 16-slot single elim, P = prelimCount):
+//   prelims 1..P | R1 P+1..P+8 | QF P+9..P+12 | SF P+13..P+14 | Final P+15
+// Prelims feed R1 via the season's j-values (lewisPrelims): a prelim at drawPos
+// p (i = p-1) fills R1 drawPos floor(j/2)+P+1, home slot if j even else away
+// (mirrors fixtureGenModel.getLewisConstraints). Returns {targetDrawPos, side}
+// or null (final / no parent / off-bracket, e.g. a 3rd-place slot).
+exports.lewisAdvanceTarget = function (drawPos, prelimCount, jValues) {
+  drawPos = Number(drawPos);
+  prelimCount = Number(prelimCount) || 0;
+  jValues = jValues || [];
+  if (drawPos <= prelimCount) {
+    const j = jValues[drawPos - 1];
+    if (j === undefined) return null;
+    return { targetDrawPos: Math.floor(j / 2) + prelimCount + 1, side: (j % 2 === 0) ? 'home' : 'away' };
+  }
+  // Main draw: fixed sizes 8/4/2/1 regardless of prelimCount.
+  const rounds = [
+    { start: prelimCount + 1,  size: 8 }, // R1
+    { start: prelimCount + 9,  size: 4 }, // QF
+    { start: prelimCount + 13, size: 2 }, // SF
+    { start: prelimCount + 15, size: 1 }, // Final
+  ];
+  for (let r = 0; r < rounds.length; r++) {
+    const { start, size } = rounds[r];
+    const end = start + size - 1;
+    if (drawPos >= start && drawPos <= end) {
+      if (r === rounds.length - 1) return null; // final — winner is champion
+      const idx = drawPos - start;
+      return { targetDrawPos: (end + 1) + Math.floor(idx / 2), side: (idx % 2 === 0) ? 'home' : 'away' };
+    }
+  }
+  return null;
+};
+
+// Current-season prelim metadata: j-values and prelim count (from lewisPrelims).
+exports.getLewisMeta = async function (done) {
+  const s = await sql`SELECT "lewisPrelims" FROM season WHERE name = ${seasonModel.current()}`.catch(err => { return done(err); });
+  if (!s) return;
+  const jValues = (s[0] && s[0].lewisPrelims)
+    ? s[0].lewisPrelims.split(',').map(Number).filter(n => !isNaN(n))
+    : [];
+  done(null, { jValues: jValues, prelimCount: jValues.length });
+};
+
+// Current-season Lewis bracket rows (raw drawPos/team-id/score) for admin entry.
+exports.getLewisBracket = async function (done) {
+  const rows = await sql`
+    SELECT "drawPos", "homeTeam", "awayTeam", "homeScore", "awayScore", "winningTeam"
+    FROM lewis ORDER BY "drawPos"`.catch(err => { return done(err); });
+  if (!rows) return;
+  done(null, rows);
+};
+
+// Record a Lewis result and advance the winner into its next-round slot.
+// Guards: both teams must be known (no id 52 placeholder), a clear winner is
+// required (no draws in a knockout), and it won't overwrite a next-round slot
+// that already has a result. Returns { winningTeam, advance }.
+exports.saveLewisResult = async function (drawPos, homeScore, awayScore, prelimCount, jValues, done) {
+  homeScore = Number(homeScore); awayScore = Number(awayScore);
+  if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
+    return done(new Error('Scores must be non-negative whole numbers.'));
+  }
+  if (homeScore === awayScore) return done(new Error('A Lewis tie needs a winner — scores cannot be equal.'));
+
+  const rows = await sql`SELECT "drawPos","homeTeam","awayTeam" FROM lewis WHERE "drawPos" = ${drawPos}`.catch(err => { return done(err); });
+  if (!rows) return;
+  const m = rows[0];
+  if (!m) return done(new Error('No Lewis match at drawPos ' + drawPos));
+  if (Number(m.homeTeam) === 52 || Number(m.awayTeam) === 52) {
+    return done(new Error('Both teams must be known before entering a result.'));
+  }
+  const winningTeam = homeScore > awayScore ? m.homeTeam : m.awayTeam;
+
+  const upd = await sql`
+    UPDATE lewis SET "homeScore" = ${homeScore}, "awayScore" = ${awayScore}, "winningTeam" = ${winningTeam}
+    WHERE "drawPos" = ${drawPos}`.catch(err => { return done(err); });
+  if (!upd) return;
+
+  let advance = { advanced: false };
+  const target = exports.lewisAdvanceTarget(drawPos, prelimCount, jValues);
+  if (target) {
+    const tRows = await sql`SELECT "homeScore","awayScore" FROM lewis WHERE "drawPos" = ${target.targetDrawPos}`.catch(err => { return done(err); });
+    if (!tRows) return;
+    const t = tRows[0];
+    if (t && (t.homeScore != null || t.awayScore != null)) {
+      advance = { advanced: false, reason: 'target-already-played', targetDrawPos: target.targetDrawPos };
+    } else if (t) {
+      if (target.side === 'home') {
+        await sql`UPDATE lewis SET "homeTeam" = ${winningTeam} WHERE "drawPos" = ${target.targetDrawPos}`;
+      } else {
+        await sql`UPDATE lewis SET "awayTeam" = ${winningTeam} WHERE "drawPos" = ${target.targetDrawPos}`;
+      }
+      advance = { advanced: true, targetDrawPos: target.targetDrawPos, side: target.side };
+    }
+  }
+  done(null, { winningTeam: winningTeam, advance: advance });
+};
+
 // Superadmin admin UI helpers — explicit column handling so they don't depend
 // on the legacy updateById's sql(values, keys) shape.
 
