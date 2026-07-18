@@ -1,12 +1,5 @@
 const { sql } = require('../utils/db_connect');
-
-let  SEASON = "";
- if (new Date().getMonth() < 6){
-   SEASON = "" + new Date().getFullYear()-1 +""+ new Date().getFullYear();
- }
- else {
-   SEASON = "" + new Date().getFullYear() +""+ (new Date().getFullYear()+1);
- }
+const seasonModel = require('./season');
 
 // POST
 exports.create = async function(name,starttime,endtime,matchDay,venue,courtspace,club,division,rank,done){
@@ -140,7 +133,7 @@ exports.updateById = async function(teamObj,teamId,done){
 
 exports.getLewis = async function(searchTerms,done){
   var season = ""
-  var seasonVal = SEASON
+  var seasonVal = seasonModel.current()
 
   if (!searchTerms.season){
     console.log("no season");

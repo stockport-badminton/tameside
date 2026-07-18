@@ -1,14 +1,6 @@
 const { sql } = require('../utils/db_connect');
 const levenshtein = require('js-levenshtein');
-var SEASON = '';
-if (new Date().getMonth() < 7){
-  SEASON = '' + new Date().getFullYear()-1 +''+ new Date().getFullYear();
-  console.log(SEASON)
-}
-else {
-  SEASON = '' + new Date().getFullYear() +''+ (new Date().getFullYear()+1);
-  console.log(SEASON)
-}
+const seasonModel = require('./season');
 
 
 // POST
@@ -203,7 +195,7 @@ exports.getNamesClubsTeams = async function(searchTerms,done){
         return false
       }
       else {
-        if (firstYear < 2018 || season == SEASON){
+        if (firstYear < 2018 || season == seasonModel.current()){
           return false
         }
         else return true
@@ -491,7 +483,7 @@ exports.newGetPlayerStats = async function(searchObj,done){
   }
   
   let season = ""
-  let seasonString = SEASON
+  let seasonString = seasonModel.current()
   let whereTerms = ""
   let whereValue = []
   searchArray = []
@@ -504,7 +496,7 @@ exports.newGetPlayerStats = async function(searchObj,done){
       return false
     }
     else {
-      if (firstYear < 2012 || season == SEASON){
+      if (firstYear < 2012 || season == seasonModel.current()){
         return false
       }
       else return true
@@ -780,7 +772,7 @@ exports.newGetPairStats = async function(searchObj,done){
   }
   
   let season = ""
-  let seasonString = SEASON
+  let seasonString = seasonModel.current()
   searchArray = []
   const checkSeason = async function(season){
     let firstYear = parseInt(season.slice(0,4))
@@ -790,7 +782,7 @@ exports.newGetPairStats = async function(searchObj,done){
       return false
     }
     else {
-      if (firstYear < 2012 || season == SEASON){
+      if (firstYear < 2012 || season == seasonModel.current()){
         return false
       }
       else return true
@@ -1237,7 +1229,7 @@ where
 ("homePlayer1" = ${player} OR
 "homePlayer2" = ${player} OR
 "awayPlayer1" = ${player} OR
-"awayPlayer2" = ${player}) and season.name = ${SEASON} and (
+"awayPlayer2" = ${player}) and season.name = ${seasonModel.current()} and (
   "homePlayer1End" is not null and "homePlayer1End" != 0 and
   "homePlayer2End" is not null and "homePlayer2End" != 0 and
   "awayPlayer1End" is not null and "awayPlayer1End" != 0 and

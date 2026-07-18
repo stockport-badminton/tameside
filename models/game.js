@@ -1,13 +1,5 @@
 const { sql } = require('../utils/db_connect');
-
-
-let  SEASON = '';
- if (new Date().getMonth() < 6){
-   SEASON = '' + new Date().getFullYear()-1 +''+ new Date().getFullYear();
- }
- else {
-   SEASON = '' + new Date().getFullYear() +''+ (new Date().getFullYear()+1);
- }
+const seasonModel = require('./season');
 
 // POST
 exports.create = function(gameObj,done){
@@ -242,7 +234,7 @@ exports.calculateRating = function(game, fixturePlayers, endDate, division) {
 // Used by the audit tool to check rating chain consistency. Lewis Shield
 // games never carry ratings (End = 0) so the filter excludes them naturally.
 exports.getSeasonGamesOrdered = async function(seasonName) {
-  const sName = seasonName || SEASON
+  const sName = seasonName || seasonModel.current()
   return await sql`
     SELECT
       game.id,
@@ -282,7 +274,7 @@ exports.resetAllElo = async function() {
 // includes Lewis Shield fixtures so any ratings written to them by older
 // code are wiped — the recalc skips them, leaving the End = 0 sentinel.
 exports.resetSeasonElo = async function(seasonName) {
-  const sName = seasonName || SEASON
+  const sName = seasonName || seasonModel.current()
   await sql`
     UPDATE game SET
       "homePlayer1Start" = 0, "homePlayer2Start" = 0,

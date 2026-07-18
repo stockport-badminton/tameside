@@ -1,12 +1,5 @@
 const { sql } = require('../utils/db_connect');
-
-let  SEASON = '';
- if (new Date().getMonth() < 6){
-   SEASON = '' + new Date().getFullYear()-1 +''+ new Date().getFullYear();
- }
- else {
-   SEASON = '' + new Date().getFullYear() +''+ (new Date().getFullYear()+1);
- }
+const seasonModel = require('./season');
 
 // POST
 exports.create = async function(name,admin,url,done){
@@ -55,7 +48,7 @@ exports.create = async function(name,admin,url,done){
 exports.getLeagueTable = async function(division,season,done){
   if (season === undefined){
     seasonName = ''
-    season = SEASON;
+    season = seasonModel.current();
   }
   else {
     seasonName = season
@@ -135,7 +128,7 @@ ORDER BY "pointsFor" DESC
 exports.getAllLeagueTables = async function(season,done){
   if (season === undefined){
     seasonName = ''
-    season = SEASON
+    season = seasonModel.current()
   }
   else {
     seasonName = season

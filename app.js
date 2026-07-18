@@ -50,6 +50,26 @@ if (!process.env.AUTH0_DOMAIN || !process.env.AUTH0_AUDIENCE) {
 const app = express()
 const port = 8080
 
+// Resolve the current/previous season from the DB (cached) at boot so every
+// season-scoped query agrees on which season is "current", and cache the list
+// of past seasons (those with an archived team<season> snapshot) for the
+// History nav / archive page. Falls back to date-based derivation if the DB
+// lookup fails (see models/season.js).
+const seasonModel = require('./models/season');
+app.locals.pastSeasons = [];
+seasonModel.init()
+  .then(function (resolved) {
+    console.log('Season resolved:', resolved.current, '(previous', resolved.previous + ')');
+    return seasonModel.getAll();
+  })
+  .then(function (rows) {
+    const current = seasonModel.current();
+    app.locals.pastSeasons = rows.filter(function (s) { return s.name !== current; });
+  })
+  .catch(function (err) {
+    console.error('Season init/getAll failed:', err.message);
+  });
+
 app.set('view engine', 'ejs');
 app.set('views', __dirname + '/views');
 

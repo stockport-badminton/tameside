@@ -6,15 +6,7 @@ finding mixedcase column names in sql queries:
 find: (?!JOIN|join|oin|concat|oncat)([tamevgsortsinnplyIdhcwvuMkLfx_]{2,20})([uTUkSvwchtNCbamevDgLPsFortsAinWnplyId12]{3,20})
 replace: "$1$2"
 */
-let  SEASON = '';
- if (new Date().getMonth() < 6){
-   SEASON = '' + new Date().getFullYear()-1 +''+ new Date().getFullYear();
- }
- else {
-   SEASON = '' + new Date().getFullYear() +''+ (new Date().getFullYear()+1);
- }
-
- //console.log(SEASON)
+const seasonModel = require('./season');
 
  exports.createBatch = async function(BatchObj,done){
   if(db.isObject(BatchObj)){
@@ -60,7 +52,7 @@ season on fixture.date > season."startDate" AND fixture.date < season."endDate" 
 team "homeTeam" on fixture."homeTeam" = "homeTeam".id join 
 team "awayTeam" on fixture."awayTeam" = "awayTeam".id left join
 scorecardstore on (fixture.date = scorecardstore.date AND fixture."homeTeam" = scorecardstore."homeTeam" AND fixture."awayTeam" = scorecardstore."awayTeam")
-where season.name = ${SEASON} AND fixture.status not in ('rearranged','rearranging','conceded','void','complete')
+where season.name = ${seasonModel.current()} AND fixture.status not in ('rearranged','rearranging','conceded','void','complete')
 order by date) as a 
 where date < NOW() and "scoreCardId" is null`.catch(err => {
       return done(err)
@@ -157,7 +149,7 @@ exports.getFixtureDetails = async function(searchObj, done){
     }
     
     let season = ""
-    let seasonString = SEASON
+    let seasonString = seasonModel.current()
     let whereTerms = ""
     searchArray = []
     const checkSeason = function(season){
@@ -168,14 +160,14 @@ exports.getFixtureDetails = async function(searchObj, done){
         return false
       }
       else {
-        if (firstYear < 2012 || season == SEASON){
+        if (firstYear < 2012 || season == seasonModel.current()){
           return false
         }
         else return true
       }
     }
     if (fixtureObj.season === undefined || !checkSeason(fixtureObj.season)){
-      sqlArray.push(SEASON)
+      sqlArray.push(seasonModel.current())
     }
     else {
       season = fixtureObj.season
@@ -358,8 +350,8 @@ exports.getAllSeasons = async function(){
 exports.getOutstandingFixtureId = async function(obj,done){
   if(typeof obj.homeTeam !== undefined && typeof obj.awayTeam !== undefined){
     // var sql = 'select id from (select fixture.id, homeTeam, awayTeam, status from fixture join season where season.name=? AND fixture.date > season.startDate) as a where awayTeam = ? AND homeTeam = ? AND status = "outstanding"';
-    console.log(`select a.id, division.name, division.rank from (SELECT id, homeTeam FROM (SELECT fixture.id, homeTeam, awayTeam, status FROM fixture JOIN season on season.name = ${SEASON} AND fixture.date > season.startDate) AS a WHERE awayTeam = ${obj.awayTeam} AND homeTeam = ${obj.homeTeam} AND status like 'outstanding') as a join team on a.homeTeam = team.id join division on team.division = division.id`)
-    let result = await sql`select a.id, division.name, division.rank, a.lewis_round from (SELECT id, "homeTeam", lewis_round FROM (SELECT fixture.id, "homeTeam", "awayTeam", status, lewis_round FROM fixture JOIN season on season.name like ${SEASON} AND fixture.date > season."startDate") AS a WHERE "awayTeam" = ${obj.awayTeam} AND "homeTeam" = ${obj.homeTeam} AND status like 'outstanding') as a join team on a."homeTeam" = team.id join division on team.division = division.id`.catch(err => {
+    console.log(`select a.id, division.name, division.rank from (SELECT id, homeTeam FROM (SELECT fixture.id, homeTeam, awayTeam, status FROM fixture JOIN season on season.name = ${seasonModel.current()} AND fixture.date > season.startDate) AS a WHERE awayTeam = ${obj.awayTeam} AND homeTeam = ${obj.homeTeam} AND status like 'outstanding') as a join team on a.homeTeam = team.id join division on team.division = division.id`)
+    let result = await sql`select a.id, division.name, division.rank, a.lewis_round from (SELECT id, "homeTeam", lewis_round FROM (SELECT fixture.id, "homeTeam", "awayTeam", status, lewis_round FROM fixture JOIN season on season.name like ${seasonModel.current()} AND fixture.date > season."startDate") AS a WHERE "awayTeam" = ${obj.awayTeam} AND "homeTeam" = ${obj.homeTeam} AND status like 'outstanding') as a join team on a."homeTeam" = team.id join division on team.division = division.id`.catch(err => {
       return done(err)
     })
     console.log(result.statement.string)
@@ -459,7 +451,7 @@ WHERE
   exports.getMatchPlayerOrderDetails = async function(fixtureObj,done){
     var searchTerms = [];
     var sqlArray = []
-    var seasonName = (!fixtureObj.season || fixtureObj.season == SEASON)? '' : fixtureObj.season
+    var seasonName = (!fixtureObj.season || fixtureObj.season == seasonModel.current())? '' : fixtureObj.season
     console.log(fixtureObj)
     let rows = await sql`SELECT c.*
 FROM (SELECT "fixturePlayers".*, club.name
@@ -481,8 +473,8 @@ FROM (SELECT "fixturePlayers".*, club.name
         : sql``
     }
     ${
-      !fixtureObj.season || fixtureObj.season == SEASON 
-      ? sql` and season.name = ${SEASON} AND c.date > season."startDate" AND c.date < season."endDate"`
+      !fixtureObj.season || fixtureObj.season == seasonModel.current() 
+      ? sql` and season.name = ${seasonModel.current()} AND c.date > season."startDate" AND c.date < season."endDate"`
       : sql` and season.name = ${fixtureObj.season} AND c.date > season."startDate" AND c.date < season."endDate"`
     }
     ORDER BY "teamName" , date DESC
@@ -540,7 +532,7 @@ select fixture.id from fixture join
 season on (fixture.date > season."startDate" and fixture.date < season."endDate")
 join team "homeTeam" on fixture."homeTeam" = "homeTeam".id 
 join team "awayTeam" on fixture."awayTeam" = "awayTeam".id
-where season.name like ${SEASON} and status = 'outstanding' and "homeTeam".name like ${updateObj.hometeam} and "awayTeam".name like ${updateObj.awayteam} limit 1);`.catch(err => {
+where season.name like ${seasonModel.current()} and status = 'outstanding' and "homeTeam".name like ${updateObj.hometeam} and "awayTeam".name like ${updateObj.awayteam} limit 1);`.catch(err => {
         console.log(err)
         console.log(err.query)
         return done(err)

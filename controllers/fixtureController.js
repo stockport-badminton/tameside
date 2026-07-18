@@ -9,13 +9,7 @@ let Auth = require("../models/auth");
 const ejs = require('ejs');
 const ICAL = require("ical.js");
 const mailjet = require ('node-mailjet').apiConnect(process.env.MAILJET_KEY, process.env.MAILJET_SECRET)
-
-let SEASON = "";
-if (new Date().getMonth() < 6) {
-  SEASON = "" + new Date().getFullYear() - 1 + "" + new Date().getFullYear();
-} else {
-  SEASON = "" + new Date().getFullYear() + "" + (new Date().getFullYear() + 1);
-}
+const seasonModel = require("../models/season");
 
 const { body, validationResult } = require("express-validator");
 const { sanitizeBody } = require("express-validator");
@@ -934,7 +928,7 @@ exports.fixture_calendars = function (req, res, next) {
     } else {
       // console.log(result)
       let id =
-        (searchObj.season != undefined ? searchObj.season : SEASON) +
+        (searchObj.season != undefined ? searchObj.season : seasonModel.current()) +
         (searchObj.division != undefined ? searchObj.division : "") +
         (searchObj.club != undefined ? searchObj.club : "") +
         (searchObj.team != undefined ? searchObj.team : "");
@@ -942,7 +936,7 @@ exports.fixture_calendars = function (req, res, next) {
       const jcal = new ICAL.Component("vcalendar");
       jcal.addPropertyWithValue(
         "prodid",
-        (searchObj.season != undefined ? searchObj.season : SEASON) +
+        (searchObj.season != undefined ? searchObj.season : seasonModel.current()) +
           "/" +
           (searchObj.division != undefined ? searchObj.division : "") +
           "/" +

@@ -4,6 +4,7 @@ var Team = require('../models/teams');
 var Fixture = require('../models/fixture');
 var Game = require('../models/game');
 var Division = require('../models/division');
+var seasonModel = require('../models/season');
 var async = require('async');
 var jp = require('jsonpath');
 const {distance, closest} = require('fastest-levenshtein');
@@ -648,10 +649,9 @@ const getGamesByFixtureP = promisify(Game.getByFixture)
 const updateGameByIdP = promisify(Game.updateById)
 const updatePlayersBulkP = promisify(Player.updateBulk)
 
-// Tameside season convention (month < 6): July onwards belongs to the new season.
+// Delegates to the shared, DB-driven season model (single source of truth).
 function currentSeasonName() {
-  const year = new Date().getFullYear()
-  return new Date().getMonth() < 6 ? `${year - 1}${year}` : `${year}${year + 1}`
+  return seasonModel.current()
 }
 
 // Guard against Fixture.getFixtureDetails silently substituting the current

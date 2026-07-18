@@ -1,11 +1,4 @@
 require('dotenv').config()
-let SEASON = '';
-if (new Date().getMonth() < 6){
-    SEASON = '' + new Date().getFullYear()-1 +'/'+ new Date().getFullYear();
-}
-else {
-    SEASON = '' + new Date().getFullYear() +'/'+ (new Date().getFullYear()+1);
-}
 const contentful = require('contentful')
 let { documentToHtmlString } = require('@contentful/rich-text-html-renderer');
 
