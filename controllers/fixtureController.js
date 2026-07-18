@@ -13,27 +13,17 @@ const seasonModel = require("../models/season");
 
 const { body, validationResult } = require("express-validator");
 const { sanitizeBody } = require("express-validator");
+const { hasWinner, hasValidMargin } = require("../utils/scorecardValidation");
 
+// express-validator adapters — applied to each away-score field, they pull the
+// paired home score from the body and defer to the pure rules (returning a
+// boolean: true = valid, false = validation fails).
 function greaterThan21(value, { req, path }) {
-  var otherValue = path.replace("away", "home");
-  if (value < 21 && req.body[otherValue] < 21) {
-    return false;
-  } else {
-    return value;
-  }
+  return hasWinner(req.body[path.replace("away", "home")], value);
 }
 
 function differenceOfTwo(value, { req, path }) {
-  var otherValue = path.replace("away", "home");
-  if (Math.abs(value - req.body[otherValue]) < 2) {
-    if (value < 30 && req.body[otherValue] < 30) {
-      return false;
-    } else {
-      return value;
-    }
-  } else {
-    return value;
-  }
+  return hasValidMargin(req.body[path.replace("away", "home")], value);
 }
 
 exports.validateScorecard = [
