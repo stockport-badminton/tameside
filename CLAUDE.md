@@ -54,14 +54,45 @@ Sensitive columns (player phone, email) are PgP-encrypted in the DB; decrypted w
 
 ### Season Detection
 
-Used throughout the codebase — not imported from a utility, just inlined:
+Single source of truth: **`models/season.js`**. `season.init()` runs once at boot
+(in `app.js`) and resolves the current season from the DB — the season whose
+`startDate` most recently passed (`SELECT name FROM season WHERE "startDate" <= now()
+ORDER BY "startDate" DESC`) — then caches it. Call sites use `season.current()` /
+`season.previous()` (both synchronous, cached). A date-based fallback (rolls over
+~1 July) is used only if the DB lookup fails.
 
 ```javascript
-let SEASON = (new Date().getMonth() < 6)
-  ? `${new Date().getFullYear() - 1}${new Date().getFullYear()}`
-  : `${new Date().getFullYear()}${new Date().getFullYear() + 1}`;
-// e.g. "20242025"
+const seasonModel = require('./season');
+const SEASON = seasonModel.current(); // e.g. "20242025"
 ```
+
+`season.getAll()` lists past seasons that have an archived `team<season>` snapshot
+table (plus a `hasLewis` flag), used by the DB-driven History nav and `/history`
+archive page.
+
+> Legacy note: older code inlined `new Date().getMonth()` math (and it had drifted
+> — players.js rolled over on 1 Aug, everything else on 1 July). That's all been
+> replaced by the shared model; don't reintroduce inlined season math.
+
+### Error Tracking (Sentry)
+
+Server-side errors report to Sentry via `instrument.js` (required first in `app.js`)
+and the central 500 handler. It's a **no-op unless `SENTRY_DSN` is set**, and only
+sends when `NODE_ENV=production` or `K_SERVICE` is present (so local/dev/test never
+ship events). The central 500 handler in `app.js` **must** be a 4-arg function
+(`err, req, res, next`) — Express only registers error middleware by arity.
+Read-only triage: `tools/sentry/sentry-issues.js` (uses `SENTRY_AUTH_TOKEN`).
+Browser Sentry lives in `views/header.ejs` (logged-in users only) and scopes
+`captureConsoleIntegration` to `levels: ['error']`.
+
+### Superadmin Admin UI
+
+Superadmin-gated pages under `/admin/*` (session-`secured()` route + in-controller
+`isSuperAdmin(req)` check — role `superadmin` in the Auth0 `_json` claim):
+homepage content, site settings, and league structure — **clubs** and **teams**
+(`/admin/clubs`, `/admin/teams`) with add/edit and one-click promotion/relegation
+(moves `team.division` to the adjacent-rank division in the same league). Superadmins
+can also edit a fixture's date inline on the admin results grid.
 
 ### Key Dependencies
 
@@ -100,6 +131,9 @@ MAILJET_KEY / MAILJET_SECRET
 GMAPSAPIKEY / RECAPTCHA / RECAPTCHA_SECRET
 CONTENTFUL_KEY / CONTENTFUL_SPACE
 DB_ENCODE          # PgP key for decrypting player contact data
+SENTRY_DSN         # Server-side error reporting (instrument.js). Dormant unless set;
+                   # only sends when NODE_ENV=production or K_SERVICE is set (Cloud Run).
+SENTRY_AUTH_TOKEN  # Read-only token for the tools/sentry/sentry-issues.js triage helper
 ```
 
 ## Scorecard Validation

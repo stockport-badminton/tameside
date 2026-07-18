@@ -200,7 +200,7 @@
                     <a data-bs-toggle="modal" 
                        data-bs-target="#exampleModal" 
                        data-club="<%= row['name'] %>" 
-                       data-fixtureId="<%= row['fixtureid'] %>"
+                       data-fixtureId="<%= row['id'] %>"
                        class="action-link">
                       <i class="fas fa-calendar-days"></i> Rearrange
                     </a> 
@@ -217,13 +217,13 @@
                 
                 <% if (user._json["https://my-app.example.com/club"] == 'All' || user._json["https://my-app.example.com/club"] == row['homeClubName']){ %>
                   <td>
-                    <a href="/fixtures/edit/<%= row['fixtureid'] %>" class="btn-modern-primary btn-sm">
+                    <a href="/fixtures/edit/<%= row['id'] %>" class="btn-modern-primary btn-sm">
                       <i class="fas fa-pen"></i> Enter
                     </a>
                   </td> 
                 <% } else { %>
                   <td>
-                    <a href="/fixtures/edit/<%= row['fixtureid'] %>" class="btn-modern-secondary btn-sm">
+                    <a href="/fixtures/edit/<%= row['id'] %>" class="btn-modern-secondary btn-sm">
                       <i class="fas fa-check"></i> Confirm
                     </a>
                   </td> 
