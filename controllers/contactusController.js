@@ -1,6 +1,7 @@
 const mailjet = require ('node-mailjet').apiConnect(process.env.MAILJET_KEY, process.env.MAILJET_SECRET)
 var Club = require('../models/club.js');
-//var Player = require('../models/players.js');
+var Player = require('../models/players.js');
+var Division = require('../models/division.js');
 require('dotenv').config()
 const { body,validationResult } = require("express-validator");
 const { sanitizeBody } = require("express-validator");
@@ -289,3 +290,97 @@ exports.contactus_get = function(req, res,next) {
     })
     
   }
+/* ------------------------------------------------------------------ *
+ * Superadmin distribution lists.
+ * Build a recipient list by role (+ optional division / club / team) via
+ * Player.getEmails, preview it, and send a message to it with Mailjet (the
+ * list goes in Bcc so recipients don't see each other).
+ * ------------------------------------------------------------------ */
+
+const _promisify = fn => (...args) => new Promise((resolve, reject) =>
+  fn(...args, (err, result) => err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result)));
+
+function _isSuperAdmin(req) {
+  return !!(req.user && req.user._json && req.user._json['https://my-app.example.com/role'] === 'superadmin');
+}
+
+const _getEmailsP    = _promisify(Player.getEmails);
+const _getAllClubsP  = _promisify(Club.getAll);
+const _getAllDivisionsP = _promisify(Division.getAll);
+
+// Role options: label shown in the UI -> value stored in getEmails' `role` column.
+const DIST_ROLES = [
+  { value: 'match Sec',    label: 'Match Secretaries' },
+  { value: 'club Sec',     label: 'Club Secretaries' },
+  { value: 'team Captain', label: 'Team Captains' },
+  { value: 'treasurer',    label: 'Treasurers' },
+  { value: 'otherComms',   label: 'Other / League Comms' },
+];
+
+function _searchObjFromBody(body) {
+  const s = {};
+  if (body.role)     s.role = body.role;
+  if (body.division) s.division = body.division;
+  if (body.club)     s.club = body.club;
+  if (body.teamName) s.teamName = body.teamName;
+  return s;
+}
+
+exports.admin_distribution_form = async function(req, res, next) {
+  if (!_isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  try {
+    const [clubs, divisions] = await Promise.all([_getAllClubsP(), _getAllDivisionsP()]);
+    res.render('admin/distribution', {
+      static_path: '/static',
+      title: 'Distribution Lists',
+      pageDescription: 'Send an email to a role-based distribution list.',
+      roles: DIST_ROLES,
+      clubs: clubs,
+      divisions: divisions.slice().sort((a, b) => (a.rank || 0) - (b.rank || 0))
+    });
+  } catch (err) { next(err); }
+};
+
+// AJAX: return the resolved recipient list for the current filters.
+exports.admin_distribution_preview = async function(req, res, next) {
+  if (!_isSuperAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const emails = await _getEmailsP(_searchObjFromBody(req.body));
+    res.json({ count: emails.length, emails: emails });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.admin_distribution_send = async function(req, res, next) {
+  if (!_isSuperAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  const subject = (req.body.subject || '').trim();
+  const message = (req.body.message || '').trim();
+  if (!subject || !message) {
+    return res.status(400).json({ error: 'Subject and message are both required.' });
+  }
+  try {
+    const emails = await _getEmailsP(_searchObjFromBody(req.body));
+    if (!emails.length) {
+      return res.status(400).json({ error: 'No recipients match those filters.' });
+    }
+    const html = '<div>' + message.replace(/\n/g, '<br />') + '</div>';
+    const msg = {
+      "From":    { "Email": "results@tameside-badminton.co.uk", "Name": "Tameside Badminton League" },
+      "ReplyTo": { "Email": "results@tameside-badminton.co.uk" },
+      // Visible To is the league address; the list itself goes in Bcc so
+      // recipients never see each other's addresses.
+      "To":  [{ "Email": "results@tameside-badminton.co.uk" }],
+      "Bcc": emails.map(e => ({ "Email": e })),
+      "Subject": subject,
+      "TextPart": message,
+      "HTMLPart": html,
+      "CustomID": "DistributionList"
+    };
+    await mailjet.post("send", { 'version': 'v3.1' }).request({ "Messages": [msg] });
+    res.json({ ok: true, sent: emails.length });
+  } catch (err) {
+    console.error('distribution send failed:', err && err.toString());
+    res.status(500).json({ error: 'Sending failed — please try again.' });
+  }
+};

@@ -1,0 +1,116 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<% var _roles = (typeof roles !== 'undefined' && roles) ? roles : []; %>
+<% var _clubs = (typeof clubs !== 'undefined' && clubs) ? clubs : []; %>
+<% var _divisions = (typeof divisions !== 'undefined' && divisions) ? divisions : []; %>
+
+<div class="container my-4">
+  <h1 class="mb-3"><i class="fas fa-paper-plane"></i> Distribution Lists</h1>
+  <p class="text-muted">Pick a role (and optionally narrow by division / club), preview the recipients, then send. The list goes out as Bcc so recipients don't see each other.</p>
+
+  <form id="distForm" class="col-12 col-lg-8">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label" for="role">Role</label>
+        <select class="form-select" id="role" name="role" required>
+          <option value="">— select a role —</option>
+          <% _roles.forEach(function(r) { %>
+          <option value="<%= r.value %>"><%= r.label %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="division">Division <span class="text-muted">(optional)</span></label>
+        <select class="form-select" id="division" name="division">
+          <option value="">All divisions</option>
+          <% _divisions.forEach(function(d) { %>
+          <option value="<%= d.id %>"><%= d.name %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="club">Club <span class="text-muted">(optional)</span></label>
+        <select class="form-select" id="club" name="club">
+          <option value="">All clubs</option>
+          <% _clubs.forEach(function(c) { %>
+          <option value="<%= c.id %>"><%= c.name %></option>
+          <% }); %>
+        </select>
+      </div>
+    </div>
+
+    <div class="my-3">
+      <button type="button" id="previewBtn" class="btn btn-outline-secondary"><i class="fas fa-users"></i> Preview recipients</button>
+      <span id="previewResult" class="ms-2"></span>
+    </div>
+    <div id="recipientList" class="small text-muted mb-3" style="max-height:8rem;overflow:auto"></div>
+
+    <div class="mb-3">
+      <label class="form-label" for="subject">Subject</label>
+      <input class="form-control" id="subject" name="subject" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="message">Message</label>
+      <textarea class="form-control" id="message" name="message" rows="8" required></textarea>
+      <div class="form-text">Plain text; line breaks are preserved.</div>
+    </div>
+
+    <button type="submit" id="sendBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
+    <span id="sendResult" class="ms-2"></span>
+  </form>
+</div>
+
+<script type="text/javascript">
+  (function () {
+    var form = document.getElementById('distForm');
+    function filters() {
+      return {
+        role: document.getElementById('role').value,
+        division: document.getElementById('division').value,
+        club: document.getElementById('club').value
+      };
+    }
+    function post(url, body) {
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); });
+    }
+
+    document.getElementById('previewBtn').addEventListener('click', function () {
+      var out = document.getElementById('previewResult');
+      var list = document.getElementById('recipientList');
+      if (!document.getElementById('role').value) { out.textContent = 'Pick a role first.'; return; }
+      out.textContent = 'Loading…'; list.textContent = '';
+      post('/admin/distribution/preview', filters()).then(function (res) {
+        if (!res.ok) { out.textContent = 'Error: ' + (res.body.error || 'failed'); return; }
+        out.innerHTML = '<strong>' + res.body.count + '</strong> recipient(s)';
+        list.textContent = res.body.emails.join(', ');
+      }).catch(function () { out.textContent = 'Error loading preview.'; });
+    });
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var out = document.getElementById('sendResult');
+      var btn = document.getElementById('sendBtn');
+      var body = filters();
+      body.subject = document.getElementById('subject').value;
+      body.message = document.getElementById('message').value;
+      if (!body.role) { out.textContent = 'Pick a role first.'; return; }
+      if (!confirm('Send this message to the selected distribution list?')) return;
+      btn.disabled = true; out.textContent = 'Sending…';
+      post('/admin/distribution/send', body).then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) { out.textContent = 'Error: ' + (res.body.error || 'failed'); return; }
+        out.innerHTML = '<span class="text-success">Sent to ' + res.body.sent + ' recipient(s).</span>';
+      }).catch(function () { btn.disabled = false; out.textContent = 'Error sending.'; });
+    });
+  })();
+</script>
+
+<%- include('../footer.ejs') %>
+
+</body>
+</html>

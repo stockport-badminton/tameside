@@ -329,6 +329,11 @@ app.get('/admin/teams/:id(\\d+)', secured, team_controller.admin_team_editForm);
 app.post('/admin/teams/:id(\\d+)', secured, team_controller.admin_team_update);
 app.post('/admin/fixture/:id(\\d+)/date', secured, fixture_controller.admin_fixture_date_update);
 
+/* Distribution lists (superadmin — role check in controller). */
+app.get('/admin/distribution', secured, contactus_controller.admin_distribution_form);
+app.post('/admin/distribution/preview', secured, contactus_controller.admin_distribution_preview);
+app.post('/admin/distribution/send', secured, contactus_controller.admin_distribution_send);
+
 app.post('/scorecard-beta', secured, fixture_controller.validateScorecard, fixture_controller.full_fixture_post);
 
 app.get('/populated-scorecard-beta/:id',(req,res,next) => {

@@ -982,53 +982,54 @@ ORDER BY
 
 }
 
-exports.getEmails = async function(searchTerms,done){
-  console.log(searchTerms);
-  var sql = "SELECT DISTINCT b.playerEmail FROM (SELECT a.*, CAST(AES_DECRYPT(player.playerEmail, '"+process.env.DB_ENCODE+"') AS CHAR) AS playerEmail FROM (SELECT club.id, club.name AS clubName, team.id AS teamId, team.name AS teamName, club.matchSec, club.clubSec, team.captain, team.division, 'match Sec' AS role FROM club JOIN team ON team.club = club.id) AS a JOIN player ON a.matchSec = player.id OR (player.matchSecrertary = 1 AND a.id = player.club) UNION ALL SELECT a.*, CAST(AES_DECRYPT(player.playerEmail, '"+process.env.DB_ENCODE+"') AS CHAR) AS playerEmail FROM (SELECT club.id, club.name AS clubName, team.id AS teamId, team.name AS teamName, club.matchSec, club.clubSec, team.captain, team.division, 'club Sec' AS role FROM club JOIN team ON team.club = club.id) AS a JOIN player ON a.clubSec = player.id OR (player.clubSecretary = 1 AND a.id = player.club) UNION ALL SELECT a.*, CAST(AES_DECRYPT(player.playerEmail, '"+process.env.DB_ENCODE+"') AS CHAR) AS playerEmail FROM (SELECT club.id, club.name AS clubName, team.id AS teamId, team.name AS teamName, club.matchSec, club.clubSec, team.captain, team.division, 'team Captain' AS role FROM club JOIN team ON team.club = club.id) AS a JOIN player ON (player.teamCaptain = 1 AND a.teamId = player.team) or a.captain = player.id UNION ALL SELECT a.*, CAST(AES_DECRYPT(player.playerEmail, '"+process.env.DB_ENCODE+"') AS CHAR) AS playerEmail FROM (SELECT club.id, club.name AS clubName, team.id AS teamId, team.name AS teamName, club.matchSec, club.clubSec, team.captain, team.division, 'treasurer' AS role FROM club JOIN team ON team.club = club.id) AS a JOIN player ON (player.treasurer = 1 AND a.teamId = player.team) UNION ALL SELECT a.*, CAST(AES_DECRYPT(player.playerEmail, '"+process.env.DB_ENCODE+"') AS CHAR) AS playerEmail FROM (SELECT club.id, club.name AS clubName, team.id AS teamId, team.name AS teamName, club.matchSec, club.clubSec, team.captain, team.division, 'otherComms' AS role FROM club JOIN team ON team.club = club.id) AS a JOIN player ON (player.otherComms = 1 AND a.teamId = player.team)) AS b"
-  var whereTerms = [];
-  if (!searchTerms.role){
-    console.log("no role selected");
-  }
-  else {
-    whereTerms.push('b.role = "'+searchTerms.role+'"');
-  }
-  if (!searchTerms.division){
-    console.log("no division");
-  }
-  else {
-    whereTerms.push('b.division = '+searchTerms.division );
-  }
-  if (!searchTerms.club){
-    console.log("no club id");
-  }
-  else {
-    whereTerms.push('b.id = "'+searchTerms.club + '"');
-  }
-  if (!searchTerms.teamName){
-    console.log("no teamName");
-  }
-  else {
-    whereTerms.push('b.teamName = "'+searchTerms.teamName + '"');
-  }
-  console.log(whereTerms)
+// Build a distribution list of contact emails by role, optionally narrowed to a
+// division / club / team. Roles map to the flag columns on player (matchSec,
+// clubSec, captain/teamCaptain, treasurer, otherComms) plus the club.matchSec /
+// club.clubSec pointers. Emails are pgp-encrypted (DB_ENCODE). All filter values
+// are bound parameters (no string concatenation), and null/blank addresses are
+// dropped. Returns done(null, [email, ...]).
+exports.getEmails = async function(searchTerms, done){
+  searchTerms = searchTerms || {};
+  const key = process.env.DB_ENCODE;
 
-  if (whereTerms.length > 0) {
-    var conditions = whereTerms.join(' AND ');
-    conditions = ' WHERE ' + conditions;
-    // console.log(conditions);
-    sql = sql + conditions
-  }
-  db.get().query(sql, function (err, rows){
-    if (err) return done(err);
-    else {
-      // console.log(rows)
-      var emailArray = rows.map(row => {const {playerEmail} = row; return playerEmail})
-      tempArray = emailArray
-      emailArray = tempArray.filter(email => email.indexOf("@") != -1)
-      console.log(emailArray)
-    }
-    done(null, emailArray);
-  })
+  // One UNION ALL branch per role. `a` is the club×team cross with the role
+  // label; the JOIN to player picks the person holding that role.
+  const branch = (roleLabel, joinCond) => sql`
+    SELECT a.*, pgp_sym_decrypt(player."playerEmail", ${key})::text AS "playerEmail"
+    FROM (
+      SELECT club.id, club.name AS "clubName", team.id AS "teamId", team.name AS "teamName",
+             club."matchSec", club."clubSec", team.captain, team.division, ${roleLabel} AS role
+      FROM club JOIN team ON team.club = club.id
+    ) AS a
+    JOIN player ON ${joinCond}`;
+
+  const branches = [
+    branch('match Sec',    sql`a."matchSec" = player.id OR (player."matchSecrertary" = 1 AND a.id = player.club)`),
+    branch('club Sec',     sql`a."clubSec" = player.id OR (player."clubSecretary" = 1 AND a.id = player.club)`),
+    branch('team Captain', sql`(player."teamCaptain" = 1 AND a."teamId" = player.team) OR a.captain = player.id`),
+    branch('treasurer',    sql`(player.treasurer = 1 AND a."teamId" = player.team)`),
+    branch('otherComms',   sql`(player."otherComms" = 1 AND a."teamId" = player.team)`),
+  ];
+  let union = branches[0];
+  for (let i = 1; i < branches.length; i++) union = sql`${union} UNION ALL ${branches[i]}`;
+
+  // Optional filters — bound params.
+  const conds = [];
+  if (searchTerms.role)      conds.push(sql`b.role = ${searchTerms.role}`);
+  if (searchTerms.division)  conds.push(sql`b.division = ${searchTerms.division}`);
+  if (searchTerms.club)      conds.push(sql`b.id = ${searchTerms.club}`);
+  if (searchTerms.teamName)  conds.push(sql`b."teamName" = ${searchTerms.teamName}`);
+  let whereFrag = sql``;
+  conds.forEach((c, i) => { whereFrag = i === 0 ? sql`WHERE ${c}` : sql`${whereFrag} AND ${c}`; });
+
+  const rows = await sql`SELECT DISTINCT b."playerEmail" FROM ( ${union} ) AS b ${whereFrag}`.catch(err => {
+    return done(err);
+  });
+  if (!rows) return; // errored; done(err) already called
+  const emails = rows
+    .map(r => r.playerEmail)
+    .filter(e => e && e.indexOf('@') !== -1);
+  done(null, emails);
 }
 
 exports.search = async function(searchTerms,done){
