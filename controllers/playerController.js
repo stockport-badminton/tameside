@@ -1067,8 +1067,12 @@ exports.player_update_get = function(req, res,next) {
     if (err){
       return next(err)
     }
+    else if (!result || !result.length) {
+      // Unknown player id — 404 rather than crashing the view on result[0].id.
+      return next()
+    }
     else {
-      
+
       res.render('player_update_form', {
            static_path: '/static',
            title : "Pair Stats",

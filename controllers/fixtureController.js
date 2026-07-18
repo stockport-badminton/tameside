@@ -709,7 +709,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
               }
             }
           }
-          res.render("beta/fixtures-results" + type, renderObject);
+          res.render("fixtures-results" + type, renderObject);
         }
       });
     });
