@@ -1,6 +1,11 @@
 // gcloud builds submit --region=global --config cloudbuild.yaml
 // gcloud run deploy tameside-site --image europe-west2-docker.pkg.dev/avid-compound-429108-g9/cloud-run-source-deploy/tameide-image:tag1
 
+// Sentry instrumentation — must load before express and other modules so Sentry
+// can auto-instrument them. No-op unless SENTRY_DSN is set (see instrument.js).
+require('./instrument');
+const Sentry = require('@sentry/node');
+
 require('dotenv').config()
 const express = require('express')
 const session = require('express-session');
@@ -203,7 +208,7 @@ app.get('/tables/All/:season', league_controller.all_league_tables);
 app.get('/tables/:division', league_controller.league_table);
 app.get('/tables/:division/:season', league_controller.league_table);
 
-app.get('/team/:id', team_controller.team_detail);
+app.get('/team/:id(\\d+)', team_controller.team_detail);
 
 /* GET request for list of all Team items.
     router.get('/teams/:clubid/:venue/:matchDay', team_controller.team_list); */
@@ -216,19 +221,19 @@ app.get('/clubs', club_controller.club_list);
 app.post('/teams', team_controller.team_search);
 
 /* GET request to delete Club. */
-app.get('/club/:id/delete', club_controller.club_delete_get);
+app.get('/club/:id(\\d+)/delete', club_controller.club_delete_get);
 
 // DELETE request to delete Club
-app.delete('/club/:id',checkJwt, club_controller.club_delete_post);
+app.delete('/club/:id(\\d+)',checkJwt, club_controller.club_delete_post);
 
 /* GET request to update Club. */
-app.get('/club/:id/update', club_controller.club_update_get);
+app.get('/club/:id(\\d+)/update', club_controller.club_update_get);
 
 // PATCH request to update Club
-app.patch('/club/:id',checkJwt, club_controller.club_update_post);
+app.patch('/club/:id(\\d+)',checkJwt, club_controller.club_update_post);
 
 /* GET request for one Player. */
-app.get('/eligiblePlayers/:id/:gender', player_controller.eligible_players_list);
+app.get('/eligiblePlayers/:id(\\d+)/:gender', player_controller.eligible_players_list);
 
 /* GET request for list of all Player items. */
 app.get('/players/club-:clubid?/team-:teamid?/gender-:gender?', player_controller.player_list);
@@ -245,15 +250,15 @@ app.get('/players/eloBackfillAdmin', secured, player_controller.player_elo_backf
 app.get('/players/eloBackfillAll', secured, player_controller.player_elo_backfill_all);
 app.get('/players/eloFullRecalc', secured, player_controller.player_elo_full_recalc);
 app.get('/dev/elo-audit', player_controller.player_elo_audit);
-app.get('/dev/elo-raw/:playerId', player_controller.player_elo_raw);
+app.get('/dev/elo-raw/:playerId(\\d+)', player_controller.player_elo_raw);
 
 /* GET request to update Player. */
-app.get('/player/:id/update', player_controller.player_update_get);
+app.get('/player/:id(\\d+)/update', player_controller.player_update_get);
 
-app.get('/player/:id', player_controller.player_detail);
+app.get('/player/:id(\\d+)', player_controller.player_detail);
 
 /* GET request for one Player. */
-app.get('/playerStats/:id/:fullName', player_controller.player_game_data);
+app.get('/playerStats/:id(\\d+)/:fullName', player_controller.player_game_data);
 
 /* player stats routes and filters. */
 
@@ -272,7 +277,7 @@ app.get('/populated-scorecard/:division/:home_team/:away_team/:home_man_1/:home_
   fixture_controller.fixture_populate_scorecard_fromUrl(req,res,next)
 })
 
-app.get('/scorecard/fixture/:id', fixture_controller.getScorecard);
+app.get('/scorecard/fixture/:id(\\d+)', fixture_controller.getScorecard);
 
 
 
@@ -392,16 +397,24 @@ app.use(function(req, res) {
  });
 })
 
-app.use(function(error, req, res) {
-    res.status(500);
-    res.render('500-error', {
-        pageHeading: "500",
-        title: "500",
-        static_path: "/static",
-        title : "Sorry - theres been an error",
-        pageDescription : "Sorry - theres been an error",
-        entry : "<p>Sorry there's been an error</p>"
-   });
+// Central 500 handler. MUST take 4 args (err, req, res, next) — Express only
+// recognises error-handling middleware by arity, so a 3-arg version never fires.
+// Report to Sentry before rendering: flush first so the event is sent while Cloud
+// Run still has CPU allocated (post-response CPU is throttled), capped so the
+// error page isn't held up if Sentry is slow/unreachable.
+app.use(function(error, req, res, next) {
+    console.error(error);
+    Sentry.captureException(error);
+    Sentry.flush(2000).catch(() => {}).finally(function() {
+        res.status(500);
+        res.render('500-error', {
+            pageHeading: "500",
+            static_path: "/static",
+            title : "Sorry - theres been an error",
+            pageDescription : "Sorry - theres been an error",
+            entry : "<p>Sorry there's been an error</p>"
+       });
+    });
   })
 
 module.exports = app

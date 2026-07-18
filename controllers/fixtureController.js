@@ -715,7 +715,6 @@ exports.fixture_detail_byDivision = function (req, res, next) {
               }
             }
           }
-          console.log(renderObject)
           res.render("beta/fixtures-results" + type, renderObject);
         }
       });
@@ -886,8 +885,6 @@ exports.fixture_detail_byDivision = function (req, res, next) {
         }
         else{
           res.status(200);
-        // console.log(result)
-        console.log(renderObject)
         res.render("fixtures-results" + type, renderObject);
         }
         

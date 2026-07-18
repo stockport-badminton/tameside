@@ -1,2 +1,23 @@
+# Dependencies (reinstalled inside the image)
 **/node_modules/
 **/dist
+
+# Secrets — never bake these into the image
+*.env
+dev.env
+.env*
+*.pem
+client_id.json
+service-account*.json
+
+# VCS & tooling
+.git
+.gitignore
+.claude/
+.vscode/
+
+# Local scratch / analysis that shouldn't ship
+scorecard-analysis/
+oldstuff/
+test.js
+*.log

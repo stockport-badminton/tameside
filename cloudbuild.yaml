@@ -1,7 +1,21 @@
 steps:
+# Pull the previous image so its layers can be reused as a build cache — skips a
+# cold `npm ci` when package*.json is unchanged. `|| true` so the very first
+# build (no prior image) doesn't fail.
+- name: 'gcr.io/cloud-builders/docker'
+  entrypoint: 'bash'
+  args:
+    - '-c'
+    - 'docker pull europe-west2-docker.pkg.dev/avid-compound-429108-g9/cloud-run-source-deploy/tameide-image:latest || true'
 - name: 'gcr.io/cloud-builders/docker'
   script: |
-    docker build -t europe-west2-docker.pkg.dev/avid-compound-429108-g9/cloud-run-source-deploy/tameide-image:tag1 .
+    docker build \
+      --cache-from europe-west2-docker.pkg.dev/avid-compound-429108-g9/cloud-run-source-deploy/tameide-image:latest \
+      -t europe-west2-docker.pkg.dev/avid-compound-429108-g9/cloud-run-source-deploy/tameide-image:tag1 \
+      -t europe-west2-docker.pkg.dev/avid-compound-429108-g9/cloud-run-source-deploy/tameide-image:latest .
   automapSubstitutions: true
-  env: 'DOCKER_BUILDKIT=1'
-images: 'europe-west2-docker.pkg.dev/avid-compound-429108-g9/cloud-run-source-deploy/tameide-image:tag1'
+  env:
+    - 'DOCKER_BUILDKIT=1'
+images:
+- 'europe-west2-docker.pkg.dev/avid-compound-429108-g9/cloud-run-source-deploy/tameide-image:tag1'
+- 'europe-west2-docker.pkg.dev/avid-compound-429108-g9/cloud-run-source-deploy/tameide-image:latest'

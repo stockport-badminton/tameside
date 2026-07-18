@@ -95,7 +95,7 @@ FROM (
                             END AS played, CASE
                                 WHEN fixture."awayScore" > 9 THEN 1
                                 ELSE 0
-                            END AS gamesWon, CASE
+                            END AS "gamesWon", CASE
                                 WHEN fixture."awayScore" = 9 THEN 1
                                 ELSE 0
                             END AS "gamesDrawn", "awayScore" AS "pointsFor", "homeScore" AS "pointsAgainst", fixture."awayTeam" AS "teamId"

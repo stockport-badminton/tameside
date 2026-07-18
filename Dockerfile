@@ -1,5 +1,5 @@
 # Build Stage
-FROM node:18-slim AS build
+FROM node:22-slim AS build
 
 # Set the working directory inside the container
 WORKDIR /usr/src/app
