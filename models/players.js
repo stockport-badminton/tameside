@@ -1055,6 +1055,25 @@ exports.findElgiblePlayersFromTeamId = async function(id,gender,done){
 }
 
 
+// Eligible roster for a team by NAME: the named team's players plus club-mates
+// from equal/lower-ranked teams (who may play up). Used by the scorecard-OCR
+// flow as the candidate pool for fuzzy name matching.
+exports.getEligibleByTeamName = async function(teamName, done){
+  let rows = await sql`
+    SELECT player.id, player.first_name, player.family_name, player.gender
+    FROM (
+      SELECT t2.id FROM team t1
+      JOIN team t2 ON t2.club = t1.club AND t2.rank >= t1.rank
+      WHERE t1.name = ${teamName}
+    ) b
+    JOIN player ON player.team = b.id
+    ORDER BY player.family_name, player.first_name`.catch(err => {
+    return done(err);
+  })
+  if (!rows) return;
+  done(null, rows);
+}
+
 exports.getEligiblePlayersAndSelectedById = async function(first, second, teamId,gender,done,third = 0, fourth = 0){
   console.log(`SELECT player.id ,player.first_name ,player.family_name, case when player.id = ${first} then 1 else 0 end as first, case when player.id = ${second} then 1 else 0 end as second, case when player.id = ${third} then 1 else 0 end as third, case when player.id = ${fourth} then 1 else 0 end as fourth FROM ( SELECT team.id ,team.name ,team.rank FROM ( SELECT club.id ,club.name ,team.rank AS originalRank FROM team JOIN club on team.club = club.id AND team.id = ${teamId} ) AS a JOIN team on a.id = team.club AND team.rank >= originalRank ) AS b JOIN player on player.team = b.id AND player.gender like ${gender}`)
   let result = await sql`SELECT player.id ,player.first_name ,player.family_name, case when player.id = ${first} then 1 else 0 end as first, case when player.id = ${second} then 1 else 0 end as second, case when player.id = ${third} then 1 else 0 end as third, case when player.id = ${fourth} then 1 else 0 end as fourth FROM ( SELECT team.id ,team.name ,team.rank FROM ( SELECT club.id ,club.name ,team.rank AS originalRank FROM team JOIN club on team.club = club.id AND team.id = ${teamId} ) AS a JOIN team on a.id = team.club AND team.rank >= originalRank ) AS b JOIN player on player.team = b.id AND player.gender like ${gender}`.catch(err => {

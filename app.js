@@ -335,6 +335,14 @@ app.post('/admin/fixture/:id(\\d+)/date', secured, fixture_controller.admin_fixt
 app.get('/admin/lewis', secured, team_controller.admin_lewis_form);
 app.post('/admin/lewis/:drawPos(\\d+)/result', secured, team_controller.admin_lewis_result);
 
+/* Scorecard OCR (superadmin): read an uploaded scorecard photo with Google
+   Vision, match players against the rosters, review, then hand off into the
+   existing prefilled-scorecard entry flow. */
+let scorecard_ocr_controller = require(__dirname + '/controllers/scorecardOcrController');
+app.get('/admin/scorecard-ocr', secured, scorecard_ocr_controller.list);
+app.get('/admin/scorecard-ocr/review', secured, scorecard_ocr_controller.review);
+app.get('/admin/scorecard-ocr/image', secured, scorecard_ocr_controller.image);
+
 /* Distribution lists (superadmin — role check in controller). */
 app.get('/admin/distribution', secured, contactus_controller.admin_distribution_form);
 app.post('/admin/distribution/preview', secured, contactus_controller.admin_distribution_preview);

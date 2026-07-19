@@ -102,7 +102,7 @@ can also edit a fixture's date inline on the admin results grid.
 | Database | `postgres` v3 |
 | Templates | `ejs` |
 | Auth | `passport`, `passport-auth0`, `express-jwt`, `jwks-rsa` |
-| Image processing | `sharp`, `jimp`, `opencv4nodejs`, `@google-cloud/vision` |
+| Image processing | `sharp` (scorecard OCR pre-enhance), `jimp` |
 | Email | `node-mailjet` |
 | S3 uploads | `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` |
 | Fuzzy matching | `fastest-levenshtein` |
@@ -121,6 +121,22 @@ Client uploads scorecard images directly to S3 (`badmintontemp` bucket, `eu-west
 ### Fuzzy Player Matching
 
 `GET /players/matching/:name/:gender` uses `fastest-levenshtein` to find the closest player name. Used when entering match results to handle name variations.
+
+### Scorecard OCR (superadmin)
+
+`/admin/scorecard-ocr` reads an uploaded scorecard photo from S3 and prefills the
+normal entry flow. Pipeline: `sharp` pre-enhance → **Google Vision REST**
+(`images:annotate`, `DOCUMENT_TEXT_DETECTION`, authenticated with the plain
+`GMAPSAPIKEY` — no service account) → `utils/scorecardExtraction.js` (pure:
+orientation auto-correct on text-block coordinates, printed-label anchors, merged
+digit-token splitting disambiguated by the scoring rules) →
+`utils/scorecardMatch.js` (fuzzy-match names against each team's eligible roster,
+gender-constrained per event) → review page → handoff link into the existing
+`/populated-scorecard/...` prefilled form. **Nothing is saved by the OCR flow
+itself** — submission goes through the normal validated entry path. Extraction and
+matching are unit-tested against cached Vision responses in `test/fixtures/` (no
+API calls). The 9 card events map 1:1 onto `Game1..Game18`
+(`GAME_MAP` in scorecardExtraction).
 
 ## Required Environment Variables
 

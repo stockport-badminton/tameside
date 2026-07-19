@@ -67,6 +67,16 @@ exports.getTeams = async function(searchObject,done){
   }
 }
 
+// GET — team row(s) by exact name (id, division, club, rank). Used by the
+// scorecard-OCR flow to resolve the S3 key's team names to ids.
+exports.findByName = async function(teamName,done){
+  let rows = await sql`SELECT "id","name","division","club","rank" FROM team WHERE "name" = ${teamName}`.catch(err => {
+        return done(err)
+    })
+    if (!rows) return;
+    done(null,rows);
+  }
+
 // GET
 exports.getById = async function(teamId,done){
   let rows = await sql`SELECT * FROM team WHERE id = ${teamId}`.catch(err => {

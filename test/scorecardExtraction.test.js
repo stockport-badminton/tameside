@@ -1,0 +1,97 @@
+// Unit tests for utils/scorecardExtraction.js against REAL cached Google
+// Vision responses (test/fixtures/vision-*.json) — no API calls, no DB.
+// Fixture 108: an upright card (GHAP B v GHAP A). Fixture 101: a 90°-rotated
+// photo (Aerospace B v Mellor A). Run with: npm test
+const { describe, it } = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+
+const { extractScorecard, splitScores, EVENT_NAMES, GAME_MAP } = require('../utils/scorecardExtraction');
+
+const fixture = (n) => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', `vision-${n}.json`)));
+
+describe('splitScores (merged Vision tokens -> two game scores)', () => {
+  it('splits a plain merged pair: "1621" -> 16-21', () => assert.deepStrictEqual(splitScores('1621'), [16, 21]));
+  it('splits a 3-digit merge: "921" -> 9-21', () => assert.deepStrictEqual(splitScores('921'), [9, 21]));
+  it('uses the scoring rules to disambiguate: "121" -> 1-21 (not 12-1)', () =>
+    assert.deepStrictEqual(splitScores('121'), [1, 21]));
+  it('handles separators: "11/21" -> 11-21', () => assert.deepStrictEqual(splitScores('11/21'), [11, 21]));
+  it('accepts the 30-cap: "3029" -> 30-29', () => assert.deepStrictEqual(splitScores('3029'), [30, 29]));
+  it('peels fused games-won digits: "92102" -> 9-21 (games 0,2 discarded)', () =>
+    assert.deepStrictEqual(splitScores('92102'), [9, 21]));
+  it('peels a single leaked games digit: "2182" -> 21-8', () =>
+    assert.deepStrictEqual(splitScores('2182'), [21, 8]));
+  it('too short to be a game: "2" -> null pair', () => assert.deepStrictEqual(splitScores('2'), [null, null]));
+  it('empty/garbage -> null pair', () => assert.deepStrictEqual(splitScores(''), [null, null]));
+});
+
+describe('extractScorecard — fixture 108 (upright card)', () => {
+  const d = extractScorecard(fixture('108'));
+
+  it('detects the card as upright', () => assert.strictEqual(d.rotationDegrees, 0));
+  it('extracts the metadata', () => {
+    assert.strictEqual(d.meta.date, '9/9/24');
+    assert.strictEqual(d.meta.division, '1');
+    assert.strictEqual(d.meta.playedAt, 'MCA');
+    assert.strictEqual(d.meta.homeTeam, 'GHAP B');
+    assert.strictEqual(d.meta.awayTeam, 'GHAP A');
+  });
+  it('reads all 36 scores with no warnings', () => {
+    assert.strictEqual(Object.values(d.games).filter((v) => v != null).length, 36);
+    assert.deepStrictEqual(d.warnings, []);
+  });
+  it('derives the correct RESULT (2-16)', () => assert.deepStrictEqual(d.result, { home: 2, away: 16 }));
+  it('names the 9 events in card order', () =>
+    assert.deepStrictEqual(d.events.map((e) => e.event), EVENT_NAMES));
+  it('reads specific games correctly (Open A 16-21, 9-21)', () => {
+    assert.strictEqual(d.games.Game1homeScore, 16);
+    assert.strictEqual(d.games.Game1awayScore, 21);
+    assert.strictEqual(d.games.Game2homeScore, 9);
+    assert.strictEqual(d.games.Game2awayScore, 21);
+  });
+  it('recovers the boundary-straddling fused row (Mixed A g2 = 9-21)', () => {
+    assert.strictEqual(d.games.Game8homeScore, 9);
+    assert.strictEqual(d.games.Game8awayScore, 21);
+  });
+  it('derives games won per event (Mixed C = 1-1)', () =>
+    assert.deepStrictEqual(d.events[5].gamesWon, { home: 1, away: 1 }));
+  it('extracts raw player name text for matching', () => {
+    assert.match(d.events[0].home.playersRaw, /Blowran/i);
+    assert.match(d.events[0].away.playersRaw, /OWEN/i);
+  });
+});
+
+describe('extractScorecard — fixture 101 (90°-rotated photo)', () => {
+  const d = extractScorecard(fixture('101'));
+
+  it('detects and corrects the 90° rotation', () => assert.strictEqual(d.rotationDegrees, 90));
+  it('extracts the metadata', () => {
+    assert.strictEqual(d.meta.division, '2');
+    assert.strictEqual(d.meta.playedAt, 'Aerospace B');
+    assert.strictEqual(d.meta.homeTeam, 'Aerospace B');
+    assert.match(d.meta.awayTeam, /Mella|Mellor/); // handwriting: roster match resolves the team
+  });
+  it('reads at least 30 of 36 scores and flags the unread rows', () => {
+    const read = Object.values(d.games).filter((v) => v != null).length;
+    assert.ok(read >= 30, `read ${read}/36`);
+    assert.ok(d.warnings.length >= 1, 'expected warnings for unread rows');
+  });
+  it('recovers the leaked-games-digit row (Ladies g1 = 21-8)', () => {
+    assert.strictEqual(d.games.Game3homeScore, 21);
+    assert.strictEqual(d.games.Game3awayScore, 8);
+  });
+  it('reads specific rotated-card games (Open B 21-15, 13-21)', () => {
+    assert.strictEqual(d.games.Game5homeScore, 21);
+    assert.strictEqual(d.games.Game5awayScore, 15);
+    assert.strictEqual(d.games.Game6homeScore, 13);
+    assert.strictEqual(d.games.Game6awayScore, 21);
+  });
+});
+
+describe('GAME_MAP', () => {
+  it('maps 9 events onto games 1..18 exactly once', () => {
+    const flat = GAME_MAP.flat();
+    assert.deepStrictEqual([...flat].sort((a, b) => a - b), Array.from({ length: 18 }, (_, i) => i + 1));
+  });
+});

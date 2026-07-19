@@ -1,0 +1,17 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<div class="container my-4">
+  <h1 class="mb-3"><i class="fas fa-triangle-exclamation"></i> Couldn't read that scorecard</h1>
+  <div class="alert alert-warning">
+    <strong><%= typeof s3key !== 'undefined' ? s3key : '' %></strong><br />
+    <%= typeof message !== 'undefined' ? message : 'Unknown error' %>
+  </div>
+  <p class="text-muted">Common causes: a blurry or very dark photo, a PDF upload, or a photo that isn't the standard Tameside scorecard. The result can still be entered manually as usual.</p>
+  <a class="btn btn-secondary" href="/admin/scorecard-ocr">&larr; Back to the list</a>
+</div>
+
+<%- include('../footer.ejs') %>
+
+</body>
+</html>

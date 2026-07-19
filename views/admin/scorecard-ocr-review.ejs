@@ -1,0 +1,88 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<%
+  var _ex = extraction, _m = matched;
+  function badge(p) {
+    if (!p) return '<span class="badge bg-secondary">no match</span>';
+    var cls = p.confident ? 'bg-success' : 'bg-warning text-dark';
+    var mark = p.confident ? '✓' : '?';
+    return '<span class="badge ' + cls + '" title="score ' + p.score + '">' + p.name + ' ' + mark + '</span>';
+  }
+  function scoreCell(h, a) {
+    if (h == null || a == null) return '<span class="text-danger fw-bold">unread</span>';
+    return h + ' – ' + a;
+  }
+%>
+
+<div class="container my-4">
+  <h1 class="mb-1"><i class="fas fa-wand-magic-sparkles"></i> <%= homeTeam.name %> v <%= awayTeam.name %></h1>
+  <p class="text-muted mb-3"><%= s3key %><% if (_ex.rotationDegrees) { %> · photo auto-rotated <%= _ex.rotationDegrees %>°<% } %></p>
+
+  <% if (_ex.warnings.length) { %>
+    <div class="alert alert-warning py-2">
+      <strong>Check before entering:</strong>
+      <ul class="mb-0"><% _ex.warnings.forEach(function(w) { %><li><%= w %></li><% }); %></ul>
+    </div>
+  <% } %>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-7">
+      <h2 class="h5">Cross-check</h2>
+      <div class="table-responsive"><table class="table table-sm">
+        <tbody>
+          <tr><th scope="row">Teams (card header)</th><td><%= _ex.meta.homeTeam || '—' %> v <%= _ex.meta.awayTeam || '—' %></td></tr>
+          <tr><th scope="row">Division (card)</th><td><%= _ex.meta.division || '—' %><% if (fixture) { %> · fixture says <strong><%= fixture.divisionName %></strong><% } %></td></tr>
+          <tr><th scope="row">Date (card)</th><td><%= _ex.meta.date || '—' %><% if (fixture && fixture.date) { %> · fixture scheduled <strong><%= new Date(fixture.date).toLocaleDateString('en-GB') %></strong><% } %></td></tr>
+          <tr><th scope="row">Played at (card)</th><td><%= _ex.meta.playedAt || '—' %></td></tr>
+          <tr><th scope="row">Derived result</th><td><strong><%= _ex.result.home %> – <%= _ex.result.away %></strong> (games)</td></tr>
+          <% if (!fixture) { %><tr><td colspan="2" class="text-muted small">No outstanding fixture found for these teams — it may already be entered.</td></tr><% } %>
+        </tbody>
+      </table></div>
+
+      <h2 class="h5 mt-4">Games &amp; players</h2>
+      <div class="table-responsive"><table class="table table-sm table-striped align-middle">
+        <thead><tr><th>Event</th><th>Game 1</th><th>Game 2</th><th>Home pair</th><th>Away pair</th></tr></thead>
+        <tbody>
+          <% _ex.events.forEach(function(e, i) { var me = _m.events[i]; %>
+          <tr>
+            <th scope="row"><%= e.event %></th>
+            <td><%- scoreCell(e.home.g1, e.away.g1) %></td>
+            <td><%- scoreCell(e.home.g2, e.away.g2) %></td>
+            <td><%- badge(me.home[0]) %> <%- badge(me.home[1]) %><div class="small text-muted">"<%= e.home.playersRaw %>"</div></td>
+            <td><%- badge(me.away[0]) %> <%- badge(me.away[1]) %><div class="small text-muted">"<%= e.away.playersRaw %>"</div></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table></div>
+
+      <h2 class="h5 mt-4">Team slots (as they'll prefill the form)</h2>
+      <div class="table-responsive"><table class="table table-sm">
+        <tbody>
+          <tr><th scope="row"><%= homeTeam.name %> men</th><td><% _m.slots.home.men.forEach(function(p) { %><%- badge(p) %> <% }); %></td></tr>
+          <tr><th scope="row"><%= homeTeam.name %> ladies</th><td><% _m.slots.home.ladies.forEach(function(p) { %><%- badge(p) %> <% }); %></td></tr>
+          <tr><th scope="row"><%= awayTeam.name %> men</th><td><% _m.slots.away.men.forEach(function(p) { %><%- badge(p) %> <% }); %></td></tr>
+          <tr><th scope="row"><%= awayTeam.name %> ladies</th><td><% _m.slots.away.ladies.forEach(function(p) { %><%- badge(p) %> <% }); %></td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="my-4">
+        <a class="btn btn-primary btn-lg" href="<%= handoffUrl %>"><i class="fas fa-file-import"></i> Open prefilled scorecard</a>
+        <a class="btn btn-link" href="/admin/scorecard-ocr">Back to list</a>
+        <div class="form-text mt-2">Opens the normal scorecard entry form with everything above prefilled — check the amber/unread cells against the photo, then submit as usual. Nothing is saved until that form is submitted.</div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <h2 class="h5">Photo</h2>
+      <a href="/admin/scorecard-ocr/image?key=<%= encodeURIComponent(s3key) %>" target="_blank">
+        <img src="/admin/scorecard-ocr/image?key=<%= encodeURIComponent(s3key) %>" alt="Scorecard photo" class="img-fluid border rounded" style="max-height:80vh" />
+      </a>
+    </div>
+  </div>
+</div>
+
+<%- include('../footer.ejs') %>
+
+</body>
+</html>
