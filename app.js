@@ -179,7 +179,16 @@ app.use(userInViews())
           ACL: 'public-read'
           // ACL: 'bucket-owner-full-control'
       };
-      const s3 = new S3Client({ region: 'eu-west-1' })
+      // Prefer the S3_LOGS_STORAGE key pair: the default AWS_ACCESS_KEY_ID env
+      // credential was rotated out at some point, so URLs presigned with it get
+      // 403 InvalidAccessKeyId from S3 — which silently broke ALL scorecard
+      // photo uploads until the OCR wizard surfaced it.
+      const s3 = new S3Client({
+        region: 'eu-west-1',
+        credentials: process.env.S3_LOGS_STORAGE_KEY
+          ? { accessKeyId: process.env.S3_LOGS_STORAGE_KEY, secretAccessKey: process.env.S3_LOGS_STORAGE_SECRET }
+          : undefined,
+      })
       const command = new PutObjectCommand(s3Params);
   
       try {
