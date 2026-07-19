@@ -5,7 +5,7 @@
 // (/populated-scorecard/...), so submission goes through the same validated
 // entry path as manual entry — this feature never writes results directly.
 require('dotenv').config();
-const { S3Client, GetObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
+const { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 
 const { annotateScorecard } = require('../utils/scorecardVision');
 const { extractScorecard, parseCardDate } = require('../utils/scorecardExtraction');
@@ -19,6 +19,7 @@ const promisify = (fn) => (...args) => new Promise((resolve, reject) =>
   fn(...args, (err, result) => (err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result))));
 
 const findTeamByNameP = promisify(Team.findByName);
+const getTeamByIdP = promisify(Team.getById);
 const getAllTeamsP = promisify(Team.getAll);
 const getAllDivisionsP = promisify(Division.getAll);
 const getRosterP = promisify(Player.getEligibleByTeamName);
@@ -61,20 +62,48 @@ function renderOpts(title, extra) {
  * header against all team names — that's how wizard uploads (generic keys)
  * are handled.
  * ------------------------------------------------------------------ */
-async function analyseBuffer(buffer, names) {
+/* ------------------------------------------------------------------ *
+ * Vision-response cache: one Vision call per uploaded photo, ever. The raw
+ * response is stored beside the upload so re-analysis (e.g. after the user
+ * picks the teams the header couldn't identify) re-maps the SAME detection
+ * against new inputs instead of re-OCRing.
+ * ------------------------------------------------------------------ */
+const visionCacheKey = (key) => `scorecard-ocr-cache/${key}.vision.json`;
+
+async function getVisionForKey(key) {
+  try {
+    const cached = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: visionCacheKey(key) }));
+    return JSON.parse(Buffer.from(await cached.Body.transformToByteArray()).toString());
+  } catch (e) { /* cache miss */ }
+  const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+  const buffer = Buffer.from(await obj.Body.transformToByteArray());
   const vision = await annotateScorecard(buffer);
+  // Fire-and-forget cache write — analysis shouldn't fail if this does.
+  s3.send(new PutObjectCommand({
+    Bucket: BUCKET, Key: visionCacheKey(key),
+    Body: JSON.stringify(vision), ContentType: 'application/json',
+  })).catch(() => {});
+  return vision;
+}
+
+async function analyseVision(vision, names, overrides) {
   const extraction = extractScorecard(vision);
 
   // Candidate pool: real, current teams only (excludes the "No Team"
   // placeholder and division-less leftovers like defunct sides).
   const allTeams = (await getAllTeamsP()).filter((t) => t.division != null && !/^no team$/i.test(t.name));
 
-  // Resolve each side through a fallback chain: exact DB name from the S3 key
-  // -> fuzzy match on the key name (handles renames like "Hyde High B" ->
-  // "Hyde B") -> fuzzy match on the handwritten card header. A side that
-  // still can't be resolved stays null — the caller decides how to degrade
-  // (the wizard prefills what it can and lets the user pick the teams).
-  const resolveTeam = async (keyName, headerName) => {
+  // Resolve each side through a fallback chain: an explicit team id from the
+  // user (the wizard's re-analyse after a manual pick) -> exact DB name from
+  // the S3 key -> fuzzy match on the key name (handles renames like "Hyde
+  // High B" -> "Hyde B") -> fuzzy match on the handwritten card header. A
+  // side that still can't be resolved stays null — the caller decides how to
+  // degrade (the wizard prefills what it can and lets the user pick teams).
+  const resolveTeam = async (keyName, headerName, overrideId) => {
+    if (overrideId) {
+      const rows = await getTeamByIdP(overrideId);
+      if (rows && rows[0]) return { team: rows[0], how: 'user' };
+    }
     if (keyName) {
       const rows = await findTeamByNameP(keyName);
       if (rows && rows[0]) return { team: rows[0], how: 'key' };
@@ -85,8 +114,8 @@ async function analyseBuffer(buffer, names) {
     return fromHeader ? { team: fromHeader, how: 'header' } : { team: null, how: 'unresolved' };
   };
   const [homeRes, awayRes] = await Promise.all([
-    resolveTeam(names && names.home, extraction.meta.homeTeam),
-    resolveTeam(names && names.away, extraction.meta.awayTeam),
+    resolveTeam(names && names.home, extraction.meta.homeTeam, overrides && overrides.homeTeamId),
+    resolveTeam(names && names.away, extraction.meta.awayTeam, overrides && overrides.awayTeamId),
   ]);
   const homeTeam = homeRes.team;
   const awayTeam = awayRes.team;
@@ -186,11 +215,10 @@ exports.review = async function (req, res, next) {
   const key = req.query.key;
   if (!key || !/^tameside-/.test(key)) return res.status(400).send('Bad or missing ?key');
   try {
-    const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
-    const buffer = Buffer.from(await obj.Body.transformToByteArray());
     // Team-named keys resolve directly; generic keys (wizard uploads) fall
-    // back to fuzzy-matching the handwritten header inside analyseBuffer.
-    const r = await analyseBuffer(buffer, teamsFromKey(key));
+    // back to fuzzy-matching the handwritten header inside analyseVision.
+    const vision = await getVisionForKey(key);
+    const r = await analyseVision(vision, teamsFromKey(key));
     if (!r.homeTeam || !r.awayTeam) {
       throw new Error(`Could not identify the ${!r.homeTeam ? 'home' : 'away'} team ` +
         `(card header read "${r.extraction.meta.homeTeam || '?'}" v "${r.extraction.meta.awayTeam || '?'}").`);
@@ -224,9 +252,14 @@ exports.analyse = async function (req, res) {
   const key = req.body && req.body.key;
   if (!key || !/^tameside-/.test(key)) return res.status(400).json({ ok: false, error: 'Bad or missing key' });
   try {
-    const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
-    const buffer = Buffer.from(await obj.Body.transformToByteArray());
-    const r = await analyseBuffer(buffer, teamsFromKey(key));
+    // Optional overrides: the wizard re-analyses with the user's team picks
+    // when the header couldn't be read — same cached detection, new mapping.
+    const overrides = {
+      homeTeamId: req.body.homeTeamId || null,
+      awayTeamId: req.body.awayTeamId || null,
+    };
+    const vision = await getVisionForKey(key);
+    const r = await analyseVision(vision, teamsFromKey(key), overrides);
     // Partial results are fine: unresolved teams come back null and the
     // wizard still prefills division/date/scores, leaving team/player picks
     // to the user (failing the whole flow put people off using it).

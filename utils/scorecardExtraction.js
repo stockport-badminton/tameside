@@ -184,9 +184,11 @@ function extractScorecard(resp) {
   const ptsLo = A.points.x0 - 45;
   const ptsHi = A.games.x0 - 18;
 
-  // Row anchors: the 9 printed event labels down the Events column.
+  // Row anchors: the 9 printed event labels down the Events column. Older
+  // cards print "Open A-D", the current revision prints "Men's A-D" — accept
+  // both (Vision emits "Men's" as a single token).
   const rowAnchors = toks
-    .filter((w) => /^(Open|Ladies|Mixed)$/i.test(w.t) && w.cx < eventsRight)
+    .filter((w) => /^(Open|Ladies|Mixed|Men'?s)$/i.test(w.t) && w.cx < eventsRight)
     .sort((a, b) => a.cy - b.cy);
   if (rowAnchors.length !== 9) {
     warnings.push(`Expected 9 event-row anchors, found ${rowAnchors.length} — extraction may be incomplete.`);
@@ -233,27 +235,45 @@ function extractScorecard(resp) {
   const vTok = toks
     .filter((w) => /^v$/i.test(w.t) && w.cy < headerCeiling)
     .sort((a, b) => a.cy - b.cy).pop();
+  const headerCands = toks.filter((w) =>
+    w !== vTok && w.cy < headerCeiling && !NOISE.test(w.t) &&
+    !/^\d/.test(w.t) && !/^(Div|v|Played|at|Date|Tameside|Badminton|League)$/i.test(w.t) &&
+    (!A.div || w.cx < A.div.x0 - 10) &&
+    // the venue is handwritten ON the "Played at" row: its vertical span
+    // always overlaps the printed label's span, while team names end above
+    // it (measured repeatedly at 1px of clearance — distance rules fail)
+    !(A.played && w.y0 < A.played.y1 && w.y1 > A.played.y0));
   if (vTok) {
-    const cands = toks.filter((w) =>
-      w !== vTok && w.cy < headerCeiling && !NOISE.test(w.t) &&
-      !/^\d/.test(w.t) && !/^(Div|v|Played|at|Date|Tameside|Badminton|League)$/i.test(w.t) &&
-      // the venue is handwritten ON the "Played at" row — on some cards only
-      // ~30px below the team line, so exclude that row explicitly rather than
-      // relying on the chain tolerance
-      !(A.played && Math.abs(w.cy - A.played.cy) < 16));
     const walk = (side, ordered) => {
       const out = [];
       let refY = vTok.cy;
       for (const w of ordered) {
         // 35px: big enough for sloped handwriting (a real card drifted 29px
-        // between adjacent words), small enough to reject the next line down
-        // (venue handwriting sits 40px+ below on every card measured).
+        // between adjacent words), small enough to reject the next line down.
         if (Math.abs(w.cy - refY) < 35) { out.push(w); refY = w.cy; }
       }
       return out.sort(byX).map((w) => w.t).join(' ').trim();
     };
-    homeTeamText = walk('home', cands.filter((w) => w.cx < vTok.cx).sort((a, b) => b.cx - a.cx));
-    awayTeamText = walk('away', cands.filter((w) => w.cx > vTok.cx && (!A.div || w.cx < A.div.x0 - 10)).sort((a, b) => a.cx - b.cx));
+    homeTeamText = walk('home', headerCands.filter((w) => w.cx < vTok.cx).sort((a, b) => b.cx - a.cx));
+    awayTeamText = walk('away', headerCands.filter((w) => w.cx > vTok.cx).sort((a, b) => a.cx - b.cx));
+  }
+  if (!homeTeamText || !awayTeamText) {
+    // Vision often misses the tiny handwritten "v" entirely — fall back to
+    // splitting the header-band tokens at the largest horizontal gap between
+    // the two team names.
+    const line = headerCands.slice().sort(byX);
+    if (line.length >= 2) {
+      let splitAt = -1;
+      let widest = 60; // require a real gap, not word spacing
+      for (let i = 0; i < line.length - 1; i++) {
+        const gap = line[i + 1].x0 - line[i].x1;
+        if (gap > widest) { widest = gap; splitAt = i; }
+      }
+      if (splitAt >= 0) {
+        homeTeamText = line.slice(0, splitAt + 1).map((w) => w.t).join(' ').trim();
+        awayTeamText = line.slice(splitAt + 1).map((w) => w.t).join(' ').trim();
+      }
+    }
   }
 
   /* ---- per-event rows ---- */

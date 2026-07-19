@@ -131,3 +131,25 @@ describe('parseCardDate (handwritten d/m/y -> yyyy-mm-dd)', () => {
     assert.strictEqual(parseCardDate(''), null);
   });
 });
+
+describe('extractScorecard — fixture hydeshell (current card revision)', () => {
+  // This card revision prints "Men's A-D" instead of "Open A-D", and Vision
+  // missed the tiny handwritten "v" between the team names entirely — the
+  // header is split at the largest horizontal gap instead.
+  const d = extractScorecard(fixture('hydeshell'));
+
+  it('anchors all 9 event rows despite the Men\'s labels', () => {
+    assert.strictEqual(d.events.length, 9);
+  });
+  it('reads the header teams without a "v" token', () => {
+    assert.strictEqual(d.meta.homeTeam, 'HYDE A');
+    assert.strictEqual(d.meta.awayTeam, 'SHELL A');
+  });
+  it('reads all 36 scores', () => {
+    assert.strictEqual(Object.values(d.games).filter((v) => v != null).length, 36);
+  });
+  it('derives the correct RESULT (5-13)', () => assert.deepStrictEqual(d.result, { home: 5, away: 13 }));
+  it('excludes the venue (also handwritten "HYDE") from the team names', () => {
+    assert.doesNotMatch(d.meta.homeTeam + d.meta.awayTeam, /HYDE.*HYDE/);
+  });
+});

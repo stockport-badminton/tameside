@@ -131,16 +131,38 @@
                      }
                      var hasOption = function (sel, val) { return $(sel).find('option[value="' + val + '"]').length > 0; };
 
+                     function fillScoresAndDate(data) {
+                       // Static fields, no cascade needed. Only fill blanks so a
+                       // re-analysis never clobbers anything the user typed.
+                       // Unread cells stay blank so they're obvious to the eye.
+                       Object.keys(data.games || {}).forEach(function (k) {
+                         var $i = $('#' + k);
+                         if (data.games[k] != null && !$i.val()) $i.val(data.games[k]);
+                       });
+                       if (data.date && !$('#date').val()) $('#date').val(data.date);
+                     }
+
+                     async function fillSlots(data) {
+                       var slots = [
+                         ['#homeMan1', data.slots.home.men[0]], ['#homeMan2', data.slots.home.men[1]],
+                         ['#homeMan3', data.slots.home.men[2]], ['#homeMan4', data.slots.home.men[3]],
+                         ['#homeLady1', data.slots.home.ladies[0]], ['#homeLady2', data.slots.home.ladies[1]],
+                         ['#awayMan1', data.slots.away.men[0]], ['#awayMan2', data.slots.away.men[1]],
+                         ['#awayMan3', data.slots.away.men[2]], ['#awayMan4', data.slots.away.men[3]],
+                         ['#awayLady1', data.slots.away.ladies[0]], ['#awayLady2', data.slots.away.ladies[1]],
+                       ];
+                       var firstWanted = slots.filter(function (s) { return s[1] != null; })[0];
+                       if (!firstWanted) return 0;
+                       await waitFor(function () { return hasOption(firstWanted[0], firstWanted[1]); });
+                       var set = 0;
+                       slots.forEach(function (s) { if (setSelect(s[0], s[1])) set++; });
+                       return set;
+                     }
+
                      // Fill the live wizard in place from the analyse payload — no
                      // navigation, the user just steps through and checks.
                      async function prefill(data) {
-                       // Scores + date first: static fields, no cascade needed.
-                       // Unread cells stay blank so they're obvious to the eye.
-                       Object.keys(data.games || {}).forEach(function (k) {
-                         if (data.games[k] != null) $('#' + k).val(data.games[k]);
-                       });
-                       if (data.date) $('#date').val(data.date);
-
+                       fillScoresAndDate(data);
                        if (data.divisionId != null) {
                          setSelect('#division', data.divisionId);
                        }
@@ -151,21 +173,39 @@
                        });
                        setSelect('#homeTeam', data.teams.home.id);
                        setSelect('#awayTeam', data.teams.away.id);
-
-                       var slots = [
-                         ['#homeMan1', data.slots.home.men[0]], ['#homeMan2', data.slots.home.men[1]],
-                         ['#homeMan3', data.slots.home.men[2]], ['#homeMan4', data.slots.home.men[3]],
-                         ['#homeLady1', data.slots.home.ladies[0]], ['#homeLady2', data.slots.home.ladies[1]],
-                         ['#awayMan1', data.slots.away.men[0]], ['#awayMan2', data.slots.away.men[1]],
-                         ['#awayMan3', data.slots.away.men[2]], ['#awayMan4', data.slots.away.men[3]],
-                         ['#awayLady1', data.slots.away.ladies[0]], ['#awayLady2', data.slots.away.ladies[1]],
-                       ];
-                       var firstWanted = slots.filter(function (s) { return s[1] != null; })[0];
-                       if (firstWanted) {
-                         await waitFor(function () { return hasOption(firstWanted[0], firstWanted[1]); });
-                       }
-                       slots.forEach(function (s) { setSelect(s[0], s[1]); });
+                       await fillSlots(data);
                        return true;
+                     }
+
+                     // When the header couldn't identify the teams, watch the user's
+                     // manual picks and re-run the analysis with them — the server
+                     // re-maps the CACHED detection (no second OCR) against the
+                     // chosen teams' rosters and we fill the players in.
+                     function rematchWhenTeamsPicked(key) {
+                       $('#homeTeam, #awayTeam').off('change.ocr').on('change.ocr', function () {
+                         setTimeout(async function () {
+                           var h = $('#homeTeam').val();
+                           var a = $('#awayTeam').val();
+                           if (!h || !a) return;
+                           $('#homeTeam, #awayTeam').off('change.ocr');
+                           status('Matching players against your team selection…');
+                           try {
+                             var resp = await fetch('/scorecard-ocr/analyse', {
+                               method: 'POST',
+                               headers: { 'Content-Type': 'application/json' },
+                               body: JSON.stringify({ key: key, homeTeamId: h, awayTeamId: a })
+                             });
+                             var data = await resp.json();
+                             if (!resp.ok || !data.ok) throw new Error(data.error || 'matching failed');
+                             fillScoresAndDate(data);
+                             var set = await fillSlots(data);
+                             status('✓ Matched ' + set + ' player slot(s) for ' + data.teams.home.name + ' v ' +
+                               data.teams.away.name + '. Step through, check each page against the card, and submit as normal.');
+                           } catch (e) {
+                             status('⚠ Player matching failed (' + e.message + ') — pick the players manually below.');
+                           }
+                         }, 100);
+                       });
                      }
 
                      go.addEventListener('click', async function () {
@@ -198,7 +238,8 @@
                          } else {
                            status('✓ Scores and date are filled in, but the team names couldn\'t be identified (card reads "' +
                              (data.headerRead.home || '?') + '" v "' + (data.headerRead.away || '?') +
-                             '"). Pick the division and teams below and carry on — the rest is already entered.' + checkNote);
+                             '"). Pick the division and teams below — the players will be matched automatically once you do.' + checkNote);
+                           rematchWhenTeamsPicked(key);
                            go.disabled = false;
                          }
                        } catch (e) {
