@@ -109,6 +109,65 @@
                      var go = document.getElementById('ocr-go');
                      var statusEl = document.getElementById('ocr-status');
                      function status(msg) { statusEl.textContent = msg; }
+
+                     // Poll until cond() is true (the wizard's cascades load teams and
+                     // players over AJAX after each select change).
+                     function waitFor(cond, timeoutMs) {
+                       return new Promise(function (resolve, reject) {
+                         var t0 = Date.now();
+                         (function poll() {
+                           if (cond()) return resolve();
+                           if (Date.now() - t0 > (timeoutMs || 8000)) return reject(new Error('timed out loading form options'));
+                           setTimeout(poll, 150);
+                         })();
+                       });
+                     }
+                     function setSelect(sel, val) {
+                       if (val == null) return false;
+                       var $s = $(sel);
+                       if (!$s.find('option[value="' + val + '"]').length) return false;
+                       $s.val(String(val)).trigger('change');
+                       return true;
+                     }
+                     var hasOption = function (sel, val) { return $(sel).find('option[value="' + val + '"]').length > 0; };
+
+                     // Fill the live wizard in place from the analyse payload — no
+                     // navigation, the user just steps through and checks.
+                     async function prefill(data) {
+                       // Scores + date first: static fields, no cascade needed.
+                       // Unread cells stay blank so they're obvious to the eye.
+                       Object.keys(data.games || {}).forEach(function (k) {
+                         if (data.games[k] != null) $('#' + k).val(data.games[k]);
+                       });
+                       if (data.date) $('#date').val(data.date);
+
+                       if (data.divisionId != null) {
+                         setSelect('#division', data.divisionId);
+                       }
+                       if (!data.teams.home || !data.teams.away) return false;
+
+                       await waitFor(function () {
+                         return hasOption('#homeTeam', data.teams.home.id) && hasOption('#awayTeam', data.teams.away.id);
+                       });
+                       setSelect('#homeTeam', data.teams.home.id);
+                       setSelect('#awayTeam', data.teams.away.id);
+
+                       var slots = [
+                         ['#homeMan1', data.slots.home.men[0]], ['#homeMan2', data.slots.home.men[1]],
+                         ['#homeMan3', data.slots.home.men[2]], ['#homeMan4', data.slots.home.men[3]],
+                         ['#homeLady1', data.slots.home.ladies[0]], ['#homeLady2', data.slots.home.ladies[1]],
+                         ['#awayMan1', data.slots.away.men[0]], ['#awayMan2', data.slots.away.men[1]],
+                         ['#awayMan3', data.slots.away.men[2]], ['#awayMan4', data.slots.away.men[3]],
+                         ['#awayLady1', data.slots.away.ladies[0]], ['#awayLady2', data.slots.away.ladies[1]],
+                       ];
+                       var firstWanted = slots.filter(function (s) { return s[1] != null; })[0];
+                       if (firstWanted) {
+                         await waitFor(function () { return hasOption(firstWanted[0], firstWanted[1]); });
+                       }
+                       slots.forEach(function (s) { setSelect(s[0], s[1]); });
+                       return true;
+                     }
+
                      go.addEventListener('click', async function () {
                        var f = document.getElementById('ocr-file').files[0];
                        if (!f) { status('Choose a photo first.'); return; }
@@ -128,13 +187,18 @@
                          });
                          var data = await resp.json();
                          if (!resp.ok || !data.ok) throw new Error(data.error || 'Could not read the card');
-                         var msg = 'Read as ' + data.homeTeam + ' v ' + data.awayTeam +
-                           ' (' + data.result.home + '–' + data.result.away + ' in games)';
-                         if (data.warnings && data.warnings.length) msg += '; ' + data.warnings.length + ' cell(s) need checking';
-                         if (confirm(msg + '.\n\nPrefill the scorecard? You can correct anything before submitting.')) {
-                           window.location = data.url;
+                         status('Filling in the form…');
+                         var full = await prefill(data);
+                         var checkNote = (data.warnings && data.warnings.length)
+                           ? ' ' + data.warnings.length + ' score cell(s) couldn\'t be read and are left blank.'
+                           : '';
+                         if (full) {
+                           status('✓ Read ' + data.teams.home.name + ' v ' + data.teams.away.name +
+                             ' (' + data.result.home + '–' + data.result.away + ' in games). Everything below is filled in — step through, check each page against the card, and submit as normal.' + checkNote);
                          } else {
-                           status(msg + ' — prefill cancelled, continue below.');
+                           status('✓ Scores and date are filled in, but the team names couldn\'t be identified (card reads "' +
+                             (data.headerRead.home || '?') + '" v "' + (data.headerRead.away || '?') +
+                             '"). Pick the division and teams below and carry on — the rest is already entered.' + checkNote);
                            go.disabled = false;
                          }
                        } catch (e) {

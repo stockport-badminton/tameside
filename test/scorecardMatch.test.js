@@ -93,8 +93,9 @@ describe('matchScorecard slot assignment', () => {
     assert.deepStrictEqual(m.slots.away.men, [null, null, null, null]);
     assert.deepStrictEqual(m.slots.away.ladies, [null, null]);
   });
-  it('slot ids resolve to roster players', () => {
-    assert.strictEqual(m.slots.home.men[0].id, byName('Ben Blowman').id);
+  it('slot ids resolve to roster players (Mixed B has Blowman, so he is Man 2)', () => {
+    assert.strictEqual(m.slots.home.men[0].id, byName('Ian Lucas-Bond').id);
+    assert.strictEqual(m.slots.home.men[1].id, byName('Ben Blowman').id);
   });
 });
 
@@ -129,4 +130,66 @@ describe('matchTeamName (card header -> DB team)', () => {
     assert.strictEqual(matchTeamName('zzzzz qqqq', teams), null);
     assert.strictEqual(matchTeamName('', teams), null);
   });
+});
+
+describe('matchTeamName — real Tameside names (UAT feedback cases)', () => {
+  const { matchTeamName } = require('../utils/scorecardMatch');
+  // The actual current team names from the DB.
+  const teams = [
+    { id: 53, name: 'Aerospace B', division: 9 },
+    { id: 62, name: 'Alderley Park TS', division: 9 },
+    { id: 12, name: 'College Green A', division: 8 },
+    { id: 23, name: 'College Green B', division: 9 },
+    { id: 55, name: 'Hyde A', division: 8 },
+    { id: 56, name: 'Hyde B', division: 8 },
+    { id: 57, name: 'Hyde C', division: 9 },
+    { id: 5, name: 'Manchester Edgeley A', division: 8 },
+    { id: 29, name: 'Mellor A', division: 9 },
+    { id: 6, name: 'Shell A', division: 8 },
+  ];
+  it('"CG A" -> College Green A (club initials)', () => assert.strictEqual(matchTeamName('CG A', teams).id, 12));
+  it('"CG B" -> College Green B', () => assert.strictEqual(matchTeamName('CG B', teams).id, 23));
+  it('"C.G. B" (with dots) -> College Green B', () => assert.strictEqual(matchTeamName('C.G. B', teams).id, 23));
+  it('"Hyde High B" (renamed team, old key/card style) -> Hyde B', () =>
+    assert.strictEqual(matchTeamName('Hyde High B', teams).id, 56));
+  it('"HYDE HIGH C" -> Hyde C', () => assert.strictEqual(matchTeamName('HYDE HIGH C', teams).id, 57));
+  it('"MEBC A" -> Manchester Edgeley A (still works)', () => assert.strictEqual(matchTeamName('MEBC A', teams).id, 5));
+});
+
+describe('slot solver — mixed pairs decide slot order (card reproduced exactly)', () => {
+  const mini = [
+    { id: 101, first_name: 'Xavier', family_name: 'Cross', gender: 'Male' },
+    { id: 102, first_name: 'Yuri', family_name: 'Stone', gender: 'Male' },
+    { id: 103, first_name: 'Zack', family_name: 'Field', gender: 'Male' },
+    { id: 104, first_name: 'Will', family_name: 'Grant', gender: 'Male' },
+    { id: 201, first_name: 'Lena', family_name: 'Marsh', gender: 'Female' },
+    { id: 202, first_name: 'Nora', family_name: 'Quill', gender: 'Female' },
+  ];
+  // Card: Open A = Cross+Stone, Open B = Field+Grant, Ladies = Marsh+Quill.
+  // Mixed A on the card = STONE + QUILL -> so Stone must be Man1 and Quill
+  // Lady1 (the form derives Mixed A from Man1+Lady1), flipping score order.
+  const extraction = {
+    events: [
+      { event: 'Open A', home: { playersRaw: 'X Cross Y Stone' }, away: { playersRaw: '' } },
+      { event: 'Ladies', home: { playersRaw: 'L Marsh N Quill' }, away: { playersRaw: '' } },
+      { event: 'Open B', home: { playersRaw: 'Z Field W Grant' }, away: { playersRaw: '' } },
+      { event: 'Mixed A', home: { playersRaw: 'Y Stone N Quill' }, away: { playersRaw: '' } },
+      { event: 'Mixed B', home: { playersRaw: 'X Cross L Marsh' }, away: { playersRaw: '' } },
+      { event: 'Mixed C', home: { playersRaw: 'W Grant N Quill' }, away: { playersRaw: '' } },
+      { event: 'Mixed D', home: { playersRaw: 'Z Field L Marsh' }, away: { playersRaw: '' } },
+      { event: 'Open C', home: { playersRaw: 'Y Stone X Cross' }, away: { playersRaw: '' } },
+      { event: 'Open D', home: { playersRaw: 'W Grant Z Field' }, away: { playersRaw: '' } },
+    ],
+  };
+  const { matchScorecard } = require('../utils/scorecardMatch');
+  const m = matchScorecard(extraction, mini, []);
+  const men = m.slots.home.men.map((p) => p && p.name);
+  const ladies = m.slots.home.ladies.map((p) => p && p.name);
+
+  it('Man 1 is the Open A player who played Mixed A (Stone)', () => assert.strictEqual(men[0], 'Yuri Stone'));
+  it('Man 2 is the other Open A player (Cross, plays Mixed B)', () => assert.strictEqual(men[1], 'Xavier Cross'));
+  it('Man 3 is the Open B player who played Mixed C (Grant)', () => assert.strictEqual(men[2], 'Will Grant'));
+  it('Man 4 is the other Open B player (Field, plays Mixed D)', () => assert.strictEqual(men[3], 'Zack Field'));
+  it('Lady 1 is the lady from Mixed A/C (Quill), Lady 2 from B/D (Marsh)', () =>
+    assert.deepStrictEqual(ladies, ['Nora Quill', 'Lena Marsh']));
 });

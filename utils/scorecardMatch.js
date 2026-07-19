@@ -99,6 +99,7 @@ function matchScorecard(extraction, homeRoster, awayRoster) {
       const e = events.find((ev) => ev.event === n);
       return e ? e[side].pair.filter(Boolean) : [];
     };
+    const idsOf = (n) => pairOf(n).map((c) => c.id);
     const used = new Set();
     const take = (slots, count, candidates) => {
       for (const c of candidates) {
@@ -111,16 +112,32 @@ function matchScorecard(extraction, homeRoster, awayRoster) {
     const genderFrom = (names, gender) =>
       names.flatMap(pairOf).filter((c) => c.gender === gender).sort((a, b) => b.score - a.score);
 
-    // Primary assignment straight from the pairs, in form order.
+    // The entry form derives every pairing from the slot numbers (Mixed A =
+    // Man1+Lady1, B = 2+2, C = 3+1, D = 4+2), so ORDER within each pair
+    // matters: use the detected Mixed pairs to decide who is Man1 vs Man2
+    // (etc.) so the form's defaults reproduce exactly what's on the card.
+    const orderPair = (pair, firstSlotMixed, secondSlotMixed) => {
+      if (pair.length !== 2) return pair;
+      if (firstSlotMixed.includes(pair[1].id) || secondSlotMixed.includes(pair[0].id)) return [pair[1], pair[0]];
+      return pair;
+    };
+    const men12 = orderPair(pairOf('Open A').filter((c) => c.gender === 'Male'), idsOf('Mixed A'), idsOf('Mixed B'));
+    const men34 = orderPair(pairOf('Open B').filter((c) => c.gender === 'Male'), idsOf('Mixed C'), idsOf('Mixed D'));
+    const ladyPair = orderPair(
+      pairOf('Ladies').filter((c) => c.gender === 'Female'),
+      [...idsOf('Mixed A'), ...idsOf('Mixed C')], // Lady 1 plays Mixed A & C
+      [...idsOf('Mixed B'), ...idsOf('Mixed D')]  // Lady 2 plays Mixed B & D
+    );
+
     const men = [];
-    take(men, 2, pairOf('Open A').filter((c) => c.gender === 'Male'));
-    take(men, 4, pairOf('Open B').filter((c) => c.gender === 'Male'));
+    take(men, 2, men12);
+    take(men, 4, men34);
     // Back-fill any gaps from the remaining events' male picks, best first.
     take(men, 4, genderFrom(['Open C', 'Open D', 'Mixed A', 'Mixed B', 'Mixed C', 'Mixed D'], 'Male'));
     while (men.length < 4) men.push(null);
 
     const ladies = [];
-    take(ladies, 2, pairOf('Ladies').filter((c) => c.gender === 'Female'));
+    take(ladies, 2, ladyPair);
     take(ladies, 2, genderFrom(['Mixed A', 'Mixed B', 'Mixed C', 'Mixed D'], 'Female'));
     while (ladies.length < 2) ladies.push(null);
 
@@ -142,14 +159,35 @@ const TEAM_MATCH_THRESHOLD = 0.55;
 function matchTeamName(raw, teams) {
   const n = normalise(raw);
   if (!n) return null;
+  const rawWords = String(raw).trim().split(/\s+/).map(normalise).filter(Boolean);
   let best = null;
   for (const t of teams || []) {
     const tn = normalise(t.name);
     if (!tn) continue;
+    const teamWords = String(t.name).trim().split(/\s+/).map(normalise).filter(Boolean);
     let score = sim(n, tn);
     if (tn.includes(n) || n.includes(tn)) score = Math.max(score, 0.9 * Math.min(n.length, tn.length) / Math.max(n.length, tn.length) + 0.1);
-    const initials = normalise(String(t.name).trim().split(/\s+/).map((w) => w[0]).join(''));
+    // Word subset: every word of the DB name appears in the raw text — covers
+    // renames like "Hyde High B" (old key/card) -> "Hyde B" (current team).
+    if (teamWords.length && teamWords.every((w) => rawWords.includes(w))) score = Math.max(score, 0.92);
+    // Initials of the DB name ("MEBC A" ~ Manchester Edgeley..., "CG A" ~
+    // College Green A). Also try initials of just the club words + the team
+    // letter kept whole ("CG" + "A"), the common shorthand.
+    const initials = normalise(teamWords.map((w) => w[0]).join(''));
     if (initials.length >= 3) score = Math.max(score, 0.95 * sim(n, initials));
+    if (teamWords.length >= 2) {
+      const last = teamWords[teamWords.length - 1];
+      const clubInitials = teamWords.slice(0, -1).map((w) => w[0]).join('') + last;
+      if (clubInitials.length >= 2) score = Math.max(score, 0.95 * sim(n, clubInitials));
+    }
+    // The team letter is the strongest single signal: when both the raw text
+    // and the DB name end in a single letter, a mismatch ("CGBC A" vs
+    // "College Green B") is almost certainly the wrong team.
+    const rawLast = rawWords[rawWords.length - 1];
+    const teamLast = teamWords[teamWords.length - 1];
+    if (rawLast && teamLast && rawLast.length === 1 && teamLast.length === 1) {
+      score = rawLast === teamLast ? score + 0.03 : score * 0.4;
+    }
     if (!best || score > best.score) best = { team: t, score };
   }
   return best && best.score >= TEAM_MATCH_THRESHOLD

@@ -8,17 +8,19 @@ require('dotenv').config();
 const { S3Client, GetObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 
 const { annotateScorecard } = require('../utils/scorecardVision');
-const { extractScorecard } = require('../utils/scorecardExtraction');
+const { extractScorecard, parseCardDate } = require('../utils/scorecardExtraction');
 const { matchScorecard, matchTeamName } = require('../utils/scorecardMatch');
 const Team = require('../models/teams');
 const Player = require('../models/players');
 const Fixture = require('../models/fixture');
+const Division = require('../models/division');
 
 const promisify = (fn) => (...args) => new Promise((resolve, reject) =>
   fn(...args, (err, result) => (err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result))));
 
 const findTeamByNameP = promisify(Team.findByName);
 const getAllTeamsP = promisify(Team.getAll);
+const getAllDivisionsP = promisify(Division.getAll);
 const getRosterP = promisify(Player.getEligibleByTeamName);
 const getOutstandingFixtureP = promisify(Fixture.getOutstandingFixtureId);
 const getFixtureDetailsP = promisify(Fixture.getFixtureDetailsById);
@@ -63,55 +65,96 @@ async function analyseBuffer(buffer, names) {
   const vision = await annotateScorecard(buffer);
   const extraction = extractScorecard(vision);
 
-  let homeTeam = null;
-  let awayTeam = null;
-  let teamResolution = 'key';
-  if (names) {
-    const [homeRows, awayRows] = await Promise.all([findTeamByNameP(names.home), findTeamByNameP(names.away)]);
-    homeTeam = homeRows && homeRows[0];
-    awayTeam = awayRows && awayRows[0];
-  }
-  if (!homeTeam || !awayTeam) {
-    teamResolution = 'header';
-    const allTeams = await getAllTeamsP();
-    homeTeam = homeTeam || matchTeamName(extraction.meta.homeTeam, allTeams);
-    awayTeam = awayTeam || matchTeamName(extraction.meta.awayTeam, allTeams);
-    if (!homeTeam || !awayTeam) {
-      const read = `read "${extraction.meta.homeTeam || '?'}" v "${extraction.meta.awayTeam || '?'}"`;
-      throw new Error(`Could not identify the ${!homeTeam ? 'home' : 'away'} team from the card header (${read}).`);
-    }
-  }
+  // Candidate pool: real, current teams only (excludes the "No Team"
+  // placeholder and division-less leftovers like defunct sides).
+  const allTeams = (await getAllTeamsP()).filter((t) => t.division != null && !/^no team$/i.test(t.name));
 
-  const [homeRoster, awayRoster] = await Promise.all([getRosterP(homeTeam.name), getRosterP(awayTeam.name)]);
+  // Resolve each side through a fallback chain: exact DB name from the S3 key
+  // -> fuzzy match on the key name (handles renames like "Hyde High B" ->
+  // "Hyde B") -> fuzzy match on the handwritten card header. A side that
+  // still can't be resolved stays null — the caller decides how to degrade
+  // (the wizard prefills what it can and lets the user pick the teams).
+  const resolveTeam = async (keyName, headerName) => {
+    if (keyName) {
+      const rows = await findTeamByNameP(keyName);
+      if (rows && rows[0]) return { team: rows[0], how: 'key' };
+      const fuzzyKey = matchTeamName(keyName, allTeams);
+      if (fuzzyKey) return { team: fuzzyKey, how: 'key-fuzzy' };
+    }
+    const fromHeader = matchTeamName(headerName, allTeams);
+    return fromHeader ? { team: fromHeader, how: 'header' } : { team: null, how: 'unresolved' };
+  };
+  const [homeRes, awayRes] = await Promise.all([
+    resolveTeam(names && names.home, extraction.meta.homeTeam),
+    resolveTeam(names && names.away, extraction.meta.awayTeam),
+  ]);
+  const homeTeam = homeRes.team;
+  const awayTeam = awayRes.team;
+  const teamResolution = `${homeRes.how}/${awayRes.how}`;
+
+  // Rosters + matching only for resolved sides (matchScorecard tolerates an
+  // empty roster: those pairs/slots just come back null).
+  const [homeRoster, awayRoster] = await Promise.all([
+    homeTeam ? getRosterP(homeTeam.name) : [],
+    awayTeam ? getRosterP(awayTeam.name) : [],
+  ]);
   const matched = matchScorecard(extraction, homeRoster, awayRoster);
 
   // Fixture cross-check (advisory — may be missing if already complete).
   let fixture = null;
-  try {
-    const fx = await getOutstandingFixtureP({ homeTeam: homeTeam.id, awayTeam: awayTeam.id });
-    if (fx && fx[0]) {
-      const details = await getFixtureDetailsP(fx[0].id);
-      fixture = { id: fx[0].id, divisionName: fx[0].name, date: details && details[0] ? details[0].date : null };
-    }
-  } catch (e) { /* advisory only */ }
-
-  // Handoff URL into the existing prefilled-scorecard flow (ids; 0 = unknown).
-  const slot = (p) => (p ? p.id : 0);
-  const s = matched.slots;
-  const scoreParams = [];
-  for (let g = 1; g <= 18; g++) {
-    scoreParams.push(extraction.games[`Game${g}homeScore`] ?? 0, extraction.games[`Game${g}awayScore`] ?? 0);
+  if (homeTeam && awayTeam) {
+    try {
+      const fx = await getOutstandingFixtureP({ homeTeam: homeTeam.id, awayTeam: awayTeam.id });
+      if (fx && fx[0]) {
+        const details = await getFixtureDetailsP(fx[0].id);
+        fixture = { id: fx[0].id, divisionName: fx[0].name, date: details && details[0] ? details[0].date : null };
+      }
+    } catch (e) { /* advisory only */ }
   }
-  const handoffUrl = '/populated-scorecard/' + [
-    homeTeam.division, homeTeam.id, awayTeam.id,
-    slot(s.home.men[0]), slot(s.home.men[1]), slot(s.home.men[2]), slot(s.home.men[3]),
-    slot(s.home.ladies[0]), slot(s.home.ladies[1]),
-    slot(s.away.men[0]), slot(s.away.men[1]), slot(s.away.men[2]), slot(s.away.men[3]),
-    slot(s.away.ladies[0]), slot(s.away.ladies[1]),
-    ...scoreParams,
-  ].map(encodeURIComponent).join('/');
 
-  return { extraction, matched, homeTeam, awayTeam, fixture, handoffUrl, teamResolution };
+  // Division id: from a resolved team, else mapped from the handwritten Div
+  // digit via the division table's rank.
+  let divisionId = (homeTeam && homeTeam.division) || (awayTeam && awayTeam.division) || null;
+  if (!divisionId && extraction.meta.division) {
+    try {
+      const divisions = await getAllDivisionsP();
+      const byRank = divisions.find((d) => String(d.rank) === extraction.meta.division);
+      if (byRank) divisionId = byRank.id;
+    } catch (e) { /* advisory only */ }
+  }
+
+  // Card date -> yyyy-mm-dd for the form's date input (fixture date fallback).
+  // Sanity window: a match card's date can't plausibly be far in the future or
+  // more than ~15 months back — misreads (e.g. "2027" from smudged digits)
+  // fall through to the fixture's scheduled date instead.
+  let cardDate = parseCardDate(extraction.meta.date);
+  if (cardDate) {
+    const d = new Date(cardDate);
+    const now = Date.now();
+    if (d.getTime() > now + 60 * 86400e3 || d.getTime() < now - 450 * 86400e3) cardDate = null;
+  }
+  if (!cardDate && fixture && fixture.date) cardDate = new Date(fixture.date).toISOString().slice(0, 10);
+
+  // Handoff URL for the admin review flow (needs both teams).
+  let handoffUrl = null;
+  if (homeTeam && awayTeam) {
+    const slot = (p) => (p ? p.id : 0);
+    const s = matched.slots;
+    const scoreParams = [];
+    for (let g = 1; g <= 18; g++) {
+      scoreParams.push(extraction.games[`Game${g}homeScore`] ?? 0, extraction.games[`Game${g}awayScore`] ?? 0);
+    }
+    handoffUrl = '/populated-scorecard/' + [
+      homeTeam.division, homeTeam.id, awayTeam.id,
+      slot(s.home.men[0]), slot(s.home.men[1]), slot(s.home.men[2]), slot(s.home.men[3]),
+      slot(s.home.ladies[0]), slot(s.home.ladies[1]),
+      slot(s.away.men[0]), slot(s.away.men[1]), slot(s.away.men[2]), slot(s.away.men[3]),
+      slot(s.away.ladies[0]), slot(s.away.ladies[1]),
+      ...scoreParams,
+    ].map(encodeURIComponent).join('/');
+  }
+
+  return { extraction, matched, homeTeam, awayTeam, fixture, divisionId, cardDate, handoffUrl, teamResolution };
 }
 
 /* ------------------------------------------------------------------ *
@@ -148,6 +191,10 @@ exports.review = async function (req, res, next) {
     // Team-named keys resolve directly; generic keys (wizard uploads) fall
     // back to fuzzy-matching the handwritten header inside analyseBuffer.
     const r = await analyseBuffer(buffer, teamsFromKey(key));
+    if (!r.homeTeam || !r.awayTeam) {
+      throw new Error(`Could not identify the ${!r.homeTeam ? 'home' : 'away'} team ` +
+        `(card header read "${r.extraction.meta.homeTeam || '?'}" v "${r.extraction.meta.awayTeam || '?'}").`);
+    }
     res.render('admin/scorecard-ocr-review', renderOpts('Scorecard OCR — Review', {
       s3key: key,
       extraction: r.extraction,
@@ -180,13 +227,26 @@ exports.analyse = async function (req, res) {
     const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
     const buffer = Buffer.from(await obj.Body.transformToByteArray());
     const r = await analyseBuffer(buffer, teamsFromKey(key));
+    // Partial results are fine: unresolved teams come back null and the
+    // wizard still prefills division/date/scores, leaving team/player picks
+    // to the user (failing the whole flow put people off using it).
+    const slotIds = (side) => ({
+      men: r.matched.slots[side].men.map((p) => (p ? p.id : null)),
+      ladies: r.matched.slots[side].ladies.map((p) => (p ? p.id : null)),
+    });
     res.json({
       ok: true,
-      url: r.handoffUrl,
-      homeTeam: r.homeTeam.name,
-      awayTeam: r.awayTeam.name,
-      result: r.extraction.result,
+      teams: {
+        home: r.homeTeam ? { id: r.homeTeam.id, name: r.homeTeam.name } : null,
+        away: r.awayTeam ? { id: r.awayTeam.id, name: r.awayTeam.name } : null,
+      },
+      headerRead: { home: r.extraction.meta.homeTeam, away: r.extraction.meta.awayTeam },
       teamResolution: r.teamResolution,
+      divisionId: r.divisionId,
+      date: r.cardDate,
+      slots: { home: slotIds('home'), away: slotIds('away') },
+      games: r.extraction.games,
+      result: r.extraction.result,
       warnings: r.extraction.warnings,
     });
   } catch (err) {

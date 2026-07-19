@@ -199,10 +199,16 @@ function extractScorecard(resp) {
 
   const gridTop = rowAnchors[0].cy - (rowAnchors[1].cy - rowAnchors[0].cy) / 2;
 
-  const dateText = A.date
+  let dateText = A.date
     ? toks.filter((w) => sameLine(w, A.date, 20) && w.cx > A.date.x1 && /^[\d/.\-:]+$/.test(w.t))
         .sort(byX).map((w) => w.t).join('').replace(/^[:.\-/]+/, '')
     : '';
+  if (!/\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}/.test(dateText)) {
+    // The handwritten date often floats well away from the printed "Date:"
+    // label — fall back to any date-shaped token above the grid.
+    const anyDate = toks.find((w) => w.cy < gridTop && /^\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}$/.test(w.t));
+    if (anyDate) dateText = anyDate.t;
+  }
   const divisionText = A.div
     ? (toks.filter((w) => sameLine(w, A.div, 22) && w.x1 > A.div.x0 && w.cx < A.div.x1 + 200)
         .sort(byX).map((w) => divisionDigit(w.t)).find(Boolean) || '')
@@ -230,12 +236,19 @@ function extractScorecard(resp) {
   if (vTok) {
     const cands = toks.filter((w) =>
       w !== vTok && w.cy < headerCeiling && !NOISE.test(w.t) &&
-      !/^\d/.test(w.t) && !/^(Div|v|Played|at|Date|Tameside|Badminton|League)$/i.test(w.t));
+      !/^\d/.test(w.t) && !/^(Div|v|Played|at|Date|Tameside|Badminton|League)$/i.test(w.t) &&
+      // the venue is handwritten ON the "Played at" row — on some cards only
+      // ~30px below the team line, so exclude that row explicitly rather than
+      // relying on the chain tolerance
+      !(A.played && Math.abs(w.cy - A.played.cy) < 16));
     const walk = (side, ordered) => {
       const out = [];
       let refY = vTok.cy;
       for (const w of ordered) {
-        if (Math.abs(w.cy - refY) < 28) { out.push(w); refY = w.cy; }
+        // 35px: big enough for sloped handwriting (a real card drifted 29px
+        // between adjacent words), small enough to reject the next line down
+        // (venue handwriting sits 40px+ below on every card measured).
+        if (Math.abs(w.cy - refY) < 35) { out.push(w); refY = w.cy; }
       }
       return out.sort(byX).map((w) => w.t).join(' ').trim();
     };
@@ -320,4 +333,17 @@ function extractScorecard(resp) {
   };
 }
 
-module.exports = { extractScorecard, splitScores, normaliseOrientation, divisionDigit, EVENT_NAMES, GAME_MAP };
+// Parse a handwritten card date ("9/9/24", "17-12-2024", "21.4.26") into
+// yyyy-mm-dd for an <input type="date">. UK order (d/m/y); 2-digit year -> 20xx.
+// Returns null when it doesn't look like a date.
+function parseCardDate(text) {
+  const m = /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/.exec(String(text || ''));
+  if (!m) return null;
+  const d = +m[1];
+  const mo = +m[2];
+  const y = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+  if (d < 1 || d > 31 || mo < 1 || mo > 12 || y < 2000 || y > 2100) return null;
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+module.exports = { extractScorecard, splitScores, normaliseOrientation, divisionDigit, parseCardDate, EVENT_NAMES, GAME_MAP };

@@ -119,3 +119,15 @@ describe('divisionDigit (handwritten 1/2 with OCR lookalikes)', () => {
     assert.strictEqual(divisionDigit(''), null);
   });
 });
+
+describe('parseCardDate (handwritten d/m/y -> yyyy-mm-dd)', () => {
+  const { parseCardDate } = require('../utils/scorecardExtraction');
+  it('parses 2-digit years: "9/9/24" -> 2024-09-09', () => assert.strictEqual(parseCardDate('9/9/24'), '2024-09-09'));
+  it('parses 4-digit years and dashes: "17-12-2024"', () => assert.strictEqual(parseCardDate('17-12-2024'), '2024-12-17'));
+  it('parses dots: "21.4.26"', () => assert.strictEqual(parseCardDate('21.4.26'), '2026-04-21'));
+  it('rejects garbage and impossible dates', () => {
+    assert.strictEqual(parseCardDate('H212182121'), null);
+    assert.strictEqual(parseCardDate('32/13/24'), null);
+    assert.strictEqual(parseCardDate(''), null);
+  });
+});
