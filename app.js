@@ -441,6 +441,12 @@ function secured(req, res, next) {
   app.get('/admin/info/clubs', secured,club_controller.club_list_detail);
 
 app.use(function(req, res) {
+  // Never let the CDN cache error pages: the domain fronts Cloud Run through
+  // Firebase Hosting, whose edge applies a default 10-minute cache to any
+  // cookie-less response with no Cache-Control header. Without this, a 404
+  // served moments before a deploy lands keeps 404ing a brand-new route for
+  // 10 minutes after it goes live (this actually happened).
+  res.set('Cache-Control', 'private, no-store');
   res.status(404);
   res.render('404-error', {
       pageHeading: "404",
@@ -461,6 +467,7 @@ app.use(function(error, req, res, next) {
     console.error(error);
     Sentry.captureException(error);
     Sentry.flush(2000).catch(() => {}).finally(function() {
+        res.set('Cache-Control', 'private, no-store'); // never edge-cache error pages
         res.status(500);
         res.render('500-error', {
             pageHeading: "500",
