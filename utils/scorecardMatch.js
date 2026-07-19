@@ -151,10 +151,13 @@ function matchScorecard(extraction, homeRoster, awayRoster) {
 }
 
 // Resolve a handwritten team name from the card header ("Mella A", "MEBC A")
-// to a DB team row. Tries full-string similarity, containment, and an
-// initials heuristic ("MEBC A" ~ initials of "Manchester Edgeley A" + suffix).
-// Returns { id, name, division, score } or null when nothing is close enough.
-const TEAM_MATCH_THRESHOLD = 0.55;
+// to a DB team row. Tries full-string similarity, containment, word overlap
+// ("EDGELEY A" shares a word with Manchester Edgeley A) and an initials
+// heuristic ("MEBC A", "CG B"). Returns { id, name, division, score } or null
+// when nothing is close enough — null is SAFER than a wrong team, because the
+// wizard's rematch flow handles it (0.6: heuristic hits score 0.85+, and the
+// old 0.55 floor let junk like "AYOEA" land on a real team by accident).
+const TEAM_MATCH_THRESHOLD = 0.6;
 
 function matchTeamName(raw, teams) {
   const n = normalise(raw);
@@ -170,6 +173,11 @@ function matchTeamName(raw, teams) {
     // Word subset: every word of the DB name appears in the raw text — covers
     // renames like "Hyde High B" (old key/card) -> "Hyde B" (current team).
     if (teamWords.length && teamWords.every((w) => rawWords.includes(w))) score = Math.max(score, 0.92);
+    // Shared distinctive word: the header often carries just one word of the
+    // club name ("EDGELEY A" for Manchester Edgeley A) — a 4+ letter word in
+    // common is a strong signal, and the suffix rule below arbitrates between
+    // sibling teams of the same club.
+    if (teamWords.some((w) => w.length >= 4 && rawWords.includes(w))) score = Math.max(score, 0.85);
     // Initials of the DB name ("MEBC A" ~ Manchester Edgeley..., "CG A" ~
     // College Green A). Also try initials of just the club words + the team
     // letter kept whole ("CG" + "A"), the common shorthand.
@@ -182,12 +190,21 @@ function matchTeamName(raw, teams) {
     }
     // The team letter is the strongest single signal: when both the raw text
     // and the DB name end in a single letter, a mismatch ("CGBC A" vs
-    // "College Green B") is almost certainly the wrong team.
+    // "College Green B") is almost certainly the wrong team. And when the
+    // team's suffix word doesn't appear in the raw text AT ALL (Vision
+    // mangled it away — "AYOEA" for "HYDE A"), confidence drops: a wrong
+    // sibling team is worse than a null, which triggers the rematch flow.
     const rawLast = rawWords[rawWords.length - 1];
     const teamLast = teamWords[teamWords.length - 1];
     if (rawLast && teamLast && rawLast.length === 1 && teamLast.length === 1) {
       score = rawLast === teamLast ? score + 0.03 : score * 0.4;
+    } else if (teamLast && teamLast.length <= 2 && !rawWords.includes(teamLast)) {
+      score *= 0.85;
     }
+    // Tiny full-similarity tie-break so equal heuristic scores ("Syde Park
+    // Park" hits the shared word 'park' for two different clubs) resolve to
+    // the closer overall name.
+    score += 0.04 * sim(n, tn);
     if (!best || score > best.score) best = { team: t, score };
   }
   return best && best.score >= TEAM_MATCH_THRESHOLD

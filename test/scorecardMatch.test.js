@@ -193,3 +193,29 @@ describe('slot solver — mixed pairs decide slot order (card reproduced exactly
   it('Lady 1 is the lady from Mixed A/C (Quill), Lady 2 from B/D (Marsh)', () =>
     assert.deepStrictEqual(ladies, ['Nora Quill', 'Lena Marsh']));
 });
+
+describe('matchTeamName — safety rules (UAT round 2)', () => {
+  const { matchTeamName } = require('../utils/scorecardMatch');
+  const teams = [
+    { id: 55, name: 'Hyde A', division: 8 },
+    { id: 56, name: 'Hyde B', division: 8 },
+    { id: 5, name: 'Manchester Edgeley A', division: 8 },
+    { id: 32, name: 'Disley A', division: 9 },
+    { id: 61, name: 'Syddal Park A', division: 9 },
+    { id: 62, name: 'Alderley Park TS', division: 9 },
+    { id: 12, name: 'College Green A', division: 8 },
+    { id: 23, name: 'College Green B', division: 9 },
+  ];
+  it('shared distinctive word: "EDGELEY A" -> Manchester Edgeley A (not Disley A)', () => {
+    assert.strictEqual(matchTeamName('EDGELEY A', teams).id, 5);
+  });
+  it('mangled header with no suffix returns null, not a sibling guess ("AYOEA" was "HYDE A"-ish)', () => {
+    assert.strictEqual(matchTeamName('AYOEA', teams), null);
+  });
+  it('tie-break: "Syde Park Park" -> Syddal Park A (both park clubs share the word)', () => {
+    assert.strictEqual(matchTeamName('Syde Park Park', teams).id, 61);
+  });
+  it('suffix-less club shorthand is ambiguous between siblings -> null ("CG")', () => {
+    assert.strictEqual(matchTeamName('CG', teams), null);
+  });
+});
