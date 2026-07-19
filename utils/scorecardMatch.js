@@ -133,4 +133,28 @@ function matchScorecard(extraction, homeRoster, awayRoster) {
   };
 }
 
-module.exports = { matchScorecard, matchPair, scoreCandidate, tokenise, normalise, MATCH_THRESHOLD };
+// Resolve a handwritten team name from the card header ("Mella A", "MEBC A")
+// to a DB team row. Tries full-string similarity, containment, and an
+// initials heuristic ("MEBC A" ~ initials of "Manchester Edgeley A" + suffix).
+// Returns { id, name, division, score } or null when nothing is close enough.
+const TEAM_MATCH_THRESHOLD = 0.55;
+
+function matchTeamName(raw, teams) {
+  const n = normalise(raw);
+  if (!n) return null;
+  let best = null;
+  for (const t of teams || []) {
+    const tn = normalise(t.name);
+    if (!tn) continue;
+    let score = sim(n, tn);
+    if (tn.includes(n) || n.includes(tn)) score = Math.max(score, 0.9 * Math.min(n.length, tn.length) / Math.max(n.length, tn.length) + 0.1);
+    const initials = normalise(String(t.name).trim().split(/\s+/).map((w) => w[0]).join(''));
+    if (initials.length >= 3) score = Math.max(score, 0.95 * sim(n, initials));
+    if (!best || score > best.score) best = { team: t, score };
+  }
+  return best && best.score >= TEAM_MATCH_THRESHOLD
+    ? { id: best.team.id, name: best.team.name, division: best.team.division, score: +best.score.toFixed(3) }
+    : null;
+}
+
+module.exports = { matchScorecard, matchPair, matchTeamName, scoreCandidate, tokenise, normalise, MATCH_THRESHOLD };

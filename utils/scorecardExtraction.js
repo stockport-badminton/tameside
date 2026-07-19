@@ -147,6 +147,17 @@ function splitScores(str) {
 const findToken = (toks, re) => toks.find((w) => re.test(w.t));
 const NOISE = /^[|.,:;'"“”‘’!_\-–—=~*()\[\]{}\/\\]+$/;
 
+// Division is a handwritten "1" or "2" next to the printed "Div:". Vision
+// often reads a handwritten 1 as | I l / ( ) and a 2 as z/Z — normalise the
+// lookalikes and resolve a token to '1', '2', or null.
+function divisionDigit(t) {
+  const tail = String(t).replace(/^div[.:]*/i, '').trim(); // "Div:1" -> "1"
+  if (/^1$/.test(tail) || /^[|Il/()\[\]!]$/.test(tail)) return '1';
+  if (/^2$/.test(tail) || /^[zZ]$/.test(tail)) return '2';
+  const m = /^[:.\s]*([12])[:.\s]*$/.exec(tail);
+  return m ? m[1] : null;
+}
+
 function extractScorecard(resp) {
   const warnings = [];
   const { tokens: toks, rotationDegrees } = normaliseOrientation(resp);
@@ -193,8 +204,8 @@ function extractScorecard(resp) {
         .sort(byX).map((w) => w.t).join('').replace(/^[:.\-/]+/, '')
     : '';
   const divisionText = A.div
-    ? toks.filter((w) => sameLine(w, A.div, 20) && w.cx > A.div.x1 && w.cx < A.div.x1 + 160 && /^\d$/.test(w.t))
-        .sort(byX).map((w) => w.t).join('')
+    ? (toks.filter((w) => sameLine(w, A.div, 22) && w.x1 > A.div.x0 && w.cx < A.div.x1 + 200)
+        .sort(byX).map((w) => divisionDigit(w.t)).find(Boolean) || '')
     : '';
   const playedAtText = A.played
     ? toks.filter((w) =>
@@ -204,14 +215,32 @@ function extractScorecard(resp) {
         .sort(byX).map((w) => w.t).join(' ').trim()
     : '';
 
-  // Team names: the handwritten "<home> v <away>" line above "Played at".
+  // Team names: the handwritten "<home> v <away>" line between the printed
+  // title and the grid. Handwriting slopes across the page (40px+ of baseline
+  // drift on real cards) and the "Played at" handwriting can rise above its
+  // printed label, so a fixed y-band is unreliable. Instead: seed on the "v"
+  // and CHAIN-WALK outward token by token, following the sloped baseline —
+  // each next token must sit within 28px of the previously accepted one.
   let homeTeamText = '';
   let awayTeamText = '';
-  const vTok = toks.filter((w) => /^v$/i.test(w.t) && w.cy < (A.played ? A.played.cy : gridTop)).sort((a, b) => a.cy - b.cy).pop();
+  const headerCeiling = A.played ? A.played.y1 + 12 : gridTop - 30;
+  const vTok = toks
+    .filter((w) => /^v$/i.test(w.t) && w.cy < headerCeiling)
+    .sort((a, b) => a.cy - b.cy).pop();
   if (vTok) {
-    const line = toks.filter((w) => Math.abs(w.cy - vTok.cy) < 22 && !NOISE.test(w.t) && w !== vTok && !/^(Div|v)$/i.test(w.t));
-    homeTeamText = line.filter((w) => w.cx < vTok.cx).sort(byX).map((w) => w.t).join(' ').trim();
-    awayTeamText = line.filter((w) => w.cx > vTok.cx && (!A.div || w.cx < A.div.x0 - 10)).sort(byX).map((w) => w.t).join(' ').trim();
+    const cands = toks.filter((w) =>
+      w !== vTok && w.cy < headerCeiling && !NOISE.test(w.t) &&
+      !/^\d/.test(w.t) && !/^(Div|v|Played|at|Date|Tameside|Badminton|League)$/i.test(w.t));
+    const walk = (side, ordered) => {
+      const out = [];
+      let refY = vTok.cy;
+      for (const w of ordered) {
+        if (Math.abs(w.cy - refY) < 28) { out.push(w); refY = w.cy; }
+      }
+      return out.sort(byX).map((w) => w.t).join(' ').trim();
+    };
+    homeTeamText = walk('home', cands.filter((w) => w.cx < vTok.cx).sort((a, b) => b.cx - a.cx));
+    awayTeamText = walk('away', cands.filter((w) => w.cx > vTok.cx && (!A.div || w.cx < A.div.x0 - 10)).sort((a, b) => a.cx - b.cx));
   }
 
   /* ---- per-event rows ---- */
@@ -291,4 +320,4 @@ function extractScorecard(resp) {
   };
 }
 
-module.exports = { extractScorecard, splitScores, normaliseOrientation, EVENT_NAMES, GAME_MAP };
+module.exports = { extractScorecard, splitScores, normaliseOrientation, divisionDigit, EVENT_NAMES, GAME_MAP };

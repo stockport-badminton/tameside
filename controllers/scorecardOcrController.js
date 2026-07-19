@@ -9,7 +9,7 @@ const { S3Client, GetObjectCommand, ListObjectsV2Command } = require('@aws-sdk/c
 
 const { annotateScorecard } = require('../utils/scorecardVision');
 const { extractScorecard } = require('../utils/scorecardExtraction');
-const { matchScorecard } = require('../utils/scorecardMatch');
+const { matchScorecard, matchTeamName } = require('../utils/scorecardMatch');
 const Team = require('../models/teams');
 const Player = require('../models/players');
 const Fixture = require('../models/fixture');
@@ -18,6 +18,7 @@ const promisify = (fn) => (...args) => new Promise((resolve, reject) =>
   fn(...args, (err, result) => (err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result))));
 
 const findTeamByNameP = promisify(Team.findByName);
+const getAllTeamsP = promisify(Team.getAll);
 const getRosterP = promisify(Player.getEligibleByTeamName);
 const getOutstandingFixtureP = promisify(Fixture.getOutstandingFixtureId);
 const getFixtureDetailsP = promisify(Fixture.getFixtureDetailsById);
@@ -51,6 +52,69 @@ function renderOpts(title, extra) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Shared pipeline: image buffer -> extraction, team resolution, roster
+ * matching, fixture cross-check, and the prefilled-form handoff URL.
+ * `names` ({home, away} from a team-named S3 key) is preferred when given;
+ * otherwise the teams are resolved by fuzzy-matching the handwritten card
+ * header against all team names — that's how wizard uploads (generic keys)
+ * are handled.
+ * ------------------------------------------------------------------ */
+async function analyseBuffer(buffer, names) {
+  const vision = await annotateScorecard(buffer);
+  const extraction = extractScorecard(vision);
+
+  let homeTeam = null;
+  let awayTeam = null;
+  let teamResolution = 'key';
+  if (names) {
+    const [homeRows, awayRows] = await Promise.all([findTeamByNameP(names.home), findTeamByNameP(names.away)]);
+    homeTeam = homeRows && homeRows[0];
+    awayTeam = awayRows && awayRows[0];
+  }
+  if (!homeTeam || !awayTeam) {
+    teamResolution = 'header';
+    const allTeams = await getAllTeamsP();
+    homeTeam = homeTeam || matchTeamName(extraction.meta.homeTeam, allTeams);
+    awayTeam = awayTeam || matchTeamName(extraction.meta.awayTeam, allTeams);
+    if (!homeTeam || !awayTeam) {
+      const read = `read "${extraction.meta.homeTeam || '?'}" v "${extraction.meta.awayTeam || '?'}"`;
+      throw new Error(`Could not identify the ${!homeTeam ? 'home' : 'away'} team from the card header (${read}).`);
+    }
+  }
+
+  const [homeRoster, awayRoster] = await Promise.all([getRosterP(homeTeam.name), getRosterP(awayTeam.name)]);
+  const matched = matchScorecard(extraction, homeRoster, awayRoster);
+
+  // Fixture cross-check (advisory — may be missing if already complete).
+  let fixture = null;
+  try {
+    const fx = await getOutstandingFixtureP({ homeTeam: homeTeam.id, awayTeam: awayTeam.id });
+    if (fx && fx[0]) {
+      const details = await getFixtureDetailsP(fx[0].id);
+      fixture = { id: fx[0].id, divisionName: fx[0].name, date: details && details[0] ? details[0].date : null };
+    }
+  } catch (e) { /* advisory only */ }
+
+  // Handoff URL into the existing prefilled-scorecard flow (ids; 0 = unknown).
+  const slot = (p) => (p ? p.id : 0);
+  const s = matched.slots;
+  const scoreParams = [];
+  for (let g = 1; g <= 18; g++) {
+    scoreParams.push(extraction.games[`Game${g}homeScore`] ?? 0, extraction.games[`Game${g}awayScore`] ?? 0);
+  }
+  const handoffUrl = '/populated-scorecard/' + [
+    homeTeam.division, homeTeam.id, awayTeam.id,
+    slot(s.home.men[0]), slot(s.home.men[1]), slot(s.home.men[2]), slot(s.home.men[3]),
+    slot(s.home.ladies[0]), slot(s.home.ladies[1]),
+    slot(s.away.men[0]), slot(s.away.men[1]), slot(s.away.men[2]), slot(s.away.men[3]),
+    slot(s.away.ladies[0]), slot(s.away.ladies[1]),
+    ...scoreParams,
+  ].map(encodeURIComponent).join('/');
+
+  return { extraction, matched, homeTeam, awayTeam, fixture, handoffUrl, teamResolution };
+}
+
+/* ------------------------------------------------------------------ *
  * GET /admin/scorecard-ocr — pick a scorecard photo
  * ------------------------------------------------------------------ */
 exports.list = async function (req, res, next) {
@@ -79,60 +143,18 @@ exports.review = async function (req, res, next) {
   const key = req.query.key;
   if (!key || !/^tameside-/.test(key)) return res.status(400).send('Bad or missing ?key');
   try {
-    // 1. Fetch the photo and run Vision + extraction.
     const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
     const buffer = Buffer.from(await obj.Body.transformToByteArray());
-    const vision = await annotateScorecard(buffer);
-    const extraction = extractScorecard(vision);
-
-    // 2. Resolve the two teams (S3 key is authoritative; the handwritten
-    //    header is shown alongside as a cross-check).
-    const names = teamsFromKey(key);
-    if (!names) throw new Error(`Could not parse team names from S3 key "${key}"`);
-    const [homeRows, awayRows] = await Promise.all([findTeamByNameP(names.home), findTeamByNameP(names.away)]);
-    const homeTeam = homeRows && homeRows[0];
-    const awayTeam = awayRows && awayRows[0];
-    if (!homeTeam || !awayTeam) {
-      throw new Error(`Team not found in DB: ${!homeTeam ? names.home : names.away}`);
-    }
-
-    // 3. Rosters + fuzzy matching.
-    const [homeRoster, awayRoster] = await Promise.all([getRosterP(names.home), getRosterP(names.away)]);
-    const matched = matchScorecard(extraction, homeRoster, awayRoster);
-
-    // 4. Fixture cross-check (advisory — may be missing if already complete).
-    let fixture = null;
-    try {
-      const fx = await getOutstandingFixtureP({ homeTeam: homeTeam.id, awayTeam: awayTeam.id });
-      if (fx && fx[0]) {
-        const details = await getFixtureDetailsP(fx[0].id);
-        fixture = { id: fx[0].id, divisionName: fx[0].name, date: details && details[0] ? details[0].date : null };
-      }
-    } catch (e) { /* advisory only */ }
-
-    // 5. Handoff URL into the existing prefilled-scorecard flow (ids; 0 = unknown).
-    const slot = (p) => (p ? p.id : 0);
-    const s = matched.slots;
-    const scoreParams = [];
-    for (let g = 1; g <= 18; g++) {
-      scoreParams.push(extraction.games[`Game${g}homeScore`] ?? 0, extraction.games[`Game${g}awayScore`] ?? 0);
-    }
-    const handoffUrl = '/populated-scorecard/' + [
-      homeTeam.division, homeTeam.id, awayTeam.id,
-      slot(s.home.men[0]), slot(s.home.men[1]), slot(s.home.men[2]), slot(s.home.men[3]),
-      slot(s.home.ladies[0]), slot(s.home.ladies[1]),
-      slot(s.away.men[0]), slot(s.away.men[1]), slot(s.away.men[2]), slot(s.away.men[3]),
-      slot(s.away.ladies[0]), slot(s.away.ladies[1]),
-      ...scoreParams,
-    ].map(encodeURIComponent).join('/');
-
+    // Team-named keys resolve directly; generic keys (wizard uploads) fall
+    // back to fuzzy-matching the handwritten header inside analyseBuffer.
+    const r = await analyseBuffer(buffer, teamsFromKey(key));
     res.render('admin/scorecard-ocr-review', renderOpts('Scorecard OCR — Review', {
       s3key: key,
-      extraction,
-      matched,
-      homeTeam, awayTeam,
-      fixture,
-      handoffUrl,
+      extraction: r.extraction,
+      matched: r.matched,
+      homeTeam: r.homeTeam, awayTeam: r.awayTeam,
+      fixture: r.fixture,
+      handoffUrl: r.handoffUrl,
     }));
   } catch (err) {
     // Extraction failures are expected occasionally (blurry photo, PDF, wrong
@@ -141,6 +163,34 @@ exports.review = async function (req, res, next) {
       s3key: key,
       message: err.message,
     }));
+  }
+};
+
+/* ------------------------------------------------------------------ *
+ * POST /scorecard-ocr/analyse — the entry-wizard integration.
+ * Any logged-in user (secured route, no superadmin check): the wizard
+ * uploads the photo to S3 first (existing /sign-s3 flow), then posts the
+ * key here. Responds with JSON: the prefilled-form URL plus what was read,
+ * so the wizard can confirm and navigate. Nothing is written to the DB.
+ * ------------------------------------------------------------------ */
+exports.analyse = async function (req, res) {
+  const key = req.body && req.body.key;
+  if (!key || !/^tameside-/.test(key)) return res.status(400).json({ ok: false, error: 'Bad or missing key' });
+  try {
+    const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+    const buffer = Buffer.from(await obj.Body.transformToByteArray());
+    const r = await analyseBuffer(buffer, teamsFromKey(key));
+    res.json({
+      ok: true,
+      url: r.handoffUrl,
+      homeTeam: r.homeTeam.name,
+      awayTeam: r.awayTeam.name,
+      result: r.extraction.result,
+      teamResolution: r.teamResolution,
+      warnings: r.extraction.warnings,
+    });
+  } catch (err) {
+    res.status(422).json({ ok: false, error: err.message });
   }
 };
 

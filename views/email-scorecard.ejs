@@ -91,6 +91,60 @@
              </div>
              <div class="modal-body step step-1">
 
+                 <!-- Scorecard OCR: upload the card photo first and prefill the
+                      whole form. Optional — manual entry below is unchanged. -->
+                 <div class="card mb-3" id="ocr-panel">
+                   <div class="card-body py-3">
+                     <h5 class="card-title mb-1"><i class="fas fa-wand-magic-sparkles"></i> Got a photo of the scorecard?</h5>
+                     <p class="card-text small text-muted mb-2">Upload it and we'll read the card and prefill everything — you check it and submit as normal. Or skip this and enter manually below.</p>
+                     <div class="form-row align-items-center">
+                       <div class="col-auto"><input type="file" id="ocr-file" accept="image/jpeg,image/png,image/jpg,image/heic" /></div>
+                       <div class="col-auto"><button type="button" class="btn btn-primary btn-sm" id="ocr-go"><i class="fas fa-wand-magic-sparkles"></i> Read &amp; prefill</button></div>
+                     </div>
+                     <div id="ocr-status" class="small mt-2"></div>
+                   </div>
+                 </div>
+                 <script type="text/javascript">
+                   (function () {
+                     var go = document.getElementById('ocr-go');
+                     var statusEl = document.getElementById('ocr-status');
+                     function status(msg) { statusEl.textContent = msg; }
+                     go.addEventListener('click', async function () {
+                       var f = document.getElementById('ocr-file').files[0];
+                       if (!f) { status('Choose a photo first.'); return; }
+                       go.disabled = true;
+                       try {
+                         status('Uploading photo…');
+                         var ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
+                         var key = 'tameside-ocr-' + Date.now() + '.' + ext;
+                         var sign = await fetch('/sign-s3?file-name=' + encodeURIComponent(key) + '&file-type=' + encodeURIComponent(f.type)).then(function (r) { return r.json(); });
+                         var put = await fetch(sign.signedUrl, { method: 'PUT', body: f, headers: { 'Content-Type': f.type } });
+                         if (!put.ok) throw new Error('Photo upload failed');
+                         status('Reading the card… (takes a few seconds)');
+                         var resp = await fetch('/scorecard-ocr/analyse', {
+                           method: 'POST',
+                           headers: { 'Content-Type': 'application/json' },
+                           body: JSON.stringify({ key: key })
+                         });
+                         var data = await resp.json();
+                         if (!resp.ok || !data.ok) throw new Error(data.error || 'Could not read the card');
+                         var msg = 'Read as ' + data.homeTeam + ' v ' + data.awayTeam +
+                           ' (' + data.result.home + '–' + data.result.away + ' in games)';
+                         if (data.warnings && data.warnings.length) msg += '; ' + data.warnings.length + ' cell(s) need checking';
+                         if (confirm(msg + '.\n\nPrefill the scorecard? You can correct anything before submitting.')) {
+                           window.location = data.url;
+                         } else {
+                           status(msg + ' — prefill cancelled, continue below.');
+                           go.disabled = false;
+                         }
+                       } catch (e) {
+                         status('⚠ ' + e.message + ' — no problem, just continue entering below.');
+                         go.disabled = false;
+                       }
+                     });
+                   })();
+                 </script>
+
 
                  <div class="form-row">
                    <div class="col-md-6">

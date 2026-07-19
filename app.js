@@ -342,6 +342,9 @@ let scorecard_ocr_controller = require(__dirname + '/controllers/scorecardOcrCon
 app.get('/admin/scorecard-ocr', secured, scorecard_ocr_controller.list);
 app.get('/admin/scorecard-ocr/review', secured, scorecard_ocr_controller.review);
 app.get('/admin/scorecard-ocr/image', secured, scorecard_ocr_controller.image);
+/* Entry-wizard integration: any logged-in user uploads a photo (sign-s3), then
+   posts the key here to get the prefilled-form URL. */
+app.post('/scorecard-ocr/analyse', secured, scorecard_ocr_controller.analyse);
 
 /* Distribution lists (superadmin — role check in controller). */
 app.get('/admin/distribution', secured, contactus_controller.admin_distribution_form);

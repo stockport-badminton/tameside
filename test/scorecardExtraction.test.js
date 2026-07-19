@@ -95,3 +95,27 @@ describe('GAME_MAP', () => {
     assert.deepStrictEqual([...flat].sort((a, b) => a - b), Array.from({ length: 18 }, (_, i) => i + 1));
   });
 });
+
+describe('divisionDigit (handwritten 1/2 with OCR lookalikes)', () => {
+  const { divisionDigit } = require('../utils/scorecardExtraction');
+  it('plain digits pass through', () => {
+    assert.strictEqual(divisionDigit('1'), '1');
+    assert.strictEqual(divisionDigit('2'), '2');
+  });
+  it('handwritten-1 lookalikes resolve to 1 (| I l / parens)', () => {
+    for (const t of ['|', 'I', 'l', '/', '(', ')', '!']) assert.strictEqual(divisionDigit(t), '1', t);
+  });
+  it('handwritten-2 lookalikes resolve to 2 (z Z)', () => {
+    assert.strictEqual(divisionDigit('z'), '2');
+    assert.strictEqual(divisionDigit('Z'), '2');
+  });
+  it('merged label tokens resolve ("Div:1", ":2")', () => {
+    assert.strictEqual(divisionDigit('Div:1'), '1');
+    assert.strictEqual(divisionDigit(':2'), '2');
+  });
+  it('anything else is null (3, words, empty)', () => {
+    assert.strictEqual(divisionDigit('3'), null);
+    assert.strictEqual(divisionDigit('Division'), null);
+    assert.strictEqual(divisionDigit(''), null);
+  });
+});

@@ -97,3 +97,36 @@ describe('matchScorecard slot assignment', () => {
     assert.strictEqual(m.slots.home.men[0].id, byName('Ben Blowman').id);
   });
 });
+
+describe('matchTeamName (card header -> DB team)', () => {
+  const { matchTeamName } = require('../utils/scorecardMatch');
+  const teams = [
+    { id: 1, name: 'Mellor A', division: 9 },
+    { id: 2, name: 'Mellor B', division: 9 },
+    { id: 3, name: 'Manchester Edgeley A', division: 8 },
+    { id: 4, name: 'GHAP B', division: 8 },
+    { id: 5, name: 'Hyde High B', division: 9 },
+    { id: 6, name: 'Syddal Park A', division: 9 },
+  ];
+  it('exact name matches with top score', () => {
+    const m = matchTeamName('GHAP B', teams);
+    assert.strictEqual(m.id, 4);
+  });
+  it('handwriting misread resolves: "Mella A" -> Mellor A', () => {
+    assert.strictEqual(matchTeamName('Mella A', teams).id, 1);
+  });
+  it('abbreviated header resolves: "HYDE B" -> Hyde High B', () => {
+    assert.strictEqual(matchTeamName('HYDE B', teams).id, 5);
+  });
+  it('club initials resolve: "MEBC A" -> Manchester Edgeley A', () => {
+    const m = matchTeamName('MEBC A', teams);
+    assert.ok(m && m.id === 3, JSON.stringify(m));
+  });
+  it('returns division with the match (for the handoff URL)', () => {
+    assert.strictEqual(matchTeamName('Syddal Park A', teams).division, 9);
+  });
+  it('garbage returns null', () => {
+    assert.strictEqual(matchTeamName('zzzzz qqqq', teams), null);
+    assert.strictEqual(matchTeamName('', teams), null);
+  });
+});
