@@ -13,7 +13,18 @@ npm run dev        # Start with nodemon (auto-reload), listens on PORT 8080
 npm start          # Production start (node server.js)
 ```
 
-No test suite — `test.js` in the root is a manual scratch file.
+```bash
+npm test           # Unit/integration tests (node:test + supertest), no browser
+npm run test:e2e    # Playwright — email-scorecard wizard only (see below)
+```
+
+`test.js` in the root is an unrelated manual scratch file (not part of either suite).
+
+Playwright (`test/e2e/`) is scoped to the email-scorecard entry wizard specifically —
+step navigation, live score validation, and OCR-photo reuse — not the whole site. It
+boots the real server via `playwright.config.js`'s `webServer` (`DEV_MODE=true
+NODE_ENV=development` on port 8199) and drives a real Chromium browser against it,
+so it needs the real dev DB for the AJAX team/player cascades (reads only, no writes).
 
 ```bash
 # Docker build & run locally

@@ -19,3 +19,12 @@ static/docs/Aerospace.docx
 static/docs/College Green.docx
 static/docs/Medlock.docx
 static/docs/Mellor.docx
+
+# local scorecard-OCR proof-of-concept (not for main)
+scorecard-poc/
+uat-cards/
+
+# Playwright artifacts
+/test-results/
+/playwright-report/
+/blob-report/
