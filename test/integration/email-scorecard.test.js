@@ -176,6 +176,24 @@ describe('POST /email-scorecard — error-recovery render (regression suite)', (
     const res = await request(app).post('/email-scorecard').type('form').send(baseScorecardBody());
     assert.doesNotMatch(res.text, /Some Scorecard Data/);
   });
+
+  it('client-side score validation is wired up (mirrors utils/scorecardValidation.js isValidGameScore)', async () => {
+    mockScorecardModels();
+    const res = await request(app).post('/email-scorecard').type('form').send(baseScorecardBody());
+    assert.match(res.text, /function isValidGameScoreClient/);
+    assert.match(res.text, /function validateStepScores/);
+    // every step/back-or-continue button must pass `this` so sendEvent can read its data-step
+    const buttons = res.text.match(/onclick="sendEvent\('\d+'[^)]*\)"/g) || [];
+    assert.ok(buttons.length > 0, 'expected sendEvent buttons in the rendered form');
+    buttons.forEach((b) => assert.match(b, /, this\)"$/, `button missing this: ${b}`));
+  });
+
+  it('step 13 offers to reuse an already-uploaded scorecard photo instead of asking again', async () => {
+    mockScorecardModels();
+    const res = await request(app).post('/email-scorecard').type('form').send(baseScorecardBody());
+    assert.match(res.text, /id="scoresheet-already-uploaded-msg"/);
+    assert.match(res.text, /id="replace-scoresheet-link"/);
+  });
 });
 
 describe('POST /email-scorecard — full valid submission (real DB, stubbed Mailjet)', () => {

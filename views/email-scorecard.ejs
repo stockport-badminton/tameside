@@ -252,6 +252,11 @@
                          var sign = await fetch('/sign-s3?file-name=' + encodeURIComponent(key) + '&file-type=' + encodeURIComponent(f.type)).then(function (r) { return r.json(); });
                          var put = await fetch(sign.signedUrl, { method: 'PUT', body: f, headers: { 'Content-Type': f.type } });
                          if (!put.ok) throw new Error('Photo upload failed');
+                         // This IS the scorecard photo — reuse it as the submission's
+                         // official scoresheet-url so step 13 doesn't ask for it again.
+                         var uploadedUrl = sign.signedUrl.substr(0, sign.signedUrl.indexOf('?X-Amz')).replaceAll('%20', '+');
+                         document.querySelectorAll('#scoresheet-url').forEach(function (el) { el.value = uploadedUrl; });
+                         document.querySelectorAll('#scoresheet-img').forEach(function (el) { el.src = uploadedUrl; });
                          status('Reading the card… (takes a few seconds)');
                          var resp = await fetch('/scorecard-ocr/analyse', {
                            method: 'POST',
@@ -507,7 +512,10 @@
              <div class="modal-body step step-13 ScorecardUpload">
                 <div class="form-row">
                     <div class="form-group step-13 ScorecardUpload col-6">
-                        <label for="game17Score">Upload Scorecard</label>
+                        <label for="scoresheet-spreadsheet">Upload Scorecard</label>
+                        <div id="scoresheet-already-uploaded-msg" class="text-success small mb-2" style="display:none;">
+                          ✓ Already uploaded from step 1 — <a href="#" id="replace-scoresheet-link">upload a different photo instead</a>
+                        </div>
                         <div class="form-row">
                             <div class="col-12"><input type="file" name="scoresheet-spreadsheet" id="scoresheet-spreadsheet" /></div>
                             <input type="hidden" name="scoresheet-url" id="scoresheet-url" />
@@ -583,32 +591,32 @@
 
              </div>
              <div class="modal-footer">
-                <button type="button" class="btn btn-primary step step-1" data-step="1" onclick="sendEvent('2')">Continue</button>
-                <button type="button" class="btn btn-primary step step-2" data-step="2" onclick="sendEvent('1')">Back</button>
-                <button type="button" class="btn btn-primary step step-2" data-step="2" onclick="sendEvent('3')">Continue</button>
-                <button type="button" class="btn btn-primary step step-3" data-step="3" onclick="sendEvent('2')">Back</button>
-                <button type="button" class="btn btn-primary step step-3" data-step="3" onclick="sendEvent('4')">Continue</button>
-                <button type="button" class="btn btn-primary step step-4" data-step="4" onclick="sendEvent('3')">Back</button>
-                <button type="button" class="btn btn-primary step step-4" data-step="4" onclick="sendEvent('5')">Continue</button>
-                <button type="button" class="btn btn-primary step step-5" data-step="5" onclick="sendEvent('4')">Back</button>
-                <button type="button" class="btn btn-primary step step-5" data-step="5" onclick="sendEvent('6')">Continue</button>
-                <button type="button" class="btn btn-primary step step-6" data-step="6" onclick="sendEvent('5')">Back</button>
-                <button type="button" class="btn btn-primary step step-6" data-step="6" onclick="sendEvent('7')">Continue</button>
-                <button type="button" class="btn btn-primary step step-7" data-step="7" onclick="sendEvent('6')">Back</button>
-                <button type="button" class="btn btn-primary step step-7" data-step="7" onclick="sendEvent('8')">Continue</button>
-                <button type="button" class="btn btn-primary step step-8" data-step="8" onclick="sendEvent('7')">Back</button>
-                <button type="button" class="btn btn-primary step step-8" data-step="8" onclick="sendEvent('9')">Continue</button>
-                <button type="button" class="btn btn-primary step step-9" data-step="9" onclick="sendEvent('8')">Back</button>
-                <button type="button" class="btn btn-primary step step-9" data-step="9" onclick="sendEvent('10')">Continue</button>
-                <button type="button" class="btn btn-primary step step-10" data-step="10" onclick="sendEvent('9')">Back</button>
-                <button type="button" class="btn btn-primary step step-10" data-step="10" onclick="sendEvent('11')">Continue</button>
-                <button type="button" class="btn btn-primary step step-11" data-step="11" onclick="sendEvent('10')">Back</button>
-                <button type="button" class="btn btn-primary step step-11" data-step="11" onclick="sendEvent('12')">Continue</button>
-                <button type="button" class="btn btn-primary step step-12" data-step="12" onclick="sendEvent('11')">Back</button>
-                <button type="button" class="btn btn-primary step step-12" data-step="12" onclick="sendEvent('13')">Continue</button>
-                <button type="button" class="btn btn-primary step step-13" data-step="13" onclick="sendEvent('12')">Back</button>
-                <button type="button" class="btn btn-primary step step-13" data-step="13" onclick="sendEvent('14')">Continue</button>
-                <button type="button" class="btn btn-primary step step-14" data-step="14" onclick="sendEvent('13')">Back</button>
+                <button type="button" class="btn btn-primary step step-1" data-step="1" onclick="sendEvent('2', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-2" data-step="2" onclick="sendEvent('1', this)">Back</button>
+                <button type="button" class="btn btn-primary step step-2" data-step="2" onclick="sendEvent('3', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-3" data-step="3" onclick="sendEvent('2', this)">Back</button>
+                <button type="button" class="btn btn-primary step step-3" data-step="3" onclick="sendEvent('4', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-4" data-step="4" onclick="sendEvent('3', this)">Back</button>
+                <button type="button" class="btn btn-primary step step-4" data-step="4" onclick="sendEvent('5', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-5" data-step="5" onclick="sendEvent('4', this)">Back</button>
+                <button type="button" class="btn btn-primary step step-5" data-step="5" onclick="sendEvent('6', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-6" data-step="6" onclick="sendEvent('5', this)">Back</button>
+                <button type="button" class="btn btn-primary step step-6" data-step="6" onclick="sendEvent('7', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-7" data-step="7" onclick="sendEvent('6', this)">Back</button>
+                <button type="button" class="btn btn-primary step step-7" data-step="7" onclick="sendEvent('8', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-8" data-step="8" onclick="sendEvent('7', this)">Back</button>
+                <button type="button" class="btn btn-primary step step-8" data-step="8" onclick="sendEvent('9', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-9" data-step="9" onclick="sendEvent('8', this)">Back</button>
+                <button type="button" class="btn btn-primary step step-9" data-step="9" onclick="sendEvent('10', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-10" data-step="10" onclick="sendEvent('9', this)">Back</button>
+                <button type="button" class="btn btn-primary step step-10" data-step="10" onclick="sendEvent('11', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-11" data-step="11" onclick="sendEvent('10', this)">Back</button>
+                <button type="button" class="btn btn-primary step step-11" data-step="11" onclick="sendEvent('12', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-12" data-step="12" onclick="sendEvent('11', this)">Back</button>
+                <button type="button" class="btn btn-primary step step-12" data-step="12" onclick="sendEvent('13', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-13" data-step="13" onclick="sendEvent('12', this)">Back</button>
+                <button type="button" class="btn btn-primary step step-13" data-step="13" onclick="sendEvent('14', this)">Continue</button>
+                <button type="button" class="btn btn-primary step step-14" data-step="14" onclick="sendEvent('13', this)">Back</button>
                 <button id="signup" type="submit" class="btn btn-primary step step-14" data-step="14" >Submit</button>
 
              </div>
@@ -952,6 +960,11 @@
               $("#FirstLadiesawayLady2, #SecondMixedawayLady2, #FourthMixedawayLady2").html("<option value="+ $('#awayLady1')[0].selectedOptions[0].value +" >"+ $('#awayLady1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayLady2')[0].selectedOptions[0].value +" selected>"+ $('#awayLady2')[0].selectedOptions[0].text +"</option>");
 
             }
+            if (step == 13){
+              var alreadyUploaded = !!$('#scoresheet-url').val();
+              $('#scoresheet-spreadsheet').toggle(!alreadyUploaded);
+              $('#scoresheet-already-uploaded-msg').toggle(alreadyUploaded);
+            }
             if (step > 4 && step < 14){
               var prevStep = step - 1;
               var playerSelections = $(".form-group.step-"+prevStep+" > select");
@@ -1039,8 +1052,16 @@
             }
           } else {
             console.error('User data not found in local storage')
-          } 
+          }
         }
+
+        $(document).on('click', '#replace-scoresheet-link', function(e) {
+          e.preventDefault();
+          $('#scoresheet-url').val('');
+          $('#scoresheet-img').attr('src', '');
+          $('#scoresheet-already-uploaded-msg').hide();
+          $('#scoresheet-spreadsheet').show();
+        });
 
         function initialize() {
             reset();
@@ -1071,10 +1092,48 @@
     })
     }(jQuery);
 
-    sendEvent = function(page) {
-      console.log($(this))
+    // Mirrors utils/scorecardValidation.js's isValidGameScore — keep in sync:
+    // both scores 0-30, a winner reaching 21 (or 30), and a 2-point margin
+    // (except at the 30 cap).
+    function isValidGameScoreClient(home, away) {
+      home = Number(home);
+      away = Number(away);
+      function inRange(n) { return Number.isInteger(n) && n >= 0 && n <= 30; }
+      var hasWinner = home >= 21 || away >= 21;
+      var hasValidMargin = Math.abs(home - away) >= 2 || home === 30 || away === 30;
+      return inRange(home) && inRange(away) && hasWinner && hasValidMargin;
+    }
+
+    // Validates every game's score pair on an event-review step (4-12) before
+    // letting the user continue. Steps without scores (1-3, 13, 14) are a
+    // no-op. Returns false and shows inline errors if anything's invalid.
+    function validateStepScores(step) {
+      var $groups = $('#signupModal .form-group.step-' + step + '.col-6');
+      if ($groups.length === 0) return true;
+      var allValid = true;
+      $groups.each(function() {
+        var $group = $(this);
+        var $home = $group.find('.scoreInput.home');
+        var $away = $group.find('.scoreInput.away');
+        $home.add($away).removeClass('is-invalid');
+        $group.find('.score-error').remove();
+        if ($home.length && $away.length && !isValidGameScoreClient($home.val(), $away.val())) {
+          allValid = false;
+          $home.add($away).addClass('is-invalid');
+          $group.append('<div class="score-error text-danger small mt-1">Enter a valid game score — the winner must reach 21 (or 30) with at least a 2-point lead.</div>');
+        }
+      });
+      return allValid;
+    }
+
+    sendEvent = function(page, btn) {
+      var currentStep = btn && btn.dataset ? parseInt(btn.dataset.step, 10) : NaN;
+      var targetStep = parseInt(page, 10);
       console.log(`clicked continue on page: ${page}`)
-    $('#signupModal').trigger('next.m.' + page);
+      if (!isNaN(currentStep) && targetStep > currentStep && !validateStepScores(currentStep)) {
+        return;
+      }
+      $('#signupModal').trigger('next.m.' + page);
     }
     <% } %>
     </script>
