@@ -906,7 +906,7 @@
                         <option>Choose Man 4</option>
                          <% scorecard.homeMenRows.forEach(function(row){ %>
                            <%
-                            if (row.first == 1){
+                            if (row.fourth == 1){
                               var selected = " selected"
                             }
                             else {
@@ -925,7 +925,7 @@
                         <option>Choose Lady 1</option>
                          <% scorecard.homeLadiesRows.forEach(function(row){ %>
                            <%
-                            if (row.second == 1){
+                            if (row.first == 1){
                               var selected = " selected"
                             }
                             else {
@@ -944,7 +944,7 @@
                         <option>Choose Lady 2</option>
                          <% scorecard.homeLadiesRows.forEach(function(row){ %>
                            <%
-                            if (row.third == 1){
+                            if (row.second == 1){
                               var selected = " selected"
                             }
                             else {
@@ -1049,7 +1049,7 @@
                         <option>Choose Lady 1</option>
                          <% scorecard.awayLadiesRows.forEach(function(row){ %>
                            <%
-                            if (row.second == 1){
+                            if (row.first == 1){
                               var selected = " selected"
                             }
                             else {
@@ -1068,7 +1068,7 @@
                         <option>Choose Lady 2</option>
                          <% scorecard.awayLadiesRows.forEach(function(row){ %>
                            <%
-                            if (row.third == 1){
+                            if (row.second == 1){
                               var selected = " selected"
                             }
                             else {
@@ -1104,13 +1104,13 @@
               <div class="form-row">
                 <div class="form-group step-4 FirstMens col-6">
                   <label for="game1Score">Game 1</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game1 home" id="Game1homeScore" name="Game1homeScore" placeholder="<%= data.Game1homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game1 away" id="Game1awayScore" name="Game1awayScore" placeholder="<%= data.Game1awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game1 home" id="Game1homeScore" name="Game1homeScore" value="<%= data.Game1homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game1 away" id="Game1awayScore" name="Game1awayScore" value="<%= data.Game1awayScore %>"></div></div>
                 </div>
                 <div class="form-group step-4 FirstMens col-6">
                   <label for="game2Score">Game 2</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game2 home" id="Game2homeScore" name="Game2homeScore" placeholder="<%= data.Game2homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game2 away" id="Game2awayScore" name="Game2awayScore" placeholder="<%= data.Game2awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game2 home" id="Game2homeScore" name="Game2homeScore" value="<%= data.Game2homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game2 away" id="Game2awayScore" name="Game2awayScore" value="<%= data.Game2awayScore %>"></div></div>
                 </div>
               </div>
               
@@ -1133,13 +1133,13 @@
               <div class="form-row">
                 <div class="form-group step-5 FirstLadies col-6">
                   <label for="game3Score">Game 3</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game3 home" id="Game3homeScore" name="Game3homeScore" placeholder="<%= data.Game3homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game3 away" id="Game3awayScore" name="Game3awayScore" placeholder="<%= data.Game3awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game3 home" id="Game3homeScore" name="Game3homeScore" value="<%= data.Game3homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game3 away" id="Game3awayScore" name="Game3awayScore" value="<%= data.Game3awayScore %>"></div></div>
                 </div>
                 <div class="form-group step-5 FirstLadies col-6">
                   <label for="game4Score">Game 4</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game4 home" id="Game4homeScore" name="Game4homeScore" placeholder="<%= data.Game4homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game4 away" id="Game4awayScore" name="Game4awayScore" placeholder="<%= data.Game4awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game4 home" id="Game4homeScore" name="Game4homeScore" value="<%= data.Game4homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game4 away" id="Game4awayScore" name="Game4awayScore" value="<%= data.Game4awayScore %>"></div></div>
                 </div>
               </div>
               
@@ -1162,13 +1162,13 @@
               <div class="form-row">
                 <div class="form-group step-6 SecondMens col-6">
                   <label for="game5Score">Game 5</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game5 home" id="Game5homeScore" name="Game5homeScore" placeholder="<%= data.Game5homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game5 away" id="Game5awayScore" name="Game5awayScore" placeholder="<%= data.Game5awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game5 home" id="Game5homeScore" name="Game5homeScore" value="<%= data.Game5homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game5 away" id="Game5awayScore" name="Game5awayScore" value="<%= data.Game5awayScore %>"></div></div>
                 </div>
                 <div class="form-group step-6 SecondMens col-6">
                   <label for="game6Score">Game 6</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game6 home" id="Game6homeScore" name="Game6homeScore" placeholder="<%= data.Game6homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game6 away" id="Game6awayScore" name="Game6awayScore" placeholder="<%= data.Game6awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game6 home" id="Game6homeScore" name="Game6homeScore" value="<%= data.Game6homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game6 away" id="Game6awayScore" name="Game6awayScore" value="<%= data.Game6awayScore %>"></div></div>
                 </div>
               </div>
               
@@ -1191,13 +1191,13 @@
               <div class="form-row">
                 <div class="form-group step-7 FirstMixed col-6">
                   <label for="game7Score">Game 7</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game7 home" id="Game7homeScore" name="Game7homeScore" placeholder="<%= data.Game7homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game7 away" id="Game7awayScore" name="Game7awayScore" placeholder="<%= data.Game7awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game7 home" id="Game7homeScore" name="Game7homeScore" value="<%= data.Game7homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game7 away" id="Game7awayScore" name="Game7awayScore" value="<%= data.Game7awayScore %>"></div></div>
                 </div>
                 <div class="form-group step-7 FirstMixed col-6">
                   <label for="game8Score">Game 8</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game8 home" id="Game8homeScore" name="Game8homeScore" placeholder="<%= data.Game8homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game8 away" id="Game8awayScore" name="Game8awayScore" placeholder="<%= data.Game8awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game8 home" id="Game8homeScore" name="Game8homeScore" value="<%= data.Game8homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game8 away" id="Game8awayScore" name="Game8awayScore" value="<%= data.Game8awayScore %>"></div></div>
                 </div>
               </div>
               
@@ -1220,13 +1220,13 @@
               <div class="form-row">
                 <div class="form-group step-8 SecondMixed col-6">
                   <label for="game9Score">Game 9</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game9 home" id="Game9homeScore" name="Game9homeScore" placeholder="<%= data.Game9homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game9 away" id="Game9awayScore" name="Game9awayScore" placeholder="<%= data.Game9awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game9 home" id="Game9homeScore" name="Game9homeScore" value="<%= data.Game9homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game9 away" id="Game9awayScore" name="Game9awayScore" value="<%= data.Game9awayScore %>"></div></div>
                 </div>
                 <div class="form-group step-8 SecondMixed col-6">
                   <label for="game10Score">Game 10</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game10 home" id="Game10homeScore" name="Game10homeScore" placeholder="<%= data.Game10homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game10 away" id="Game10awayScore" name="Game10awayScore" placeholder="<%= data.Game10awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game10 home" id="Game10homeScore" name="Game10homeScore" value="<%= data.Game10homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game10 away" id="Game10awayScore" name="Game10awayScore" value="<%= data.Game10awayScore %>"></div></div>
                 </div>
               </div>
               
@@ -1249,13 +1249,13 @@
               <div class="form-row">
                 <div class="form-group step-9 ThirdMixed col-6">
                   <label for="game11Score">Game 11</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game11 home" id="Game11homeScore" name="Game11homeScore" placeholder="<%= data.Game11homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game11 away" id="Game11awayScore" name="Game11awayScore" placeholder="<%= data.Game11awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game11 home" id="Game11homeScore" name="Game11homeScore" value="<%= data.Game11homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game11 away" id="Game11awayScore" name="Game11awayScore" value="<%= data.Game11awayScore %>"></div></div>
                 </div>
                 <div class="form-group step-9 ThirdMixed col-6">
                   <label for="game12Score">Game 12</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game12 home" id="Game12homeScore" name="Game12homeScore" placeholder="<%= data.Game12homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game12 away" id="Game12awayScore" name="Game12awayScore" placeholder="<%= data.Game12awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game12 home" id="Game12homeScore" name="Game12homeScore" value="<%= data.Game12homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game12 away" id="Game12awayScore" name="Game12awayScore" value="<%= data.Game12awayScore %>"></div></div>
                 </div>
               </div>
               
@@ -1278,13 +1278,13 @@
               <div class="form-row">
                 <div class="form-group step-10 FourthMixed col-6">
                   <label for="game13Score">Game 13</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game13 home" id="Game13homeScore" name="Game13homeScore" placeholder="<%= data.Game13homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game13 away" id="Game13awayScore" name="Game13awayScore" placeholder="<%= data.Game13awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game13 home" id="Game13homeScore" name="Game13homeScore" value="<%= data.Game13homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game13 away" id="Game13awayScore" name="Game13awayScore" value="<%= data.Game13awayScore %>"></div></div>
                 </div>
                 <div class="form-group step-10 FourthMixed col-6">
                   <label for="game14Score">Game 14</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game14 home" id="Game14homeScore" name="Game14homeScore" placeholder="<%= data.Game14homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game14 away" id="Game14awayScore" name="Game14awayScore" placeholder="<%= data.Game14awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game14 home" id="Game14homeScore" name="Game14homeScore" value="<%= data.Game14homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game14 away" id="Game14awayScore" name="Game14awayScore" value="<%= data.Game14awayScore %>"></div></div>
                 </div>
               </div>
               
@@ -1307,13 +1307,13 @@
               <div class="form-row">
                 <div class="form-group step-11 ThirdMens col-6">
                   <label for="game15Score">Game 15</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game15 home" id="Game15homeScore" name="Game15homeScore" placeholder="<%= data.Game15homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game15 away" id="Game15awayScore" name="Game15awayScore" placeholder="<%= data.Game15awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game15 home" id="Game15homeScore" name="Game15homeScore" value="<%= data.Game15homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game15 away" id="Game15awayScore" name="Game15awayScore" value="<%= data.Game15awayScore %>"></div></div>
                 </div>
                 <div class="form-group step-11 ThirdMens col-6">
                   <label for="game16Score">Game 16</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game16 home" id="Game16homeScore" name="Game16homeScore" placeholder="<%= data.Game16homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game16 away" id="Game16awayScore" name="Game16awayScore" placeholder="<%= data.Game16awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game16 home" id="Game16homeScore" name="Game16homeScore" value="<%= data.Game16homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game16 away" id="Game16awayScore" name="Game16awayScore" value="<%= data.Game16awayScore %>"></div></div>
                 </div>
               </div>
               
@@ -1336,13 +1336,13 @@
               <div class="form-row">
                 <div class="form-group step-12 FourthMens col-6">
                   <label for="game17Score">Game 17</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game17 home" id="Game17homeScore" name="Game17homeScore" placeholder="<%= data.Game17homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game17 away" id="Game17awayScore" name="Game17awayScore" placeholder="<%= data.Game17awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game17 home" id="Game17homeScore" name="Game17homeScore" value="<%= data.Game17homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game17 away" id="Game17awayScore" name="Game17awayScore" value="<%= data.Game17awayScore %>"></div></div>
                 </div>
                 <div class="form-group step-12 FourthMens col-6">
                   <label for="game18Score">Game 18</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game18 home" id="Game18homeScore" name="Game18homeScore" placeholder="<%= data.Game18homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game18 away" id="Game18awayScore" name="Game18awayScore" placeholder="<%= data.Game18awayScore %>"></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game18 home" id="Game18homeScore" name="Game18homeScore" value="<%= data.Game18homeScore %>"></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game18 away" id="Game18awayScore" name="Game18awayScore" value="<%= data.Game18awayScore %>"></div></div>
                 </div>
               </div>
               
@@ -1593,10 +1593,9 @@
                   for (const ssUrl of scoresheetUrls){
                     ssUrl.value = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz")).replaceAll('%20','+')
                   }
-                  // document.getElementById('scoresheet-img').src = 'https://' + URL.parse(response.signedUrl).host+URL.parse(response.signedUrl).pathname.replaceAll('%20','+')
                   let scoresheetImgs = await document.querySelectorAll('#scoresheet-img')
                   for (const ssImg of scoresheetImgs){
-                    ssImg.value = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz")).replaceAll('%20','+')
+                    ssImg.src = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz")).replaceAll('%20','+')
                   }
                   console.error(document.getElementById('scoresheet-url').value)
                 }

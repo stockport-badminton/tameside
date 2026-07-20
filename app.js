@@ -306,7 +306,7 @@ app.get('/lewis-shield/:season', team_controller.lewis_draw);
 
 
 app.post('/manage-players/create', secured, player_controller.player_create_from_team);
-app.get('/populated-scorecard/:division/:home_team/:away_team/:home_man_1/:home_man_2/:home_man_3/:home_man_4/:home_lady_1/:home_lady_2/:away_man_1/:away_man_2/:away_man_3/:away_man_4/:away_lady_1/:away_lady_2/:Game1homeScore/:Game1awayScore/:Game2homeScore/:Game2awayScore/:Game3homeScore/:Game3awayScore/:Game4homeScore/:Game4awayScore/:Game5homeScore/:Game5awayScore/:Game6homeScore/:Game6awayScore/:Game7homeScore/:Game7awayScore/:Game8homeScore/:Game8awayScore/:Game9homeScore/:Game9awayScore/:Game10homeScore/:Game10awayScore/:Game11homeScore/:Game11awayScore/:Game12homeScore/:Game12awayScore/:Game13homeScore/:Game13awayScore/:Game14homeScore/:Game14awayScore/:Game15homeScore/:Game15awayScore/:Game16homeScore/:Game16awayScore/:Game17homeScore/:Game17awayScore/:Game18homeScore/:Game18awayScore', (req,res,next) => {
+app.get('/populated-scorecard/:division/:home_team/:away_team/:home_man_1/:home_man_2/:home_man_3/:home_man_4/:home_lady_1/:home_lady_2/:away_man_1/:away_man_2/:away_man_3/:away_man_4/:away_lady_1/:away_lady_2/:Game1homeScore/:Game1awayScore/:Game2homeScore/:Game2awayScore/:Game3homeScore/:Game3awayScore/:Game4homeScore/:Game4awayScore/:Game5homeScore/:Game5awayScore/:Game6homeScore/:Game6awayScore/:Game7homeScore/:Game7awayScore/:Game8homeScore/:Game8awayScore/:Game9homeScore/:Game9awayScore/:Game10homeScore/:Game10awayScore/:Game11homeScore/:Game11awayScore/:Game12homeScore/:Game12awayScore/:Game13homeScore/:Game13awayScore/:Game14homeScore/:Game14awayScore/:Game15homeScore/:Game15awayScore/:Game16homeScore/:Game16awayScore/:Game17homeScore/:Game17awayScore/:Game18homeScore/:Game18awayScore', secured, (req,res,next) => {
   console.log(req.params)
   fixture_controller.fixture_populate_scorecard_fromUrl(req,res,next)
 })
@@ -362,7 +362,7 @@ app.post('/admin/distribution/send', secured, contactus_controller.admin_distrib
 
 app.post('/scorecard-beta', secured, fixture_controller.validateScorecard, fixture_controller.full_fixture_post);
 
-app.get('/populated-scorecard-beta/:id',(req,res,next) => {
+app.get('/populated-scorecard-beta/:id(\\d+)', secured, (req,res,next) => {
   console.log(req.body);
   fixture_controller.fixture_populate_scorecard_fromId(req,res,next)
 })
@@ -441,8 +441,8 @@ function secured(req, res, next) {
   app.get('/manage-players/club-:club?', secured,player_controller.manage_player_list_clubs_teams);
   app.get('/manage-players/:season?/club-:club?', secured,player_controller.manage_player_list_clubs_teams);
   app.get('/email-scorecard', secured,fixture_controller.email_scorecard);
-  app.post('/email-scorecard', fixture_controller.validateScorecard, fixture_controller.fixture_populate_scorecard_errors);
-  app.post('/add-scorecard-photo/:id',fixture_controller.add_scorecard_photo)
+  app.post('/email-scorecard', secured, fixture_controller.validateScorecard, fixture_controller.fixture_populate_scorecard_errors);
+  app.post('/add-scorecard-photo/:id(\\d+)', secured, fixture_controller.add_scorecard_photo)
   
 
   /* GET request for creating a Player. NOTE This must come before routes that display Player (uses id) */
