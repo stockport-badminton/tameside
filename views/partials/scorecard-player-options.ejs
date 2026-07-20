@@ -1,0 +1,5 @@
+<% rows.forEach(function(row){ %>
+  <option value="<%= row.id %>"<% if (row[ordinalKey] == 1) { %> selected<% } %>><%= row.first_name %> <%= row.family_name %></option>
+<% }) %>
+<option value="0">No Player Home Team</option>
+<option value="0">No Player Away Team</option>

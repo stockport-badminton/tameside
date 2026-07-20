@@ -1,0 +1,3 @@
+<% rows.forEach(function(row){ %>
+  <option value="<%= row.id %>"<% if (row.selected == 1) { %> selected<% } %>><%= row.name %></option>
+<% }) %>

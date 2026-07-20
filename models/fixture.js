@@ -288,16 +288,17 @@ exports.getFixtureDetails = async function(searchObj, done){
     
 exports.createScorecard = async function(fixtureObj,done){
   console.log(fixtureObj)
-  if (typeof fixtureObj.date !== undefined && typeof fixtureObj.homeTeam !== undefined && typeof fixtureObj.awayTeam !== undefined){
-    let result = await sql`insert into scorecardstore ${sql(fixtureObj)} returning id`.catch(err => {
-      return done(err)
-    })
-    console.log(result.statement.string)
-    done(null,result);
+  if (fixtureObj.date === undefined || fixtureObj.homeTeam === undefined || fixtureObj.awayTeam === undefined){
+    return done(new Error("createScorecard: missing required fields (date, homeTeam, awayTeam)"));
   }
-  else {
+  let result;
+  try {
+    result = await sql`insert into scorecardstore ${sql(fixtureObj)} returning id`;
+  } catch (err) {
     return done(err);
   }
+  console.log(result.statement.string)
+  done(null,result);
 }
 
 exports.getScorecardById = async function(fixtureId,done){

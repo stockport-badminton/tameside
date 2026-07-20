@@ -2,7 +2,7 @@
 <%- include('nav.ejs') %>
 
       <%
-      var hasErrors, hasScorecardData, hasResult, hasScorecard = false
+      var hasErrors, hasResult, hasScorecard = false
       %>
 
       <% if (typeof errors !== 'undefined') {
@@ -10,10 +10,6 @@
             hasErrors = true
           }
         }
-      %>
-      <% if (typeof scorecardData !== 'undefined'){
-        hasScorecardData = true
-      }
       %>
 
       <% if (typeof result !== 'undefined') {
@@ -34,10 +30,6 @@
             <p><% errors.forEach(function(errorRow){ %>
                 <%= errorRow.msg %><br />
             <% }) %></p>
-        <% } %>
-        <% if (hasScorecardData) { %>
-          <p>Some Scorecard Data</p>
-          <%- include('recentPlayerHistory.ejs') %>
         <% } %>
         <% if (hasScorecard && !hasErrors) { %>
             <p>Thanks for entering your result - the Results Secretary has been emailed and will verify your result soon! Thanks!</p>
@@ -67,7 +59,47 @@
       </div>
 
       <!-- Modal -->
-      <% if (hasResult) { %>
+      <%
+      var EVENT_STEPS = [
+        { step: 4, key: 'FirstMens',
+          home: [['FirstMenshomeMan1', 'homeMan1', 'Home Man 1'], ['FirstMenshomeMan2', 'homeMan2', 'Home Man 2']],
+          away: [['FirstMensawayMan1', 'awayMan1', 'Away Man 1'], ['FirstMensawayMan2', 'awayMan2', 'Away Man 2']],
+          games: [1, 2] },
+        { step: 5, key: 'FirstLadies',
+          home: [['FirstLadieshomeLady1', 'homeLady1', 'Home Lady 1'], ['FirstLadieshomeLady2', 'homeLady2', 'Home Lady 2']],
+          away: [['FirstLadiesawayLady1', 'awayLady1', 'Away Lady 1'], ['FirstLadiesawayLady2', 'awayLady2', 'Away Lady 2']],
+          games: [3, 4] },
+        { step: 6, key: 'SecondMens',
+          home: [['SecondMenshomeMan3', 'homeMan3', 'Home Man 3'], ['SecondMenshomeMan4', 'homeMan4', 'Home Man 4']],
+          away: [['SecondMensawayMan3', 'awayMan3', 'Away Man 3'], ['SecondMensawayMan4', 'awayMan4', 'Away Man 4']],
+          games: [5, 6] },
+        { step: 7, key: 'FirstMixed',
+          home: [['FirstMixedhomeMan1', 'homeMan1', 'Home Man 1'], ['FirstMixedhomeLady1', 'homeLady1', 'Home Lady 1']],
+          away: [['FirstMixedawayMan1', 'awayMan1', 'Away Man 1'], ['FirstMixedawayLady1', 'awayLady1', 'Away Lady 1']],
+          games: [7, 8] },
+        { step: 8, key: 'SecondMixed',
+          home: [['SecondMixedhomeMan2', 'homeMan2', 'Home Man 2'], ['SecondMixedhomeLady2', 'homeLady2', 'Home Lady 2']],
+          away: [['SecondMixedawayMan2', 'awayMan2', 'Away Man 2'], ['SecondMixedawayLady2', 'awayLady2', 'Away Lady 2']],
+          games: [9, 10] },
+        { step: 9, key: 'ThirdMixed',
+          home: [['ThirdMixedhomeMan3', 'homeMan3', 'Home Man 3'], ['ThirdMixedhomeLady1', 'homeLady1', 'Home Lady 1']],
+          away: [['ThirdMixedawayMan3', 'awayMan3', 'Away Man 3'], ['ThirdMixedawayLady1', 'awayLady1', 'Away Lady 1']],
+          games: [11, 12] },
+        { step: 10, key: 'FourthMixed',
+          home: [['FourthMixedhomeMan4', 'homeMan4', 'Home Man 4'], ['FourthMixedhomeLady2', 'homeLady2', 'Home Lady 2']],
+          away: [['FourthMixedawayMan4', 'awayMan4', 'Away Man 4'], ['FourthMixedawayLady2', 'awayLady2', 'Away Lady 2']],
+          games: [13, 14] },
+        { step: 11, key: 'ThirdMens',
+          home: [['ThirdMenshomeMan1', 'homeMan1', 'Home Man 1'], ['ThirdMenshomeMan2', 'homeMan2', 'Home Man 2']],
+          away: [['ThirdMensawayMan3', 'awayMan3', 'Away Man 3'], ['ThirdMensawayMan4', 'awayMan4', 'Away Man 4']],
+          games: [15, 16] },
+        { step: 12, key: 'FourthMens',
+          home: [['FourthMenshomeMan3', 'homeMan3', 'Home Man 3'], ['FourthMenshomeMan4', 'homeMan4', 'Home Man 4']],
+          away: [['FourthMensawayMan1', 'awayMan1', 'Away Man 1'], ['FourthMensawayMan2', 'awayMan2', 'Away Man 2']],
+          games: [17, 18] },
+      ];
+      %>
+      <% if (hasResult || (hasScorecard && hasErrors)) { %>
        <div class="modal fade multi-step" id="signupModal" tabindex="-1" role="dialog" aria-labelledby="signupModal" aria-hidden="true">
          <div class="modal-dialog">
          <form id="signupForm" role="form" action="/email-scorecard" method="post">
@@ -91,6 +123,7 @@
              </div>
              <div class="modal-body step step-1">
 
+                 <% if (!hasErrors) { %>
                  <!-- Scorecard OCR: upload the card photo first and prefill the
                       whole form. Optional — manual entry below is unchanged. -->
                  <div class="card mb-3" id="ocr-panel">
@@ -249,7 +282,7 @@
                      });
                    })();
                  </script>
-
+                 <% } %>
 
                  <div class="form-row">
                    <div class="col-md-6">
@@ -257,29 +290,41 @@
                        <label for="division">Division</label>
                        <select class="form-control" name="division" id="division" placeholder="Division">
                          <option disabled selected>Choose Division</option>
-                         <% result.forEach(function(row){ %>
-                           <option value="<%= row.id %>"><%= row.name %></option>
-                         <% }) %>
+                         <%- include('partials/scorecard-select-options', { rows: hasErrors ? scorecard.divisionRows : result }) %>
                        </select>
                      </div>
                    </div>
                    <div class="col-md-6">
                      <div class="form-group">
                        <label for="date">Date</label>
+                       <% if (hasErrors) { %>
+                       <input type="date" class="form-control" id="date" name="date" value="<%= data.date %>" placeholder="<%= data.date %>">
+                       <% } else { %>
                        <input type="date" class="form-control" id="date" name="date" placeholder="DD/MM/YYYY">
+                       <% } %>
                      </div>
                    </div>
                  </div>
                  <div class="form-group">
                    <label for="homeTeam">Home Team</label>
                    <select class="form-control" id="homeTeam" name="homeTeam" placeholder="Home Team">
+                     <% if (hasErrors) { %>
+                     <option>Choose Home Team</option>
+                     <%- include('partials/scorecard-select-options', { rows: scorecard.homeTeamRows }) %>
+                     <% } else { %>
                      <option disabled selected>Select a team</option>
+                     <% } %>
                    </select>
                  </div>
                  <div class="form-group">
                    <label for="awayTeam">Away Team</label>
                    <select class="form-control" id="awayTeam" name="awayTeam" placeholder="Away Team">
+                     <% if (hasErrors) { %>
+                     <option>Choose Away Team</option>
+                     <%- include('partials/scorecard-select-options', { rows: scorecard.awayTeamRows }) %>
+                     <% } else { %>
                      <option disabled selected>Select a team</option>
+                     <% } %>
                    </select>
                  </div>
              </div>
@@ -290,19 +335,34 @@
                      <div class="form-group step-2">
                        <label for="homeMan1">Man 1</label>
                        <select class="form-control" id="homeMan1" name="homeMan1" placeholder="Home Man 1">
+                         <% if (hasErrors) { %>
+                         <option>Choose Man 1</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, ordinalKey: 'first' }) %>
+                         <% } else { %>
                          <option disabled selected>Select a player</option>
+                         <% } %>
                        </select>
                      </div>
                      <div class="form-group step-2">
                        <label for="homeMan2">Man 2</label>
                        <select class="form-control" id="homeMan2" name="homeMan2" placeholder="Home Man 2">
+                         <% if (hasErrors) { %>
+                         <option>Choose Man 2</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, ordinalKey: 'second' }) %>
+                         <% } else { %>
                          <option disabled selected>Select a player</option>
+                         <% } %>
                        </select>
                      </div>
                      <div class="form-group step-2">
                        <label for="homeMan3">Man 3</label>
                        <select class="form-control" id="homeMan3" name="homeMan3" placeholder="Home Man 3">
+                         <% if (hasErrors) { %>
+                         <option>Choose Man 3</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, ordinalKey: 'third' }) %>
+                         <% } else { %>
                          <option disabled selected>Select a player</option>
+                         <% } %>
                        </select>
                      </div>
                    </div>
@@ -310,19 +370,34 @@
                       <div class="form-group step-2">
                         <label for="homeMan4">Man 4</label>
                         <select class="form-control" id="homeMan4" name="homeMan4" placeholder="Home Man 4">
+                          <% if (hasErrors) { %>
+                          <option>Choose Man 4</option>
+                          <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, ordinalKey: 'fourth' }) %>
+                          <% } else { %>
                           <option disabled selected>Select a player</option>
+                          <% } %>
                         </select>
                       </div>
                      <div class="form-group step-2">
                        <label for="homeLady1">Lady 1</label>
                        <select class="form-control" id="homeLady1" name="homeLady1" placeholder="Home Lady 1">
+                         <% if (hasErrors) { %>
+                         <option>Choose Lady 1</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeLadiesRows, ordinalKey: 'first' }) %>
+                         <% } else { %>
                          <option disabled selected>Select a player</option>
+                         <% } %>
                        </select>
                      </div>
                      <div class="form-group step-2">
                        <label for="homeLady2">Lady 2</label>
                        <select class="form-control" id="homeLady2" name="homeLady2" placeholder="Home Lady 2">
+                         <% if (hasErrors) { %>
+                         <option>Choose Lady 2</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeLadiesRows, ordinalKey: 'second' }) %>
+                         <% } else { %>
                          <option disabled selected>Select a player</option>
+                         <% } %>
                        </select>
                      </div>
                    </div>
@@ -336,19 +411,34 @@
                      <div class="form-group step-3">
                        <label for="awayMan1">Man 1</label>
                        <select class="form-control" id="awayMan1" name="awayMan1" placeholder="Away Man 1">
+                         <% if (hasErrors) { %>
+                         <option>Choose Man 1</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, ordinalKey: 'first' }) %>
+                         <% } else { %>
                          <option disabled selected>Select a player</option>
+                         <% } %>
                        </select>
                      </div>
                      <div class="form-group step-3">
                        <label for="awayMan2">Man 2</label>
                        <select class="form-control" id="awayMan2" name="awayMan2" placeholder="Away Man 2">
+                         <% if (hasErrors) { %>
+                         <option>Choose Man 2</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, ordinalKey: 'second' }) %>
+                         <% } else { %>
                          <option disabled selected>Select a player</option>
+                         <% } %>
                        </select>
                      </div>
                      <div class="form-group step-3">
                        <label for="awayMan3">Man 3</label>
                        <select class="form-control" id="awayMan3" name="awayMan3" placeholder="Away Man 3">
+                         <% if (hasErrors) { %>
+                         <option>Choose Man 3</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, ordinalKey: 'third' }) %>
+                         <% } else { %>
                          <option disabled selected>Select a player</option>
+                         <% } %>
                        </select>
                      </div>
                    </div>
@@ -356,288 +446,65 @@
                     <div class="form-group step-3">
                       <label for="awayMan4">Man 4</label>
                       <select class="form-control" id="awayMan4" name="awayMan4" placeholder="Away Man 4">
+                        <% if (hasErrors) { %>
+                        <option>Choose Man 4</option>
+                        <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, ordinalKey: 'fourth' }) %>
+                        <% } else { %>
                         <option disabled selected>Select a player</option>
+                        <% } %>
                       </select>
                     </div>
                      <div class="form-group step-3">
                        <label for="awayLady1">Lady 1</label>
                        <select class="form-control" id="awayLady1" name="awayLady1" placeholder="Away Lady 1">
+                         <% if (hasErrors) { %>
+                         <option>Choose Lady 1</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayLadiesRows, ordinalKey: 'first' }) %>
+                         <% } else { %>
                          <option disabled selected>Select a player</option>
+                         <% } %>
                        </select>
                      </div>
                      <div class="form-group step-3">
                        <label for="awayLady2">Lady 2</label>
                        <select class="form-control" id="awayLady2" name="awayLady2" placeholder="Away Lady 2">
+                         <% if (hasErrors) { %>
+                         <option>Choose Lady 2</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayLadiesRows, ordinalKey: 'second' }) %>
+                         <% } else { %>
                          <option disabled selected>Select a player</option>
+                         <% } %>
                        </select>
                      </div>
                    </div>
                  </div>
 
              </div>
-             <div class="modal-body step step-4 FirstMens">
+             <% EVENT_STEPS.forEach(function(ev, idx) { %><div class="modal-body step step-<%= ev.step %> <%= ev.key %>">
 
-              <div class="form-group step-4 FirstMens">
-                <label for="homeFirstMens">Home FirstMens</label>
-                <select class="form-control playerInput" id="FirstMenshomeMan1" data-player-type="homeMan1" name="FirstMenshomeMan1" placeholder="Home Man 1">
+              <div class="form-group step-<%= ev.step %> <%= ev.key %>">
+                <label for="home<%= ev.key %>">Home <%= ev.key %></label>
+                <% ev.home.forEach(function(p) { %><select class="form-control playerInput" id="<%= p[0] %>" data-player-type="<%= p[1] %>" name="<%= p[0] %>" placeholder="<%= p[2] %>">
                 </select>
-                <select class="form-control playerInput" id="FirstMenshomeMan2" data-player-type="homeMan2" name="FirstMenshomeMan2" placeholder="Home Man 2">
-                </select>
+                <% }) %>
               </div>
-              <div class="form-group step-4 FirstMens">
-                <label for="awayFirstMens">Away FirstMens</label>
-                <select class="form-control playerInput" id="FirstMensawayMan1" data-player-type="awayMan1" name="FirstMensawayMan1" placeholder="Away Man 1">
+              <div class="form-group step-<%= ev.step %> <%= ev.key %>">
+                <label for="away<%= ev.key %>">Away <%= ev.key %></label>
+                <% ev.away.forEach(function(p) { %><select class="form-control playerInput" id="<%= p[0] %>" data-player-type="<%= p[1] %>" name="<%= p[0] %>" placeholder="<%= p[2] %>">
                 </select>
-                <select class="form-control playerInput" id="FirstMensawayMan2" data-player-type="awayMan2" name="FirstMensawayMan2" placeholder="Away Man 2">
-                </select>
+                <% }) %>
               </div>
               <div class="form-row">
-                <div class="form-group step-4 FirstMens col-6">
-                  <label for="game1Score">Game 1</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game1 home" id="Game1homeScore" name="Game1homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game1 away" id="Game1awayScore" name="Game1awayScore" placeholder=""></div></div>
+                <% ev.games.forEach(function(g) { %><div class="form-group step-<%= ev.step %> <%= ev.key %> col-6">
+                  <label for="game<%= g %>Score">Game <%= g %></label>
+                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game<%= g %> home" id="Game<%= g %>homeScore" name="Game<%= g %>homeScore" <% if (hasErrors) { %>value="<%= data['Game' + g + 'homeScore'] %>"<% } else { %>placeholder=""<% } %>></div>
+                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game<%= g %> away" id="Game<%= g %>awayScore" name="Game<%= g %>awayScore" <% if (hasErrors) { %>value="<%= data['Game' + g + 'awayScore'] %>"<% } else { %>placeholder=""<% } %>></div></div>
                 </div>
-                <div class="form-group step-4 FirstMens col-6">
-                  <label for="game2Score">Game 2</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game2 home" id="Game2homeScore" name="Game2homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game2 away" id="Game2awayScore" name="Game2awayScore" placeholder=""></div></div>
-                </div>
+                <% }) %>
               </div>
-              
-              </div><div class="modal-body step step-5 FirstLadies">
-      
-              <div class="form-group step-5 FirstLadies">
-                <label for="homeFirstLadies">Home FirstLadies</label>
-                <select class="form-control playerInput" id="FirstLadieshomeLady1" data-player-type="homeLady1" name="FirstLadieshomeLady1" placeholder="Home Lady 1">
-                </select>
-                <select class="form-control playerInput" id="FirstLadieshomeLady2" data-player-type="homeLady2" name="FirstLadieshomeLady2" placeholder="Home Lady 2">
-                </select>
-              </div>
-              <div class="form-group step-5 FirstLadies">
-                <label for="awayFirstLadies">Away FirstLadies</label>
-                <select class="form-control playerInput" id="FirstLadiesawayLady1" data-player-type="awayLady1" name="FirstLadiesawayLady1" placeholder="Away Lady 1">
-                </select>
-                <select class="form-control playerInput" id="FirstLadiesawayLady2" data-player-type="awayLady2" name="FirstLadiesawayLady2" placeholder="Away Lady 2">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-5 FirstLadies col-6">
-                  <label for="game3Score">Game 3</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game3 home" id="Game3homeScore" name="Game3homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game3 away" id="Game3awayScore" name="Game3awayScore" placeholder=""></div></div>
-                </div>
-                <div class="form-group step-5 FirstLadies col-6">
-                  <label for="game4Score">Game 4</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game4 home" id="Game4homeScore" name="Game4homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game4 away" id="Game4awayScore" name="Game4awayScore" placeholder=""></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-6 SecondMens">
-      
-              <div class="form-group step-6 SecondMens">
-                <label for="homeSecondMens">Home SecondMens</label>
-                <select class="form-control playerInput" id="SecondMenshomeMan3" data-player-type="homeMan3" name="SecondMenshomeMan3" placeholder="Home Man 3">
-                </select>
-                <select class="form-control playerInput" id="SecondMenshomeMan4" data-player-type="homeMan4" name="SecondMenshomeMan4" placeholder="Home Man 4">
-                </select>
-              </div>
-              <div class="form-group step-6 SecondMens">
-                <label for="awaySecondMens">Away SecondMens</label>
-                <select class="form-control playerInput" id="SecondMensawayMan3" data-player-type="awayMan3" name="SecondMensawayMan3" placeholder="Away Man 3">
-                </select>
-                <select class="form-control playerInput" id="SecondMensawayMan4" data-player-type="awayMan4" name="SecondMensawayMan4" placeholder="Away Man 4">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-6 SecondMens col-6">
-                  <label for="game5Score">Game 5</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game5 home" id="Game5homeScore" name="Game5homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game5 away" id="Game5awayScore" name="Game5awayScore" placeholder=""></div></div>
-                </div>
-                <div class="form-group step-6 SecondMens col-6">
-                  <label for="game6Score">Game 6</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game6 home" id="Game6homeScore" name="Game6homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game6 away" id="Game6awayScore" name="Game6awayScore" placeholder=""></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-7 FirstMixed">
-      
-              <div class="form-group step-7 FirstMixed">
-                <label for="homeFirstMixed">Home FirstMixed</label>
-                <select class="form-control playerInput" id="FirstMixedhomeMan1" data-player-type="homeMan1" name="FirstMixedhomeMan1" placeholder="Home Man 1">
-                </select>
-                <select class="form-control playerInput" id="FirstMixedhomeLady1" data-player-type="homeLady1" name="FirstMixedhomeLady1" placeholder="Home Lady 1">
-                </select>
-              </div>
-              <div class="form-group step-7 FirstMixed">
-                <label for="awayFirstMixed">Away FirstMixed</label>
-                <select class="form-control playerInput" id="FirstMixedawayMan1" data-player-type="awayMan1" name="FirstMixedawayMan1" placeholder="Away Man 1">
-                </select>
-                <select class="form-control playerInput" id="FirstMixedawayLady1" data-player-type="awayLady1" name="FirstMixedawayLady1" placeholder="Away Lady 1">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-7 FirstMixed col-6">
-                  <label for="game7Score">Game 7</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game7 home" id="Game7homeScore" name="Game7homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game7 away" id="Game7awayScore" name="Game7awayScore" placeholder=""></div></div>
-                </div>
-                <div class="form-group step-7 FirstMixed col-6">
-                  <label for="game8Score">Game 8</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game8 home" id="Game8homeScore" name="Game8homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game8 away" id="Game8awayScore" name="Game8awayScore" placeholder=""></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-8 SecondMixed">
-      
-              <div class="form-group step-8 SecondMixed">
-                <label for="homeSecondMixed">Home SecondMixed</label>
-                <select class="form-control playerInput" id="SecondMixedhomeMan2" data-player-type="homeMan2" name="SecondMixedhomeMan2" placeholder="Home Man 2">
-                </select>
-                <select class="form-control playerInput" id="SecondMixedhomeLady2" data-player-type="homeLady2" name="SecondMixedhomeLady2" placeholder="Home Lady 2">
-                </select>
-              </div>
-              <div class="form-group step-8 SecondMixed">
-                <label for="awaySecondMixed">Away SecondMixed</label>
-                <select class="form-control playerInput" id="SecondMixedawayMan2" data-player-type="awayMan2" name="SecondMixedawayMan2" placeholder="Away Man 2">
-                </select>
-                <select class="form-control playerInput" id="SecondMixedawayLady2" data-player-type="awayLady2" name="SecondMixedawayLady2" placeholder="Away Lady 2">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-8 SecondMixed col-6">
-                  <label for="game9Score">Game 9</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game9 home" id="Game9homeScore" name="Game9homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game9 away" id="Game9awayScore" name="Game9awayScore" placeholder=""></div></div>
-                </div>
-                <div class="form-group step-8 SecondMixed col-6">
-                  <label for="game10Score">Game 10</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game10 home" id="Game10homeScore" name="Game10homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game10 away" id="Game10awayScore" name="Game10awayScore" placeholder=""></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-9 ThirdMixed">
-      
-              <div class="form-group step-9 ThirdMixed">
-                <label for="homeThirdMixed">Home ThirdMixed</label>
-                <select class="form-control playerInput" id="ThirdMixedhomeMan3" data-player-type="homeMan3" name="ThirdMixedhomeMan3" placeholder="Home Man 3">
-                </select>
-                <select class="form-control playerInput" id="ThirdMixedhomeLady1" data-player-type="homeLady1" name="ThirdMixedhomeLady1" placeholder="Home Lady 1">
-                </select>
-              </div>
-              <div class="form-group step-9 ThirdMixed">
-                <label for="awayThirdMixed">Away ThirdMixed</label>
-                <select class="form-control playerInput" id="ThirdMixedawayMan3" data-player-type="awayMan3" name="ThirdMixedawayMan3" placeholder="Away Man 3">
-                </select>
-                <select class="form-control playerInput" id="ThirdMixedawayLady1" data-player-type="awayLady1" name="ThirdMixedawayLady1" placeholder="Away Lady 1">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-9 ThirdMixed col-6">
-                  <label for="game11Score">Game 11</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game11 home" id="Game11homeScore" name="Game11homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game11 away" id="Game11awayScore" name="Game11awayScore" placeholder=""></div></div>
-                </div>
-                <div class="form-group step-9 ThirdMixed col-6">
-                  <label for="game12Score">Game 12</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game12 home" id="Game12homeScore" name="Game12homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game12 away" id="Game12awayScore" name="Game12awayScore" placeholder=""></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-10 FourthMixed">
-      
-              <div class="form-group step-10 FourthMixed">
-                <label for="homeFourthMixed">Home FourthMixed</label>
-                <select class="form-control playerInput" id="FourthMixedhomeMan4" data-player-type="homeMan4" name="FourthMixedhomeMan4" placeholder="Home Man 4">
-                </select>
-                <select class="form-control playerInput" id="FourthMixedhomeLady2" data-player-type="homeLady2" name="FourthMixedhomeLady2" placeholder="Home Lady 2">
-                </select>
-              </div>
-              <div class="form-group step-10 FourthMixed">
-                <label for="awayFourthMixed">Away FourthMixed</label>
-                <select class="form-control playerInput" id="FourthMixedawayMan4" data-player-type="awayMan4" name="FourthMixedawayMan4" placeholder="Away Man 4">
-                </select>
-                <select class="form-control playerInput" id="FourthMixedawayLady2" data-player-type="awayLady2" name="FourthMixedawayLady2" placeholder="Away Lady 2">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-10 FourthMixed col-6">
-                  <label for="game13Score">Game 13</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game13 home" id="Game13homeScore" name="Game13homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game13 away" id="Game13awayScore" name="Game13awayScore" placeholder=""></div></div>
-                </div>
-                <div class="form-group step-10 FourthMixed col-6">
-                  <label for="game14Score">Game 14</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game14 home" id="Game14homeScore" name="Game14homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game14 away" id="Game14awayScore" name="Game14awayScore" placeholder=""></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-11 ThirdMens">
-      
-              <div class="form-group step-11 ThirdMens">
-                <label for="homeThirdMens">Home ThirdMens</label>
-                <select class="form-control playerInput" id="ThirdMenshomeMan1" data-player-type="homeMan1" name="ThirdMenshomeMan1" placeholder="Home Man 1">
-                </select>
-                <select class="form-control playerInput" id="ThirdMenshomeMan2" data-player-type="homeMan2" name="ThirdMenshomeMan2" placeholder="Home Man 2">
-                </select>
-              </div>
-              <div class="form-group step-11 ThirdMens">
-                <label for="awayThirdMens">Away ThirdMens</label>
-                <select class="form-control playerInput" id="ThirdMensawayMan3" data-player-type="awayMan3" name="ThirdMensawayMan3" placeholder="Away Man 3">
-                </select>
-                <select class="form-control playerInput" id="ThirdMensawayMan4" data-player-type="awayMan4" name="ThirdMensawayMan4" placeholder="Away Man 4">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-11 ThirdMens col-6">
-                  <label for="game15Score">Game 15</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game15 home" id="Game15homeScore" name="Game15homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game15 away" id="Game15awayScore" name="Game15awayScore" placeholder=""></div></div>
-                </div>
-                <div class="form-group step-11 ThirdMens col-6">
-                  <label for="game16Score">Game 16</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game16 home" id="Game16homeScore" name="Game16homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game16 away" id="Game16awayScore" name="Game16awayScore" placeholder=""></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-12 FourthMens">
-      
-              <div class="form-group step-12 FourthMens">
-                <label for="homeFourthMens">Home FourthMens</label>
-                <select class="form-control playerInput" id="FourthMenshomeMan3" data-player-type="homeMan3" name="FourthMenshomeMan3" placeholder="Home Man 3">
-                </select>
-                <select class="form-control playerInput" id="FourthMenshomeMan4" data-player-type="homeMan4" name="FourthMenshomeMan4" placeholder="Home Man 4">
-                </select>
-              </div>
-              <div class="form-group step-12 FourthMens">
-                <label for="awayFourthMens">Away FourthMens</label>
-                <select class="form-control playerInput" id="FourthMensawayMan1" data-player-type="awayMan1" name="FourthMensawayMan1" placeholder="Away Man 1">
-                </select>
-                <select class="form-control playerInput" id="FourthMensawayMan2" data-player-type="awayMan2" name="FourthMensawayMan2" placeholder="Away Man 2">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-12 FourthMens col-6">
-                  <label for="game17Score">Game 17</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game17 home" id="Game17homeScore" name="Game17homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game17 away" id="Game17awayScore" name="Game17awayScore" placeholder=""></div></div>
-                </div>
-                <div class="form-group step-12 FourthMens col-6">
-                  <label for="game18Score">Game 18</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game18 home" id="Game18homeScore" name="Game18homeScore" placeholder=""></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game18 away" id="Game18awayScore" name="Game18awayScore" placeholder=""></div></div>
-                </div>
-              </div>
-              
-              </div>
-             <div class="modal-body step step-13 ScorecardUpload">            
+
+              </div><% }) %>
+             <div class="modal-body step step-13 ScorecardUpload">
                 <div class="form-row">
                     <div class="form-group step-13 ScorecardUpload col-6">
                         <label for="game17Score">Upload Scorecard</label>
@@ -712,714 +579,6 @@
                    <input type="hidden" id="homeScore" name="homeScore" value="">
                    <input type="hidden" id="awayScore" name="awayScore" value="">
                    <input type="hidden" id="email" name="email" value="">
-                 </div>
-
-             </div>
-             <div class="modal-footer">
-                <button type="button" class="btn btn-primary step step-1" data-step="1" onclick="sendEvent('2')">Continue</button>
-                <button type="button" class="btn btn-primary step step-2" data-step="2" onclick="sendEvent('1')">Back</button>
-                <button type="button" class="btn btn-primary step step-2" data-step="2" onclick="sendEvent('3')">Continue</button>
-                <button type="button" class="btn btn-primary step step-3" data-step="3" onclick="sendEvent('2')">Back</button>
-                <button type="button" class="btn btn-primary step step-3" data-step="3" onclick="sendEvent('4')">Continue</button>
-                <button type="button" class="btn btn-primary step step-4" data-step="4" onclick="sendEvent('3')">Back</button>
-                <button type="button" class="btn btn-primary step step-4" data-step="4" onclick="sendEvent('5')">Continue</button>
-                <button type="button" class="btn btn-primary step step-5" data-step="5" onclick="sendEvent('4')">Back</button>
-                <button type="button" class="btn btn-primary step step-5" data-step="5" onclick="sendEvent('6')">Continue</button>
-                <button type="button" class="btn btn-primary step step-6" data-step="6" onclick="sendEvent('5')">Back</button>
-                <button type="button" class="btn btn-primary step step-6" data-step="6" onclick="sendEvent('7')">Continue</button>
-                <button type="button" class="btn btn-primary step step-7" data-step="7" onclick="sendEvent('6')">Back</button>
-                <button type="button" class="btn btn-primary step step-7" data-step="7" onclick="sendEvent('8')">Continue</button>
-                <button type="button" class="btn btn-primary step step-8" data-step="8" onclick="sendEvent('7')">Back</button>
-                <button type="button" class="btn btn-primary step step-8" data-step="8" onclick="sendEvent('9')">Continue</button>
-                <button type="button" class="btn btn-primary step step-9" data-step="9" onclick="sendEvent('8')">Back</button>
-                <button type="button" class="btn btn-primary step step-9" data-step="9" onclick="sendEvent('10')">Continue</button>
-                <button type="button" class="btn btn-primary step step-10" data-step="10" onclick="sendEvent('9')">Back</button>
-                <button type="button" class="btn btn-primary step step-10" data-step="10" onclick="sendEvent('11')">Continue</button>
-                <button type="button" class="btn btn-primary step step-11" data-step="11" onclick="sendEvent('10')">Back</button>
-                <button type="button" class="btn btn-primary step step-11" data-step="11" onclick="sendEvent('12')">Continue</button>
-                <button type="button" class="btn btn-primary step step-12" data-step="12" onclick="sendEvent('11')">Back</button>
-                <button type="button" class="btn btn-primary step step-12" data-step="12" onclick="sendEvent('13')">Continue</button>
-                <button type="button" class="btn btn-primary step step-13" data-step="13" onclick="sendEvent('12')">Back</button>
-                <button type="button" class="btn btn-primary step step-13" data-step="13" onclick="sendEvent('14')">Continue</button>
-                <button type="button" class="btn btn-primary step step-14" data-step="14" onclick="sendEvent('13')">Back</button>
-                <button id="signup" type="submit" class="btn btn-primary step step-14" data-step="14" >Submit</button>
-
-             </div>
-           </div><!-- /.modal-content -->
-         </div><!-- /.modal-dialog -->
-       </div><!-- /.modal -->
-    <% } %>
-
-    <% if (hasScorecard && hasErrors) { %>
-       <div class="modal fade multi-step" id="signupModal" tabindex="-1" role="dialog" aria-labelledby="signupModal" aria-hidden="true">
-         <div class="modal-dialog">
-         <form id="signupForm" role="form" action="/email-scorecard" method="post">
-           <div class="modal-content">
-             <div class="modal-header">
-               <h4 class="modal-title step-1" data-step="1">Fixture</h4>
-               <h4 class="modal-title step-2" data-step="2">Home Team</h4>
-               <h4 class="modal-title step-3" data-step="3">Away Team</h4>
-               <h4 class="modal-title step-4" data-step="4">Open A</h4>
-               <h4 class="modal-title step-5" data-step="5">Ladies</h4>
-               <h4 class="modal-title step-6" data-step="6">Open B</h4>
-               <h4 class="modal-title step-7" data-step="7">Mixed A</h4>
-               <h4 class="modal-title step-8" data-step="8">Mixed B</h4>
-               <h4 class="modal-title step-9" data-step="9">Mixed C</h4>
-               <h4 class="modal-title step-10" data-step="10">Mixed D</h4>
-               <h4 class="modal-title step-11" data-step="11">Open C</h4>
-               <h4 class="modal-title step-12" data-step="12">Open D</h4>
-               <h4 class="modal-title step-13" data-step="12">Scorecard Upload</h4>
-               <h4 class="modal-title step-14" data-step="12">Summary</h4>
-               <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
-             </div>
-             <div class="modal-body step step-1">
-
-
-                 <div class="form-row">
-                   <div class="col-md-6">
-                     <div class="form-group">
-                       <label for="division">Division</label>
-                       <select class="form-control" name="division" id="division" placeholder="Division">
-                         <option disabled selected>Choose Division</option>
-                         <% scorecard.divisionRows.forEach(function(row){ %>
-                           <%
-                            if (row.selected == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.name %></option>
-                         <% }) %>
-                       </select>
-                     </div>
-                   </div>
-                   <div class="col-md-6">
-                     <div class="form-group">
-                       <label for="date">Date</label>
-                       <input type="date" class="form-control" id="date" name="date" value="<%= data.date %>" placeholder="<%= data.date %>">
-                     </div>
-                   </div>
-                 </div>
-                 <div class="form-group">
-                   <label for="homeTeam">Home Team</label>
-                   <select class="form-control" id="homeTeam" name="homeTeam" placeholder="Home Team">
-                    <option>Choose Home Team</option>
-                     <% scorecard.homeTeamRows.forEach(function(row){ %>
-                       <%
-                        if (row.selected == 1){
-                          var selected = " selected"
-                        }
-                        else {
-                          var selected = ""
-                        }
-                       %>
-                       <option value="<%= row.id %>" <%= selected %>><%= row.name %></option>
-                     <% }) %>
-                   </select>
-                 </div>
-                 <div class="form-group">
-                   <label for="awayTeam">Away Team</label>
-                   <select class="form-control" id="awayTeam" name="awayTeam" placeholder="Away Team">
-                    <option>Choose Away Team</option>
-                     <% scorecard.awayTeamRows.forEach(function(row){ %>
-                       <%
-                        if (row.selected == 1){
-                          var selected = " selected"
-                        }
-                        else {
-                          var selected = ""
-                        }
-                       %>
-                       <option value="<%= row.id %>" <%= selected %>><%= row.name %></option>
-                     <% }) %>
-                   </select>
-                 </div>
-             </div>
-             <div class="modal-body step step-2">
-
-                 <div class="form-row">
-                   <div class="col-md-6">
-                     <div class="form-group step-2">
-                       <label for="homeMan1">Man 1</label>
-                       <select class="form-control" id="homeMan1" name="homeMan1" placeholder="Home Man 1">
-                        <option>Choose Man 1</option>
-                         <% scorecard.homeMenRows.forEach(function(row){ %>
-                           <%
-                            if (row.first == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.first_name %> <%= row.family_name %></option>
-                         <% }) %>
-                         <option value="0">No Player Home Team</option>
-                         <option value="0">No Player Away Team</option>
-                       </select>
-                     </div>
-                     <div class="form-group step-2">
-                       <label for="homeMan2">Man 2</label>
-                       <select class="form-control" id="homeMan2" name="homeMan2" placeholder="Home Man 2">
-                        <option>Choose Man 1</option>
-                         <% scorecard.homeMenRows.forEach(function(row){ %>
-                           <%
-                            if (row.second == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.first_name %> <%= row.family_name %></option>
-                         <% }) %>
-                         <option value="0">No Player Home Team</option>
-                         <option value="0">No Player Away Team</option>
-                       </select>
-                     </div>
-                     <div class="form-group step-2">
-                       <label for="homeMan3">Man 3</label>
-                       <select class="form-control" id="homeMan3" name="homeMan3" placeholder="Home Man 3">
-                        <option>Choose Man 1</option>
-                         <% scorecard.homeMenRows.forEach(function(row){ %>
-                           <%
-                            if (row.third == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.first_name %> <%= row.family_name %></option>
-                         <% }) %>
-                         <option value="0">No Player Home Team</option>
-                         <option value="0">No Player Away Team</option>
-                       </select>
-                     </div>
-                   </div>
-                   <div class="col-md-6">
-                     <div class="form-group step-2">
-                       <label for="homeMan4">Man 4</label>
-                       <select class="form-control" id="homeMan4" name="homeMan4" placeholder="Home Man 4">
-                        <option>Choose Man 4</option>
-                         <% scorecard.homeMenRows.forEach(function(row){ %>
-                           <%
-                            if (row.fourth == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.first_name %> <%= row.family_name %></option>
-                         <% }) %>
-                         <option value="0">No Player Home Team</option>
-                         <option value="0">No Player Away Team</option>
-                       </select>
-                     </div>
-                     <div class="form-group step-2">
-                       <label for="homeLady1">Lady 1</label>
-                       <select class="form-control" id="homeLady1" name="homeLady1" placeholder="Home Lady 1">
-                        <option>Choose Lady 1</option>
-                         <% scorecard.homeLadiesRows.forEach(function(row){ %>
-                           <%
-                            if (row.first == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.first_name %> <%= row.family_name %></option>
-                         <% }) %>
-                         <option value="0">No Player Home Team</option>
-                         <option value="0">No Player Away Team</option>
-                       </select>
-                     </div>
-                     <div class="form-group step-2">
-                       <label for="homeLady2">Lady 2</label>
-                       <select class="form-control" id="homeLady2" name="homeLady2" placeholder="Home Lady 2">
-                        <option>Choose Lady 2</option>
-                         <% scorecard.homeLadiesRows.forEach(function(row){ %>
-                           <%
-                            if (row.second == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.first_name %> <%= row.family_name %></option>
-                         <% }) %>
-                         <option value="0">No Player Home Team</option>
-                         <option value="0">No Player Away Team</option>
-                       </select>
-                     </div>
-                   </div>
-                 </div>
-
-             </div>
-             <div class="modal-body step step-3">
-
-                 <div class="form-row">
-                   <div class="col-md-6">
-                     <div class="form-group step-3">
-                       <label for="awayMan1">Man 1</label>
-                       <select class="form-control" id="awayMan1" name="awayMan1" placeholder="Away Man 1">
-                        <option>Choose Man 1</option>
-                         <% scorecard.awayMenRows.forEach(function(row){ %>
-                           <%
-                            if (row.first == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.first_name %> <%= row.family_name %></option>
-                         <% }) %>
-                         <option value="0">No Player Home Team</option>
-                         <option value="0">No Player Away Team</option>
-                       </select>
-                     </div>
-                     <div class="form-group step-3">
-                       <label for="awayMan2">Man 2</label>
-                       <select class="form-control" id="awayMan2" name="awayMan2" placeholder="Away Man 2">
-                        <option>Choose Man 2</option>
-                         <% scorecard.awayMenRows.forEach(function(row){ %>
-                           <%
-                            if (row.second == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.first_name %> <%= row.family_name %></option>
-                         <% }) %>
-                         <option value="0">No Player Home Team</option>
-                         <option value="0">No Player Away Team</option>
-                       </select>
-                     </div>
-                     <div class="form-group step-3">
-                       <label for="awayMan3">Man 3</label>
-                       <select class="form-control" id="awayMan3" name="awayMan3" placeholder="Away Man 3">
-                        <option>Choose Man 3</option>
-                         <% scorecard.awayMenRows.forEach(function(row){ %>
-                           <%
-                            if (row.third == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.first_name %> <%= row.family_name %></option>
-                         <% }) %>
-                         <option value="0">No Player Home Team</option>
-                         <option value="0">No Player Away Team</option>
-                       </select>
-                     </div>
-                   </div>
-                   <div class="col-md-6">
-                     <div class="form-group step-3">
-                       <label for="awayMan4">Man 4</label>
-                       <select class="form-control" id="awayMan4" name="awayMan4" placeholder="Away Man 4">
-                        <option>Choose Man 4</option>
-                         <% scorecard.awayMenRows.forEach(function(row){ %>
-                           <%
-                            if (row.fourth == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.first_name %> <%= row.family_name %></option>
-                         <% }) %>
-                         <option value="0">No Player Home Team</option>
-                         <option value="0">No Player Away Team</option>
-                       </select>
-                     </div>
-                     <div class="form-group step-3">
-                       <label for="awayLady1">Lady 1</label>
-                       <select class="form-control" id="awayLady1" name="awayLady1" placeholder="Away Lady 1">
-                        <option>Choose Lady 1</option>
-                         <% scorecard.awayLadiesRows.forEach(function(row){ %>
-                           <%
-                            if (row.first == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.first_name %> <%= row.family_name %></option>
-                         <% }) %>
-                         <option value="0">No Player Home Team</option>
-                         <option value="0">No Player Away Team</option>
-                       </select>
-                     </div>
-                     <div class="form-group step-3">
-                       <label for="awayLady2">Lady 2</label>
-                       <select class="form-control" id="awayLady2" name="awayLady2" placeholder="Away Lady 2">
-                        <option>Choose Lady 2</option>
-                         <% scorecard.awayLadiesRows.forEach(function(row){ %>
-                           <%
-                            if (row.second == 1){
-                              var selected = " selected"
-                            }
-                            else {
-                              var selected = ""
-                            }
-                           %>
-                           <option value="<%= row.id %>" <%= selected %>><%= row.first_name %> <%= row.family_name %></option>
-                         <% }) %>
-                         <option value="0">No Player Home Team</option>
-                         <option value="0">No Player Away Team</option>
-                       </select>
-                     </div>
-                   </div>
-                 </div>
-
-             </div>
-             <div class="modal-body step step-4 FirstMens">
-
-              <div class="form-group step-4 FirstMens">
-                <label for="homeFirstMens">Home FirstMens</label>
-                <select class="form-control playerInput" id="FirstMenshomeMan1" data-player-type="homeMan1" name="FirstMenshomeMan1" placeholder="Home Man 1">
-                </select>
-                <select class="form-control playerInput" id="FirstMenshomeMan2" data-player-type="homeMan2" name="FirstMenshomeMan2" placeholder="Home Man 2">
-                </select>
-              </div>
-              <div class="form-group step-4 FirstMens">
-                <label for="awayFirstMens">Away FirstMens</label>
-                <select class="form-control playerInput" id="FirstMensawayMan1" data-player-type="awayMan1" name="FirstMensawayMan1" placeholder="Away Man 1">
-                </select>
-                <select class="form-control playerInput" id="FirstMensawayMan2" data-player-type="awayMan2" name="FirstMensawayMan2" placeholder="Away Man 2">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-4 FirstMens col-6">
-                  <label for="game1Score">Game 1</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game1 home" id="Game1homeScore" name="Game1homeScore" value="<%= data.Game1homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game1 away" id="Game1awayScore" name="Game1awayScore" value="<%= data.Game1awayScore %>"></div></div>
-                </div>
-                <div class="form-group step-4 FirstMens col-6">
-                  <label for="game2Score">Game 2</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game2 home" id="Game2homeScore" name="Game2homeScore" value="<%= data.Game2homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game2 away" id="Game2awayScore" name="Game2awayScore" value="<%= data.Game2awayScore %>"></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-5 FirstLadies">
-      
-              <div class="form-group step-5 FirstLadies">
-                <label for="homeFirstLadies">Home FirstLadies</label>
-                <select class="form-control playerInput" id="FirstLadieshomeLady1" data-player-type="homeLady1" name="FirstLadieshomeLady1" placeholder="Home Lady 1">
-                </select>
-                <select class="form-control playerInput" id="FirstLadieshomeLady2" data-player-type="homeLady2" name="FirstLadieshomeLady2" placeholder="Home Lady 2">
-                </select>
-              </div>
-              <div class="form-group step-5 FirstLadies">
-                <label for="awayFirstLadies">Away FirstLadies</label>
-                <select class="form-control playerInput" id="FirstLadiesawayLady1" data-player-type="awayLady1" name="FirstLadiesawayLady1" placeholder="Away Lady 1">
-                </select>
-                <select class="form-control playerInput" id="FirstLadiesawayLady2" data-player-type="awayLady2" name="FirstLadiesawayLady2" placeholder="Away Lady 2">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-5 FirstLadies col-6">
-                  <label for="game3Score">Game 3</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game3 home" id="Game3homeScore" name="Game3homeScore" value="<%= data.Game3homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game3 away" id="Game3awayScore" name="Game3awayScore" value="<%= data.Game3awayScore %>"></div></div>
-                </div>
-                <div class="form-group step-5 FirstLadies col-6">
-                  <label for="game4Score">Game 4</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game4 home" id="Game4homeScore" name="Game4homeScore" value="<%= data.Game4homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game4 away" id="Game4awayScore" name="Game4awayScore" value="<%= data.Game4awayScore %>"></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-6 SecondMens">
-      
-              <div class="form-group step-6 SecondMens">
-                <label for="homeSecondMens">Home SecondMens</label>
-                <select class="form-control playerInput" id="SecondMenshomeMan3" data-player-type="homeMan3" name="SecondMenshomeMan3" placeholder="Home Man 3">
-                </select>
-                <select class="form-control playerInput" id="SecondMenshomeMan4" data-player-type="homeMan4" name="SecondMenshomeMan4" placeholder="Home Man 4">
-                </select>
-              </div>
-              <div class="form-group step-6 SecondMens">
-                <label for="awaySecondMens">Away SecondMens</label>
-                <select class="form-control playerInput" id="SecondMensawayMan3" data-player-type="awayMan3" name="SecondMensawayMan3" placeholder="Away Man 3">
-                </select>
-                <select class="form-control playerInput" id="SecondMensawayMan4" data-player-type="awayMan4" name="SecondMensawayMan4" placeholder="Away Man 4">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-6 SecondMens col-6">
-                  <label for="game5Score">Game 5</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game5 home" id="Game5homeScore" name="Game5homeScore" value="<%= data.Game5homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game5 away" id="Game5awayScore" name="Game5awayScore" value="<%= data.Game5awayScore %>"></div></div>
-                </div>
-                <div class="form-group step-6 SecondMens col-6">
-                  <label for="game6Score">Game 6</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game6 home" id="Game6homeScore" name="Game6homeScore" value="<%= data.Game6homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game6 away" id="Game6awayScore" name="Game6awayScore" value="<%= data.Game6awayScore %>"></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-7 FirstMixed">
-      
-              <div class="form-group step-7 FirstMixed">
-                <label for="homeFirstMixed">Home FirstMixed</label>
-                <select class="form-control playerInput" id="FirstMixedhomeMan1" data-player-type="homeMan1" name="FirstMixedhomeMan1" placeholder="Home Man 1">
-                </select>
-                <select class="form-control playerInput" id="FirstMixedhomeLady1" data-player-type="homeLady1" name="FirstMixedhomeLady1" placeholder="Home Lady 1">
-                </select>
-              </div>
-              <div class="form-group step-7 FirstMixed">
-                <label for="awayFirstMixed">Away FirstMixed</label>
-                <select class="form-control playerInput" id="FirstMixedawayMan1" data-player-type="awayMan1" name="FirstMixedawayMan1" placeholder="Away Man 1">
-                </select>
-                <select class="form-control playerInput" id="FirstMixedawayLady1" data-player-type="awayLady1" name="FirstMixedawayLady1" placeholder="Away Lady 1">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-7 FirstMixed col-6">
-                  <label for="game7Score">Game 7</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game7 home" id="Game7homeScore" name="Game7homeScore" value="<%= data.Game7homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game7 away" id="Game7awayScore" name="Game7awayScore" value="<%= data.Game7awayScore %>"></div></div>
-                </div>
-                <div class="form-group step-7 FirstMixed col-6">
-                  <label for="game8Score">Game 8</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game8 home" id="Game8homeScore" name="Game8homeScore" value="<%= data.Game8homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game8 away" id="Game8awayScore" name="Game8awayScore" value="<%= data.Game8awayScore %>"></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-8 SecondMixed">
-      
-              <div class="form-group step-8 SecondMixed">
-                <label for="homeSecondMixed">Home SecondMixed</label>
-                <select class="form-control playerInput" id="SecondMixedhomeMan2" data-player-type="homeMan2" name="SecondMixedhomeMan2" placeholder="Home Man 2">
-                </select>
-                <select class="form-control playerInput" id="SecondMixedhomeLady2" data-player-type="homeLady2" name="SecondMixedhomeLady2" placeholder="Home Lady 2">
-                </select>
-              </div>
-              <div class="form-group step-8 SecondMixed">
-                <label for="awaySecondMixed">Away SecondMixed</label>
-                <select class="form-control playerInput" id="SecondMixedawayMan2" data-player-type="awayMan2" name="SecondMixedawayMan2" placeholder="Away Man 2">
-                </select>
-                <select class="form-control playerInput" id="SecondMixedawayLady2" data-player-type="awayLady2" name="SecondMixedawayLady2" placeholder="Away Lady 2">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-8 SecondMixed col-6">
-                  <label for="game9Score">Game 9</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game9 home" id="Game9homeScore" name="Game9homeScore" value="<%= data.Game9homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game9 away" id="Game9awayScore" name="Game9awayScore" value="<%= data.Game9awayScore %>"></div></div>
-                </div>
-                <div class="form-group step-8 SecondMixed col-6">
-                  <label for="game10Score">Game 10</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game10 home" id="Game10homeScore" name="Game10homeScore" value="<%= data.Game10homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game10 away" id="Game10awayScore" name="Game10awayScore" value="<%= data.Game10awayScore %>"></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-9 ThirdMixed">
-      
-              <div class="form-group step-9 ThirdMixed">
-                <label for="homeThirdMixed">Home ThirdMixed</label>
-                <select class="form-control playerInput" id="ThirdMixedhomeMan3" data-player-type="homeMan3" name="ThirdMixedhomeMan3" placeholder="Home Man 3">
-                </select>
-                <select class="form-control playerInput" id="ThirdMixedhomeLady1" data-player-type="homeLady1" name="ThirdMixedhomeLady1" placeholder="Home Lady 1">
-                </select>
-              </div>
-              <div class="form-group step-9 ThirdMixed">
-                <label for="awayThirdMixed">Away ThirdMixed</label>
-                <select class="form-control playerInput" id="ThirdMixedawayMan3" data-player-type="awayMan3" name="ThirdMixedawayMan3" placeholder="Away Man 3">
-                </select>
-                <select class="form-control playerInput" id="ThirdMixedawayLady1" data-player-type="awayLady1" name="ThirdMixedawayLady1" placeholder="Away Lady 1">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-9 ThirdMixed col-6">
-                  <label for="game11Score">Game 11</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game11 home" id="Game11homeScore" name="Game11homeScore" value="<%= data.Game11homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game11 away" id="Game11awayScore" name="Game11awayScore" value="<%= data.Game11awayScore %>"></div></div>
-                </div>
-                <div class="form-group step-9 ThirdMixed col-6">
-                  <label for="game12Score">Game 12</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game12 home" id="Game12homeScore" name="Game12homeScore" value="<%= data.Game12homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game12 away" id="Game12awayScore" name="Game12awayScore" value="<%= data.Game12awayScore %>"></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-10 FourthMixed">
-      
-              <div class="form-group step-10 FourthMixed">
-                <label for="homeFourthMixed">Home FourthMixed</label>
-                <select class="form-control playerInput" id="FourthMixedhomeMan4" data-player-type="homeMan4" name="FourthMixedhomeMan4" placeholder="Home Man 4">
-                </select>
-                <select class="form-control playerInput" id="FourthMixedhomeLady2" data-player-type="homeLady2" name="FourthMixedhomeLady2" placeholder="Home Lady 2">
-                </select>
-              </div>
-              <div class="form-group step-10 FourthMixed">
-                <label for="awayFourthMixed">Away FourthMixed</label>
-                <select class="form-control playerInput" id="FourthMixedawayMan4" data-player-type="awayMan4" name="FourthMixedawayMan4" placeholder="Away Man 4">
-                </select>
-                <select class="form-control playerInput" id="FourthMixedawayLady2" data-player-type="awayLady2" name="FourthMixedawayLady2" placeholder="Away Lady 2">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-10 FourthMixed col-6">
-                  <label for="game13Score">Game 13</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game13 home" id="Game13homeScore" name="Game13homeScore" value="<%= data.Game13homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game13 away" id="Game13awayScore" name="Game13awayScore" value="<%= data.Game13awayScore %>"></div></div>
-                </div>
-                <div class="form-group step-10 FourthMixed col-6">
-                  <label for="game14Score">Game 14</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game14 home" id="Game14homeScore" name="Game14homeScore" value="<%= data.Game14homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game14 away" id="Game14awayScore" name="Game14awayScore" value="<%= data.Game14awayScore %>"></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-11 ThirdMens">
-      
-              <div class="form-group step-11 ThirdMens">
-                <label for="homeThirdMens">Home ThirdMens</label>
-                <select class="form-control playerInput" id="ThirdMenshomeMan1" data-player-type="homeMan1" name="ThirdMenshomeMan1" placeholder="Home Man 1">
-                </select>
-                <select class="form-control playerInput" id="ThirdMenshomeMan2" data-player-type="homeMan2" name="ThirdMenshomeMan2" placeholder="Home Man 2">
-                </select>
-              </div>
-              <div class="form-group step-11 ThirdMens">
-                <label for="awayThirdMens">Away ThirdMens</label>
-                <select class="form-control playerInput" id="ThirdMensawayMan3" data-player-type="awayMan3" name="ThirdMensawayMan3" placeholder="Away Man 3">
-                </select>
-                <select class="form-control playerInput" id="ThirdMensawayMan4" data-player-type="awayMan4" name="ThirdMensawayMan4" placeholder="Away Man 4">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-11 ThirdMens col-6">
-                  <label for="game15Score">Game 15</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game15 home" id="Game15homeScore" name="Game15homeScore" value="<%= data.Game15homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game15 away" id="Game15awayScore" name="Game15awayScore" value="<%= data.Game15awayScore %>"></div></div>
-                </div>
-                <div class="form-group step-11 ThirdMens col-6">
-                  <label for="game16Score">Game 16</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game16 home" id="Game16homeScore" name="Game16homeScore" value="<%= data.Game16homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game16 away" id="Game16awayScore" name="Game16awayScore" value="<%= data.Game16awayScore %>"></div></div>
-                </div>
-              </div>
-              
-              </div><div class="modal-body step step-12 FourthMens">
-      
-              <div class="form-group step-12 FourthMens">
-                <label for="homeFourthMens">Home FourthMens</label>
-                <select class="form-control playerInput" id="FourthMenshomeMan3" data-player-type="homeMan3" name="FourthMenshomeMan3" placeholder="Home Man 3">
-                </select>
-                <select class="form-control playerInput" id="FourthMenshomeMan4" data-player-type="homeMan4" name="FourthMenshomeMan4" placeholder="Home Man 4">
-                </select>
-              </div>
-              <div class="form-group step-12 FourthMens">
-                <label for="awayFourthMens">Away FourthMens</label>
-                <select class="form-control playerInput" id="FourthMensawayMan1" data-player-type="awayMan1" name="FourthMensawayMan1" placeholder="Away Man 1">
-                </select>
-                <select class="form-control playerInput" id="FourthMensawayMan2" data-player-type="awayMan2" name="FourthMensawayMan2" placeholder="Away Man 2">
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group step-12 FourthMens col-6">
-                  <label for="game17Score">Game 17</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game17 home" id="Game17homeScore" name="Game17homeScore" value="<%= data.Game17homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game17 away" id="Game17awayScore" name="Game17awayScore" value="<%= data.Game17awayScore %>"></div></div>
-                </div>
-                <div class="form-group step-12 FourthMens col-6">
-                  <label for="game18Score">Game 18</label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game18 home" id="Game18homeScore" name="Game18homeScore" value="<%= data.Game18homeScore %>"></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game18 away" id="Game18awayScore" name="Game18awayScore" value="<%= data.Game18awayScore %>"></div></div>
-                </div>
-              </div>
-              
-              </div>
-             <div class="modal-body step step-13 ScorecardUpload">            
-                <div class="form-row">
-                    <div class="form-group step-13 ScorecardUpload col-6">
-                        <label for="game17Score">Upload Scorecard</label>
-                        <div class="form-row">
-                            <div class="col-12"><input type="file" name="scoresheet-spreadsheet" id="scoresheet-spreadsheet" /></div>
-                            <input type="hidden" name="scoresheet-url" id="scoresheet-url" />
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-             <div class="modal-body step step-14">
-
-                 <div class="form-group step-14">
-                  <div id="FirstMensSummary" class="row">
-                    <div class="col-4"></div>
-                    <div class="col-1">vs</div>
-                    <div class="col-4"></div>
-                    <div class="col-3"></div>
-                  </div>
-                  <div id="FirstLadiesSummary" class="row">
-                    <div class="col-4"></div>
-                    <div class="col-1">vs</div>
-                    <div class="col-4"></div>
-                    <div class="col-3"></div>
-                  </div>
-                  <div id="SecondMensSummary" class="row">
-                    <div class="col-4"></div>
-                    <div class="col-1">vs</div>
-                    <div class="col-4"></div>
-                    <div class="col-3"></div>
-                  </div>
-                  <div id="FirstMixedSummary" class="row">
-                    <div class="col-4"></div>
-                    <div class="col-1">vs</div>
-                    <div class="col-4"></div>
-                    <div class="col-3"></div>
-                  </div>
-                  <div id="SecondMixedSummary" class="row">
-                    <div class="col-4"></div>
-                    <div class="col-1">vs</div>
-                    <div class="col-4"></div>
-                    <div class="col-3"></div>
-                  </div>
-                  <div id="ThirdMixedSummary" class="row">
-                    <div class="col-4"></div>
-                    <div class="col-1">vs</div>
-                    <div class="col-4"></div>
-                    <div class="col-3"></div>
-                  </div>
-
-                  <div id="FourthMixedSummary" class="row">
-                   <div class="col-4"></div>
-                   <div class="col-1">vs</div>
-                   <div class="col-4"></div>
-                   <div class="col-3"></div>
-                 </div>
-                 <div id="ThirdMensSummary" class="row">
-                   <div class="col-4"></div>
-                   <div class="col-1">vs</div>
-                   <div class="col-4"></div>
-                   <div class="col-3"></div>
-                 </div>
-                 <div id="FourthMensSummary" class="row">
-                   <div class="col-4"></div>
-                   <div class="col-1">vs</div>
-                   <div class="col-4"></div>
-                   <div class="col-3"></div>
-                 </div>
-                   <div id="finalScore"></div>
-                   <input type="hidden" id="homeScore" name="homeScore" value="">
-                   <input type="hidden" id="awayScore" name="awayScore" value="">
                  </div>
 
              </div>

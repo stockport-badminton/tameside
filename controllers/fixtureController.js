@@ -9,11 +9,32 @@ let Auth = require("../models/auth");
 const ejs = require('ejs');
 const ICAL = require("ical.js");
 const mailjet = require ('node-mailjet').apiConnect(process.env.MAILJET_KEY, process.env.MAILJET_SECRET)
+// Test-only seam: exposes the same client instance the module calls into, so
+// tests can stub `.post` (mock.method) instead of hitting the real Mailjet API.
+exports._mailjetClientForTesting = mailjet;
 const seasonModel = require("../models/season");
 
 const { body, validationResult } = require("express-validator");
 const { sanitizeBody } = require("express-validator");
 const { hasWinner, hasValidMargin } = require("../utils/scorecardValidation");
+
+const promisify = (fn) => (...args) => new Promise((resolve, reject) =>
+  fn(...args, (err, result) => (err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result))));
+
+const getDivisionsP = promisify(Division.getAllAndSelectedById);
+const getTeamsP = promisify(Team.getAllAndSelectedById);
+// getEligiblePlayersAndSelectedById takes its callback as the 5th arg, with
+// the optional third/fourth player ids trailing after it — promisify()
+// assumes the callback is last, so this one needs its own wrapper.
+function getEligiblePlayersP(first, second, teamId, gender, third, fourth) {
+  return new Promise((resolve, reject) => {
+    Player.getEligiblePlayersAndSelectedById(
+      first, second, teamId, gender,
+      (err, result) => (err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result)),
+      third, fourth
+    );
+  });
+}
 
 // express-validator adapters — applied to each away-score field, they pull the
 // paired home score from the body and defer to the pure rules (returning a
@@ -26,511 +47,87 @@ function differenceOfTwo(value, { req, path }) {
   return hasValidMargin(req.body[path.replace("away", "home")], value);
 }
 
+// Card order (1-18); the label is used in that game's validation messages,
+// e.g. Game7awayScore fails with "First Mixed 1:...".
+const GAME_LABELS = [
+  "First Mens 1", "First Mens 2",
+  "First Ladies 1", "First Ladies 2",
+  "Second Mens 1", "Second Mens 2",
+  "First Mixed 1", "First Mixed 2",
+  "Second Mixed 1", "Second Mixed 2",
+  "Third Mixed 1", "Third Mixed 2",
+  "Fourth Mixed 1", "Fourth Mixed 2",
+  "Third Mens 1", "Third Mens 2",
+  "Fourth Mens 1", "Fourth Mens 2",
+];
+
+function gameScoreValidators(gameNumber, label) {
+  return [
+    body(`Game${gameNumber}homeScore`)
+      .isInt({ min: 0, max: 30 })
+      .withMessage("must be between 0 and 30"),
+    body(`Game${gameNumber}awayScore`)
+      .isInt({ min: 0, max: 30 })
+      .withMessage("must be between 0 and 30")
+      .custom(differenceOfTwo)
+      .withMessage(`${label}:winning score isn't 2 greater than losing score`)
+      .custom(greaterThan21)
+      .withMessage(`${label}:one of the teams needs to score at least 21`),
+  ];
+}
+
+// A player field can't hold the same player as any other field in its group
+// (0 means "no player chosen", so it's exempt from the duplicate check).
+function noDuplicatePlayerValidator(field, group, label) {
+  return body(field, "Please choose a player.")
+    .isInt()
+    .custom((value, { req }) => {
+      if (value == 0) return false;
+      return !group.some((other) => other !== field && value == req.body[other]);
+    })
+    .withMessage(`${label}: can't use the same player more than once`);
+}
+
+const MEN_FIELDS = ["homeMan1", "homeMan2", "homeMan3", "homeMan4", "awayMan1", "awayMan2", "awayMan3", "awayMan4"];
+const LADY_FIELDS = ["homeLady1", "homeLady2", "awayLady1", "awayLady2"];
+const FIELD_LABELS = {
+  homeMan1: "Home Man 1", homeMan2: "Home Man 2", homeMan3: "Home Man 3", homeMan4: "Home Man 4",
+  awayMan1: "Away Man 1", awayMan2: "Away Man 2", awayMan3: "Away Man 3", awayMan4: "Away Man 4",
+  homeLady1: "Home Lady 1", homeLady2: "Home Lady 2",
+  awayLady1: "Away Lady 1", awayLady2: "Away Lady 2",
+};
+
+// The Mixed events reuse the singles players; these hidden fields carry
+// those picks along and are checked for dupes within their own side only.
+const HOME_MIXED_MAN_FIELDS = ["FirstMixedhomeMan1", "SecondMixedhomeMan2", "ThirdMixedhomeMan3", "FourthMixedhomeMan4"];
+const AWAY_MIXED_MAN_FIELDS = ["FirstMixedawayMan1", "SecondMixedawayMan2", "ThirdMixedawayMan3", "FourthMixedawayMan4"];
+const MIXED_MAN_LABELS = {
+  FirstMixedhomeMan1: "First Mixed Home Man", SecondMixedhomeMan2: "Second Mixed Home Man",
+  ThirdMixedhomeMan3: "Third Mixed Home Man", FourthMixedhomeMan4: "Fourth Mixed Home Man",
+  FirstMixedawayMan1: "First Mixed Away Man", SecondMixedawayMan2: "Second Mixed Away Man",
+  ThirdMixedawayMan3: "Third Mixed Away Man", FourthMixedawayMan4: "Fourth Mixed Away Man",
+};
+const MIXED_LADY_FIELDS = [
+  "FirstMixedhomeLady1", "SecondMixedhomeLady2", "ThirdMixedhomeLady1", "FourthMixedhomeLady2",
+  "FirstMixedawayLady1", "SecondMixedawayLady2", "ThirdMixedawayLady1", "FourthMixedawayLady2",
+];
+
 exports.validateScorecard = [
-  body("Game1homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game1awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage("First Mens 1:winning score isn't 2 greater than losing score")
-    .custom(greaterThan21)
-    .withMessage("First Mens 1:one of the teams needs to score at least 21"),
-  body("Game2homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game2awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage("First Mens 2:winning score isn't 2 greater than losing score")
-    .custom(greaterThan21)
-    .withMessage("First Mens 2:one of the teams needs to score at least 21"),
-  body("Game3homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game3awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "First Ladies 1:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("First Ladies 1:one of the teams needs to score at least 21"),
-  body("Game4homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game4awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "First Ladies 2:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("First Ladies 2:one of the teams needs to score at least 21"),
-  body("Game5homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game5awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "Second Mens 1:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("Second Mens 1:one of the teams needs to score at least 21"),
-  body("Game6homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game6awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "Second Mens 2:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("Second Mens 2:one of the teams needs to score at least 21"),
-  body("Game7homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game7awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "First Mixed 1:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("First Mixed 1:one of the teams needs to score at least 21"),
-  body("Game8homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game8awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "First Mixed 2:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("First Mixed 2:one of the teams needs to score at least 21"),
-  body("Game9homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game9awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "Second Mixed 1:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("Second Mixed 1:one of the teams needs to score at least 21"),
-  body("Game10homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game10awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "Second Mixed 2:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("Second Mixed 2:one of the teams needs to score at least 21"),
-  body("Game11homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game11awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "Third Mixed 1:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("Third Mixed 1:one of the teams needs to score at least 21"),
-  body("Game12homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game12awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "Third Mixed 2:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("Third Mixed 2:one of the teams needs to score at least 21"),
-  body("Game13homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game13awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "Fourth Mixed 1:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("Fourth Mixed 1:one of the teams needs to score at least 21"),
-  body("Game14homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game14awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "Fourth Mixed 2:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("Fourth Mixed 2:one of the teams needs to score at least 21"),
-  body("Game15homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game15awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage("Third Mens 1:winning score isn't 2 greater than losing score")
-    .custom(greaterThan21)
-    .withMessage("Third Mens 1:one of the teams needs to score at least 21"),
-  body("Game16homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game16awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage("Third Mens 2:winning score isn't 2 greater than losing score")
-    .custom(greaterThan21)
-    .withMessage("Third Mens 2:one of the teams needs to score at least 21"),
-  body("Game17homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game17awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "Fourth Mens 1:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("Fourth Mens 1:one of the teams needs to score at least 21"),
-  body("Game18homeScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30"),
-  body("Game18awayScore")
-    .isInt({ min: 0, max: 30 })
-    .withMessage("must be between 0 and 30")
-    .custom(differenceOfTwo)
-    .withMessage(
-      "Fourth Mens 2:winning score isn't 2 greater than losing score"
-    )
-    .custom(greaterThan21)
-    .withMessage("Fourth Mens 2:one of the teams needs to score at least 21"),
-  body("homeMan1", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.homeMan2 ||
-          value == req.body.homeMan3 ||
-          value == req.body.homeMan4 ||
-          value == req.body.awayMan1 ||
-          value == req.body.awayMan2 ||
-          value == req.body.awayMan3 ||
-          value == req.body.awayMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage("Home Man 1: can't use the same player more than once"),
-  body("homeMan2", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.homeMan1 ||
-          value == req.body.homeMan3 ||
-          value == req.body.homeMan4 ||
-          value == req.body.awayMan1 ||
-          value == req.body.awayMan2 ||
-          value == req.body.awayMan3 ||
-          value == req.body.awayMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage("Home Man 2: can't use the same player more than once"),
-  body("homeMan3", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.homeMan2 ||
-          value == req.body.homeMan1 ||
-          value == req.body.homeMan4 ||
-          value == req.body.awayMan1 ||
-          value == req.body.awayMan2 ||
-          value == req.body.awayMan3 ||
-          value == req.body.awayMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage("Home Man 3:can't use the same player more than once"),
-  body("homeLady1", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.homeLady2 ||
-          value == req.body.awayLady1 ||
-          value == req.body.awayLady2
-          ? false
-          : value
-        : value;
-    })
-    .withMessage("Home Lady 1: can't use the same player more than once"),
-  body("homeLady2", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.homeLady1 ||
-          value == req.body.awayLady1 ||
-          value == req.body.awayLady2
-          ? false
-          : value
-        : value;
-    })
-    .withMessage("Home Lady 2: can't use the same player more than once"),
-  body("homeMan4", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.homeMan2 ||
-          value == req.body.homeMan3 ||
-          value == req.body.homeMan1 ||
-          value == req.body.awayMan1 ||
-          value == req.body.awayMan2 ||
-          value == req.body.awayMan3 ||
-          value == req.body.awayMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage("Home Man 4: can't use the same player more than once"),
-  body("awayMan1", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.awayMan2 ||
-          value == req.body.awayMan3 ||
-          value == req.body.awayMan4 ||
-          value == req.body.homeMan1 ||
-          value == req.body.homeMan2 ||
-          value == req.body.homeMan3 ||
-          value == req.body.homeMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage("Away Man 1: can't use the same player more than once"),
-  body("awayMan2", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.awayMan1 ||
-          value == req.body.awayMan3 ||
-          value == req.body.awayMan4 ||
-          value == req.body.homeMan1 ||
-          value == req.body.homeMan2 ||
-          value == req.body.homeMan3 ||
-          value == req.body.homeMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage("Away Man 2: can't use the same player more than once"),
-  body("awayMan3", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.awayMan2 ||
-          value == req.body.awayMan1 ||
-          value == req.body.awayMan4 ||
-          value == req.body.homeMan1 ||
-          value == req.body.homeMan2 ||
-          value == req.body.homeMan3 ||
-          value == req.body.homeMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage("Away Man 3:can't use the same player more than once"),
-  body("awayLady1", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.awayLady2 ||
-          value == req.body.homeLady1 ||
-          value == req.body.homeLady2
-          ? false
-          : value
-        : value;
-    })
-    .withMessage("Away Lady 1: can't use the same player more than once"),
-  body("awayLady2", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.awayLady1 ||
-          value == req.body.homeLady1 ||
-          value == req.body.homeLady2
-          ? false
-          : value
-        : value;
-    })
-    .withMessage("Away Lady 2: can't use the same player more than once"),
-  body("awayMan4", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.awayMan2 ||
-          value == req.body.awayMan3 ||
-          value == req.body.awayMan1 ||
-          value == req.body.homeMan1 ||
-          value == req.body.homeMan2 ||
-          value == req.body.homeMan3 ||
-          value == req.body.homeMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage("Away Man 4: can't use the same player more than once"),
-  body("FirstMixedhomeMan1", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.SecondMixedhomeMan2 ||
-          value == req.body.ThirdMixedhomeMan3 ||
-          value == req.body.FourthMixedhomeMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage(
-      "First Mixed Home Man: can't use the same player more than once"
-    ),
-  body("SecondMixedhomeMan2", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.FirstMixedhomeMan1 ||
-          value == req.body.ThirdMixedhomeMan3 ||
-          value == req.body.FourthMixedhomeMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage(
-      "Second Mixed Home Man: can't use the same player more than once"
-    ),
-  body("ThirdMixedhomeMan3", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.FirstMixedhomeMan1 ||
-          value == req.body.SecondMixedhomeMan2 ||
-          value == req.body.FourthMixedhomeMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage(
-      "Third Mixed Home Man: can't use the same player more than once"
-    ),
-  body("FourthMixedhomeMan4", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.FirstMixedhomeMan1 ||
-          value == req.body.SecondMixedhomeMan2 ||
-          value == req.body.ThirdMixedhomeMan3
-          ? false
-          : value
-        : value;
-    })
-    .withMessage(
-      "Third Mixed Home Man: can't use the same player more than once"
-    ),
-  body("FirstMixedawayMan1", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.SecondMixedawayMan2 ||
-          value == req.body.ThirdMixedawayMan3 ||
-          value == req.body.FourthMixedawayMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage(
-      "First Mixed Away Man: can't use the same player more than once"
-    ),
-  body("SecondMixedawayMan2", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.FirstMixedawayMan1 ||
-          value == req.body.ThirdMixedawayMan3 ||
-          value == req.body.FourthMixedawayMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage(
-      "Second Mixed Away Man: can't use the same player more than once"
-    ),
-  body("ThirdMixedawayMan3", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.FirstMixedawayMan1 ||
-          value == req.body.SecondMixedawayMan2 ||
-          value == req.body.FourthMixedawayMan4
-          ? false
-          : value
-        : value;
-    })
-    .withMessage(
-      "Third Mixed Away Man: can't use the same player more than once"
-    ),
-  body("FourthMixedawayMan4", "Please choose a player.")
-    .isInt()
-    .custom((value, { req }) => {
-      return value != 0
-        ? value == req.body.FirstMixedawayMan1 ||
-          value == req.body.SecondMixedawayMan2 ||
-          value == req.body.ThirdMixedawayMan3
-          ? false
-          : value
-        : value;
-    })
-    .withMessage(
-      "Third Mixed Away Man: can't use the same player more than once"
-    ),
-  body("FirstMixedhomeLady1", "Please choose a player.").isInt(),
-  body("SecondMixedhomeLady2", "Please choose a player.").isInt(),
-  body("ThirdMixedhomeLady1", "Please choose a player.").isInt(),
-  body("FourthMixedhomeLady2", "Please choose a player.").isInt(),
-  body("FirstMixedawayLady1", "Please choose a player.").isInt(),
-  body("SecondMixedawayLady2", "Please choose a player.").isInt(),
-  body("ThirdMixedawayLady1", "Please choose a player.").isInt(),
-  body("FourthMixedawayLady2", "Please choose a player.").isInt(),
+  body("division").notEmpty().withMessage("Please choose a division."),
+  body("date").isISO8601().withMessage("Please choose a valid date."),
+  body("homeTeam").notEmpty().withMessage("Please choose a home team."),
+  body("awayTeam")
+    .notEmpty()
+    .withMessage("Please choose an away team.")
+    .bail()
+    .custom((value, { req }) => value != req.body.homeTeam)
+    .withMessage("Home team and away team can't be the same."),
+  ...GAME_LABELS.flatMap((label, i) => gameScoreValidators(i + 1, label)),
+  ...MEN_FIELDS.map((f) => noDuplicatePlayerValidator(f, MEN_FIELDS, FIELD_LABELS[f])),
+  ...LADY_FIELDS.map((f) => noDuplicatePlayerValidator(f, LADY_FIELDS, FIELD_LABELS[f])),
+  ...HOME_MIXED_MAN_FIELDS.map((f) => noDuplicatePlayerValidator(f, HOME_MIXED_MAN_FIELDS, MIXED_MAN_LABELS[f])),
+  ...AWAY_MIXED_MAN_FIELDS.map((f) => noDuplicatePlayerValidator(f, AWAY_MIXED_MAN_FIELDS, MIXED_MAN_LABELS[f])),
+  ...MIXED_LADY_FIELDS.map((f) => body(f, "Please choose a player.").isInt()),
 ];
 
 exports.fixture_get_summary = function(req, res,next) {
@@ -1031,116 +628,59 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
   if (!errors.isEmpty()) {
     let data = req.body;
     console.log(data);
-    Division.getAllAndSelectedById(
-      1,
-      data.division,
-      function (err, divisionRows) {
-        if (err) {
-          next(err);
-        } else {
-          // console.log(divisionIdRows)
-          Team.getAllAndSelectedById(
-            data.homeTeam,
-            data.division,
-            function (err, homeTeamRows) {
-              if (err) {
-                next(err);
-              } else {
-                // console.log(homeTeamRows)
-                Team.getAllAndSelectedById(
-                  data.awayTeam,
-                  data.division,
-                  function (err, awayTeamRows) {
-                    if (err) {
-                      next(err);
-                    } else {
-                      // console.log(awayTeamRows)
-                      Player.getEligiblePlayersAndSelectedById(
-                        data.homeMan1,
-                        data.homeMan2,
-                        data.homeTeam,
-                        "Male",
-                        function (err, homeMenRows) {
-                          if (err) {
-                            next(err);
-                          } else {
-                            // console.log(homeMenRows)
-                            Player.getEligiblePlayersAndSelectedById(
-                              data.homeLady1,
-                              data.homeLady2,
-                              data.homeTeam,
-                              "Female",
-                              function (err, homeLadiesRows) {
-                                if (err) {
-                                  next(err);
-                                } else {
-                                  // console.log(homeLadiesRows)
-                                  Player.getEligiblePlayersAndSelectedById(
-                                    data.awayMan1,
-                                    data.awayMan2,
-                                    data.awayTeam,
-                                    "Male",
-                                    function (err, awayMenRows) {
-                                      if (err) {
-                                        next(err);
-                                      } else {
-                                        // console.log(awayMenRows)
-                                        Player.getEligiblePlayersAndSelectedById(
-                                          data.awayLady1,
-                                          data.awayLady2,
-                                          data.awayTeam,
-                                          "Female",
-                                          function (err, awayLadiesRows) {
-                                            if (err) {
-                                              next(err);
-                                            } else {
-                                              // console.log(awayLadiesRows)
-                                              var renderData = {
-                                                divisionRows: divisionRows,
-                                                homeTeamRows: homeTeamRows,
-                                                awayTeamRows: awayTeamRows,
-                                                homeMenRows: homeMenRows,
-                                                homeLadiesRows: homeLadiesRows,
-                                                awayMenRows: awayMenRows,
-                                                awayLadiesRows: awayLadiesRows,
-                                              };
- // console.log(renderData);
-                                              res.render("email-scorecard", {
-                                                static_path: "/static",
-                                                title:
-                                                  "Spreadsheet Upload Scorecard",
-                                                pageDescription:
-                                                  "Show result of uploading scorecard",
-                                                scorecard: renderData,
-                                                data: data,
-                                                errors: errors.array(),
-                                              });
-                                            }
-                                          }
-                                        );
-                                      }
-                                    },
-                                    data.awayMan3,
-                                    data.awayMan4
-                                  );
-                                }
-                              }
-                            );
-                          }
-                        },
-                        data.homeMan3,
-                        data.homeMan4
-                      );
-                    }
-                  }
-                );
-              }
-            }
-          );
-          // console.log(data);
-        }
+    // A malformed/direct POST can omit these entirely; the DB helpers below
+    // interpolate them straight into queries and postgres.js throws on
+    // `undefined` params. 0 is this codebase's existing "nothing selected"
+    // sentinel (see the validators' `value != 0` checks) so defaulting to it
+    // here just renders the error form with nothing pre-selected instead of
+    // crashing.
+    [
+      "division", "homeTeam", "awayTeam",
+      "homeMan1", "homeMan2", "homeMan3", "homeMan4", "homeLady1", "homeLady2",
+      "awayMan1", "awayMan2", "awayMan3", "awayMan4", "awayLady1", "awayLady2",
+    ].forEach((field) => {
+      if (data[field] === undefined) data[field] = 0;
+    });
+
+    // None of these 7 lookups depend on each other's results — they all read
+    // straight from `data` — so they run concurrently instead of nested
+    // serially. Wrapped in an IIFE (rather than making the whole exported
+    // function async) so the untouched success branch below keeps Express's
+    // built-in synchronous-throw handling.
+    (async () => {
+      let divisionRows, homeTeamRows, awayTeamRows, homeMenRows, homeLadiesRows, awayMenRows, awayLadiesRows;
+      try {
+        [divisionRows, homeTeamRows, awayTeamRows, homeMenRows, homeLadiesRows, awayMenRows, awayLadiesRows] =
+          await Promise.all([
+            getDivisionsP(1, data.division),
+            getTeamsP(data.homeTeam, data.division),
+            getTeamsP(data.awayTeam, data.division),
+            getEligiblePlayersP(data.homeMan1, data.homeMan2, data.homeTeam, "Male", data.homeMan3, data.homeMan4),
+            getEligiblePlayersP(data.homeLady1, data.homeLady2, data.homeTeam, "Female"),
+            getEligiblePlayersP(data.awayMan1, data.awayMan2, data.awayTeam, "Male", data.awayMan3, data.awayMan4),
+            getEligiblePlayersP(data.awayLady1, data.awayLady2, data.awayTeam, "Female"),
+          ]);
+      } catch (err) {
+        return next(err);
       }
-    );
+
+      res.render("email-scorecard", {
+        static_path: "/static",
+        title: "Spreadsheet Upload Scorecard",
+        pageDescription: "Show result of uploading scorecard",
+        scorecard: {
+          divisionRows,
+          homeTeamRows,
+          awayTeamRows,
+          homeMenRows,
+          homeLadiesRows,
+          awayMenRows,
+          awayLadiesRows,
+        },
+        data: data,
+        errors: errors.array(),
+      });
+    })();
   } else {
     let scorecardUrl =
       "https://" +
@@ -1321,7 +861,7 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
     if (typeof scorecardObj.email === 'undefined'){
       scorecardObj.email = 'tameside.badders.results+missingemail@gmail.com'
     }
-    if (typeof scorecardObj["scoresheet-url"] == ''){
+    if (typeof scorecardObj["scoresheet-url"] === 'undefined'){
       scorecardObj["scoresheet-url"] = 'https://badmintontemp.s3.eu-west-1.amazonaws.com/tameside-'+req.body.homeTeam.replaceAll(' ','+')+'-'+req.body.awayTeam.replaceAll(' ','+')+'.jpg'
     }
     Fixture.createScorecard(scorecardObj, function (err, rows) {
