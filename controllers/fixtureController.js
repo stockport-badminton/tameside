@@ -586,37 +586,46 @@ exports.fixture_calendars = function (req, res, next) {
 exports.email_scorecard = function (req, res, next) {
   Division.getAllByLeague(1, function (err, rows) {
     if (err) {
-      next(err);
-    } else {
-      Auth.getManagementAPIKey(function (err, apiKey) {
+      return next(err);
+    }
+    function renderWithEmail(email) {
+      Fixture.getMissingScorecardPhotos(email, function (err, fixtures) {
         if (err) {
-          next(err);
-        } else {
-          // console.log(req.session)
-          fetch(`https://${process.env.AUTH0_DOMAIN}/api/v2/users?q=user_id:${req.user.id}&fields=app_metadata,nickname,email`, {
-            headers: { Authorization: "Bearer " + apiKey }
-          })
-          .then(r => r.json())
-          .then(function(user) {
-            Fixture.getMissingScorecardPhotos(user[0].email, function (err, fixtures) {
-              if (err) {
-                next(err);
-              } else {
-                res.render("email-scorecard", {
-                  static_path: "/static",
-                  theme: process.env.THEME || "flatly",
-                  title: "Scorecard",
-                  pageDescription: "Enter some results!",
-                  result: rows,
-                  fixtures: fixtures
-                });
-              }
-            });
-          })
-          .catch(err => { console.log(err); return false; });
+          return next(err);
         }
+        res.render("email-scorecard", {
+          static_path: "/static",
+          theme: process.env.THEME || "flatly",
+          title: "Scorecard",
+          pageDescription: "Enter some results!",
+          result: rows,
+          fixtures: fixtures
+        });
       });
     }
+
+    // DEV_MODE's mock user already carries an email (middleware/devMode.js) —
+    // skip the live Auth0 Management API round-trip so this page renders
+    // locally/in tests without real Auth0 credentials. Same gating as the
+    // devMode middleware itself, so it's a no-op on Cloud Run.
+    if (process.env.DEV_MODE === 'true' && process.env.NODE_ENV !== 'production') {
+      return renderWithEmail(req.user.email);
+    }
+
+    Auth.getManagementAPIKey(function (err, apiKey) {
+      if (err) {
+        return next(err);
+      }
+      // console.log(req.session)
+      fetch(`https://${process.env.AUTH0_DOMAIN}/api/v2/users?q=user_id:${req.user.id}&fields=app_metadata,nickname,email`, {
+        headers: { Authorization: "Bearer " + apiKey }
+      })
+      .then(r => r.json())
+      .then(function(user) {
+        renderWithEmail(user[0].email);
+      })
+      .catch(err => { console.log(err); return next(err); });
+    });
   })
 };
 
