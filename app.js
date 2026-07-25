@@ -164,6 +164,7 @@ let social_controller = require(__dirname + '/controllers/social_controller')
 let fixture_gen_controller = require(__dirname + '/controllers/fixtureGenController')
 let homepage_content_controller = require(__dirname + '/controllers/homepageContentController')
 let site_settings_controller = require(__dirname + '/controllers/siteSettingsController')
+let documents_controller = require(__dirname + '/controllers/documentsController')
 
 app.use(userInViews())
 
@@ -440,6 +441,10 @@ function secured(req, res, next) {
   app.get('/played-up-counts', secured,player_controller.player_played_up_counts);
   app.get('/manage-players/club-:club?', secured,player_controller.manage_player_list_clubs_teams);
   app.get('/manage-players/:season?/club-:club?', secured,player_controller.manage_player_list_clubs_teams);
+  // Team registration form, prefilled with a club's current registrations
+  // (auth check in controller). Blank template is served statically from
+  // /static/docs/Team Registration.pdf.
+  app.get('/forms/team-registration/:club/prefilled', secured, documents_controller.teamRegistrationFormPrefilled);
   app.get('/email-scorecard', secured,fixture_controller.email_scorecard);
   app.post('/email-scorecard', secured, fixture_controller.validateScorecard, fixture_controller.fixture_populate_scorecard_errors);
   app.post('/add-scorecard-photo/:id(\\d+)', secured, fixture_controller.add_scorecard_photo)

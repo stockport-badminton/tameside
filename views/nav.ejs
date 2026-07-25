@@ -64,6 +64,8 @@
                             <a class="dropdown-item" href="/admin/results/All">Results Detail</a>
                             <% if(locals.user._json['https://my-app.example.com/role'] == 'superadmin') { %>
                                 <a class="dropdown-item" href="/manage-players/club-Aerospace">Team Management</a>
+                                <a class="dropdown-item" href="/static/docs/Team Registration.pdf" target="_blank">Team Registration (blank)</a>
+                                <a class="dropdown-item" href="/forms/team-registration/Aerospace/prefilled" target="_blank">Team Registration (prefilled)</a>
                                 <a class="dropdown-item" href="/fixture-players">Fixture Players</a>
                                 <a class="dropdown-item" href="/played-up-counts">Played Up Counts</a>
                                 <a class="dropdown-item" href="/player-stats">Individual Stats</a>
@@ -78,6 +80,8 @@
                                 <a class="dropdown-item" href="/admin/distribution">Distribution Lists</a>
                             <% } else if(locals.user._json['https://my-app.example.com/role'] == 'admin') { %>
                                 <a class="dropdown-item" href="/manage-players/club-<%= locals.user._json['https://my-app.example.com/club'] %>">Team Players</a>
+                                <a class="dropdown-item" href="/static/docs/Team Registration.pdf" target="_blank">Team Registration (blank)</a>
+                                <a class="dropdown-item" href="/forms/team-registration/<%= locals.user._json['https://my-app.example.com/club'] %>/prefilled" target="_blank">Team Registration (prefilled)</a>
                                 <% if(locals.user._json['https://my-app.example.com/stats']) { %>
                                     <a class="dropdown-item" href="/player-stats">Individual Stats</a>
                                     <a class="dropdown-item" href="/pair-stats">Pair Stats</a>
