@@ -134,6 +134,18 @@ exports.manage_player_list_clubs_teams = function(req, res,next) {
       })
       .then(response => response.json())
       .then(function(user){
+          // The DEV_MODE mock user (middleware/devMode.js) has no Auth0 record,
+          // so this lookup returns [] — fall back to its claims. Also guards a
+          // genuinely missing record rather than crashing on user[0].app_metadata.
+          if (!user || !user[0] || !user[0].app_metadata) {
+            const j = (req.user && req.user._json) || {};
+            const claimRole = j['https://my-app.example.com/role'];
+            const claimClub = j['https://my-app.example.com/club'];
+            if (claimRole === undefined && claimClub === undefined) {
+              return next("Could not resolve your account details");
+            }
+            user = [{ app_metadata: { role: claimRole, club: claimClub }, email: req.user && req.user.email }];
+          }
           if (user[0].app_metadata.role) {
             if (user[0].app_metadata.role == "superadmin"){
               var superadmin = true;
@@ -363,10 +375,10 @@ exports.manage_player_list_clubs_teams = function(req, res,next) {
             return next("Sorry you don't have access to this page");
           }
       })
+      .catch(next); // a throw/rejection here must not take down the process
     }
   })
 };
-
 // Return list of players eligible based on team
 exports.eligible_players_list = function(req, res) {
     Player.findElgiblePlayersFromTeamId(req.params.id,req.params.gender,function(err,rows){
