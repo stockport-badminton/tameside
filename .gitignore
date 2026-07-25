@@ -17,8 +17,13 @@ scorecard-analysis/
 static/images/generated/
 static/docs/Aerospace.docx
 static/docs/College Green.docx
+static/docs/GHAP.docx
 static/docs/Medlock.docx
 static/docs/Mellor.docx
+
+# Editor / tooling
+.claude/
+.vscode/
 
 # local scorecard-OCR proof-of-concept (not for main)
 scorecard-poc/
