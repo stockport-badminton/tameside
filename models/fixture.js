@@ -97,8 +97,8 @@ FROM
         JOIN
     "season" ON ("fixture".date > "season"."startDate"
         AND "fixture".date < "season"."endDate")
-	join "player" "teamCaptain" on ("homeTeam".id = "teamCaptain".team AND "teamCaptain"."teamCaptain" = 1)
-    join "player" "matchSecretary" on ("homeClub".id = "matchSecretary".club AND "matchSecretary"."matchSecrertary" = 1)
+	left join "player" "teamCaptain" on ("homeTeam".id = "teamCaptain".team AND "teamCaptain"."teamCaptain" = 1)
+    left join "player" "matchSecretary" on ("homeClub".id = "matchSecretary".club AND "matchSecretary"."matchSecrertary" = 1)
     join "division" on "homeTeam"."division" = "division".id
 WHERE
     "fixture"."homeScore" IS NULL
@@ -406,8 +406,8 @@ FROM
         JOIN
     "season" ON ("fixture".date > "season"."startDate"
         AND "fixture".date < "season"."endDate")
-	join "player" "teamCaptain" on ("homeTeam".id = "teamCaptain".team AND "teamCaptain"."teamCaptain" = 1)
-    join "player" "matchSecretary" on ("homeClub".id = "matchSecretary".club AND "matchSecretary"."matchSecrertary" = 1)
+	left join "player" "teamCaptain" on ("homeTeam".id = "teamCaptain".team AND "teamCaptain"."teamCaptain" = 1)
+    left join "player" "matchSecretary" on ("homeClub".id = "matchSecretary".club AND "matchSecretary"."matchSecrertary" = 1)
     join "division" on "homeTeam"."division" = "division".id
 WHERE
     "fixture".id = ${fixtureId}`.catch(err => {
