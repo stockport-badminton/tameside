@@ -15,9 +15,42 @@ service-account*.json
 .gitignore
 .claude/
 .vscode/
+.DS_Store
+**/.DS_Store
+
+# Tests — never run in the image, and test/fixtures/ carries cached Vision responses
+test/
+playwright.config.js
+
+# Dev-only harnesses and one-off scripts
+tools/
+migrations/
+test-scheduler.js
+docker-compose*.yml
+
+# Docs and build/deploy config (Cloud Build reads cloudbuild.yaml from the source,
+# not from the image). app.yaml is an unused App Engine leftover.
+CLAUDE.md
+Readme.md
+app.yaml
+cloudbuild.yaml
+namecheap SPF record
+
+# Runtime-generated artifacts. These are gitignored, so trigger builds (which fetch
+# from GitHub) never see them anyway — listing them here keeps a local `docker build`
+# faithful to what actually ships, instead of baking in ~33MB of local leftovers.
+# Safe to omit: jimp's writeAsync mkdirs its parent, and static/docs/ is tracked.
+static/images/generated/
+static/docs/Aerospace.docx
+static/docs/College Green.docx
+static/docs/GHAP.docx
+static/docs/Medlock.docx
+static/docs/Mellor.docx
 
 # Local scratch / analysis that shouldn't ship
 scorecard-analysis/
+scorecard-poc/
+uat-cards/
 oldstuff/
 test.js
 *.log

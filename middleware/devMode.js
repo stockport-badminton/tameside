@@ -1,7 +1,9 @@
 // Development-mode auth bypass — injects a mock superadmin user locally so the
 // secured() / isSuperAdmin() admin routes can be exercised without a real Auth0
-// login. SAFE: only active when DEV_MODE=true AND NODE_ENV is not production, so
-// it can never take effect on Cloud Run (which sets NODE_ENV=production).
+// login. SAFE: only active when DEV_MODE=true AND NODE_ENV is not production. The
+// Dockerfile sets NODE_ENV=production, so this can never take effect in the deployed
+// image. (Cloud Run itself does NOT set NODE_ENV — only the buildpack path does, and
+// this project builds from a Dockerfile. Don't remove that ENV line.)
 //
 // Must be registered AFTER passport.session() (so passport doesn't overwrite the
 // injected user) and BEFORE the routes.

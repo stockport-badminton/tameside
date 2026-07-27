@@ -31,10 +31,27 @@ so it needs the real dev DB for the AJAX team/player cascades (reads only, no wr
 docker build . --tag IMAGE_NAME
 docker run -p 8080:8080 -e PORT=8080 IMAGE_NAME
 
-# Deploy to Cloud Run
+# Deploy: automatic on push to main (Cloud Build trigger → cloudbuild.yaml).
+# Manual re-run of the same pipeline:
 gcloud builds submit --region=global --config cloudbuild.yaml
-gcloud run deploy tameside-site --image IMAGE_NAME
 ```
+
+### Deploy pipeline
+
+`cloudbuild.yaml` is the source of truth: build → push → `gcloud run services update`.
+A Cloud Build trigger on `push to ^main$` runs it (project `avid-compound-429108-g9`,
+region `europe-west2`, service `tameside-site`). Keep the pipeline in that file rather
+than in the trigger's inline config, so build changes are reviewable in git.
+
+Build caching relies on the `:latest` tag: it is pushed on every build purely so the
+*next* build can import it via `--cache-from` (with `BUILDKIT_INLINE_CACHE=1`). Never
+add `--no-cache`, and don't stop pushing `:latest` — either one makes every deploy
+recompile `npm ci` from cold.
+
+The `Dockerfile` is deliberately single-stage: nothing is compiled at image-build time
+(sharp ships prebuilt linux-x64 binaries, jimp is pure JS), so there are no build-only
+deps to strip and a builder stage would only add slow `COPY --from` passes. It also has
+no font/fontconfig packages — see Social Image Generation below.
 
 ## Architecture
 
@@ -61,7 +78,7 @@ Sensitive columns (player phone, email) are PgP-encrypted in the DB; decrypted w
 - **Auth0** (`stockport-badminton.eu.auth0.com`) via `passport-auth0`. Login at `/login`, callback at `/callback`, logout at `/logout`.
 - **Session**: `express-session` with cookie name `__session`.
 - **Protected routes**: wrapped with `secured()` middleware — checks `req.isAuthenticated()`, redirects to `/login` if not.
-- **Local dev bypass**: `middleware/devMode.js` injects a mock **superadmin** `req.user` when `DEV_MODE=true` and `NODE_ENV !== 'production'`, so admin/superadmin routes can be exercised locally without a real Auth0 login. No-op on Cloud Run (which sets `NODE_ENV=production`). Run locally with `DEV_MODE=true NODE_ENV=development npm run dev`.
+- **Local dev bypass**: `middleware/devMode.js` injects a mock **superadmin** `req.user` when `DEV_MODE=true` and `NODE_ENV !== 'production'`, so admin/superadmin routes can be exercised locally without a real Auth0 login. No-op in the deployed image, which sets `ENV NODE_ENV=production` in the `Dockerfile` — note Cloud Run does **not** set `NODE_ENV` itself (only the buildpack path does, and this project builds from a Dockerfile), so that ENV line is what keeps the bypass off in production. Run locally with `DEV_MODE=true NODE_ENV=development npm run dev`.
 - **JWT**: `checkJwt` middleware (RS256, JWKS from Auth0) used on API-style routes like `PATCH /club/:id` and `DELETE /club/:id`.
 
 ### Season Detection
@@ -127,7 +144,14 @@ Client uploads scorecard images directly to S3 (`badmintontemp` bucket, `eu-west
 
 ### Social Image Generation
 
-`social_controller.js` generates PNG images of league tables and results (for social media) by rendering HTML with Sharp — see `GET /resultImage/*` and `GET /tables-social`.
+`social_controller.js` generates PNG images of league tables and results (for social
+media) with **Jimp** — see `GET /resultImage/*` and `GET /tables-social`. Text is drawn
+from pre-baked bitmap fonts (`fonts/*.fnt` + their `.png` sheets), loaded via
+`Jimp.loadFont`. That is pure JS: no fontconfig, freetype or system font packages are
+involved, which is why the image installs none. `sharp` is used only for pixel ops in
+`utils/scorecardVision.js` (greyscale/normalize/sharpen) — never for rendering text —
+so it doesn't need them either. If you ever add SVG text rendering via sharp, you'll
+need to reinstate `fontconfig` + a font in the Dockerfile.
 
 ### Fuzzy Player Matching
 

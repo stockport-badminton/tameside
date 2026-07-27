@@ -1,55 +1,26 @@
-# Build Stage
-FROM node:22-slim AS build
-
-# Set the working directory inside the container
-WORKDIR /usr/src/app
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-  fontconfig \
-  libfreetype6 \
-  libfontconfig1 \
-  libxrender1 \
-  python3 \
-  python3-pip \
-  python-is-python3 \
-  build-essential \
-  && fc-cache -f -v \
-  && rm -rf /var/lib/apt/lists/*
-
-# Copy package.json and package-lock.json (if available) to leverage Docker's caching
-COPY package*.json ./
-
-# Install dependencies (including native ones)
-RUN npm ci --only=production
-
-# Copy the application code
-COPY . .
-
-# Run build scripts or prepare assets (optional)
-# RUN npm run build
-
-# Production Stage
+# Single stage on purpose: nothing in this project is compiled at image-build time.
+# sharp ships prebuilt binaries (@img/sharp-linux-x64 is pinned in package-lock.json)
+# and jimp is pure JS, so there is no gyp/build-essential/python3 step to isolate —
+# a builder stage would only add two slow `COPY --from` passes over node_modules.
+#
+# No font packages either: the only text rendering is jimp's bitmap `.fnt` files in
+# fonts/ (see controllers/social_controller.js), which need no fontconfig or freetype.
+# sharp is used purely for pixel ops in utils/scorecardVision.js — no SVG text.
 FROM node:22-slim
 
-# Set the working directory inside the container
+# Enables Express view caching, and hard-disables the DEV_MODE auth bypass in
+# middleware/devMode.js regardless of how the service env is configured.
+ENV NODE_ENV=production
+
 WORKDIR /usr/src/app
 
-# Install runtime dependencies (fonts)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-  fontconfig \
-  libfreetype6 \
-  libfontconfig1 \
-  libxrender1 \
-  && fc-cache -f -v \
-  && rm -rf /var/lib/apt/lists/*
+# Dependencies in their own layer, ahead of the source, so `npm ci` is reused from
+# cache on every build that didn't touch package.json / package-lock.json.
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Copy the production node_modules and built app from the build stage
-COPY --from=build /usr/src/app/node_modules ./node_modules
-COPY --from=build /usr/src/app .
+COPY . .
 
-# Expose the port the app will run on
 EXPOSE 8080
 
-# Define the command to run the app
-CMD ["npm", "start"]
+CMD ["node", "server.js"]

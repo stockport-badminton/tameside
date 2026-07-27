@@ -1,17 +1,16 @@
-# This file specifies files that are *not* uploaded to Google Cloud
-# using gcloud. It follows the same syntax as .gitignore, with the addition of
-# "#!include" directives (which insert the entries of the given .gitignore-style
-# file at that point).
-#
-# For more information, run:
+# Files *not* uploaded when `gcloud builds submit` tarballs this directory.
+# Same syntax as .gitignore, plus "#!include" directives.
 #   $ gcloud topic gcloudignore
 #
+# This only affects the manual submit path — trigger builds fetch straight from
+# GitHub, so for those the build context is whatever is committed.
+#
+# Everything the image itself doesn't need is already listed in .dockerignore, so
+# include that rather than maintaining a second copy that can drift out of sync.
+# Only the entries that are specific to uploading live here.
+
 .gcloudignore
-# If you would like to upload your .git directory, .gitignore file or files
-# from your .gitignore file, remove the corresponding line
-# below:
 .git
 .gitignore
 
-# Node.js dependencies:
-node_modules/
+#!include:.dockerignore

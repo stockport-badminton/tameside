@@ -1,5 +1,5 @@
-// gcloud builds submit --region=global --config cloudbuild.yaml
-// gcloud run deploy tameside-site --image europe-west2-docker.pkg.dev/avid-compound-429108-g9/cloud-run-source-deploy/tameide-image:tag1
+// Deploys run automatically on push to main (Cloud Build trigger → cloudbuild.yaml).
+// To re-run the same build+deploy pipeline by hand, see Readme.md.
 
 // Sentry instrumentation — must load before express and other modules so Sentry
 // can auto-instrument them. No-op unless SENTRY_DSN is set (see instrument.js).
