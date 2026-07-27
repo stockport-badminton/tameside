@@ -2,6 +2,29 @@ const { sql } = require('../utils/db_connect');
 const levenshtein = require('js-levenshtein');
 const seasonModel = require('./season');
 
+// The archived player<season> snapshots predate the ELO work by varying amounts:
+// player20242025 and player20252026 carry a rating column, player20232024 does not
+// (the ELO port added it to the live table and the two newer snapshots, and missed
+// the oldest). Selecting "player"."rating" against a snapshot without it fails the
+// whole query, which 500'd every stats page for that season - and before the
+// double-callback guards below, took the process down with it.
+//
+// So probe the snapshot instead of assuming, and cache per table for the process
+// lifetime (add the column later and a restart picks it up, same as season.js).
+// `season` is '' for the current season, which reads the live tables.
+const _snapshotHasRating = {};
+async function snapshotHasRating(season) {
+  const table = 'player' + season;
+  if (_snapshotHasRating[table] === undefined) {
+    const rows = await sql`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = ${table} AND column_name = 'rating'`
+      .catch(() => []);
+    _snapshotHasRating[table] = rows.length > 0;
+  }
+  return _snapshotHasRating[table];
+}
+
 
 // POST
 exports.create = async function(first_name,family_name,team,club,gender,done){
@@ -489,6 +512,8 @@ exports.newGetPlayerStats = async function(searchObj,done){
     season = searchObj.season;
     seasonVal = searchObj.season;
   }
+  // Older snapshots have no rating column - see snapshotHasRating at the top.
+  const hasRating = await snapshotHasRating(season);
   if (!searchObj.division){
     console.log("no division id");
     whereValue.push("%");
@@ -671,8 +696,8 @@ SELECT
   SUM("gamesPlayed") AS "gamesPlayed",
   (sum("gamesPlayed") + sum("gamesWon")) - (sum("gamesPlayed") - sum("gamesWon")) as "Points",
   club.name AS "clubName",
-  MIN(team.name) AS "teamName",
-  "player"."rating"
+  MIN(team.name) AS "teamName"
+  ${ hasRating ? sql`, "player"."rating"` : sql`` }
 FROM
   "gameSummary"
   JOIN ${sql ("player" + season)} "player" ON "playerId" = "player".id
@@ -708,8 +733,8 @@ GROUP BY
   "playerId",
   "playername",
   "playergender",
-  "clubName",
-  "rating"
+  "clubName"
+  ${ hasRating ? sql`, "rating"` : sql`` }
 ORDER BY
   "Points" DESC;
 `.catch(err => {
@@ -718,8 +743,10 @@ ORDER BY
   
    ;
   })
-  // console.log(result)
-  // console.log(result.statement.string)
+  // The catch above has already called done(err); see the note on the same guard
+  // in newGetPairStats below. Without this, a failed query called done twice and
+  // crashed the process instead of returning a 500.
+  if (!result) { return; }
   done(null,result);
 
 
@@ -766,14 +793,22 @@ exports.newGetPairStats = async function(searchObj,done){
     }
   }
 
-  if (searchObj.season === undefined || !checkSeason(searchObj.season)){
+  // checkSeason is async: without the await this read `!Promise` - always false -
+  // so any season in the URL was accepted unvalidated, including the *current*
+  // one. checkSeason deliberately rejects the current season so the live tables
+  // are used; skipping it meant /pair-stats/<current season> built snapshot table
+  // names that don't exist and 500'd. newGetPlayerStats awaits it correctly.
+  if (searchObj.season === undefined || !await checkSeason(searchObj.season)){
     seasonVal = seasonString
+    season = ""
     console.log("no season");
   }
   else {
     season = searchObj.season;
     seasonVal = searchObj.season;
   }
+  // Older snapshots have no rating column - see snapshotHasRating at the top.
+  const hasRating = await snapshotHasRating(season);
 
   
     let result = await sql`with
@@ -900,7 +935,9 @@ SELECT
   ) as "Pairing",
   "player1Id",
   "player2Id",
-  ("Player1"."rating" + "Player2"."rating") / 2 as "pairRating",
+  ${ hasRating
+     ? sql`("Player1"."rating" + "Player2"."rating") / 2`
+     : sql`NULL` } as "pairRating",
   SUM("forPoints") AS "forPoints",
   SUM("againstPoints") AS "againstPoints",
   SUM("gamesWon") AS "gamesWon",
@@ -943,18 +980,23 @@ ${
 }
 GROUP BY
   "Pairing",
-  "pairRating",
   "player1Id",
   "player2Id",
   "clubName",
   "gameType"
+  ${ hasRating ? sql`, "pairRating"` : sql`` }
 ORDER BY
   "winRate" DESC,
   "Points" DESC`.catch(err => {
     console.log(`err: ${err}, ${err.query}`)
     return done(err) ;
     })
-     // console.log(result.statement.string)
+    // The catch above has already called done(err). Returning from it leaves
+    // `result` undefined, and without this guard we then called done a SECOND
+    // time as done(null, undefined) - the controller took the success branch and
+    // threw on `result.map`, which, being outside the request chain, killed the
+    // process rather than rendering the 500 the error path had already started.
+    if (!result) { return; }
     done(null,result);
 
 }

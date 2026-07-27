@@ -214,11 +214,20 @@ exports.fixture_detail_byDivision = function (req, res, next) {
         } else {
           let today = new Date()
           today.setHours(0, 0, 0, 0);
-          let nearestFixture = result.filter(row => new Date(row.date) >= today);
-          if (nearestFixture.length == 0){
-            nearestFixture = [result[result.length-1]];
-          }
-          console.log(`nearestFixture: ${nearestFixture[0].date}`)
+          // Which fixture the table should open on: the next one due, or the most
+          // recent if they're all in the past (`result` is date-ascending).
+          //
+          // A filter combination can legitimately match no fixtures at all - a club
+          // with none in the chosen season, a status nothing currently has - and then
+          // result[result.length - 1] is undefined. Reading .date off it threw, and
+          // because this runs in a model callback rather than the request chain, the
+          // throw escaped Express and took the whole process down instead of
+          // rendering an empty table. Leave nearestDate unset in that case;
+          // datatables.ejs already falls back to today when it's missing.
+          let upcomingFixtures = result.filter(row => new Date(row.date) >= today);
+          let nearestFixture = upcomingFixtures.length
+            ? upcomingFixtures[0]
+            : result[result.length - 1];
           var type = "";
           var jsonResult = "";
           // console.log(req.path);
@@ -273,7 +282,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
             jsonResult: griddedData,
             error: false,
             division: divisionString,
-            nearestDate:nearestFixture[0].date
+            nearestDate: nearestFixture ? nearestFixture.date : undefined
           };
           if (req.path.search("admin") != -1) {
             if (
@@ -355,11 +364,12 @@ exports.fixture_detail_byDivision = function (req, res, next) {
       } else {
         let today = new Date()
         today.setHours(0, 0, 0, 0);
-        let nearestFixture = result.filter(row => new Date(row.date) >= today);
-        if (nearestFixture.length == 0){
-          nearestFixture = [result[result.length-1]];
-        }
-        console.log(`nearestFixture: ${nearestFixture[0].date}`)
+        // Same as the branch above: next fixture due, else the most recent, else
+        // none at all when the filters match nothing. See the comment there.
+        let upcomingFixtures = result.filter(row => new Date(row.date) >= today);
+        let nearestFixture = upcomingFixtures.length
+          ? upcomingFixtures[0]
+          : result[result.length - 1];
         var type = "";
         var jsonResult = "";
         // console.log(req.path);
@@ -442,7 +452,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
           jsonResult: griddedData,
           error: false,
           division: divisionString,
-          nearestDate: nearestFixture[0].date
+          nearestDate: nearestFixture ? nearestFixture.date : undefined
         };
         if (req.path.search("admin") != -1) {
           if (req.user._json["https://my-app.example.com/role"] !== undefined) {
