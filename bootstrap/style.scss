@@ -1,7 +1,53 @@
 
-$body-bg: #C0C0C0;
+// Bootstrap variable overrides. These have to be assigned before the bootstrap import
+// below so the generated CSS is built from them.
+//
+// $body-bg also feeds $input-bg and $table-bg, which is why the old #C0C0C0 showed up
+// as silver form fields and silver league-table cells even though modern-styles.css
+// overrode `body { background }` — the override reached body, the variable reached the
+// inputs and cells. Keep this in step with the `body` background in modern-styles.css.
+$body-bg: #f8f9fa;
+
+// Matches the webfont linked in views/header.ejs. Setting the variable rather than
+// overriding `body { font-family }` afterwards means Bootstrap's own components are
+// generated with it too.
+$font-family-sans-serif: 'Inter', sans-serif;
+
+// Full-bleed containers at every breakpoint, instead of Bootstrap's
+// 540/720/960/1140/1320px caps. This was previously done by hand-editing
+// node_modules/bootstrap/scss/_variables.scss — invisible to git, and lost on the next
+// npm install. It only survived because the compiled stylesheet was committed with it
+// baked in. See the note below about the other patch that was hiding there.
+$container-max-widths: (
+  sm: 100%,
+  md: 100%,
+  lg: 100%,
+  xl: 100%,
+  xxl: 100%
+);
 
 @import "../node_modules/bootstrap/scss/bootstrap.scss";
+
+// Sized grid columns are position:relative, which absolutely-positioned children rely
+// on (e.g. `.add-player-box .fa` further down this file, used by team-admin.ejs).
+// This was the second hand-edit to node_modules — added to Bootstrap's own make-col
+// mixin — so it is reproduced here against the same selectors the mixin emits:
+// .col-{n} and .col-{bp}-{n}, each inside its breakpoint's media query. `.col` and
+// `.col-auto` are deliberately excluded; the patch was in make-col's sized branch only.
+//
+// A third hand-edit added .min-vw-25/50/75 and .min-vh-25/50/75 utilities. Those are
+// not ported: no view, script or controller references any of them.
+@each $breakpoint in map-keys($grid-breakpoints) {
+  $infix: breakpoint-infix($breakpoint, $grid-breakpoints);
+
+  @include media-breakpoint-up($breakpoint, $grid-breakpoints) {
+    @for $i from 1 through $grid-columns {
+      .col#{$infix}-#{$i} {
+        position: relative;
+      }
+    }
+  }
+}
 
 // importing core styling file
 

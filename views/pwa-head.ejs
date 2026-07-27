@@ -1,11 +1,34 @@
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#6D8BB2">
+<% /* Gated on app.locals.serviceWorkerEnabled — see the comment beside it in app.js.
+      Defaults to registering if the local is somehow absent, so a stray render can
+      never accidentally tear down the worker in production. */ %>
+<% if (typeof serviceWorkerEnabled === 'undefined' || serviceWorkerEnabled) { %>
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' })
       .catch(function(err) { console.warn('SW registration failed:', err); });
   }
 </script>
+<% } else { %>
+<script>
+  // Not registering here (local dev). Also actively tear down anything a previous
+  // session left behind — an already-installed worker would otherwise keep serving its
+  // stale precached CSS/JS forever, since simply not registering does not remove it.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      regs.forEach(function(reg) { reg.unregister(); });
+    }).catch(function() { /* nothing to unregister */ });
+  }
+  if (window.caches && caches.keys) {
+    caches.keys().then(function(keys) {
+      keys.forEach(function(key) {
+        if (key.indexOf('tameside-static-') === 0) { caches.delete(key); }
+      });
+    }).catch(function() { /* no cache storage available */ });
+  }
+</script>
+<% } %>
 <script>
   (function() {
     var banner;

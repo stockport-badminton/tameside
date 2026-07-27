@@ -21,6 +21,13 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY . .
 
+# Compile bootstrap/style.scss -> static/css/style.css. The generated file is not in
+# git (and is excluded from the build context by .dockerignore), so the SCSS source is
+# the single source of truth and every image gets a deterministic, current build of it.
+# Takes ~2s. If this fails the build fails loudly, which beats shipping an image whose
+# CSS silently differs from its source.
+RUN npm run build:css
+
 EXPOSE 8080
 
 CMD ["node", "server.js"]

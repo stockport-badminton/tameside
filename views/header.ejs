@@ -75,15 +75,27 @@
 
     <title>Tameside Badminton League - <%= title %></title>
 
-    <!-- Bootstrap core CSS -->
-<%- include('datatables-css.ejs') %>
-<link rel="stylesheet" href="/static/css/style.css" type="text/css" />
+<!-- Webfonts used by modern-styles.css. Declared here rather than via @import inside
+     the stylesheet: an @import can only start downloading after the importing sheet
+     has been fetched and parsed, which serialises two round trips before any text
+     can paint. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700&display=swap">
 
-<!-- Font Awesome Icons -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<!-- Bootstrap + Font Awesome, compiled from bootstrap/style.scss. This already
+     contains the full Font Awesome 6 CSS (icons, and @font-face pointing at
+     /static/webfonts), so no CDN copy of Font Awesome is needed on top. -->
+<link rel="stylesheet" href="/static/css/style.css" type="text/css" />
 
 <!-- Modern Styles - MUST come after Bootstrap -->
 <link rel="stylesheet" href="/static/css/modern-styles.css" type="text/css" />
+
+<!-- DataTables styling, only on the handful of pages that build a DataTable.
+     Those views opt in with include('header.ejs', { useDataTables: true }). -->
+<% if (typeof useDataTables !== 'undefined' && useDataTables) { %>
+<%- include('datatables-css.ejs') %>
+<% } %>
 
 
 

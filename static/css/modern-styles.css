@@ -1,7 +1,9 @@
-/* Modern Tameside Badminton Styles */
-
-/* Import Modern Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700&display=swap');
+/* Modern Tameside Badminton Styles
+ *
+ * Loaded after style.css (compiled Bootstrap), so rules here win on equal
+ * specificity. Inter/Poppins are pulled in by a <link> in views/header.ejs rather
+ * than an @import here, so the font request isn't queued behind this file.
+ */
 
 /* Global Resets & Base Styles */
 * {
@@ -10,8 +12,8 @@
     box-sizing: border-box;
 }
 
+/* font-family now comes from $font-family-sans-serif in bootstrap/style.scss. */
 body {
-    font-family: 'Inter', sans-serif;
     color: #333;
     line-height: 1.6;
     background: #f8f9fa;
@@ -160,8 +162,9 @@ section.all-tables, section.all-tables .container {
     gap: 1rem;
 }
 
-/* Card Styles - Override Bootstrap panels/cards */
-.panel, .card, .news-card {
+/* Card Styles. The Bootstrap 3 .panel* selectors that used to be grouped in here
+   were dropped — this project is on Bootstrap 5 and no view emits them. */
+.card, .news-card {
     background: white;
     padding: 2rem;
     border-radius: 16px;
@@ -177,25 +180,25 @@ section.all-tables, section.all-tables .container {
     to { opacity: 1; transform: translateY(0); }
 }
 
-.panel:hover, .card:hover, .news-card:hover {
+.card:hover, .news-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 6px 30px rgba(0,0,0,0.12);
 }
 
-.panel-heading, .card-header {
+.card-header {
     background: transparent !important;
     border: none !important;
     padding: 0 0 1rem 0 !important;
 }
 
-.panel-title, .card-title {
+.card-title {
     font-family: 'Poppins', sans-serif;
     color: #1e3c72;
     font-size: 1.5rem;
     font-weight: 600;
 }
 
-.panel-body, .card-body {
+.card-body {
     padding: 0 !important;
 }
 
@@ -245,22 +248,6 @@ section.all-tables, section.all-tables .container {
     margin-bottom: 0.8rem;
 }
 
-.team-name {
-    font-weight: 600;
-    color: #333;
-    flex: 1;
-}
-
-.score {
-    font-size: 1.8rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    padding: 0 1rem;
-}
-
 /* Fixtures */
 .fixture-card {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -300,8 +287,17 @@ section.all-tables, section.all-tables .container {
     opacity: 1;
 }
 
-/* Table Styles */
+/* Table Styles
+ *
+ * Bootstrap 5 paints every cell with `background-color: var(--bs-table-bg)` via
+ * `.table > :not(caption) > * > *`. That opaque per-cell fill sat on top of the
+ * `background` and `color` set on .table and thead below, so none of it was visible:
+ * the gradient header rendered as flat grey with dark text, and the row-hover rule
+ * never showed. Neutralising the two custom properties is the Bootstrap-native way to
+ * let those declarations through, rather than fighting the cell rule with !important.
+ */
 .table {
+    --bs-table-bg: transparent;
     background: white;
     border-radius: 12px;
     overflow: hidden;
@@ -309,6 +305,7 @@ section.all-tables, section.all-tables .container {
 }
 
 .table thead {
+    --bs-table-color: white;
     background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
     color: white;
 }
@@ -407,17 +404,6 @@ footer {
 .form-control:focus {
     border-color: #2a5298;
     box-shadow: 0 0 0 0.2rem rgba(42,82,152,0.25);
-}
-
-/* Breadcrumb */
-.breadcrumb {
-    background: transparent;
-    padding: 1rem 0;
-}
-
-.breadcrumb-item.active {
-    color: #1e3c72;
-    font-weight: 600;
 }
 
 /* Clubs Page Styles */
@@ -526,13 +512,6 @@ footer {
 /* Map styling */
 #map {
     width: 100%;
-}
-
-/* Alert styling */
-.alert {
-    border-radius: 12px;
-    border: none;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
 .alert-danger {
@@ -752,11 +731,6 @@ footer {
     font-weight: 500;
 }
 
-.team-name {
-    font-weight: 600;
-    color: #333;
-}
-
 .venue-icon {
     color: #ff6b6b;
     margin-right: 0.5rem;
@@ -771,8 +745,17 @@ footer {
     font-weight: 600;
 }
 
+/* Merged from two blocks. font-size/color came from the later one and won; the
+   gradient-text treatment came from the earlier one and still applies. Note the
+   -webkit-text-fill-color makes `color` a fallback for non-webkit engines only. */
 .score {
     font-size: 1.2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    padding: 0 1rem;
     color: #1e3c72;
 }
 
@@ -1108,6 +1091,9 @@ footer {
     font-weight: 700;
 }
 
+/* Single source of truth for .team-name. Three separate blocks used to set this;
+   the last one won every property, so these are the values that were actually
+   rendering (note font-weight 500, not the 600 the earlier blocks asked for). */
 .team-name {
     flex: 1;
     color: #333;
@@ -1132,14 +1118,6 @@ footer {
 }
 
 /* Bracket Connectors - Fixed Visibility */
-.match-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-    margin: 0.5rem 0;
-    z-index: 1;
-}
-
 .connector {
     position: absolute;
     right: -3rem;

@@ -41,6 +41,10 @@ namecheap SPF record
 # faithful to what actually ships, instead of baking in ~33MB of local leftovers.
 # Safe to omit: jimp's writeAsync mkdirs its parent, and static/docs/ is tracked.
 static/images/generated/
+
+# Compiled by `npm run build:css` inside the image, so never copy a local build in —
+# that would let a stale local file win over the SCSS source.
+static/css/style.css
 static/docs/Aerospace.docx
 static/docs/College Green.docx
 static/docs/GHAP.docx

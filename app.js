@@ -12,6 +12,7 @@ const session = require('express-session');
 const passport = require('passport');
 const Auth0Strategy = require('passport-auth0');
 const bodyParser = require('body-parser');
+const compression = require('compression');
 const {check, validationResult} = require('express-validator')
 let { expressjwt: jwt } = require("express-jwt");
 let jwksRsa = require('jwks-rsa');
@@ -50,6 +51,19 @@ if (!process.env.AUTH0_DOMAIN || !process.env.AUTH0_AUDIENCE) {
 const app = express()
 const port = 8080
 
+// Whether views/pwa-head.ejs registers the service worker.
+//
+// Off outside production on purpose. sw.js caches /static/** cache-first, keyed on
+// CACHE_VERSION = 'tameside-static-' + K_REVISION (see the /sw.js route below).
+// K_REVISION only exists on Cloud Run, so locally the key is the constant 'dev-local'
+// and nothing ever invalidates it — edited CSS/JS keeps serving from the worker's cache
+// across restarts until you hard-refresh every page. Production is unaffected: each
+// deploy is a new revision, so the key changes and `activate` drops the old caches.
+//
+// Set SW_ENABLE=true to exercise the PWA (offline page, precaching) locally.
+app.locals.serviceWorkerEnabled =
+  process.env.NODE_ENV === 'production' || process.env.SW_ENABLE === 'true';
+
 // Resolve the current/previous season from the DB (cached) at boot so every
 // season-scoped query agrees on which season is "current", and cache the list
 // of past seasons (those with an archived team<season> snapshot) for the
@@ -74,6 +88,12 @@ app.set('view engine', 'ejs');
 app.set('views', __dirname + '/views');
 
 
+// Compress text responses. Registered ahead of the static mounts and all routes so
+// it covers both the served assets and the rendered HTML — nothing was compressed
+// before this, so static/css/style.css went out as ~407KB of plain text on every
+// uncached visit (it gzips to ~57KB). Cloud Run does not compress for you.
+app.use(compression());
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended:false}));
 
@@ -91,6 +111,14 @@ app.use('/static', express.static(path.join(__dirname,'/static'),{ maxAge: (30 *
 app.use('/scripts', express.static(__dirname + '/node_modules',{ maxAge: (30 * 24 * 60 * 60 * 1000)} ));
 app.use('/static/webfonts', express.static(__dirname + '/node_modules/@fortawesome/fontawesome-free/webfonts',{ maxAge: (30 * 24 * 60 * 60 * 1000)}));
 
+// Fallback only. The `/static` mount above is registered first, so whenever
+// static/css/style.css exists this middleware is never reached — which is the normal
+// case, because `npm run build:css` generates it (in the Docker build, and via the
+// `dev` script). It matters only if that file is missing, where it compiles on the
+// first request rather than serving no CSS at all.
+//
+// Consequence worth knowing: editing bootstrap/style.scss has NO effect until you
+// re-run `npm run build:css`, because the already-generated file keeps winning here.
 app.use(sassMiddleware({
     src: path.join(__dirname, 'bootstrap'),
     dest: path.join(__dirname, 'static/css'),
