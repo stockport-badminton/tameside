@@ -86,10 +86,10 @@
 <!-- Bootstrap + Font Awesome, compiled from bootstrap/style.scss. This already
      contains the full Font Awesome 6 CSS (icons, and @font-face pointing at
      /static/webfonts), so no CDN copy of Font Awesome is needed on top. -->
-<link rel="stylesheet" href="/static/css/style.css" type="text/css" />
+<link rel="stylesheet" href="<%= assetUrl('/static/css/style.css') %>" type="text/css" />
 
 <!-- Modern Styles - MUST come after Bootstrap -->
-<link rel="stylesheet" href="/static/css/modern-styles.css" type="text/css" />
+<link rel="stylesheet" href="<%= assetUrl('/static/css/modern-styles.css') %>" type="text/css" />
 
 <!-- DataTables styling, only on the handful of pages that build a DataTable.
      Those views opt in with include('header.ejs', { useDataTables: true }). -->

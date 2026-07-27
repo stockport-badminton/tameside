@@ -1,10 +1,14 @@
 var CACHE_VERSION = 'tameside-static-<%= cacheVersion %>';
 var OFFLINE_URL = '/offline.html';
 
+// The two stylesheets carry the same ?v=<content hash> suffix as the <link> tags in
+// views/header.ejs. They must match exactly: the fetch handler below caches and matches
+// by full request URL, so precaching the unsuffixed path would store an entry no page
+// ever asks for.
 var PRECACHE_URLS = [
   OFFLINE_URL,
-  '/static/css/style.css',
-  '/static/css/modern-styles.css',
+  '<%= assetUrl("/static/css/style.css") %>',
+  '<%= assetUrl("/static/css/modern-styles.css") %>',
   '/touch-icon-192x192.png',
   '/favicon.ico'
 ];

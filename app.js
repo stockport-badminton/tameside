@@ -64,6 +64,45 @@ const port = 8080
 app.locals.serviceWorkerEnabled =
   process.env.NODE_ENV === 'production' || process.env.SW_ENABLE === 'true';
 
+// assetUrl('/static/css/style.css') -> '/static/css/style.css?v=<content hash>'
+//
+// tameside-badminton.co.uk is not served straight from Cloud Run: it resolves to
+// Firebase Hosting, which proxies to this service and puts its CDN in front. That CDN
+// caches /static/** for the `maxAge` advertised on the static mounts below — 30 days —
+// and a Cloud Run deploy does not clear it. Firebase Hosting has no purge API at all
+// (the only lever is publishing a whole new hosting release), so changing a file's
+// contents without changing its URL leaves visitors on the stale copy until it expires.
+//
+// Hashing the contents rather than using K_REVISION means a deploy that doesn't touch
+// a file leaves its URL alone, so it stays cached instead of being re-downloaded.
+//
+// Hashes are computed once in production, where the files are baked into the image by
+// `npm run build:css`. Outside production they're recomputed per render, so editing a
+// stylesheet is picked up without a restart.
+const crypto = require('crypto');
+const fs = require('fs');
+const cacheAssetHashes = process.env.NODE_ENV === 'production';
+const assetHashes = new Map();
+
+app.locals.assetUrl = function assetUrl(urlPath) {
+  let version = cacheAssetHashes ? assetHashes.get(urlPath) : undefined;
+
+  if (!version) {
+    try {
+      const contents = fs.readFileSync(path.join(__dirname, urlPath));
+      version = crypto.createHash('md5').update(contents).digest('hex').slice(0, 8);
+    } catch (err) {
+      // Don't let a missing asset break page rendering — fall back to the revision so
+      // the URL still changes per deploy, and say so rather than failing silently.
+      console.warn('assetUrl: could not hash', urlPath + ':', err.message);
+      version = process.env.K_REVISION || 'dev-local';
+    }
+    if (cacheAssetHashes) { assetHashes.set(urlPath, version); }
+  }
+
+  return urlPath + '?v=' + version;
+};
+
 // Resolve the current/previous season from the DB (cached) at boot so every
 // season-scoped query agrees on which season is "current", and cache the list
 // of past seasons (those with an archived team<season> snapshot) for the
