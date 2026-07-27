@@ -77,8 +77,12 @@ steps:
     docker push "$(cat /workspace/image)"
     docker push "$(cat /workspace/image_latest)"
 
+# gcr.io/cloud-builders/gcloud rather than cloudsdktool/cloud-sdk:slim. Both carry a
+# current gcloud (575 vs 577 at time of writing), but the cloud-builders images are
+# pre-cached on Cloud Build workers, so this pulls in 0.0s instead of ~34s — measured
+# at roughly a third of the whole pipeline. cloud-sdk:alpine is ~13s, still not free.
 - id: Deploy
-  name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+  name: gcr.io/cloud-builders/gcloud
   env:
     - 'SERVICE=${_SERVICE_NAME}'
     - 'REGION=${_DEPLOY_REGION}'
