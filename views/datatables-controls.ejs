@@ -1,0 +1,30 @@
+<%
+/* Shared DataTables config: the control band that sits directly above the table.
+ *
+ * `dom` puts DataTables' own controls into one row - buttons on the left, page
+ * size and search on the right - instead of leaving them scattered in the bs4
+ * default two-row layout. `B` is the Buttons container, which is where the
+ * Columns dropdown (ColVis) renders. Both are already in the CDN bundle
+ * (b-1.6.1/b-colvis-1.6.1), they just weren't being used: player-stats had a
+ * hand-rolled 13-option multi-select doing the same job with no visible state.
+ *
+ * Emitted as JS object properties, so include it inside a DataTable({...}).
+ * The caller adds any extra buttons after `dtButtons`.
+ */
+%>
+    /* The table (and only the table) sits in the horizontally-scrolling
+     * .table-responsive box. That box used to be the outer div in each view,
+     * wrapping these controls too - and since overflow-x:auto also clips
+     * vertically, it cut the bottom off the Columns dropdown whenever the table
+     * was shorter than the menu. The views now use a plain .dt-table-shell
+     * wrapper and DataTables makes the scroller here instead. */
+    dom: "<'dt-controls'<'dt-controls-left'B><'dt-controls-right'lf>>" +
+         "<'table-responsive'rt>" +
+         "<'dt-footer'<'dt-info'i><'dt-pager'p>>",
+    language: {
+      lengthMenu: 'Show _MENU_',
+      search: '',
+      searchPlaceholder: 'Search this page',
+      buttons: { colvis: '<i class="fas fa-eye"></i> Columns' }
+    },
+    lengthMenu: [[10, 20, 50, 100, -1], [10, 20, 50, 100, 'All']],

@@ -1,0 +1,82 @@
+<!-- Stats tables (player-list, played-up-counts, pair-stats, player-stats).
+     All four get the same DataTable - orderCellsTop + fixedHeader on
+     #results-table, plus the shared control band and a Columns dropdown - and
+     one optional extra:
+
+       include('datatables-stats.ejs', { dtColumnSearch: true })
+
+     which adds a per-column search row, hidden behind a toolbar toggle. It used
+     to be permanently visible on three of these pages, doubling the header
+     height and reading like a data row.
+
+     Results/fixture tables use datatables.ejs instead. Both share
+     datatables-scripts.ejs for the library tags and datatables-controls.ejs for
+     the control band. -->
+<%- include('datatables-scripts.ejs') %>
+
+<script type="text/javascript">
+  $(document).ready( function () {
+    <% if (typeof dtColumnSearch !== 'undefined' && dtColumnSearch) { %>
+    // Second header row of search boxes, one per column. Hidden by default; the
+    // "Search columns" button below reveals it.
+    $('#results-table thead tr').clone(true).appendTo( '#results-table thead' );
+    $('#results-table thead tr:eq(1)').addClass('dt-colsearch-row');
+    $('#results-table thead tr:eq(1) th').each( function () {
+        var title = $(this).text();
+        $(this).html( '<input type="text" placeholder="Search '+title+'" />' );
+    } );
+
+    // Redrawing makes FixedHeader re-clone the header, which discards whatever
+    // has been typed into these boxes since its last clone - searching on every
+    // keystroke dropped roughly every other character. Debouncing means one
+    // redraw once typing stops, and the handler is delegated so it survives the
+    // header being replaced.
+    var searchTimers = {};
+    $('#results-table thead').on( 'keyup change', '.dt-colsearch-row input', function () {
+        var input = this;
+        var i = $(input).closest('th').index();
+
+        clearTimeout( searchTimers[i] );
+        searchTimers[i] = setTimeout( function () {
+            if ( table.column(i).search() !== input.value ) {
+                table
+                    .column(i)
+                    .search( input.value )
+                    .draw();
+            }
+        }, 300 );
+    } );
+    <% } %>
+
+    var table = $('#results-table').DataTable( {
+        orderCellsTop: true,
+        fixedHeader: true,
+        <%- include('datatables-controls.ejs') %>
+        buttons: [
+          { extend: 'colvis', className: 'dt-btn' }
+          <% if (typeof dtColumnSearch !== 'undefined' && dtColumnSearch) { %>
+          ,
+          {
+            text: '<i class="fas fa-magnifying-glass"></i> Search columns',
+            className: 'dt-btn dt-btn-colsearch',
+            action: function (e, dt, node) {
+              var on = $('#results-table').toggleClass('colsearch-on').hasClass('colsearch-on');
+              $(node).toggleClass('active', on);
+              // Never leave a per-column search applied while its box is hidden -
+              // the table would look filtered for no visible reason.
+              if (!on) {
+                $('#results-table thead tr:eq(1) input').val('');
+                dt.columns().search('').draw();
+              }
+              dt.columns.adjust();
+              if (dt.fixedHeader) { dt.fixedHeader.adjust(); }
+            }
+          }
+          <% } %>
+        ]
+    } );
+  } );
+  <% if (typeof filter !== 'undefined' && filter == true){ %>
+      <%- include('filtersJs.ejs') %>
+  <% } %>
+</script>

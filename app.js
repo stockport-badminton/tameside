@@ -109,6 +109,7 @@ app.locals.assetUrl = function assetUrl(urlPath) {
 // History nav / archive page. Falls back to date-based derivation if the DB
 // lookup fails (see models/season.js).
 const seasonModel = require('./models/season');
+const filterState = require('./middleware/filterState');
 app.locals.pastSeasons = [];
 seasonModel.init()
   .then(function (resolved) {
@@ -118,6 +119,15 @@ seasonModel.init()
   .then(function (rows) {
     const current = seasonModel.current();
     app.locals.pastSeasons = rows.filter(function (s) { return s.name !== current; });
+  })
+  .then(function () {
+    // Division/season option lists for the filter toolbar. Runs after
+    // season.init() because the current season decides which seasons are
+    // offerable (see middleware/filterState.js).
+    return filterState.init();
+  })
+  .then(function (counts) {
+    if (counts) console.log('Filter options loaded:', counts.divisions, 'divisions,', counts.seasons, 'seasons');
   })
   .catch(function (err) {
     console.error('Season init/getAll failed:', err.message);
@@ -234,6 +244,11 @@ let site_settings_controller = require(__dirname + '/controllers/siteSettingsCon
 let documents_controller = require(__dirname + '/controllers/documentsController')
 
 app.use(userInViews())
+
+// Parses the filter path segments (/player-stats/Division-1/gender-Male/...) into
+// res.locals.filterBar, so views/filters.ejs can show what's applied and build
+// links that add or drop one filter without losing the others.
+app.use(filterState.middleware)
 
     
 

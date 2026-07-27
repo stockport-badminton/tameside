@@ -1,63 +1,66 @@
-document.addEventListener('DOMContentLoaded', (event) => {
+// Turns the filter toolbar's selects into a path and navigates to it, e.g.
+//   /player-stats/Division-1/20242025/status-complete/gender-Male
+// Included inside an existing <script> block, so no tag of its own.
+//
+// This reads every select on each Apply, and the selects are now rendered
+// pre-set to the filters in the current URL (see middleware/filterState.js), so
+// filters combine: applying a gender on top of a division keeps the division.
+// It used to read document.forms[0] - the first form on the page, whatever that
+// happened to be - against selects that always rendered at their defaults, so
+// the second filter you applied silently dropped the first.
+//
+// The grammar here must stay in step with pathFor() in middleware/filterState.js;
+// that builds the same paths server-side for the chip and Clear all links.
+document.addEventListener('DOMContentLoaded', function () {
 
+  var form = document.querySelector('#statsFilter');
+  var applyButton = document.querySelector('#statsUpdate');
+  if (!form || !applyButton) { return; }
 
+  // Division and season sit in the path unlabelled; everything else is `key-value`.
+  var POSITIONAL = { divisionSelect: 'division', seasonSelect: 'season' };
+  var PREFIXED = {
+    statusSelect: 'status', gender: 'gender', gameType: 'gameType',
+    club: 'club', team: 'team'
+  };
+  // Field order, unchanged from the original builder, so the URLs this produces
+  // match existing links and bookmarks.
+  var ORDER = ['divisionSelect', 'seasonSelect', 'statusSelect', 'gender', 'gameType', 'club', 'team'];
 
-    function updateFilter(e){
-      e.preventDefault()
-      let queryString = ""
-      for (row of document.forms[0]){
-          console.log(row.name)
-          console.log(row.value)
-          if (row.name.indexOf('division') >= 0 && row.value != 0) {
-              queryString+= '/'+row.value 
-          }
-          if (row.name.indexOf('division') >= 0 && row.value == 0 && window.location.pathname.indexOf('/results') > -1 ) {
-            queryString+= '/All'
-          }
-          if (row.name.indexOf('season') >= 0 && row.value != 0) {
-              queryString+= '/'+row.value 
-          }
-          if (row.name.indexOf('gender') >= 0 && row.value !=0) {
-              queryString+= '/gender-'+row.value 
-          }
-          if (row.name.indexOf('gameType') >= 0 && row.value != 0) {
-              queryString+= '/gameType-'+row.value 
-          }
-          if (row.name.indexOf('club') >= 0 && row.value != 0) {
-              queryString+= '/club-'+row.value 
-          }
-          if (row.name.indexOf('team') >= 0 && row.value != 0) {
-              queryString+= '/team-'+row.value 
-          }
-          if (row.name.indexOf('status') >= 0 && row.value != 0) {
-              queryString+= '/status-'+row.value 
-          }
+  // '/player-stats/Division-1/...' -> '/player-stats'; admin pages keep two segments.
+  function basePath() {
+    var parts = window.location.pathname.split('/').filter(function (p) { return p; });
+    var pageIdx = parts[0] === 'admin' ? 1 : 0;
+    return '/' + parts.slice(0, pageIdx + 1).join('/');
+  }
+
+  function applyFilters(e) {
+    e.preventDefault();
+
+    var base = basePath();
+    var path = base;
+    var hasDivision = false;
+
+    ORDER.forEach(function (name) {
+      var field = form.elements[name];
+      if (!field || !field.value || field.value === '0') { return; }
+      var value = encodeURIComponent(field.value);
+
+      if (POSITIONAL[name]) {
+        path += '/' + value;
+        if (name === 'divisionSelect') { hasDivision = true; }
+      } else {
+        path += '/' + PREFIXED[name] + '-' + value;
       }
-      console.log(queryString)
-      var admin = window.location.pathname.indexOf('admin') > -1 ? 'admin/' : ''
-      var pathIndex = window.location.pathname.indexOf('admin') > -1 ? 2 : 1
+    });
 
-      window.location.assign(window.location.origin + '/'+admin+window.location.pathname.split('/')[pathIndex]+queryString)
+    // /results and /results-grid want an explicit 'All' where a division would sit.
+    if (!hasDivision && base.indexOf('/results') > -1) {
+      path = base + '/All' + path.slice(base.length);
     }
 
-    function toggleFilter(e){
-        e.preventDefault()
-        
-        let element = document.querySelector("#statsFilter").style.display
-        console.log(element)
-        if (element.indexOf('none') > -1){
-            console.log("fired")
-            document.querySelector("#statsFilter").style.display = "block"
-            element = "block"
-        }
-        else {
-            console.log("fired none")
-            document.querySelector("#statsFilter").style.display = "none"
-            element = "none"
-        }
-    }
+    window.location.assign(window.location.origin + path);
+  }
 
-    document.querySelector("#statsUpdate").addEventListener('click',updateFilter);
-    
-    
-  })
+  applyButton.addEventListener('click', applyFilters);
+})

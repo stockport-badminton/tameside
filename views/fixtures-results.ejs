@@ -26,11 +26,6 @@
           <i class="fa fa-calendar"></i>
           <span>Calendar</span>
         </a>
-        <a class="action-btn" id="showFilter" href="#" 
-           title="Toggle filters">
-          <i class="fa fa-filter"></i>
-          <span>Filters</span>
-        </a>
       </div>
     </div>
   </div>
@@ -54,9 +49,11 @@
 </section>
 <% } %>
 
-<!-- Filters Section -->
+<!-- Filters. Rendered inline like every other filtered page: the toolbar is one
+     row, so it no longer needs the show/hide section (and its #showFilter button)
+     that used to hide it by default here and nowhere else. -->
 <% if (typeof filter !== 'undefined' && filter == true){ %>
-<section class="filters-section" style="display: none;">
+<section class="filters-section">
   <div class="container">
     <%- include('filters.ejs') %>
   </div>
@@ -323,13 +320,6 @@
 <% if (typeof filter !== 'undefined' && filter == true){ %>
 <script type="text/javascript">
   <%- include('filtersJs.ejs') %>
-  
-  // Toggle filter visibility
-  $('#showFilter').click(function(e){
-    e.preventDefault();
-    $('.filters-section').slideToggle(300);
-    $(this).toggleClass('active');
-  });
 </script>
 <% } %>
 

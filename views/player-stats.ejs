@@ -8,7 +8,7 @@
       <%- include('filters.ejs') %>
     <% } %>
     
-    <div class="table-responsive">
+    <div class="dt-table-shell">
     <table class="table" id="results-table">
       <thead>
         <tr>
@@ -101,40 +101,7 @@
 
 
 <%- include('footer.ejs') %>
-<script type="text/javascript" src="https://cdn.datatables.net/v/bs4/jq-3.3.1/dt-1.10.20/b-1.6.1/b-colvis-1.6.1/fh-3.1.6/r-2.2.3/datatables.min.js"></script>
-<script type="text/javascript" src="//cdn.datatables.net/plug-ins/1.10.19/sorting/date-euro.js"></script>
-
-<script type="text/javascript">
-  $(document).ready( function () {
-    
- 
-    var table = $('#results-table').DataTable( {
-        orderCellsTop: true,
-        fixedHeader: true
-    } );
-    if (window.location.pathname.indexOf('/player-stats') > -1 ){
-        document.querySelectorAll('#columnToggle > option').forEach((el) => {
-            el.addEventListener('click', function (e) {
-                e.preventDefault();
-        
-                let columnIdx = e.target.getAttribute('value');
-                let column = table.column(columnIdx);
-        
-                // Toggle the visibility
-                column.visible(!column.visible());
-                table.columns.adjust().draw();
-            });
-        });
-    }
-
-  } );
-  <% if (typeof filter !== 'undefined' && filter == true){ %>
-      <%- include('filtersJs.ejs') %>
-    <% } %>
-  
-
-
-</script>
+<%- include('datatables-stats.ejs') %>
 
 </body>
 </html>
