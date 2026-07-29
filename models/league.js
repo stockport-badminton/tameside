@@ -43,7 +43,13 @@ exports.getLeagueTable = async function(division,season,done){
     season = seasonModel.current();
   }
   else {
-    seasonName = season
+    // Only archived seasons have a team<season> snapshot. This used to trust the URL
+    // and suffix unconditionally, so /tables/:division/<current season> asked for a
+    // team20262027 that has never existed, and so did any junk season name — both a
+    // 500. Fall back to the live tables when there's no snapshot; the season filter
+    // further down still applies, so a name matching no season gives an empty table,
+    // which is the right answer rather than an error.
+    seasonName = await seasonModel.hasSnapshot(season) ? season : ''
   }
   division = division.replace('-',' ');
 
@@ -96,8 +102,14 @@ FROM (
             ) AS b
             JOIN
             ${
-                seasonName != "" 
-                ? sql`${sql("team"+seasonName+" as team")}`
+                /* The alias has to sit OUTSIDE sql(), as it does in getAllLeagueTables
+                 * below. postgres.js escapes a sql(string) as a single identifier
+                 * (types.js escapeIdentifier: quote it, double any embedded quotes), so
+                 * sql("team"+seasonName+" as team") asked for one relation literally
+                 * named `team20242025 as team` and every archived-season request to
+                 * /tables/:division/:season 500'd on "relation does not exist". */
+                seasonName != ""
+                ? sql`${sql("team"+seasonName)} as team`
                 : sql`team`
             }
         on
@@ -114,6 +126,12 @@ ORDER BY "pointsFor" DESC
     return done(err)
   }
   )
+  // The catch above has already called done(err). Returning from it leaves `result`
+  // undefined, and without this guard done fired a SECOND time as done(null, undefined):
+  // leagueController took the success branch and rendered `tables` with no result, after
+  // next(err) had already begun the 500. Being outside the request chain, that throw
+  // killed the process rather than producing a 500.
+  if (!result) { return; }
   done(null,result);
 }
 
@@ -123,7 +141,9 @@ exports.getAllLeagueTables = async function(season,done){
     season = seasonModel.current()
   }
   else {
-    seasonName = season
+    // See the note in getLeagueTable above — same trap, and this one suffixes
+    // division<season> too.
+    seasonName = await seasonModel.hasSnapshot(season) ? season : ''
   }
   let result = await sql`select
   min(division.name) as "divisionName",
@@ -185,5 +205,7 @@ order by
     return done(err)
   }
   )
+  // See the note on the same guard in getLeagueTable above.
+  if (!result) { return; }
   done(null,result);
 }

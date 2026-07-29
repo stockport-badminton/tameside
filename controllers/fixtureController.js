@@ -21,6 +21,21 @@ const { hasWinner, hasValidMargin } = require("../utils/scorecardValidation");
 const promisify = (fn) => (...args) => new Promise((resolve, reject) =>
   fn(...args, (err, result) => (err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result))));
 
+// Render the 404 page from inside a handler, for a URL that routed fine but names a
+// fixture that isn't there. Mirrors the catch-all in app.js, including the no-store
+// header: the domain fronts Cloud Run through Firebase Hosting, whose edge applies a
+// default 10-minute cache to any cookie-less response without Cache-Control, so a 404
+// would otherwise stick to a URL that has since become valid.
+function render404(req, res) {
+  res.set('Cache-Control', 'private, no-store');
+  return res.status(404).render('404-error', {
+    static_path: "/static",
+    title: "Can't find the page your looking for",
+    pageDescription: "Can't find the page your looking for",
+    entry: "<p>Sorry can't find that page</p>"
+  });
+}
+
 const getDivisionsP = promisify(Division.getAllAndSelectedById);
 const getTeamsP = promisify(Team.getAllAndSelectedById);
 // getEligiblePlayersAndSelectedById takes its callback as the 5th arg, with
@@ -1072,21 +1087,57 @@ exports.fixture_populate_scorecard_fromId = function (req, res, next) {
 };
 
 // Display detail page for a specific Fixture
+// GET /scorecard/fixture/:id
+//
+// getScorecardDataById INNER JOINs `game`, so it returns nothing for a fixture with no
+// per-game rows — 366 of 652 fixtures. viewScorecard.ejs read result[0].date straight
+// off the empty array, so all of them threw while rendering (Sentry TAMESIDE-NODE-3).
+// Fixture 5704 is typical, and shows this isn't only an archive problem: a conceded
+// 2025-26 match, 18-0, no games. Conceded and void fixtures happen every season.
+//
+// The header and the games are now separate locals, so a fixture with no game detail
+// still shows what the match was and how it finished.
 exports.getScorecard = function(req, res,next) {
-  Fixture.getScorecardDataById(req.params.id, function(err,row){
+  Fixture.getScorecardDataById(req.params.id, function(err,games){
     if (err){
-      res.send(err);
-      // console.log(err);
+      // Was res.send(err), which answered 200 with a serialised error object — a real
+      // failure looked like a success to the browser and to monitoring.
+      return next(err);
     }
-    else{
-      res.render('viewScorecard', {
-          static_path: '/static',
-          title : "Scorecard Info",
-          pageDescription : "View scorecard for this match",
-          result: row,
-          canonical:("https://" + req.get("host") + req.originalUrl).replace("www.'","").replace(".com",".co.uk").replace("-badders.herokuapp","-badminton")
+
+    const render = (summary) => res.render('viewScorecard', {
+      static_path: '/static',
+      title : "Scorecard Info",
+      pageDescription : "View scorecard for this match",
+      result: games,
+      summary: summary,
+      canonical:("https://" + req.get("host") + req.originalUrl).replace("www.'","").replace(".com",".co.uk").replace("-badders.herokuapp","-badminton")
+    });
+
+    if (games.length){
+      // Every game row repeats the fixture-level columns, so take the header from the
+      // first and save a second query on the common path.
+      return render({
+        date: games[0].date,
+        homeTeam: games[0].homeTeam,
+        awayTeam: games[0].awayTeam,
+        homeScore: games[0].totalHomeScore,
+        awayScore: games[0].totalAwayScore,
       });
     }
+
+    // No games. Fall back to the summary query, which LEFT JOINs and so distinguishes
+    // "no game detail" from "no such fixture" — the reason it exists rather than reusing
+    // getFixtureEventById, whose inner joins answer zero rows for both.
+    Fixture.getFixtureSummaryById(req.params.id, function(summaryErr,fixture){
+      if (summaryErr){
+        return next(summaryErr);
+      }
+      if (!fixture.length){
+        return render404(req, res);
+      }
+      return render(fixture[0]);
+    })
   })
 };
 
@@ -1630,11 +1681,28 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
     })
 }
 
+// GET /event/:id/:date-:homeTeam-:awayTeam
+//
+// getFixtureEventById can legitimately return zero rows, and this read row[0].homeTeam
+// straight off the empty array — Sentry TAMESIDE-NODE-2, 308 events and still firing.
+// Two different causes reach it:
+//   - The fixture is gone. /event/5841/07102025-Aerospace A-GHAP A was most of those
+//     events: id 5841 is inside the live range but the row has been deleted or
+//     rearranged. header.ejs emits SportsEvent ld+json carrying these URLs, so Google
+//     has them indexed and re-crawls long after the fixture disappears.
+//   - The fixture is from an archived season, whose teams and clubs live in suffixed
+//     snapshot tables that this query's INNER joins don't reach. 98 fixtures, all
+//     2023-24. Those 404 for now rather than crashing; rendering them properly needs
+//     the season-aware query described on the model.
 exports.fixture_event_detail = function(req, res,next) {
   Fixture.getFixtureEventById(req.params.id, function(err,row){
     if (err){
-      res.send(err);
-      // console.log(err);
+      // Was res.send(err), which answered 200 with a serialised error object — a real
+      // failure looked like a success to the browser and to monitoring.
+      next(err);
+    }
+    else if (!row.length){
+      return render404(req, res);
     }
     else{
       res.render('viewEventDetails', {

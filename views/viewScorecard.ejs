@@ -1,10 +1,12 @@
 <%- include('header.ejs') %>
 <%- include('nav.ejs') %>
 <%
-
-var MyDate = new Date(result[0].date);
-var MyDateString;
-MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
+/* `summary` carries the fixture header (date, teams, final score) and `result` the
+ * per-game rows. They are separate because most fixtures have no game rows at all —
+ * the 2023-24 archive predates game-level capture, and conceded fixtures never get
+ * any — and this used to read result[0].date straight off an empty array and throw. */
+var MyDate = new Date(summary.date);
+var MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
              + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
              + MyDate.getFullYear(); %>
 
@@ -16,9 +18,9 @@ MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
     Date : <%= MyDateString %>
   </div>
   <div class="col-8"></div>
-  <div class="col-4"><%= result[0].homeTeam %></div>
+  <div class="col-4"><%= summary.homeTeam %></div>
   <div class="col-1">vs</div>
-  <div class="col-4"><%= result[0].awayTeam %></div>
+  <div class="col-4"><%= summary.awayTeam %></div>
   <div class="col-3"></div>
 </div>
 <%
@@ -64,12 +66,21 @@ result.forEach(function(row,i){
 
 %>
 
+<% if (!result.length) { %>
+  <div class="alert alert-secondary mt-3" role="alert">
+    No game-by-game detail was recorded for this fixture, so only the final score is
+    shown. Individual games were not captured for older seasons, and are never recorded
+    for a conceded match.
+  </div>
+<% } %>
+
 <div id="finalScore" class="row no-gutters col-12">
   <div class="col-4"></div>
   <div class="col-1"></div>
   <div class="col-4"></div>
-  <div class="col-2"><%= totalHomePoints %>-<%= totalAwayPoints %></div>
-  <div class="col-1"><%= result[0].totalHomeScore %>-<%= result[0].totalAwayScore %></div>
+  <%# Points total is only meaningful when there are games to add up. %>
+  <div class="col-2"><% if (result.length) { %><%= totalHomePoints %>-<%= totalAwayPoints %><% } %></div>
+  <div class="col-1"><%= summary.homeScore %>-<%= summary.awayScore %></div>
 </div>
 </div>
 

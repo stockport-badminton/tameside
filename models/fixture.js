@@ -156,7 +156,12 @@ exports.getFixtureDetails = async function(searchObj, done){
       sqlArray.push(seasonModel.current())
     }
     else {
-      season = fixtureObj.season
+      // checkSeason only checks the name looks like consecutive years since 2012 — it
+      // says nothing about whether that season was ever archived. Snapshots only exist
+      // from 2023-24, so /results/season-20302031 (or any plausible name in the gap)
+      // passed the check, suffixed team20302031, and Postgres answered 42P01. That took
+      // the whole process down, not just the request: see the done guard below.
+      season = await seasonModel.hasSnapshot(fixtureObj.season) ? fixtureObj.season : ''
       seasonString = fixtureObj.season
       sqlArray.push(fixtureObj.season)
     }
@@ -281,7 +286,14 @@ exports.getFixtureDetails = async function(searchObj, done){
       console.log(err.query)
       return done(err)
     })
-    //console.log(result.statement.string)
+    // The catch above has already called done(err). Without this guard done fired again
+    // as done(null, undefined) and every caller took the success branch on nothing:
+    // fixtureController's `result.filter(...)` threw, and being in a model callback
+    // rather than the request chain that throw escaped Express and killed the process.
+    // This is the other half of Sentry TAMESIDE-NODE-1 — commit 35e76358 guarded
+    // `result` being an empty array, which is a different case from `result` being
+    // undefined, and only the first was reachable from an empty filter combination.
+    if (!result) { return; }
     done(null,result);
 }
 
@@ -366,6 +378,39 @@ exports.getOutstandingFixtureId = async function(obj,done){
       done(null,rows);
   }
 
+  // Fixture header: the date, the two team names and the final score, and nothing else.
+  // Deliberately LEFT JOINs, and deliberately separate from getFixtureEventById and
+  // getScorecardDataById — both of those INNER JOIN their way to zero rows for fixtures
+  // that do exist (see the notes on each), which makes "fixture does not exist"
+  // indistinguishable from "a joined row is missing". A heavyweight query with inner
+  // joins can't be used as an existence check. This one can: zero rows here means the
+  // fixture genuinely isn't there, and the caller can 404 on that.
+  exports.getFixtureSummaryById = async function(fixtureId,done){
+    let rows = await sql`SELECT
+      fixture.id,
+      fixture.date,
+      fixture.status,
+      fixture."homeScore",
+      fixture."awayScore",
+      "homeTeam".name AS "homeTeam",
+      "awayTeam".name AS "awayTeam"
+    FROM fixture
+    LEFT JOIN team "homeTeam" ON fixture."homeTeam" = "homeTeam".id
+    LEFT JOIN team "awayTeam" ON fixture."awayTeam" = "awayTeam".id
+    WHERE fixture.id = ${fixtureId}`.catch(err => {
+      return done(err)
+    })
+    if (!rows) { return; }
+    done(null,rows);
+  }
+
+  // NOTE: every join below is an INNER join against the LIVE team/club/division tables.
+  // Archived seasons live in suffixed snapshots (team20232024, club20232024, ...), so
+  // every fixture from a past season returns zero rows here — 98 of 652 fixtures at the
+  // time of writing, all of them 2023-24. Callers must not read [0] unguarded (that was
+  // Sentry TAMESIDE-NODE-2, 308 events). Making the archive render properly means
+  // resolving the season from fixture.date and joining the suffixed tables; LEFT JOINing
+  // instead would only produce an event page with blank team and venue names.
   exports.getFixtureEventById = async function(fixtureId,done){
     let rows = await sql`SELECT 
     "fixture".id,
@@ -413,13 +458,17 @@ WHERE
     "fixture".id = ${fixtureId}`.catch(err => {
         return done(err)
       })
+      if (!rows) { return; }
       done(null,rows);
   }
 
   exports.getMatchPlayerOrderDetails = async function(fixtureObj,done){
     var searchTerms = [];
     var sqlArray = []
-    var seasonName = (!fixtureObj.season || fixtureObj.season == seasonModel.current())? '' : fixtureObj.season
+    // Excluding the current season isn't enough — a name can look valid and still have
+    // no team<season>/club<season> snapshot (snapshots start at 2023-24). Same 42P01
+    // process-kill as getFixtureDetails above.
+    var seasonName = await seasonModel.hasSnapshot(fixtureObj.season) ? fixtureObj.season : ''
     console.log(fixtureObj)
     let rows = await sql`SELECT c.*
 FROM (SELECT "fixturePlayers".*, club.name
@@ -456,7 +505,9 @@ FROM (SELECT "fixturePlayers".*, club.name
       // console.log(err.query)
       return done(err)
     })
-    // console.log(rows.statement)
+    // See the note on the same guard in getFixtureDetails: without it a failed query
+    // called done twice and the controller's row.map killed the process.
+    if (!rows) { return; }
     done(null,rows);
   }
 
@@ -524,6 +575,12 @@ where season.name like ${seasonModel.current()} and status = 'outstanding' and "
   }
 
 
+  // NOTE: this INNER JOINs `game`, so it returns nothing for a fixture whose individual
+  // games were never recorded — 366 of 652 fixtures at the time of writing. Most are the
+  // 2023-24 archive (180/180, predating game-level capture) and the unplayed 2026-27
+  // season, but 42 are conceded/void fixtures in seasons that DO have game data, so this
+  // keeps happening. Zero rows here does not mean the fixture is absent; use
+  // getFixtureSummaryById for that. (Sentry TAMESIDE-NODE-3.)
   exports.getScorecardDataById = async function(fixtureId,done){
    let result = await sql`select "fixture".date,
 "homeTeam".name as "homeTeam",
@@ -550,6 +607,7 @@ order by game.id`.catch(err => {
         console.log(err.query)
         return done(err)
       })
+      if (!result) { return; }
       done(null,result);
   }
 

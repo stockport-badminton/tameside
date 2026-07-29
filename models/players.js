@@ -202,7 +202,16 @@ exports.getNamesClubsTeams = async function(searchTerms,done){
       }
     }
 
-    if (searchTerms.season === undefined || !checkSeason(searchTerms.season)){
+    // Two bugs here, the same pair fixed in newGetPairStats (see the note at its
+    // checkSeason): checkSeason is async, so without the await this read `!Promise` —
+    // always false — and any season in the URL was accepted unvalidated, including the
+    // current one, which checkSeason deliberately rejects so the live tables are used.
+    // And checkSeason only vets the *shape* of the name; snapshots only exist from
+    // 2023-24, so a plausible name in the gap suffixed a player<season> that Postgres
+    // answers 42P01 for, which killed the process rather than 500ing.
+    if (searchTerms.season === undefined
+        || !await checkSeason(searchTerms.season)
+        || !await seasonModel.hasSnapshot(searchTerms.season)){
       //console.log("no season");
     }
     else {
@@ -503,7 +512,12 @@ exports.newGetPlayerStats = async function(searchObj,done){
     }
   }
 
-  if (searchObj.season === undefined || !await checkSeason(searchObj.season)){
+  // checkSeason vets the shape of the name only. Snapshots start at 2023-24, so a
+  // plausible name in the gap suffixed a player<season>/team<season> that does not
+  // exist — 42P01, and a process kill rather than a 500. See seasonModel.hasSnapshot.
+  if (searchObj.season === undefined
+      || !await checkSeason(searchObj.season)
+      || !await seasonModel.hasSnapshot(searchObj.season)){
     seasonVal = seasonString
     season = ""
     console.log("no season");
@@ -798,7 +812,13 @@ exports.newGetPairStats = async function(searchObj,done){
   // one. checkSeason deliberately rejects the current season so the live tables
   // are used; skipping it meant /pair-stats/<current season> built snapshot table
   // names that don't exist and 500'd. newGetPlayerStats awaits it correctly.
-  if (searchObj.season === undefined || !await checkSeason(searchObj.season)){
+  //
+  // The hasSnapshot check closes the other half: checkSeason vets the shape of the name
+  // only, and snapshots start at 2023-24, so a plausible name in the gap still built a
+  // table that doesn't exist. See seasonModel.hasSnapshot.
+  if (searchObj.season === undefined
+      || !await checkSeason(searchObj.season)
+      || !await seasonModel.hasSnapshot(searchObj.season)){
     seasonVal = seasonString
     season = ""
     console.log("no season");

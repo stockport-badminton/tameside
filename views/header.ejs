@@ -1,3 +1,12 @@
+<%
+/* Browser Sentry is gated to real deployments, mirroring instrument.js's server-side
+ * condition exactly. Without this the block below fired from every local run and every
+ * headless Playwright run, tagged `production` because nothing set `environment` — 65
+ * of the 68 events on one project's list came from localhost:8199, this repo's e2e
+ * port. Cloud Run runs the Docker image, which sets NODE_ENV=production, and Cloud Run
+ * also sets K_SERVICE. */
+var sentryEnabled = process.env.NODE_ENV === 'production' || !!process.env.K_SERVICE;
+%>
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -21,20 +30,51 @@
     });
 
     localStorage.setItem('user', JSON.stringify(<%- JSON.stringify(user) %>))
-    
+    <% if (sentryEnabled) { %>
   window.sentryOnLoad = function () {
       // in here, Sentry is ensured to be loaded & fully available
-      
+
+      // Session Replay is quota-limited (50/month on the free tier) and this used to
+      // pass replayIntegration unconditionally — a replay recorded on every page for
+      // every logged-in user, local runs included. Only record where it earns its
+      // keep: a results-entry or stats page, and not the site admin, who exercises
+      // these daily and can watch locally. Error/console capture below is unchanged
+      // and still runs on every page for every logged-in user.
+      var REPLAY_PATHS = [
+        /^\/email-scorecard/,
+        /^\/populated-scorecard/,
+        /^\/player-stats/,
+        /^\/pair-stats/,
+        /^\/admin\/scorecard-ocr/
+      ];
+      var isSiteAdmin = <%= (user._json && user._json['https://my-app.example.com/role'] === 'superadmin') ? 'true' : 'false' %>;
+      var onReplayPath = REPLAY_PATHS.some(function (re) { return re.test(window.location.pathname); });
+      var enableReplay = !isSiteAdmin && onReplayPath;
+
+      var integrations = [];
+      if (enableReplay) {
+        integrations.push(Sentry.replayIntegration({
+          maskAllText: false,
+          blockAllMedia: false
+        }));
+      }
+
       Sentry.init({
         dsn: "https://41a5442332daa78ebc9dba9dfe8da392@o4508301910540288.ingest.de.sentry.io/4508301914800208",
-        integrations: [
-          Sentry.replayIntegration({
-            maskAllText: false,
-            blockAllMedia: false
-          }),
-        ],
+        // TODO: this DSN is the `javascript` project, which belongs to league-site —
+        // tameside browser errors are indistinguishable from that site's in one shared
+        // list. Needs a `tameside-javascript` project creating in Sentry, then swap the
+        // key here AND in the CDN loader URL below (it embeds the same public key).
+        // The server side is already separated correctly (SENTRY_DSN -> tameside-node).
+        environment: "<%= process.env.NODE_ENV || 'production' %>",
+        // Off (0) on every non-eligible page. On eligible pages: keep a light sample of
+        // normal sessions, and always keep one that hits an error — errors are rare and
+        // the most useful, so they cost little quota.
+        replaysSessionSampleRate: enableReplay ? 0.1 : 0,
+        replaysOnErrorSampleRate: enableReplay ? 1.0 : 0,
+        integrations: integrations,
       });
-      
+
 
       Sentry.lazyLoadIntegration("captureConsoleIntegration").then(
         (integration) => {
@@ -46,9 +86,11 @@
       );
       Sentry.setUser({ id: '<%= user.user_id %>' });
     };
-    
-  </script>    
-   <script type="text/javascript" src="https://js-de.sentry-cdn.com/41a5442332daa78ebc9dba9dfe8da392.min.js" crossorigin="anonymous"></script>   
+    <% } %>
+  </script>
+  <% if (sentryEnabled) { %>
+   <script type="text/javascript" src="https://js-de.sentry-cdn.com/41a5442332daa78ebc9dba9dfe8da392.min.js" crossorigin="anonymous"></script>
+  <% } %>
     <% } else{ %>
   <script>
         gtag('config', 'G-01JJPR11B6',{

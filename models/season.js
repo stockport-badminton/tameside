@@ -39,6 +39,36 @@ exports.init = async function () {
 exports.current = function () { return _current || dateBasedSeason(0); };
 exports.previous = function () { return _previous || dateBasedSeason(1); };
 
+// Does this season have an archived data snapshot (a team<season> table)?
+//
+// Only past seasons are snapshotted — the current one is served from the live `team` /
+// `division` / `club` tables, and a season name from a URL might be neither. Callers
+// that build a suffixed table name must check first and fall back to the live tables,
+// or Postgres answers "relation team<season> does not exist" and the request 500s.
+// getAll() below applies the same EXISTS test to build the History nav; this is the
+// per-name version for query builders.
+//
+// team<season> stands in for the whole family: club/division/player/team snapshots are
+// created together, verified against the DB (2023-24, 2024-25 and 2025-26 each have all
+// four). lewis<season> is the exception and getAll() flags it separately.
+//
+// Probed from information_schema once per name and cached for the process lifetime,
+// matching snapshotHasRating() in models/players.js. The cache is keyed on the raw name,
+// so an unrecognised one costs a single probe and is false from then on.
+const _hasSnapshot = {};
+exports.hasSnapshot = async function (season) {
+  if (!season) return false;
+  const table = 'team' + season;
+  if (_hasSnapshot[table] === undefined) {
+    const rows = await sql`
+      SELECT 1 FROM information_schema.tables
+      WHERE table_name = ${table}`
+      .catch(() => []);
+    _hasSnapshot[table] = rows.length > 0;
+  }
+  return _hasSnapshot[table];
+};
+
 // Seasons that have an archived data snapshot (a team<season> table), newest
 // first — used to build the History nav / archive. Seasons in the season table
 // without a snapshot (e.g. older seasons, or the current season which uses the
