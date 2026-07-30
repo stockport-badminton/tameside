@@ -1,7 +1,19 @@
-<!-- expand-xl (not lg): the navbar is position:sticky via modern-styles.css, so
+<!-- expand-xxl (not xl/lg): the navbar is position:sticky via modern-styles.css, so
      it's in document flow — an expanded menu wider than the viewport widens the
-     whole page and causes horizontal scrolling. Collapse below 1200px instead. -->
-<nav class="navbar navbar-expand-xl navbar-dark fixed-top">
+     whole page and causes horizontal scrolling, pushing the right-most item (the
+     Admin/Log in menu) off-screen.
+     Two things keep that from happening, and BOTH are needed:
+       1. This breakpoint. Expanded, the logged-in nav needed ~1392px, so `xl`
+          (1200px) left a dead zone at 1200-1399px where it laid out horizontally
+          but didn't fit. 1366x768 laptops sat right in it. xxl collapses below
+          1400px, so the horizontal nav only ever renders where it can fit.
+       2. The width trim in modern-styles.css (search "expanded navbar width
+          budget"), which shrinks the brand and link padding between 1400-1599px.
+          Without it there was only 8px of slack at 1400px — one extra admin item
+          would have reopened the dead zone.
+     test/e2e/nav-viewport.spec.js guards both. If you add top-level nav items,
+     run it: the assertion is that nothing overflows at any width. -->
+<nav class="navbar navbar-expand-xxl navbar-dark fixed-top">
     <div class="container-fluid">
         <a class="navbar-brand" href="/">
             <i class="fas fa-shuttle-badminton"></i> Tameside Badminton League

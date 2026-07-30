@@ -54,6 +54,100 @@ nav, .navbar {
     border-color: rgba(255,255,255,0.3) !important;
 }
 
+/* Expanded navbar width budget.
+ *
+ * views/nav.ejs is navbar-expand-xxl, so the horizontal nav first appears at
+ * 1400px. At full size it needs ~1478px (brand 366 + items 1088 + 24 padding),
+ * which left just 8px of slack at 1400px — and none at all once another admin
+ * item was added, at which point the right-most menu goes off-screen.
+ *
+ * So trim the brand and the per-link chrome wherever the full-size nav would be
+ * tight, and let both return to full size only where there's genuinely room. The
+ * brand text is scaled rather than shortened so the wording stays intact.
+ *
+ * The upper bound is 1750px, not 1600px: the free space `ms-auto` leaves between
+ * the brand and the items is what absorbs a new nav item, and at full size that
+ * is only ~68px at 1600px — less than one item, so the first item added would
+ * have overflowed there. At 1750px full size has ~220px, which is real headroom.
+ * test/e2e/nav-viewport.spec.js asserts that free space never drops below
+ * MIN_FREE_SPACE, so adding a nav item fails the suite rather than a user's
+ * browser. If you add items and it fails, widen this band before shipping. */
+@media (min-width: 1400px) and (max-width: 1749.98px) {
+    .navbar-brand {
+        font-size: 1.05rem;
+    }
+
+    .navbar-nav .nav-link {
+        padding: 0.5rem 0.55rem !important;
+        margin: 0 0.1rem;
+    }
+}
+
+/* Tall-menu overflow — the vertical counterpart to the width budget above.
+ *
+ * The navbar is position:sticky, so anything inside it that extends past the
+ * bottom of the viewport is genuinely unreachable: page scrolling moves the
+ * content behind the nav, not the nav itself. Measured before this rule, with the
+ * hamburger and the superadmin Admin menu both open, the nav was ~1040px tall on
+ * a 1366x768 laptop and scrolling to the very end of the page still left the last
+ * admin items ~254px below the fold. The superadmin menu has 16 items, so this
+ * hit admins hardest — exactly the people who need those links.
+ *
+ * Two rules, because Bootstrap positions dropdowns differently either side of the
+ * expand breakpoint, and one rule cannot cover both:
+ *   - collapsed (<1400px): .dropdown-menu is position:static, so it's part of the
+ *     collapse panel's flow. Scroll the whole panel; capping the dropdown as well
+ *     would nest two scroll areas.
+ *   - expanded (>=1400px): .dropdown-menu is position:absolute and escapes the
+ *     panel, so it needs its own cap. This bit below ~680px of viewport height —
+ *     a short window, or any window with devtools docked at the bottom.
+ *
+ * dvh is declared after vh so browsers that support it use it and the rest fall
+ * back — on mobile, vh ignores the browser chrome and would still overflow.
+ *
+ * The 10rem subtrahend is not arbitrary, and it is the fiddly part. The menu does
+ * NOT start at the top of the viewport: views/header.ejs puts `pt-5 mt-4` on
+ * <body> (72px) to clear what used to be a fixed-top navbar, and the navbar's own
+ * brand/toggler row is another ~64px. So the collapse panel's top edge sits ~136px
+ * down when the page is unscrolled. 10rem (160px) covers that worst case with a
+ * little slack; once the user scrolls, the sticky nav pins to top:0 and the extra
+ * room is simply unused. If that body offset ever changes, the reachability tests
+ * in test/e2e/nav-viewport.spec.js are what will tell you this needs retuning. */
+@media (max-width: 1399.98px) {
+    .navbar-collapse {
+        max-height: calc(100vh - 10rem);
+        max-height: calc(100dvh - 10rem);
+        overflow-y: auto;
+        /* Stop the page scrolling once the panel reaches its end. */
+        overscroll-behavior: contain;
+    }
+}
+
+/* Below sm the 366px brand can't share a row with the toggler, so the navbar
+ * header wraps to two rows and the collapse panel starts ~40px lower (measured
+ * collTop 176 rather than 136) — which overflowed the panel by exactly that much.
+ * Shrink the brand so it fits beside the toggler at any width down to ~360px
+ * (it's also simply too big on a phone), and still reserve more in case it wraps
+ * on something narrower, so 320px-class screens stay correct too. */
+@media (max-width: 575.98px) {
+    .navbar-brand {
+        font-size: 1.15rem;
+    }
+
+    .navbar-collapse {
+        max-height: calc(100vh - 12rem);
+        max-height: calc(100dvh - 12rem);
+    }
+}
+
+@media (min-width: 1400px) {
+    .navbar .dropdown-menu {
+        max-height: calc(100vh - 10rem);
+        max-height: calc(100dvh - 10rem);
+        overflow-y: auto;
+    }
+}
+
 .navbar-toggler-icon {
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255, 255, 255, 0.8)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
 }
