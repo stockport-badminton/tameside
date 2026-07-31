@@ -1,0 +1,127 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<div class="col-12">
+  <h1>Spam controls</h1>
+  <p class="text-muted">
+    Blocking a spammer is a form submission here, not a code change and a deploy.
+    Entries take effect within a minute on every instance.
+  </p>
+
+  <% if (message) { %><div class="alert alert-success"><%= message %></div><% } %>
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+  <h2 class="h4 mt-4">Add a block</h2>
+  <form method="post" action="/admin/spam" class="row g-2 align-items-end mb-2">
+    <div class="col-12 col-md-2">
+      <label class="form-label" for="kind">Kind</label>
+      <select class="form-select" id="kind" name="kind">
+        <% kinds.forEach(function(k){ %><option value="<%= k %>"><%= k %></option><% }); %>
+      </select>
+    </div>
+    <div class="col-12 col-md-4">
+      <label class="form-label" for="value">Value</label>
+      <input type="text" class="form-control" id="value" name="value" required>
+    </div>
+    <div class="col-12 col-md-4">
+      <label class="form-label" for="note">Note (why?)</label>
+      <input type="text" class="form-control" id="note" name="note">
+    </div>
+    <div class="col-12 col-md-2">
+      <button type="submit" class="btn btn-primary w-100">Block</button>
+    </div>
+  </form>
+  <small class="form-text text-muted d-block mb-4">
+    <strong>ip</strong> exact match on the visitor's address &middot;
+    <strong>email</strong> exact match on the sender &middot;
+    <strong>phrase</strong> substring of the message &middot;
+    <strong>word</strong> whole word only, so "ass" can't match "class".
+    Prefer <strong>word</strong> for anything short or ordinary.
+  </small>
+
+  <h2 class="h4">Blocklist <span class="text-muted">(<%= entries.length %>)</span></h2>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped">
+      <thead>
+        <tr><th>Kind</th><th>Value</th><th>Note</th><th>Added</th><th>By</th><th>Active</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% entries.forEach(function(e){ %>
+        <tr class="<%= e.active ? '' : 'text-muted' %>">
+          <td><%= e.kind %></td>
+          <td style="word-break:break-all;"><%= e.value %></td>
+          <td><%= e.note || '' %></td>
+          <td><%= e.created_at ? new Date(e.created_at).toISOString().slice(0,10) : '' %></td>
+          <td><%= e.created_by || '' %></td>
+          <td><%= e.active ? 'yes' : 'no' %></td>
+          <td>
+            <%# Deactivate rather than delete, so the note explaining why survives. %>
+            <form method="post" action="/admin/spam/<%= e.id %>/active" class="d-inline">
+              <input type="hidden" name="active" value="<%= e.active ? 'false' : 'true' %>">
+              <button type="submit" class="btn btn-sm btn-outline-secondary">
+                <%= e.active ? 'Disable' : 'Enable' %>
+              </button>
+            </form>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="h4 mt-4">Counts by outcome</h2>
+  <p class="text-muted">
+    Watch the <strong>validation</strong> row: it counts real people failing the form, not
+    bots. If it climbs, something about the form is broken rather than being attacked.
+  </p>
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead><tr><th>Verdict</th><th>Reason</th><th>Last 24h</th><th>Last 7d</th><th>All time</th></tr></thead>
+      <tbody>
+        <% if (!stats.length) { %>
+          <tr><td colspan="5" class="text-muted">Nothing logged yet.</td></tr>
+        <% } %>
+        <% stats.forEach(function(s){ %>
+        <tr>
+          <td><%= s.verdict %></td>
+          <td><%= s.reason || '—' %></td>
+          <td><%= s.last24h %></td>
+          <td><%= s.last7 %></td>
+          <td><%= s.n %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="h4 mt-4">Recent submissions <span class="text-muted">(latest <%= recent.length %>)</span></h2>
+  <p class="text-muted">
+    The address shown is the leftmost X-Forwarded-For entry, which a determined caller can
+    set themselves — check the user agent and the pattern before blocking an IP by hand.
+  </p>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped">
+      <thead>
+        <tr><th>When</th><th>Endpoint</th><th>IP</th><th>Verdict</th><th>Reason</th><th>Email</th><th>Excerpt</th></tr>
+      </thead>
+      <tbody>
+        <% if (!recent.length) { %>
+          <tr><td colspan="7" class="text-muted">Nothing logged yet.</td></tr>
+        <% } %>
+        <% recent.forEach(function(r){ %>
+        <tr>
+          <td style="white-space:nowrap;"><%= r.created_at ? new Date(r.created_at).toISOString().replace('T',' ').slice(0,16) : '' %></td>
+          <td><%= r.endpoint %></td>
+          <td style="white-space:nowrap;"><%= r.ip || '' %></td>
+          <td><%= r.verdict %></td>
+          <td><%= r.reason || '' %></td>
+          <td style="word-break:break-all;"><%= r.email || '' %></td>
+          <td style="word-break:break-word;"><%= r.excerpt || '' %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../footer.ejs') %>

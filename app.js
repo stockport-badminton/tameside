@@ -133,6 +133,31 @@ seasonModel.init()
     console.error('Season init/getAll failed:', err.message);
   });
 
+// Warm the blocklist cache, because the sitewide IP check below reads it synchronously on
+// every request and cannot await. A failure here leaves the lists empty rather than failing
+// closed — the captcha, honeypot and timing floor all still apply — and the timer picks it
+// up on the next tick.
+const spamControls = require('./models/spamControls');
+
+// Skipped under test: every test file that requires app.js would otherwise open its own DB
+// connection here, on top of the one real-DB test in the suite. That extra connection per
+// file was enough to make the suite intermittently fail against the Supabase pooler. The
+// spam tests install lists through spamControls._setCacheForTests instead.
+if (process.env.NODE_ENV !== 'test') {
+  spamControls.refresh()
+    .then(function () { console.log('Blocklists loaded'); })
+    .catch(function (err) { console.error('blocklist load failed:', err.message); });
+
+  // Keep the cache fresh so an admin change on /admin/spam lands within a minute on every
+  // Cloud Run instance, with no restart and no cross-instance invalidation. unref() so this
+  // timer never holds the process open.
+  setInterval(function () {
+    spamControls.refresh().catch(function (err) {
+      console.error('blocklist refresh failed:', err.message);
+    });
+  }, 60 * 1000).unref();
+}
+
 app.set('view engine', 'ejs');
 app.set('views', __dirname + '/views');
 
@@ -177,6 +202,35 @@ app.use(sassMiddleware({
     prefix:'/static/css'
 }))
 // app.use('/public', express.static(path.join(__dirname, '/public')));
+
+/* ------------------------------------------------------------------ *
+ * Spam controls. Registered here deliberately — BELOW the static mounts above, so
+ * neither of these runs for stylesheets, scripts or images. One page view would
+ * otherwise mean a dozen HMACs and a dozen blocklist checks.
+ * See migrations/spam-controls.sql and middleware/spamGate.js.
+ * ------------------------------------------------------------------ */
+
+// Blocked addresses come from the blocked_entry table via models/spamControls, so blocking
+// someone is a form submission on /admin/spam rather than an edit to this file followed by
+// a deploy. Read from the in-memory cache synchronously: this runs on every request, and
+// awaiting a query here would put a DB round trip in front of every page.
+const { clientIp: resolveClientIp } = require('./utils/clientIp');
+app.use(function (req, res, next) {
+  if (spamControls.isBlockedIpSync(resolveClientIp(req))) {
+    return res.status(403).send('Forbidden');
+  }
+  next();
+});
+
+// Honeypot field name and a freshly signed render timestamp, for views/spam-fields.ejs.
+// The stamp is per-request rather than app-wide because it has to be the time this page was
+// rendered — that is the whole point of it. One HMAC per request is nothing.
+const spamChecks = require('./utils/spamChecks');
+app.locals.spamHoneypotField = spamChecks.HONEYPOT_FIELD;
+app.use(function (req, res, next) {
+  res.locals.spamFormStamp = spamChecks.formStamp();
+  next();
+});
 
 var strategy = new Auth0Strategy(
     {
@@ -234,6 +288,8 @@ let fixture_controller = require(__dirname + '/controllers/fixtureController');
 let league_controller = require(__dirname + '/controllers/leagueController');
 let club_controller = require(__dirname + '/controllers/club_controller');
 let contactus_controller = require(__dirname + '/controllers/contactusController');
+let spam_admin_controller = require(__dirname + '/controllers/spamAdminController');
+const spamGate = require(__dirname + '/middleware/spamGate');
 let player_controller = require(__dirname + '/controllers/playerController');
 let userInViews = require(__dirname + '/models/userInViews');
 var auth_controller = require(__dirname + '/models/auth.js');
@@ -293,7 +349,10 @@ app.get('/tables-social',social_controller.social_get_tables)
 
 app.get('/', fixture_controller.fixture_get_summary)
 app.get('/contact-us', contactus_controller.contactus_get)
-app.post('/contact-us',contactus_controller.validateContactUs, contactus_controller.contactus);
+// spamGate runs the honeypot and timing-floor checks before validation, and answers a
+// bland success to anything it rejects (see middleware/spamGate.js for why). Any new
+// public form needs this on its POST route *and* views/spam-fields.ejs inside its <form>.
+app.post('/contact-us', spamGate({ endpoint: '/contact-us' }), contactus_controller.validateContactUs, contactus_controller.contactus);
 app.get('/info/clubs', club_controller.club_list_detail)
 app.get('/rules', static_controller.rules)
 app.get('/history', static_controller.history)
@@ -409,6 +468,12 @@ app.post('/admin/homepage-content/:id', secured, homepage_content_controller.upd
 app.post('/admin/homepage-content/:id/delete', secured, homepage_content_controller.remove);
 app.get('/admin/site-settings', secured, site_settings_controller.form);
 app.post('/admin/site-settings', secured, site_settings_controller.update);
+
+// Blocklists and the submission log. `secured` proves someone is logged in; the controller
+// checks superadmin, same as the other /admin screens.
+app.get('/admin/spam', secured, spam_admin_controller.form);
+app.post('/admin/spam', secured, spam_admin_controller.add);
+app.post('/admin/spam/:id/active', secured, spam_admin_controller.toggle);
 
 /* League structure admin (superadmin only — secured route + role check in the
    controller). Clubs, teams, and one-click promotion/relegation. */

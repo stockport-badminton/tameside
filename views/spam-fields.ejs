@@ -1,0 +1,21 @@
+<%#
+  The honeypot and the signed render timestamp, shared by every public form so the two
+  checks can't drift apart or be forgotten on a new one. Include it inside the form
+  element, using an unescaped include tag (see views/contact-us-form.ejs for the example
+  — an EJS comment can't contain a closing tag, so it isn't repeated here).
+
+  The honeypot is named `contactUrl` rather than anything resembling "honeypot", so a bot
+  matching on field names wants to fill it. It is hidden three ways — off-screen, zero
+  opacity, not tabbable — rather than with `type="hidden"`, because the better bots skip
+  hidden inputs and fill visible ones. `autocomplete="off"` keeps a browser's autofill from
+  putting a URL in it and getting a real person rejected.
+
+  See utils/spamChecks.js for what the server does with them, and middleware/spamGate.js
+  for why a rejection looks like a success.
+%>
+<div aria-hidden="true" style="position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden; opacity:0;">
+  <label for="<%= spamHoneypotField %>">Leave this field empty</label>
+  <input type="text" id="<%= spamHoneypotField %>" name="<%= spamHoneypotField %>"
+         value="" autocomplete="off" tabindex="-1">
+</div>
+<input type="hidden" name="formTs" value="<%= spamFormStamp %>">

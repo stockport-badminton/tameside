@@ -8,6 +8,12 @@ const { sanitizeBody } = require("express-validator");
 var axios = require('axios');
 const { read } = require('fs');
 const fs = require('fs');
+var Spam = require('../models/spamControls');
+const spamGate = require('../middleware/spamGate');
+
+// Test seam, mirroring fixtureController._mailjetClientForTesting: lets the suite stub
+// `post` so a submission test never sends a real email.
+exports._mailjetClientForTesting = mailjet;
 
 exports.mailjet_test = function(req,res,next) {
     
@@ -67,40 +73,45 @@ function validCaptcha(value,{req}){
 }
 
 
-function containsProfanity(value,{req}){
-  var substringsArray = ["Website Design","Bing","SEO","Digital Marketing","Consultant","000***","brokerage","pharm","Blockchain","blockchain","@Cryptaxbot","pharma","mail.ru","@FeedbackMessages","messages exploitation","Financial Strategic Firm","Business Financial Team","Christ","God","http://","http","https","wininphone","corta.co","Cryptocurrency","adultdating","forex","ahole","anus","ash0le","ash0les","asholes","ass","Ass Monkey","Assface","assh0le","assh0lez","asshole","assholes","assholz","asswipe","azzhole","bassterds","bastard","bastards","bastardz","basterds","basterdz","Biatch","bitch","bitches","Blow Job","boffing","butthole","buttwipe","c0ck","c0cks","c0k","Carpet Muncher","cawk","cawks","Clit","cnts","cntz"," cock","cockhead","cock-head","cocks","CockSucker","cock-sucker","crap","cum","cunt","cunts","cuntz","dick","dild0","dild0s","dildo","dildos","dilld0","dilld0s","dominatricks","dominatrics","dominatrix","dyke","enema","f u c k","f u c k e r","fag","fag1t","faget","fagg1t","faggit","faggot","fagit","fags","fagz","faig","faigs","fart","flipping the bird","fuck","fucker","fuckin","fucking","fucks","Fudge Packer","fuk","Fukah","Fuken","fuker","Fukin","Fukk","Fukkah","Fukken","Fukker","Fukkin","g00k","gay","gayboy","gaygirl","gays","gayz","God-damned","h00r","h0ar","h0re","hells","hoar","hoor","hoore","jackoff","jap","japs","jerk-off","jisim","jiss","jizm","jizz","knob","knobs","knobz","kunt","kunts","kuntz","Lesbian","Lezzian","Lipshits","Lipshitz","masochist","masokist","massterbait","masstrbait","masstrbate","masterbaiter","masterbate","masterbates","Motha Fucker","Motha Fuker","Motha Fukkah","Motha Fukker","Mother Fucker","Mother Fukah","Mother Fuker","Mother Fukkah","Mother Fukker","mother-fucker","Mutha Fucker","Mutha Fukah","Mutha Fuker","Mutha Fukkah","Mutha Fukker","n1gr","nastt","nigger;","nigur;","niiger;","niigr;","orafis","orgasim;","orgasm","orgasum","oriface","orifice","orifiss","packi","packie","packy","paki","pakie","paky","pecker","peeenus","peeenusss","peenus","peinus","pen1s","penas","penis","penis-breath","penus","penuus","Phuc","Phuck","Phuk","Phuker","Phukker","polac","polack","polak","Poonani","pr1c","pr1ck","pr1k","pusse","pussee","pussy","puuke","puuker","queer","queers","queerz","qweers","qweerz","qweir","recktum","rectum","retard","sadist","scank","schlong","screwing","semen","sex","sexy","Sh!t","sh1t","sh1ter","sh1ts","sh1tter","sh1tz","shit","shits","shitter","Shitty","Shity","shitz","Shyt","Shyte","Shytty","Shyty","skanck","skank","skankee","skankey","skanks","Skanky","slut","sluts","Slutty","slutz","son-of-a-bitch","tit","turd","va1jina","vag1na","vagiina","vagina","vaj1na","vajina","vullva","vulva","w0p","wh00r","wh0re","whore","xrated","xxx","b!+ch","bitch","blowjob","clit","arschloch","fuck","shit","ass","asshole","b!tch","b17ch","b1tch","bastard","bi+ch","boiolas","buceta","c0ck","cawk","chink","cipa","clits","cock","cum","cunt","dildo","dirsa","ejakulate","fatass","fcuk","fuk","fux0r","hoer","hore","jism","kawk","l3itch","l3i+ch","lesbian","masturbate","masterbat*","masterbat3","motherfucker","s.o.b.","mofo","nazi","nigga","nigger","nutsack","phuck","pimpis","pusse","pussy","scrotum","sh!t","shemale","shi+","sh!+","slut","smut","teets","tits","boobs","b00bs","teez","testical","testicle","titt","w00se","jackoff","wank","whoar","whore","*damn","*dyke","*fuck*","*shit*","@$$","amcik","andskota","arse*","assrammer","ayir","bi7ch","bitch*","bollock*","breasts","butt-pirate","cabron","cazzo","chraa","chuj","Cock*","cunt*","d4mn","daygo","dego","dick*","dike*","dupa","dziwka","ejackulate","Ekrem*","Ekto","enculer","faen","fag*","fanculo","fanny","feces","feg","Felcher","ficken","fitt*","Flikker","foreskin","Fotze","Fu(*","fuk*","futkretzn","gay","gook","guiena","h0r","h4x0r"," hell ","helvete","hoer*","honkey","Huevon","hui","injun","jizz","kanker*","kike","klootzak","kraut","knulle","kuk","kuksuger","Kurac","kurwa","kusi*","kyrpa*","lesbo","mamhoon","masturbat*","merd*","mibun","monkleigh","mouliewop","muie","mulkku","muschi","nazis","nepesaurio","nigger*","orospu","paska*","perse","picka","pierdol*","pillu*","pimmel","piss*","pizda","poontsee","poop","porn","p0rn","pr0n","preteen","pula","pule","puta","puto","qahbeh","queef*","rautenberg","schaffer","scheiss*","schlampe","schmuck","screw","sh!t*","sharmuta","sharmute","shipal","shiz","skribz","skurwysyn","sphencter","spic","spierdalaj","splooge","suka","b00b*","testicle*","titt*","twat","vittu","wank*","wetback*","wichser","wop*","zabourah"];
+// The two blocklist validators. Both used to carry their list inline: ~180 phrases here
+// and 26 email addresses below. They now read the blocked_entry table via
+// models/spamControls, so blocking a spammer is a form submission on /admin/spam rather
+// than an edit to this file followed by a deploy. See migrations/spam-controls.sql.
+//
+// `req._spamReason` is picked up by the handler so the submission log can tell a blocklist
+// hit apart from a real person getting a field wrong.
+//
+// Kept as express-validator `.custom()` functions with the same names and the same
+// false-means-reject contract, so validateContactUs below is unchanged in shape.
 
-  if (substringsArray.some(function(v) { if (value.indexOf(v) >= 0) {console.log(v)}; return value.indexOf(v) >= 0; })) {
-     logger.log('containsProfanity fail')
-    // console.log('containsProfanity fail')
-    return false
+// Named for what it used to be. It now matches whatever is in the table — the profanity
+// list it was built around was deliberately not carried over (see the migration for why:
+// it contained "ass", "sex", "gay" and "hell" as bare substrings, and the spam half had
+// "Christ" and "God", which block Christine, Christopher, Goddard and Godfrey).
+// These MUST throw to reject, not return false.
+//
+// express-validator 7.x treats a *synchronous* validator returning a falsy value as a
+// failure, but an async one is judged on whether its promise rejects — resolving to `false`
+// is a silent pass. The previous versions of these two functions were synchronous (their
+// lists were inline arrays) so `return false` worked; reading the blocklist from the DB
+// makes them async, and keeping `return false` turned both blocklists into no-ops that let
+// every submission through to Mailjet. Verified against express-validator 7.3.0.
+async function containsProfanity(value,{req}){
+  const hit = await Spam.matchBlockedText(value)
+  if (hit) {
+    req._spamReason = 'blocked-' + hit.kind
+    // .withMessage() below replaces this text; it just has to reject.
+    throw new Error('blocked-' + hit.kind)
   }
-  // if (substringsArray.some(substring=>yourBigString.includes(substring))) {
-
-  // }
-  else{
-    // console.log('containsProfanity sucess')
-     console.log(value)
-    return value
-  }
+  return value
 }
 
-function containsDodgyEmail(value,{req}){
-  var substringsArray = ["dhgpokrq@streetwormail.com","seorankingtech@gmail.com","denisberger.web@gmail.com","dianacruz.mkt@gmail.com","applicationdevelopment03@gmail.com","bemibrooks.dev@gmail.com","pageranktechnology@gmail.com","sales@rankinghat.co","yjdisantoyjdissemin@gmail.com","lucido.leinteract@gmail.com","projectdept@kanzalshamsprojectmgt.com","evalidator.test@gmail.com","simpsonmiddleton1111@gmail.com","simpsonmiddleton@bankingandfinanceconsultantsltd.com","breiner@cljfarmaceutisch.nl","drbreiner233@gmail.com","smithduncan610@gmail.com","5rdhp2fe29yb@beconfidential.com","stevenlove88@163.com","artweb.agency@gmail.com","help@aweb.sbs","hrhbah-mbi@aghemfondom.com","hrhmbambi@gmail.com","nhu-tran@sac-city.k12.ca.us","yourmail@gmail.com","kaenquirynicholls@gmail.com"];
-
-  if (substringsArray.some(function(v) { if (value.indexOf(v) >= 0) {console.log(v)}; return value.indexOf(v) >= 0; })) {
-     logger.log('dodgyEmail fail')
-    // console.log('containsProfanity fail')
-    return false
+async function containsDodgyEmail(value,{req}){
+  if (await Spam.isBlockedEmail(value)) {
+    req._spamReason = 'blocked-email'
+    throw new Error('blocked-email')
   }
-  // if (substringsArray.some(substring=>yourBigString.includes(substring))) {
-
-  // }
-  else{
-    // console.log('containsProfanity sucess')
-     console.log(value)
-    return value
-  }
+  return value
 }
 
 
@@ -153,6 +164,14 @@ exports.contactus = function(req, res,next){
   if (!errors.isEmpty()) {
       console.log("errors array");
       console.log(errors.array());
+      // `req._spamReason` is set by the blocklist validators; anything else that failed
+      // validation is a real person getting a field wrong, which is worth telling apart
+      // from spam in the log. A rising 'validation' count on /admin/spam means the form
+      // itself is the problem.
+      spamGate.logOutcome(req, {
+        verdict: 'rejected',
+        reason: req._spamReason || 'validation',
+      });
       res.render('contact-us-form-delivered', {
         title: 'Contact Us - Error',
         pageDescription: 'Sorry we weren\'t able sent your email - something went wrong',
@@ -189,7 +208,24 @@ exports.contactus = function(req, res,next){
 }
   };
     var clubEmail = '';
-    
+
+    // Neither branch below matches unless contactType is exactly 'Clubs' or 'League', and
+    // there was no else — so a POST with a missing or unrecognised contactType fell off the
+    // end of this function without ever sending a response. The request then hung until the
+    // client or Cloud Run timed it out, holding a connection the whole time. That is
+    // reachable by anyone posting to this endpoint without the field, which is precisely
+    // what a bot does, so it matters more now the form is being hardened.
+    if (req.body.contactType !== 'Clubs' && req.body.contactType !== 'League') {
+      spamGate.logOutcome(req, { verdict: 'rejected', reason: 'validation' });
+      return res.status(400).render('contact-us-form-delivered', {
+        static_path: '/static',
+        title: 'Contact Us - Error',
+        pageDescription: 'Sorry we weren\'t able sent your email - something went wrong',
+        message: 'Sorry something went wrong',
+        content: [{ msg: 'Please choose who you want to contact.' }]
+      });
+    }
+
     if(req.body.contactType == 'Clubs'){
       Club.getContactDetailsById(req.body.clubSelect, function(err,rows){
         if (err){
@@ -256,6 +292,7 @@ exports.contactus = function(req, res,next){
           "Messages":[msg]})
       .then(()=>{
         console.log(msg);
+        spamGate.logOutcome(req, { verdict: 'accepted' });
         res.render('contact-us-form-delivered', {
             static_path: '/static',
             title: 'Contact Us - Success',

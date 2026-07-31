@@ -51,6 +51,8 @@
   </div>
   <div class="form-group">
     <div class="g-recaptcha" data-sitekey="<%= recaptcha %>"></div>
+  <%# Honeypot + signed render timestamp. Must be inside the form. %>
+  <%- include('spam-fields.ejs') %>
   </div>
   <button type="submit" class="btn btn-primary">Submit</button>
 </form>
