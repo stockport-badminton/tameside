@@ -22,19 +22,9 @@ const promisify = (fn) => (...args) => new Promise((resolve, reject) =>
   fn(...args, (err, result) => (err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result))));
 
 // Render the 404 page from inside a handler, for a URL that routed fine but names a
-// fixture that isn't there. Mirrors the catch-all in app.js, including the no-store
-// header: the domain fronts Cloud Run through Firebase Hosting, whose edge applies a
-// default 10-minute cache to any cookie-less response without Cache-Control, so a 404
-// would otherwise stick to a URL that has since become valid.
-function render404(req, res) {
-  res.set('Cache-Control', 'private, no-store');
-  return res.status(404).render('404-error', {
-    static_path: "/static",
-    title: "Can't find the page your looking for",
-    pageDescription: "Can't find the page your looking for",
-    entry: "<p>Sorry can't find that page</p>"
-  });
-}
+// fixture that isn't there. Now shared with teamController's Lewis route — see
+// utils/render404.js for why the no-store header matters.
+const render404 = require('../utils/render404');
 
 const getDivisionsP = promisify(Division.getAllAndSelectedById);
 const getTeamsP = promisify(Team.getAllAndSelectedById);

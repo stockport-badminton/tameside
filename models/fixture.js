@@ -32,7 +32,13 @@ exports.getRecent = async function(done){
   let result = await sql`SELECT a.date, a."homeTeam", team.name AS "awayTeam", a.address, a."venueName", a."mapLink", a."Lat", a."Lng", a."homeScore", a."awayScore" FROM (SELECT fixture.date, team.name AS "homeTeam", venue.address as address, venue.name as "venueName", venue."gMapUrl" as "mapLink", venue."Lat", venue."Lng", fixture."homeScore", fixture."awayScore", fixture."awayTeam" FROM fixture JOIN team on fixture."homeTeam" = team.id join venue on team.venue = venue.id) AS a JOIN team on a."awayTeam" = team.id AND "homeScore" IS NOT NULL AND date BETWEEN (current_date - 30) AND current_date ORDER BY date`.catch(err => {
       return done(err)
     })
-    console.log(result.statement.query)
+    // If the query errored the .catch above already called done(err), and `result` is
+    // undefined — reading result.statement threw a TypeError from inside a promise
+    // chain, which took the whole process down (and a dead process reports nothing to
+    // Sentry). Bail out rather than calling done a second time. Same guard as
+    // teams.getLewis. The statement log it replaces was leftover debug output that
+    // dumped this entire query on every homepage load.
+    if (!result) return;
     done(null,result);
 }
 

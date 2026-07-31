@@ -238,6 +238,14 @@ exports.getLewis = async function(searchTerms,done){
     console.log("no season");
   }
   else {
+    // Defence in depth: this appends the name to build `lewis<season>` /
+    // `team<season>`, so a malformed one must never reach Postgres. The caller
+    // (teamController.lewis_draw) 404s first, but the check belongs here too —
+    // the string "null" from /lewis-shield/null is truthy, passed the `!season`
+    // test above, and produced `relation "lewisnull" does not exist`.
+    if (!seasonModel.isValidName(searchTerms.season)) {
+      return done(new Error(`Invalid season name: ${searchTerms.season}`));
+    }
     season = searchTerms.season;
     seasonVal = searchTerms.season;
   }

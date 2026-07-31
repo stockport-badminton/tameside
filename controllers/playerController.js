@@ -645,12 +645,9 @@ function currentSeasonName() {
 // Guard against Fixture.getFixtureDetails silently substituting the current
 // season when handed a name its checkSeason rejects — validate here and skip
 // bad names explicitly instead.
-function isValidSeasonName(name) {
-  if (!/^\d{8}$/.test(name)) return false
-  const firstYear = parseInt(name.slice(0, 4), 10)
-  const secondYear = parseInt(name.slice(4), 10)
-  return secondYear - firstYear === 1 && firstYear >= 2012
-}
+// Delegates to models/season.js, which is the single source of truth — this used to be
+// a second copy of the same regex and year arithmetic.
+const isValidSeasonName = seasonModel.isValidName
 
 // Shared helper: process all complete fixtures for one season and update game ELO.
 // seasonParam is a season name string (e.g. '20242025') or undefined for current season.

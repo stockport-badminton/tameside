@@ -6,6 +6,8 @@ let Team = require('../models/teams');
 let Club = require('../models/club');
 let Division = require('../models/division');
 let Venue = require('../models/venue');
+let seasonModel = require('../models/season');
+const render404 = require('../utils/render404');
 
 const client = contentful.createClient({
   space: process.env.CONTENTFUL_SPACE,
@@ -50,11 +52,32 @@ exports.team_detail = function(req, res) {
   })
 };
 
-exports.lewis_draw = function(req, res,next) {
+// GET /lewis-shield and /lewis-shield/:season
+//
+// The season name is appended to build `lewis<season>` / `team<season>`, so an
+// unrecognised one has to be rejected here. Sentry TAMESIDE-NODE-4 was
+// `relation "lewisnull" does not exist` from /lewis-shield/null: `!searchTerms.season`
+// in getLewis treats the *string* "null" as present, so it built `lewisnull` and 500d.
+// A well-formed name with no archived draw (e.g. /lewis-shield/20102011 — snapshots only
+// start at 2023-24) 500d the same way, so check the format and the table's existence.
+// Either way it's a bad URL, not a server fault: 404.
+exports.lewis_draw = async function(req, res,next) {
   let searchObj = {}
   if (req.params.season !== undefined){
+    if (!seasonModel.isValidName(req.params.season)) return render404(req, res);
+
+    // Format is fine, but a season can be well-formed and still have no archived draw.
+    // hasLewis is cached, so this costs one information_schema probe per distinct name
+    // per process, and answers false rather than throwing if the probe itself fails.
+    try {
+      if (!await seasonModel.hasLewis(req.params.season)) return render404(req, res);
+    } catch (err) {
+      return next(err);
+    }
+
     searchObj.season = req.params.season
   }
+
   Team.getLewis(searchObj,function(err,rows){
     if(err){
       next(err);

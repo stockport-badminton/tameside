@@ -39,6 +39,24 @@ exports.init = async function () {
 exports.current = function () { return _current || dateBasedSeason(0); };
 exports.previous = function () { return _previous || dateBasedSeason(1); };
 
+// Does this string even look like a season name?
+//
+// The canonical form is two consecutive four-digit years, e.g. "20242025". Lives here
+// rather than in a controller because season names arrive from URLs and get appended to
+// table names — anything that builds a suffixed identifier should reject a bad name
+// before it reaches Postgres, not after. (playerController had its own copy; it now
+// delegates here so the two can't drift.)
+//
+// 2012 is the floor because that's the earliest season the DB has ever held. This is a
+// *format* check only — a well-formed name can still have no data. Pair it with
+// hasSnapshot()/hasLewis() when a table is about to be named.
+exports.isValidName = function (name) {
+  if (!/^\d{8}$/.test(name)) return false;
+  const firstYear = parseInt(String(name).slice(0, 4), 10);
+  const secondYear = parseInt(String(name).slice(4), 10);
+  return secondYear - firstYear === 1 && firstYear >= 2012;
+};
+
 // Does this season have an archived data snapshot (a team<season> table)?
 //
 // Only past seasons are snapshotted — the current one is served from the live `team` /
@@ -67,6 +85,32 @@ exports.hasSnapshot = async function (season) {
     _hasSnapshot[table] = rows.length > 0;
   }
   return _hasSnapshot[table];
+};
+
+// Does this season have an archived Lewis Shield draw (a lewis<season> table)?
+//
+// The per-name counterpart to the "hasLewis" flag getAll() computes for the History
+// page, for the same reason hasSnapshot() exists: /lewis-shield/:season appends the name
+// to build `lewis<season>`, and an unrecognised one produced
+// `relation "lewisnull" does not exist` — a 500 on a URL that should simply be a 404.
+// Lewis tables are tracked separately from the team/club/division/player family because
+// not every snapshotted season ran the competition.
+//
+// Same caching contract as hasSnapshot: one information_schema probe per name for the
+// process lifetime, and a DB hiccup answers false rather than throwing, so a failed
+// probe degrades to "no draw here" instead of a 500.
+const _hasLewis = {};
+exports.hasLewis = async function (season) {
+  if (!season) return false;
+  const table = 'lewis' + season;
+  if (_hasLewis[table] === undefined) {
+    const rows = await sql`
+      SELECT 1 FROM information_schema.tables
+      WHERE table_name = ${table}`
+      .catch(() => []);
+    _hasLewis[table] = rows.length > 0;
+  }
+  return _hasLewis[table];
 };
 
 // Seasons that have an archived data snapshot (a team<season> table), newest
