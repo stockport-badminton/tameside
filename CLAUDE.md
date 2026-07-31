@@ -99,6 +99,22 @@ const SEASON = seasonModel.current(); // e.g. "20242025"
 table (plus a `hasLewis` flag), used by the DB-driven History nav and `/history`
 archive page.
 
+Season names arrive from URLs and get **appended to table names** (`team<season>`,
+`lewis<season>`), so anything building a suffixed identifier must check the name first —
+otherwise Postgres answers `relation "..." does not exist` and the request 500s on what
+should be a 404. Three helpers, all in `models/season.js`:
+
+- `season.isValidName(name)` — format only: two consecutive four-digit years from 2012 on.
+  Note `"null"` and `"undefined"` are truthy strings, so a bare `if (!season)` does **not**
+  catch them (that was Sentry TAMESIDE-NODE-4, `relation "lewisnull" does not exist`).
+- `season.hasSnapshot(season)` — is there a `team<season>` table? Cached probe.
+- `season.hasLewis(season)` — is there a `lewis<season>` table? Cached probe. Tracked
+  separately because not every snapshotted season ran the competition.
+
+A well-formed name can still have no data, so pair the format check with the relevant
+existence probe and render the 404 page (`utils/render404.js` — keep its no-store header,
+or Firebase's edge pins the 404 to a URL that later becomes valid).
+
 > Legacy note: older code inlined `new Date().getMonth()` math (and it had drifted
 > — players.js rolled over on 1 Aug, everything else on 1 July). That's all been
 > replaced by the shared model; don't reintroduce inlined season math.
@@ -122,6 +138,63 @@ homepage content, site settings, and league structure — **clubs** and **teams*
 (`/admin/clubs`, `/admin/teams`) with add/edit and one-click promotion/relegation
 (moves `team.division` to the adjacent-rank division in the same league). Superadmins
 can also edit a fixture's date inline on the admin results grid.
+
+### Spam and abuse controls
+
+Four layers on `/contact-us`, deliberately independent, because each covers what the
+others can't. Ported from the Stockport league site 2026-07-31.
+
+| Layer | Where | Notes |
+|---|---|---|
+| reCAPTCHA | `validCaptcha` in `contactusController` | Pre-existing |
+| Blocklists | `blocked_entry` table, `models/spamControls.js` | ip / email / phrase / word |
+| Honeypot + timing | `views/spam-fields.ejs`, `utils/spamChecks.js` | Catches bots we've never seen |
+| Submission log | `submission_log` table | The only way to tell whether any of it works |
+
+There is **no rate limiting** on this site — that's Stockport's fifth layer and was not
+ported. Schema lives in `migrations/spam-controls.sql` (additive, safe to re-run).
+
+**Blocking someone is a form submission, not a deploy** — `/admin/spam` (superadmin, in
+the Admin nav). It used to be a source edit: 26 spammer addresses and ~180 phrases were
+hardcoded in `contactusController.js`. Don't put lists back in code.
+
+Rules worth not rediscovering:
+
+- **The blocklist validators must `throw`, not `return false`.** express-validator 7
+  fails a *synchronous* validator that returns falsy, but judges an async one on whether
+  its promise **rejects** — resolving to `false` is a silent pass. Reading the lists from
+  the DB makes them async, so returning false turns both blocklists into no-ops that let
+  everything reach Mailjet. `test/integration/spam-gate.test.js` guards this.
+- **Mount the spam middlewares below the static handlers** (they are, in `app.js`). Above
+  them, one page view means a dozen HMACs and a dozen blocklist lookups.
+- **A new public form must include `views/spam-fields.ejs`** inside its `<form>`, and its
+  POST route must carry `spamGate()`. The shared partial exists so the honeypot and the
+  timing floor can't drift apart or be forgotten.
+- **A rejection is deliberately indistinguishable from a success.** Naming the check that
+  fired is how a spammer tunes a payload. The cost is that a false positive silently eats
+  a real message — which is why only the two checks with negligible false-positive rates
+  behave this way. **Watch the `validation` count on `/admin/spam`:** rising means real
+  people are failing the form.
+- **A missing timing stamp is not spam.** Caches, autofill and any form rendered before
+  the field existed would all be caught. Only the floor is enforced, so a stale tab still
+  submits.
+- **`models/spamControls` never fails closed.** A DB hiccup means empty lists, not
+  rejecting every submission. The cache is warmed at boot in `app.js` because the IP check
+  reads it synchronously on every request — skipped under `NODE_ENV=test` so every test
+  file doesn't open its own connection.
+- **`SESSION_SECRET` signs the timing stamp** and `app.js` falls back to a hardcoded
+  string if it is unset. With a known key a stamp can be forged, which downgrades that
+  check. Set it in the deployed environment.
+- The profanity list was **not** carried over: politeness policing rather than spam
+  defence, and it cost real messages ("ass", "sex", "gay", "hell" as bare substrings).
+  `Christ` and `God` were in the *spam* half as substrings and blocked Christine,
+  Christopher, Goddard and Godfrey. That's why `phrase` (substring) and `word`
+  (whole-word) are separate kinds — prefer `word` for anything short or ordinary.
+
+> Known issue: the DB-backed integration tests are flaky under connection pressure
+> (`npm test` intermittently fails 2 of the email-scorecard tests). Pre-existing, and
+> reproducible with these changes reverted; `node --test` runs files in parallel and the
+> one real-DB test contends. Serialising the runner or mocking that test's models fixes it.
 
 ### Key Dependencies
 
