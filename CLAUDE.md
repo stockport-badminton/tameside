@@ -200,9 +200,10 @@ and `test/db-pool.test.js` asserts both:
 - **`IDLE_TIMEOUT` (180s) must stay above `spamControls.CACHE_TTL_MS` (60s).** The blocklist
   refresh timer in `app.js` runs on that interval; if the pool closes idle connections
   sooner, every tick reconnects. That pairing (30s vs 60s) was costing **1,800 connection
-  opens/day on zero traffic** — roughly ten times more DB time than all real queries
-  combined. `app.js` reads the interval from `spamControls` rather than restating it, so
-  the two can't drift.
+  opens/day on zero traffic** — at ~3.6ms per open that is ~6.5 s/day, several times more
+  DB time than every application query combined (~1 s/day). Verified after the fix: **0
+  opens over 4 minutes**, with the refresh still ticking once a minute. `app.js` reads the
+  interval from `spamControls` rather than restating it, so the two can't drift.
 - **`POOL_MAX` (5) × `_MAX_INSTANCES` (4, in `cloudbuild.yaml`) must stay ≤ 60**, the
   backend limit. `--max-instances` was unset (Cloud Run defaults to **100**) until
   2026-08-05, i.e. up to 1,000 clients for 60 slots. Stockport took exactly that outage
