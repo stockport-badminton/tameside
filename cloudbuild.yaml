@@ -25,6 +25,12 @@ substitutions:
   _DEPLOY_REGION: europe-west2
   _SERVICE_NAME: tameside-site
   _IMAGE_PATH: cloud-run-source-deploy/tameside/tameside-site
+  # Instance ceiling. Declared here rather than left to the service's stored value,
+  # because the product of this and the DB pool size is a hard limit on the far side
+  # of the connection — see utils/db_connect.js. Unset, Cloud Run defaults to 100,
+  # which at max 5 connections each is 500 clients against 60 Postgres backends.
+  # 4 x 5 = 20, and at containerConcurrency 80 that is still 320 concurrent requests.
+  _MAX_INSTANCES: '4'
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -88,6 +94,7 @@ steps:
     - 'REGION=${_DEPLOY_REGION}'
     - 'SHA=${COMMIT_SHA}'
     - 'BID=${BUILD_ID}'
+    - 'MAX_INSTANCES=${_MAX_INSTANCES}'
   script: |
     #!/usr/bin/env bash
     set -euo pipefail
@@ -100,6 +107,7 @@ steps:
       --region="$REGION" \
       --image="$(cat /workspace/image)" \
       --labels="$LABELS" \
+      --max-instances="$MAX_INSTANCES" \
       --quiet
 
 tags:

@@ -151,11 +151,16 @@ if (process.env.NODE_ENV !== 'test') {
   // Keep the cache fresh so an admin change on /admin/spam lands within a minute on every
   // Cloud Run instance, with no restart and no cross-instance invalidation. unref() so this
   // timer never holds the process open.
+  //
+  // The interval comes from spamControls rather than being restated here, because it is
+  // half of a pair: utils/db_connect.js's idle_timeout has to stay above it, or the
+  // connection this timer uses is closed between ticks and every tick reconnects. That
+  // was costing 1,800 connection opens/day before 2026-08-05.
   setInterval(function () {
     spamControls.refresh().catch(function (err) {
       console.error('blocklist refresh failed:', err.message);
     });
-  }, 60 * 1000).unref();
+  }, spamControls.CACHE_TTL_MS).unref();
 }
 
 app.set('view engine', 'ejs');

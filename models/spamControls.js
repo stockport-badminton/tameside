@@ -62,6 +62,11 @@ async function ensureLoaded() {
 
 exports.refresh = load;
 
+// Exported so app.js's refresh timer runs on this exact interval rather than its own
+// copy of "60 seconds", and so a test can check it against the pool's idle_timeout —
+// if the timeout is the shorter of the two, every tick opens a fresh DB connection.
+exports.CACHE_TTL_MS = CACHE_TTL_MS;
+
 // Test seam: lets the suite install known lists without a DB. Sets loadedAt so
 // ensureLoaded() treats them as fresh.
 exports._setCacheForTests = function (lists) {

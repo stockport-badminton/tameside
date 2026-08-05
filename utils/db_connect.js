@@ -1,5 +1,39 @@
 const postgres = require('postgres')
 
+// Cap the pool per instance, because the real limit is on the far side of the
+// connection and it is not large: Postgres itself allows 60 backends, and the
+// Supavisor tenant pool in front of it is smaller still.
+//
+// The dangerous number is the *product* of this and Cloud Run's max-instances,
+// which was unset (defaulting to 100) until 2026-08-05: 100 instances x max 10
+// is up to 1,000 clients chasing 60 slots. The Stockport league site took exactly
+// that outage in session mode (EMAXCONNSESSION, Sentry NODE-V, 28 July) — see the
+// comment in league-site/db_connect.js. Transaction mode multiplexes so it fails
+// less abruptly, but the ceiling is still there, and nothing here needs 10.
+//
+// 5 is well clear of what the traffic needs: the heaviest page fires a handful of
+// queries, and anything beyond the cap queues rather than failing. Paired with
+// --max-instances=4 in cloudbuild.yaml, the worst case is 20 clients.
+//
+// PG_POOL_MAX is an escape hatch so this can be raised without a deploy.
+const POOL_MAX = parseInt(process.env.PG_POOL_MAX, 10) || 5
+
+// This MUST stay above the blocklist refresh interval in models/spamControls.js
+// (CACHE_TTL_MS), and test/db-pool.test.js asserts that it does.
+//
+// It was 30s against a 60s refresh, which is the worst possible pairing: the timer
+// in app.js queries, the connection goes idle, it is closed at t=30s, and the next
+// tick opens a brand new one. Measured 2026-08-05 — 1,800 connection opens/day at
+// 1.25 per refresh, i.e. the timer was the churn, running flat out on zero traffic.
+// Each open costs a postgres.js type-cache fetch plus three pgbouncer.get_auth
+// calls, so the site was spending roughly ten times more DB time on connecting than
+// on all its actual queries combined (~1 s/day).
+//
+// At 180s the timer reuses one warm connection instead of replacing it, and a real
+// browsing session does too. postgres.js recycles connections on its own
+// max_lifetime (30-60 min, randomised) regardless, so nothing is held forever.
+const IDLE_TIMEOUT = 180
+
 // Supabase transaction-mode pooler (port 6543), not session mode (5432).
 // Cloud Run scales stateless instances that each open a pool, so on a
 // low-traffic site session-mode connections churn (every reopen re-runs
@@ -13,10 +47,13 @@ const sql = postgres(
   {
     ssl: { rejectUnauthorized: false },
     prepare: false,
-    max: 10,
-    idle_timeout: 30,
+    max: POOL_MAX,
+    idle_timeout: IDLE_TIMEOUT,
     connect_timeout: 10,
   }
 )
 
-module.exports = { sql }
+// POOL_MAX and IDLE_TIMEOUT are exported so a test can assert the two ceilings that
+// are enforced elsewhere: the pool cap against cloudbuild.yaml's --max-instances,
+// and the idle timeout against the blocklist refresh interval.
+module.exports = { sql, POOL_MAX, IDLE_TIMEOUT }

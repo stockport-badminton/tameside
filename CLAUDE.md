@@ -191,6 +191,31 @@ Rules worth not rediscovering:
   Christopher, Goddard and Godfrey. That's why `phrase` (substring) and `word`
   (whole-word) are separate kinds — prefer `word` for anything short or ordinary.
 
+### Connection pooling and its two ceilings
+
+`utils/db_connect.js` holds one shared `sql` pool on the Supabase **transaction** pooler
+(port 6543, `prepare: false`). Two numbers there are coupled to things outside the file,
+and `test/db-pool.test.js` asserts both:
+
+- **`IDLE_TIMEOUT` (180s) must stay above `spamControls.CACHE_TTL_MS` (60s).** The blocklist
+  refresh timer in `app.js` runs on that interval; if the pool closes idle connections
+  sooner, every tick reconnects. That pairing (30s vs 60s) was costing **1,800 connection
+  opens/day on zero traffic** — roughly ten times more DB time than all real queries
+  combined. `app.js` reads the interval from `spamControls` rather than restating it, so
+  the two can't drift.
+- **`POOL_MAX` (5) × `_MAX_INSTANCES` (4, in `cloudbuild.yaml`) must stay ≤ 60**, the
+  backend limit. `--max-instances` was unset (Cloud Run defaults to **100**) until
+  2026-08-05, i.e. up to 1,000 clients for 60 slots. Stockport took exactly that outage
+  in session mode (`EMAXCONNSESSION`, Sentry NODE-V). Raise either number and you must
+  check the other. `PG_POOL_MAX` overrides the pool cap without a deploy.
+
+> Diagnosing DB resource warnings: query load is almost never the answer here — measured
+> 2026-08-05, all application SQL was ~1 s/day. Supabase's own dashboard introspection cost
+> more DB time than the entire site. The real cause of "exhausting multiple resources" was
+> the **old PG 15.6 platform image**, which preloaded `timescaledb` and `pg_stat_monitor`
+> into every backend on a ~1GB instance; upgrading to 17.6 dropped both. Compare against
+> the Stockport project (`~/league-site`) before assuming a workload problem.
+
 > Known issue: the DB-backed integration tests are flaky under connection pressure
 > (`npm test` intermittently fails 2 of the email-scorecard tests). Pre-existing, and
 > reproducible with these changes reverted; `node --test` runs files in parallel and the
