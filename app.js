@@ -6,6 +6,12 @@
 require('./instrument');
 const Sentry = require('@sentry/node');
 
+// Registered straight after Sentry so an unhandled rejection from one of the many
+// unguarded async model callbacks fails that request instead of killing the container.
+// Production already survives these, but only because Sentry's own listener happens to
+// be registered — see utils/processGuards.js for the measurements.
+require('./utils/processGuards').install();
+
 require('dotenv').config()
 const express = require('express')
 const session = require('express-session');
