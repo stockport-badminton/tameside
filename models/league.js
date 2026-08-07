@@ -1,4 +1,4 @@
-const { sql } = require('../utils/db_connect');
+const { sql, withRetry } = require('../utils/db_connect');
 const seasonModel = require('./season');
 
 // POST
@@ -53,7 +53,13 @@ exports.getLeagueTable = async function(division,season,done){
   }
   division = division.replace('-',' ');
 
-  let result = await sql`
+  // /tables/:division. Retried on a dead connection — see withRetry in
+  // utils/db_connect.js. The thunk rebuilds the whole template, which matters here:
+  // the JOIN below interpolates a nested sql`` fragment, and a fragment belongs to the
+  // query that was built with it. Re-awaiting a Query object instead would just replay
+  // the settled rejection.
+ try {
+  const result = await withRetry(() => sql`
   SELECT c."name", c."played", c."pointsFor", c."pointsAgainst"
 FROM (
         SELECT team."name", b."played", b."pointsFor" - team."penalties" as "pointsFor", b."pointsAgainst", team."division"
@@ -122,17 +128,15 @@ on
     (division."name" = ${ division }
     AND division."league" = 1)
 ORDER BY "pointsFor" DESC
-  `.catch(err =>{
-    return done(err)
-  }
-  )
-  // The catch above has already called done(err). Returning from it leaves `result`
-  // undefined, and without this guard done fired a SECOND time as done(null, undefined):
-  // leagueController took the success branch and rendered `tables` with no result, after
-  // next(err) had already begun the 500. Being outside the request chain, that throw
-  // killed the process rather than producing a 500.
-  if (!result) { return; }
+  `);
+  // try/catch replaces the old `.catch(done)` + `if (!result) return` pair. With that
+  // idiom a failure called done(err) and then fell through to done(null, undefined), so
+  // leagueController took its success branch and rendered `tables` with no result after
+  // next(err) had already begun the 500 — and being outside the request chain, that
+  // throw killed the process rather than producing an error page. The guard patched it;
+  // try/catch removes the path, and is what lets withRetry's rejection be caught here.
   done(null,result);
+ } catch (err) { done(err); }
 }
 
 exports.getAllLeagueTables = async function(season,done){
@@ -145,7 +149,9 @@ exports.getAllLeagueTables = async function(season,done){
     // division<season> too.
     seasonName = await seasonModel.hasSnapshot(season) ? season : ''
   }
-  let result = await sql`select
+  // /tables/All. Retried on a dead connection — see the note in getLeagueTable above.
+ try {
+  const result = await withRetry(() => sql`select
   min(division.name) as "divisionName",
   min(division.id) as division,
   team.name,
@@ -201,11 +207,8 @@ group by
 order by
   "divisionName",
   "pointsFor" desc,
-  "pointsAgainst" asc`.catch(err =>{
-    return done(err)
-  }
-  )
-  // See the note on the same guard in getLeagueTable above.
-  if (!result) { return; }
+  "pointsAgainst" asc`);
+  // See the note on the same conversion in getLeagueTable above.
   done(null,result);
+ } catch (err) { done(err); }
 }

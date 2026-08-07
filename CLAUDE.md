@@ -210,6 +210,39 @@ and `test/db-pool.test.js` asserts both:
   in session mode (`EMAXCONNSESSION`, Sentry NODE-V). Raise either number and you must
   check the other. `PG_POOL_MAX` overrides the pool cap without a deploy.
 
+#### Retrying a read whose connection died
+
+`withRetry()` (same file) re-runs a query **once** when it fails with a connection-class
+error. A pooled connection can be dead by the time it is used — fine when it went into
+the pool, closed by the far side before the next query — and nothing on this side
+prevents that. Without a retry the visitor gets the 500 page.
+
+This is a platform behaviour, not a pooling bug of ours: on 2026-08-06 Tameside got
+`read ECONNRESET` on the homepage (Sentry TAMESIDE-NODE-5) 12 minutes into a container's
+life, and Stockport got `Connection terminated unexpectedly` (NODE-X) the same day, on a
+container up for a week, through a different driver (`pg`) against a different Supabase
+project. postgres.js won't retry it — its only retry path is `retryRoutines` on a server
+`ErrorResponse` for prepared statements.
+
+- **Reads only, and always pass a thunk**: `withRetry(() => sql\`...\`)`. Re-awaiting an
+  already-built Query just replays its settled rejection, and the `/tables` queries
+  interpolate nested `` sql`` `` fragments that belong to a single build. An `INSERT`
+  that timed out may well have committed, so retrying a write would double it.
+- **`PostgresError` is never retried.** The server received the query and rejected it;
+  re-sending gets the same answer.
+- **Once, then give up.** Sized for a stale socket, which the next connection fixes. If
+  the DB is genuinely away, more attempts just hold the request open.
+- Applied to the three pages judged worth protecting — `/`, `/info/clubs`, `/tables/*` —
+  across 9 model functions. `test/db-retry.test.js` asserts the behaviour *and* that
+  those 9 still use it, so it can't be dropped by a later edit to one of the queries.
+- Those 9 were also moved from the `.catch(err => done(err))` idiom to `try`/`catch`.
+  The old idiom called `done(err)` and then fell through to `done(null, undefined)`, so
+  the controller rendered on top of a 500 already in flight — and being outside the
+  request chain, the resulting throw killed the process. `try`/`catch` removes the path
+  rather than guarding it, and is what lets `withRetry`'s rejection be caught at all.
+- A retry that succeeds produces **no Sentry event**, so `[db] connection failed
+  mid-query` in the Cloud Run logs is the only trace. Grep for it to judge the rate.
+
 > Diagnosing DB resource warnings: query load is almost never the answer here — measured
 > 2026-08-05, all application SQL was ~1 s/day. Supabase's own dashboard introspection cost
 > more DB time than the entire site. The real cause of "exhausting multiple resources" was

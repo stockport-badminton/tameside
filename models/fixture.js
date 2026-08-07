@@ -1,4 +1,4 @@
-const { sql } = require('../utils/db_connect');
+const { sql, withRetry } = require('../utils/db_connect');
 /*
 
 finding mixedcase column names in sql queries:
@@ -28,23 +28,26 @@ const seasonModel = require('./season');
   }
 }
 
+// Homepage. Retried on a dead connection — see withRetry in utils/db_connect.js.
 exports.getRecent = async function(done){
-  let result = await sql`SELECT a.date, a."homeTeam", team.name AS "awayTeam", a.address, a."venueName", a."mapLink", a."Lat", a."Lng", a."homeScore", a."awayScore" FROM (SELECT fixture.date, team.name AS "homeTeam", venue.address as address, venue.name as "venueName", venue."gMapUrl" as "mapLink", venue."Lat", venue."Lng", fixture."homeScore", fixture."awayScore", fixture."awayTeam" FROM fixture JOIN team on fixture."homeTeam" = team.id join venue on team.venue = venue.id) AS a JOIN team on a."awayTeam" = team.id AND "homeScore" IS NOT NULL AND date BETWEEN (current_date - 30) AND current_date ORDER BY date`.catch(err => {
-      return done(err)
-    })
-    // If the query errored the .catch above already called done(err), and `result` is
-    // undefined — reading result.statement threw a TypeError from inside a promise
-    // chain, which took the whole process down (and a dead process reports nothing to
-    // Sentry). Bail out rather than calling done a second time. Same guard as
-    // teams.getLewis. The statement log it replaces was leftover debug output that
-    // dumped this entire query on every homepage load.
-    if (!result) return;
-    done(null,result);
+ try {
+  const result = await withRetry(() => sql`SELECT a.date, a."homeTeam", team.name AS "awayTeam", a.address, a."venueName", a."mapLink", a."Lat", a."Lng", a."homeScore", a."awayScore" FROM (SELECT fixture.date, team.name AS "homeTeam", venue.address as address, venue.name as "venueName", venue."gMapUrl" as "mapLink", venue."Lat", venue."Lng", fixture."homeScore", fixture."awayScore", fixture."awayTeam" FROM fixture JOIN team on fixture."homeTeam" = team.id join venue on team.venue = venue.id) AS a JOIN team on a."awayTeam" = team.id AND "homeScore" IS NOT NULL AND date BETWEEN (current_date - 30) AND current_date ORDER BY date`);
+  // try/catch rather than the `.catch(err => done(err))` idiom used elsewhere in this
+  // file. With that idiom a failure called done(err) and then carried on to
+  // done(null, undefined), so the controller took its success branch and rendered
+  // after next(err) had already begun the 500 — and being outside the request chain,
+  // the resulting throw killed the process rather than producing an error page. The
+  // `if (!result) return` guard that used to sit here patched that; try/catch removes
+  // the path instead, and is also what lets withRetry's rejection be caught at all.
+  done(null,result);
+ } catch (err) { done(err); }
 }
 
 
+// Homepage. Retried on a dead connection — see withRetry in utils/db_connect.js.
 exports.getOutstandingScorecards = async function(done){
-  let result = await sql`select * from 
+ try {
+  const result = await withRetry(() => sql`select * from
 (select "homeTeam".name as "homeTeam", "homeTeam".id as "homeId", "awayTeam".name as "awayTeam", "awayTeam".id as "awayId", fixture.date,fixture.status, scorecardstore.id as "scoreCardId" from 
 fixture join 
 season on fixture.date > season."startDate" AND fixture.date < season."endDate" join 
@@ -53,19 +56,19 @@ team "awayTeam" on fixture."awayTeam" = "awayTeam".id left join
 scorecardstore on (fixture.date = scorecardstore.date AND fixture."homeTeam" = scorecardstore."homeTeam" AND fixture."awayTeam" = scorecardstore."awayTeam")
 where season.name = ${seasonModel.current()} AND fixture.status not in ('rearranged','rearranging','conceded','void','complete')
 order by date) as a 
-where date < NOW() and "scoreCardId" is null`.catch(err => {
-      return done(err)
-    })
-    //console.log(result.statement.query)
-    done(null,result);
+where date < NOW() and "scoreCardId" is null`);
+  done(null,result);
+ } catch (err) { done(err); }
 }
 
 
 
 
 
+// Homepage. Retried on a dead connection — see withRetry in utils/db_connect.js.
 exports.getupComing = async function(done){
-  let result = await sql`SELECT distinct on (date, "fixture".id)
+ try {
+  const result = await withRetry(() => sql`SELECT distinct on (date, "fixture".id)
     "fixture".id,
     "fixture".date,
     "homeTeam".name AS "homeTeam",
@@ -110,11 +113,9 @@ WHERE
     "fixture"."homeScore" IS NULL
         AND "fixture"."status" NOT IN ('rearranged' , 'rearranging')
         AND "fixture".date BETWEEN (current_date -1) AND (current_date + 7)
-ORDER BY date`.catch(err => {
-      return done(err)
-    })
-    // console.log(result.statement.query)
-    done(null,result);
+ORDER BY date`);
+  done(null,result);
+ } catch (err) { done(err); }
 }
 
 exports.getFixtureDetails = async function(searchObj, done){

@@ -1,12 +1,13 @@
-const { sql } = require('../utils/db_connect');
+const { sql, withRetry } = require('../utils/db_connect');
 
 // Homepage announcements — the content-managed News feed on the homepage.
 // All functions follow the repo's done(err, rows) callback convention, but use
 // try/catch rather than the .catch(done) idiom so done is never called twice.
 
+// Homepage. Retried on a dead connection — see withRetry in utils/db_connect.js.
 exports.getActive = async function(done){
   try {
-    const rows = await sql`SELECT * FROM homepage_announcement WHERE active = true ORDER BY sort_order ASC, id ASC`;
+    const rows = await withRetry(() => sql`SELECT * FROM homepage_announcement WHERE active = true ORDER BY sort_order ASC, id ASC`);
     done(null, rows);
   } catch (err) { done(err); }
 }

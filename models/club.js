@@ -1,4 +1,4 @@
-const { sql } = require('../utils/db_connect');
+const { sql, withRetry } = require('../utils/db_connect');
 
 
 // POST
@@ -38,8 +38,10 @@ exports.getAll = async function(done){
   done(null,result);
 }
 
+// /info/clubs. Retried on a dead connection — see withRetry in utils/db_connect.js.
 exports.clubDetail = async function(done){
-  let result = await sql`select
+ try {
+  const result = await withRetry(() => sql`select
   club."id" as "clubId",
   club."name",
   team.name as teamName,
@@ -61,10 +63,9 @@ from
   join venue teamvenue on teamvenue.id = team.venue
 order by
   name
-`.catch(err => {
-    return done(err) ;
-  })
+`);
   done(null,result);
+ } catch (err) { done(err); }
 }
 
 

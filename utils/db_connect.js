@@ -58,7 +58,79 @@ const sql = postgres(
   }
 )
 
+// ---------------------------------------------------------------------------
+// Retrying a read whose connection died under it
+// ---------------------------------------------------------------------------
+//
+// A pooled connection can be dead by the time it is used: the socket was fine when
+// it went into the pool and the far side closed it before the next query. Nothing
+// on this side can prevent that — the only question is whether a visitor sees it.
+//
+// Observed 2026-08-06 on both league sites within hours of each other, which is what
+// says this is the platform and not our pooling: Tameside got `read ECONNRESET` on
+// the homepage (Sentry TAMESIDE-NODE-5) 12 minutes into a container's life, and
+// Stockport got `Connection terminated unexpectedly` (NODE-X) on a container that
+// had been up a week, through a different driver (`pg`) against a different Supabase
+// project. One visitor arriving from a Google search got a 500 page.
+//
+// postgres.js will not retry this itself. Its only retry path is `retryRoutines` on a
+// server ErrorResponse for prepared statements (connection.js); a socket that dies
+// errors the in-flight query outright.
+//
+// Two deliberate limits:
+//
+//   * Only connection-class failures. A PostgresError means the server received the
+//     query and rejected it — syntax, a missing relation, a constraint. Re-sending
+//     that gets the same answer, so it is passed straight through.
+//   * Only once, then give up. This is sized for a stale socket, which the next
+//     connection fixes. If the database is actually away, further attempts just hold
+//     the request open and add load to something already struggling.
+//
+// SAFETY: only for reads, and callers must pass a thunk that builds the query fresh
+// (`() => sql`...``, never a Query already created). Re-awaiting an existing Query
+// replays its settled rejection, and an INSERT/UPDATE that timed out may well have
+// committed — retrying it would double the write.
+const RETRYABLE_CODES = new Set([
+  // postgres.js's own, from Errors.connection
+  'CONNECTION_CLOSED',
+  'CONNECTION_ENDED',
+  'CONNECTION_DESTROYED',
+  'CONNECT_TIMEOUT',
+  // Node socket/DNS failures, which arrive verbatim off the TLS socket
+  'ECONNRESET',
+  'EPIPE',
+  'ETIMEDOUT',
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'EAI_AGAIN',
+])
+
+const RETRY_DELAY_MS = 100
+
+function isRetryable(err) {
+  if (!err) return false
+  if (err.name === 'PostgresError') return false
+  return RETRYABLE_CODES.has(err.code)
+}
+
+async function withRetry(run) {
+  try {
+    return await run()
+  } catch (err) {
+    if (!isRetryable(err)) throw err
+    // Prefixed to match processGuards, so both are greppable in Cloud Run logs. A
+    // retry that succeeds produces no Sentry event, so this line is the only trace
+    // that the fault happened at all — worth keeping when judging whether the rate
+    // has changed.
+    console.warn('[db] connection failed mid-query (' + err.code + '), retrying once')
+    await new Promise(function (resolve) { setTimeout(resolve, RETRY_DELAY_MS) })
+    return run()
+  }
+}
+
 // POOL_MAX and IDLE_TIMEOUT are exported so a test can assert the two ceilings that
 // are enforced elsewhere: the pool cap against cloudbuild.yaml's --max-instances,
 // and the idle timeout against the blocklist refresh interval.
-module.exports = { sql, POOL_MAX, IDLE_TIMEOUT }
+module.exports = { sql, POOL_MAX, IDLE_TIMEOUT, withRetry, isRetryable, RETRY_DELAY_MS }
