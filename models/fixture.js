@@ -476,7 +476,6 @@ WHERE
     // no team<season>/club<season> snapshot (snapshots start at 2023-24). Same 42P01
     // process-kill as getFixtureDetails above.
     var seasonName = await seasonModel.hasSnapshot(fixtureObj.season) ? fixtureObj.season : ''
-    console.log(fixtureObj)
     let rows = await sql`SELECT c.*
 FROM (SELECT "fixturePlayers".*, club.name
     FROM (SELECT "playerNames".id, "playerNames".date, "homeTeam".name as "teamName", "homeTeam".id as "teamId", "homeTeam".club as "clubId", "awayTeam".name as "oppositionName", "playerNames"."Man1", "playerNames"."Man1Rank", "Man1Team".name as "Man1TeamName", "playerNames"."Man2", "playerNames"."Man2Rank", "Man2Team".name as "Man2TeamName", "playerNames"."Man3", "playerNames"."Man3Rank", "Man3Team".name as "Man3TeamName", "playerNames"."Man4", "playerNames"."Man4Rank", "Man4Team".name as "Man4TeamName", "playerNames"."Lady1", "playerNames"."Lady1Rank", "Lady1Team".name as "Lady1TeamName", "playerNames"."Lady2", "playerNames"."Lady2Rank", "Lady2Team".name as "Lady2TeamName"

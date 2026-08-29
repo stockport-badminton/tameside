@@ -373,12 +373,19 @@ app.get('/event/:id/:date-:homeTeam-:awayTeam', fixture_controller.fixture_event
 /* POST request for batch creating Fixture. */
 app.post('/fixture/rearrangement', secured, fixture_controller.fixture_rearrange_by_team_name);
 
+// Filters are path segments in the shared grammar (season positional, everything
+// else `key-value`) that views/filtersJs.ejs and middleware/filterState.js both
+// emit. Take the whole tail and let the middleware parse it, the way every other
+// filtered page works — /player-stats/*, /pair-stats/*, /results/*.
+//
+// This used to be six hand-written shapes in an older grammar that put the season
+// *after* the club (`/fixture-players/club-Hyde/20252026`). The shared builder
+// emits season first, so applying any two filters at once produced
+// `/fixture-players/20252026/club-Hyde` and 404'd. Those legacy URLs still work:
+// filterState's parser reads `club-`, `team-`, `season-` and a bare 8-digit season
+// in any order.
 app.get('/fixture-players', fixture_controller.get_fixture_players_details);
-app.get('/fixture-players/team-:team?', fixture_controller.get_fixture_players_details);
-app.get('/fixture-players/club-:club?', fixture_controller.get_fixture_players_details);
-app.get('/fixture-players/:season?', fixture_controller.get_fixture_players_details);
-app.get('/fixture-players/team-:team?/season-:season?', fixture_controller.get_fixture_players_details);
-app.get('/fixture-players/club-:club?/:season?', fixture_controller.get_fixture_players_details);
+app.get('/fixture-players/*', fixture_controller.get_fixture_players_details);
 app.post('/fixture/reminder', fixture_controller.fixture_reminder_post);
 
 

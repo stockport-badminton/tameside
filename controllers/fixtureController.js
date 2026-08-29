@@ -1636,21 +1636,29 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
     })
   }
 
+  // GET /fixture-players/<filters...>
+  //
+  // Filters come from middleware/filterState.js, which parses them off the path in
+  // the grammar the shared toolbar emits — the same source /player-stats and
+  // /pair-stats read. This used to take them from req.params across six bespoke
+  // route shapes in app.js, which only covered one filter at a time plus two fixed
+  // pairs, so anything the toolbar actually built 404'd. Values arrive
+  // percent-decoded, so 'Manchester%20Edgeley' matches the club name in the DB.
   exports.get_fixture_players_details = function(req, res) {
 
+    var active = (res.locals.filterBar && res.locals.filterBar.active) || {};
     var searchObj = {
     }
-    if (req.params.season !== undefined){
-      searchObj.season = req.params.season
+    if (active.season){
+      searchObj.season = active.season
     }
-    if (req.params.team !== undefined){
-      searchObj.team = req.params.team
+    if (active.team){
+      searchObj.team = active.team
     }
-    if (req.params.club !== undefined){
-      searchObj.club = req.params.club
+    if (active.club){
+      searchObj.club = active.club
     }
     Fixture.getMatchPlayerOrderDetails(searchObj,function(err,row){
-      console.log(row)
       if (err){
         res.send(err);
       }
