@@ -11,9 +11,22 @@
 // leagues. Deciding which role-holders are ours needs care.
 
 // app_metadata keys this site reads. Everything else in the tenant belongs to the
-// other site or to Auth0 itself (`betaAccess` gates login via an Auth0 Action;
-// `messeradmin` and `team` are Stockport's; `league` is below).
+// other site or to Auth0 itself: `betaAccess` gates login via an Auth0 Action,
+// `messeradmin` and `team` are Stockport's, and `league` is explained below.
 const OUR_KEYS = ['role', 'club', 'stats'];
+
+// `league` ('stockport' | 'tameside', set on 51 of 203 accounts) is NOT an
+// authorization signal and is deliberately not consulted here.
+//
+// It was an attempt to record which league's site someone signed up on, in the hope of
+// differentiating their experience later. It never got used for that, it was never
+// applied consistently, and it says nothing about who administers what — a person can
+// sign up on one site and run a team in the other.
+//
+// It was briefly treated as a league discriminator during this migration, which held
+// back 8 genuine Tameside admins whose accounts happened to carry `league=stockport`.
+// Now that both sites take access from their own database, the club claim is the only
+// thing worth asking. Left in the tenant as the historical tracking data it is.
 
 // Does this account carry any site-wide authorization for us to migrate?
 function isRoleHolder(appMetadata) {
@@ -21,33 +34,23 @@ function isRoleHolder(appMetadata) {
   return !!(m.role || m.club || m.stats);
 }
 
-// Which league does this account belong to?
+// Which league does this account's authorization belong to?
 //
-// Two independent signals, because measured against the live tenant neither is
-// sufficient on its own:
+// One signal: does the club it claims to administer exist in this league? An admin
+// claim over a club we have never heard of cannot mean anything here, and a claim over
+// one we do have is ours to honour. `club === 'All'` is the superadmin sentinel and is
+// not a club name.
 //
-//   club claim   naming a club this league has never heard of is conclusive, but it
-//                misses anyone whose other-league club shares a name with one of ours
-//                (College Green, Alderley Park and Disley all exist in both).
-//   league key   authoritative when set, but it was set on only 51 of 203 accounts.
-//
-// Cross-referencing the two found 8 accounts saying league=stockport whose club also
-// exists here. The club-name test alone would have granted all 8 Tameside admin.
-//
-// `ambiguous` marks exactly that overlap. Those are deliberately NOT auto-migrated and
-// NOT silently dropped either — someone can legitimately hold a role in both leagues
-// and `league` records only one, so it is a decision for a person.
+// This is deliberately the *only* test. See the note on `league` above for the signal
+// that was tried alongside it and removed.
 function classifyLeague(appMetadata, ourClubNames) {
   const m = appMetadata || {};
   const club = m.club || null;
   const clubNotHere = !!(club && club !== 'All' && !ourClubNames.has(club));
-  const saysOtherLeague = m.league === 'stockport';
   return {
     club,
     clubNotHere,
-    saysOtherLeague,
-    otherLeague: clubNotHere || saysOtherLeague,
-    ambiguous: saysOtherLeague && !clubNotHere,
+    otherLeague: clubNotHere,
   };
 }
 

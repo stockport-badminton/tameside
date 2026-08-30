@@ -147,6 +147,16 @@ exports.setActive = async function (id, active) {
 // Fire-and-forget from the request path: a logging failure must never turn a legitimate
 // submission into an error, so this swallows its own errors and returns nothing useful.
 exports.logSubmission = async function (entry) {
+  // No-op under test. This is the only DB *write* on the contact-form path, and
+  // test/helpers/app.js deliberately fakes PGPASSWORD — so every submission a test made
+  // became a failed authentication against the real Supabase pooler. The spam-gate suite
+  // submits the form seven times, which is how `npm test` in a loop tripped Supavisor's
+  // circuit breaker (ECIRCUITBREAKER) and briefly blocked new connections for
+  // everything sharing that pooler, this site included.
+  //
+  // Skipping is safe: the tests that assert on the log stub this function, and a stub
+  // replaces this check anyway. Same reasoning as app.js skipping the blocklist warm.
+  if (process.env.NODE_ENV === 'test') return;
   try {
     await sql`
       INSERT INTO submission_log

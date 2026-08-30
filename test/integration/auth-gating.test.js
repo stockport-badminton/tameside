@@ -9,15 +9,49 @@
 //   GET  /approve-user/:id    had no gate, and did every side effect on a GET, so a
 //                             mail scanner prefetching the link could approve someone.
 //
-// Uses the no-DB model seam in ../helpers/app, and DEV_MODE for the authenticated
-// superadmin case (middleware/devMode.js injects a mock superadmin).
-const { describe, it, before, after, afterEach, mock } = require('node:test');
+// Uses the no-DB model seam in ../helpers/app.
+const { describe, it, afterEach, mock } = require('node:test');
 const assert = require('node:assert');
 const request = require('supertest');
 
 const { app, setModel, clearModels } = require('../helpers/app');
 
 afterEach(() => { clearModels(); mock.restoreAll(); });
+
+// The mock identity middleware/devMode.js injects is driven by env vars, which are
+// process-global. Setting them in before/after hooks means one describe block's
+// teardown racing the next one's setup — an intermittent failure where a test runs as
+// the wrong user, which for auth tests is the worst kind of flake (it passes, and the
+// thing it proved was never checked). So each test states the identity it runs as, and
+// restores whatever was there before.
+//
+// asUser() with no role means unauthenticated.
+function asUser({ role, club } = {}, fn) {
+  return async () => {
+    const saved = {
+      DEV_MODE: process.env.DEV_MODE,
+      DEV_ROLE: process.env.DEV_ROLE,
+      DEV_CLUB: process.env.DEV_CLUB,
+    };
+    if (role === undefined) {
+      delete process.env.DEV_MODE;
+    } else {
+      process.env.DEV_MODE = 'true';
+      process.env.DEV_ROLE = role;
+      if (club) process.env.DEV_CLUB = club; else delete process.env.DEV_CLUB;
+    }
+    try {
+      await fn();
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k]; else process.env[k] = v;
+      }
+    }
+  };
+}
+
+const SUPERADMIN = { role: 'superadmin' };
+const CLUB_ADMIN = { role: 'admin', club: 'Hyde' };
 
 // A player row as getPlayerDetailsbyId returns it, including the clubName the
 // per-row authorization check compares against the club claim.
@@ -29,50 +63,44 @@ const PLAYER = {
   role: null, statsAccess: 0,
 };
 
-describe('unauthenticated: both routes redirect to login', () => {
-  before(() => { delete process.env.DEV_MODE; });
-
-  it('GET /player/42/update -> 302 /login (was ungated entirely)', async () => {
+describe('unauthenticated: every route redirects to login', () => {
+  it('GET /player/42/update (was ungated entirely)', asUser({}, async () => {
     const res = await request(app).get('/player/42/update');
     assert.strictEqual(res.status, 302);
     assert.match(res.headers.location, /\/login/);
-  });
+  }));
 
-  it('GET /approve-user/:id -> 302 /login (was ungated entirely)', async () => {
+  it('GET /approve-user/:id (was ungated entirely)', asUser({}, async () => {
     const res = await request(app).get('/approve-user/auth0%7Cabc123');
     assert.strictEqual(res.status, 302);
     assert.match(res.headers.location, /\/login/);
-  });
+  }));
 
-  it('POST /approve-user/:id -> 302 /login', async () => {
+  it('POST /approve-user/:id', asUser({}, async () => {
     const res = await request(app).post('/approve-user/auth0%7Cabc123').send({ playerId: '42' });
     assert.strictEqual(res.status, 302);
     assert.match(res.headers.location, /\/login/);
-  });
+  }));
 });
 
-describe('superadmin (DEV_MODE): the player edit form', () => {
-  before(() => { process.env.DEV_MODE = 'true'; });
-  after(() => { delete process.env.DEV_MODE; });
-
-  it('renders, and shows the superadmin-only role controls', async () => {
+describe('superadmin: the player edit form', () => {
+  it('renders, and shows the superadmin-only role controls', asUser(SUPERADMIN, async () => {
     setModel('Player', 'getPlayerDetailsbyId', (id, cb) => cb(null, [PLAYER]));
     const res = await request(app).get('/player/42/update');
     assert.strictEqual(res.status, 200);
-    // canEditRole is true for a superadmin, so both controls render.
     assert.match(res.text, /name="role"/);
     assert.match(res.text, /name="statsAccess"/);
-    // And the checkbox that was silently cleared on every save before.
+    // The checkbox that was silently cleared on every save before.
     assert.match(res.text, /name="otherComms"/);
-  });
+  }));
 
-  it('404s an unknown player instead of crashing the view', async () => {
+  it('404s an unknown player instead of crashing the view', asUser(SUPERADMIN, async () => {
     setModel('Player', 'getPlayerDetailsbyId', (id, cb) => cb(null, []));
     const res = await request(app).get('/player/999/update');
     assert.strictEqual(res.status, 404);
-  });
+  }));
 
-  it('POST writes the role fields through setAuthRole', async () => {
+  it('POST writes the role fields through setAuthRole', asUser(SUPERADMIN, async () => {
     setModel('Player', 'getPlayerDetailsbyId', (id, cb) => cb(null, [PLAYER]));
     setModel('Player', 'updateBulk', (patch, cb) => cb(null, [{ id: 42 }]));
     let seen;
@@ -87,12 +115,12 @@ describe('superadmin (DEV_MODE): the player edit form', () => {
     assert.strictEqual(seen.id, '42');
     assert.strictEqual(seen.opts.role, 'admin');
     assert.strictEqual(seen.opts.statsAccess, true);
-    // Never from this form: it's the link the login lookup matches on, and this form
-    // knows nothing about it.
+    // Never from this form: a login address is the link the lookup matches on, and this
+    // form knows nothing about them.
     assert.strictEqual(seen.opts.authEmail, undefined);
-  });
+  }));
 
-  it('POST includes otherComms in the patched fields', async () => {
+  it('POST includes otherComms in the patched fields', asUser(SUPERADMIN, async () => {
     setModel('Player', 'getPlayerDetailsbyId', (id, cb) => cb(null, [PLAYER]));
     let patched;
     setModel('Player', 'updateBulk', (patch, cb) => { patched = patch; cb(null, []); });
@@ -101,48 +129,38 @@ describe('superadmin (DEV_MODE): the player edit form', () => {
     await request(app).post('/player/42').type('form').send({ otherComms: '1' });
     assert.ok(patched.fields.includes('otherComms'), 'otherComms must be persisted');
     assert.strictEqual(patched.data[0][patched.fields.indexOf('otherComms')], 1);
-  });
+  }));
 });
 
-// DEV_ROLE/DEV_CLUB drive middleware/devMode.js's mock, which builds its claims
-// through the same authz.applyRoleClaims a real login uses.
-describe('club-scoped admin: may edit own club only, and cannot self-promote', () => {
-  before(() => {
-    process.env.DEV_MODE = 'true';
-    process.env.DEV_ROLE = 'admin';
-    process.env.DEV_CLUB = 'Hyde';
-  });
-  after(() => {
-    delete process.env.DEV_MODE;
-    delete process.env.DEV_ROLE;
-    delete process.env.DEV_CLUB;
-  });
-
-  it('may open a player in their own club', async () => {
+// This branch gains everyone who used to be an Auth0 'admin', and is the least
+// exercised one — Stockport shipped a crash into it because nobody had browsed as a
+// plain admin (their 72f54fa).
+describe('club-scoped admin: own club only, and cannot self-promote', () => {
+  it('may open a player in their own club', asUser(CLUB_ADMIN, async () => {
     setModel('Player', 'getPlayerDetailsbyId', (id, cb) => cb(null, [PLAYER]));
     const res = await request(app).get('/player/42/update');
     assert.strictEqual(res.status, 200);
     // canEditRole is false, so the site-role controls must not render at all.
     assert.doesNotMatch(res.text, /name="role"/);
     assert.doesNotMatch(res.text, /name="statsAccess"/);
-  });
+  }));
 
-  it('403s on a player in another club', async () => {
+  it('403s on a player in another club', asUser(CLUB_ADMIN, async () => {
     setModel('Player', 'getPlayerDetailsbyId', (id, cb) =>
       cb(null, [{ ...PLAYER, clubName: 'Aerospace' }]));
     const res = await request(app).get('/player/42/update');
     assert.strictEqual(res.status, 403);
-  });
+  }));
 
-  it('POST to another club\'s player writes nothing', async () => {
+  it('POST to another club\'s player writes nothing', asUser(CLUB_ADMIN, async () => {
     setModel('Player', 'getPlayerDetailsbyId', (id, cb) =>
       cb(null, [{ ...PLAYER, clubName: 'Aerospace' }]));
     setModel('Player', 'updateBulk', () => { throw new Error('must not write'); });
     const res = await request(app).post('/player/42').type('form').send({ first_name: 'Hacked' });
     assert.strictEqual(res.status, 403);
-  });
+  }));
 
-  it('cannot grant itself a role by POSTing the field by hand', async () => {
+  it('cannot grant itself a role by POSTing the field by hand', asUser(CLUB_ADMIN, async () => {
     // The view hides the control, but hiding a field is not a security boundary — a
     // club admin can still craft the request. setAuthRole must never be reached.
     setModel('Player', 'getPlayerDetailsbyId', (id, cb) => cb(null, [PLAYER]));
@@ -156,19 +174,16 @@ describe('club-scoped admin: may edit own club only, and cannot self-promote', (
 
     // Redirects (the ordinary edit succeeded) but the role fields were ignored.
     assert.strictEqual(res.status, 302);
-  });
+  }));
 
-  it('is refused by the approval flow, which is superadmin-only', async () => {
+  it('is refused by the approval flow, which is superadmin-only', asUser(CLUB_ADMIN, async () => {
     const res = await request(app).get('/approve-user/auth0%7Cabc123');
     assert.strictEqual(res.status, 403);
-  });
+  }));
 });
 
 describe('the approval flow is superadmin-only and side-effect-free on GET', () => {
-  before(() => { process.env.DEV_MODE = 'true'; });
-  after(() => { delete process.env.DEV_MODE; });
-
-  it('GET renders the approve page without writing anything', async () => {
+  it('GET renders the approve page without writing anything', asUser(SUPERADMIN, async () => {
     const Auth = require('../../models/auth');
     mock.method(Auth, 'getUserByAuthId', async () => ({
       user_id: 'auth0|abc123', email: 'new@example.com', name: 'New Person'
@@ -181,9 +196,9 @@ describe('the approval flow is superadmin-only and side-effect-free on GET', () 
     assert.strictEqual(res.status, 200);
     assert.match(res.text, /new@example\.com/);
     assert.match(res.text, /Approve/);
-  });
+  }));
 
-  it('GET warns when the email is already linked to a player', async () => {
+  it('GET warns when the email is already linked to a player', asUser(SUPERADMIN, async () => {
     const Auth = require('../../models/auth');
     mock.method(Auth, 'getUserByAuthId', async () => ({ email: 'new@example.com' }));
     setModel('Player', 'getAuthRoleByEmail', async () => ({
@@ -195,12 +210,12 @@ describe('the approval flow is superadmin-only and side-effect-free on GET', () 
     assert.strictEqual(res.status, 200);
     assert.match(res.text, /already resolves to/);
     assert.match(res.text, /Bob Briggs/);
-  });
+  }));
 
-  it('POST without a chosen player is rejected before any Auth0 call', async () => {
+  it('POST without a chosen player is rejected before any Auth0 call', asUser(SUPERADMIN, async () => {
     const Auth = require('../../models/auth');
     mock.method(Auth, 'getUserByAuthId', async () => { throw new Error('must not be called'); });
     const res = await request(app).post('/approve-user/auth0%7Cabc123').type('form').send({});
     assert.strictEqual(res.status, 400);
-  });
+  }));
 });

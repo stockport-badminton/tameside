@@ -1203,10 +1203,15 @@ exports.getPlayerDetailsbyId = async function(playerId, done){
 // a role (a partial index in the migration covers exactly that set). It is not a
 // full-roster scan — it is bounded by how many admins the league ever has.
 //
-// Matches EITHER "authEmail" (the address the Auth0 identity logs in with) or the
-// older "playerEmail" (registered contact address). Both, because the two are
-// frequently different people-facts about the same person: Stockport found only
-// 53 of 151 role-holders matched on playerEmail alone.
+// Matches any of the player's recorded login addresses (player_auth_email, see
+// migrations/player-auth-email.sql) or their registered contact address
+// ("playerEmail"). Both, because they are frequently different facts about the same
+// person: only 34 of 101 Tameside role-holders matched on playerEmail alone.
+//
+// Several login addresses per player, not one, because one person genuinely has
+// several Auth0 identities — the league's results mailbox exists as both
+// stockport.badders.results@ and tameside.badders.results@, and a single column meant
+// one of them silently lost its superadmin. player."authEmail" is no longer read.
 //
 // Returns undefined when there is no match, which the caller reads as "no
 // site-wide role" — the same meaning an absent Auth0 claim had.
@@ -1223,13 +1228,25 @@ exports.getAuthRoleByEmail = async function(email) {
     JOIN club ON club.id = player.club
     WHERE (player.role IS NOT NULL OR player."statsAccess" = 1)
       AND (
-        (player."authEmail" IS NOT NULL
-          AND LOWER(pgp_sym_decrypt(player."authEmail", ${process.env.DB_ENCODE})::text) = LOWER(${email}))
+        EXISTS (
+          SELECT 1 FROM player_auth_email pae
+          WHERE pae.player = player.id
+            AND LOWER(pgp_sym_decrypt(pae.email, ${process.env.DB_ENCODE})::text) = LOWER(${email})
+        )
         OR (player."playerEmail" IS NOT NULL
           AND LOWER(pgp_sym_decrypt(player."playerEmail", ${process.env.DB_ENCODE})::text) = LOWER(${email}))
       )
     LIMIT 1`;
   return result[0];
+}
+
+// Every login address recorded for a player, decrypted. For the linking screen, so it
+// can show what is already attached rather than implying a row holds only one.
+exports.getAuthEmails = async function(playerId) {
+  const rows = await sql`
+    SELECT LOWER(pgp_sym_decrypt(email, ${process.env.DB_ENCODE})::text) AS email
+    FROM player_auth_email WHERE player = ${playerId} ORDER BY created_at`;
+  return rows.map(r => r.email);
 }
 
 // Bulk lookups for the linking screen, which resolves ~90 Auth0 accounts at once.
@@ -1244,8 +1261,12 @@ exports.getAuthRoleByEmail = async function(email) {
 // be indexed, so Postgres has to decrypt every candidate row regardless, and doing the
 // matching here keeps one query rather than one per shape of question.
 
-// Every player carrying a site role, with both addresses that could identify them.
+// Every player carrying a site role, with every address that could identify them.
 // Bounded by how many admins the league has, not by roster size.
+//
+// authEmails is an array because a player can have several login identities (see
+// getAuthRoleByEmail). Aggregated in SQL rather than returning a row per address, so
+// the caller still gets one row per player.
 exports.getSiteRoleEmailIndex = async function() {
   return sql`
     SELECT player.id::int AS id,
@@ -1254,11 +1275,18 @@ exports.getSiteRoleEmailIndex = async function() {
            player.role,
            player."statsAccess",
            club.name AS "clubName",
-           LOWER(pgp_sym_decrypt(player."authEmail", ${process.env.DB_ENCODE})::text) AS "authEmail",
+           COALESCE(
+             ARRAY_REMOVE(
+               ARRAY_AGG(LOWER(pgp_sym_decrypt(pae.email, ${process.env.DB_ENCODE})::text)),
+               NULL),
+             '{}') AS "authEmails",
            LOWER(pgp_sym_decrypt(player."playerEmail", ${process.env.DB_ENCODE})::text) AS "playerEmail"
     FROM player
     JOIN club ON club.id = player.club
-    WHERE player.role IS NOT NULL OR player."statsAccess" = 1`;
+    LEFT JOIN player_auth_email pae ON pae.player = player.id
+    WHERE player.role IS NOT NULL OR player."statsAccess" = 1
+    GROUP BY player.id, player.first_name, player.family_name, player.role,
+             player."statsAccess", club.name, player."playerEmail"`;
 }
 
 // Every player with a registered contact address, for proposing links. This is the
@@ -1277,21 +1305,36 @@ exports.getContactEmailIndex = async function() {
     WHERE player."playerEmail" IS NOT NULL`;
 }
 
-// Writes the site-wide role fields. Used by the superadmin-only controls on the
-// player edit form and by the one-off backfill script.
+// Writes the site-wide role fields, and optionally ADDS a login address.
 //
-// authEmail is only touched when a value is actually supplied, so an ordinary
-// player edit — which knows nothing about it — can never clear the link that the
-// login lookup depends on.
+// Adds rather than replaces: a player can hold several login identities, and the
+// previous single-column version silently displaced whichever address was already
+// there — which is exactly how the second superadmin account lost its role. Inserting
+// the same address twice is a no-op.
+//
+// An address is only touched when one is actually supplied, so an ordinary player edit
+// — which knows nothing about them — can never remove the link the login lookup
+// depends on.
 exports.setAuthRole = async function(playerId, { role, statsAccess, authEmail } = {}) {
   if (authEmail) {
-    return sql`
-      UPDATE player
-      SET role = ${role || null},
-          "statsAccess" = ${statsAccess ? 1 : 0},
-          "authEmail" = pgp_sym_encrypt(${authEmail}, ${process.env.DB_ENCODE})
-      WHERE id = ${playerId}
-      RETURNING id`;
+    // Two statements, one transaction: the role and the address have to land together
+    // or not at all, or a failure between them leaves a role nobody can reach.
+    return sql.begin(async (tx) => {
+      await tx`
+        UPDATE player
+        SET role = ${role || null},
+            "statsAccess" = ${statsAccess ? 1 : 0}
+        WHERE id = ${playerId}`;
+      await tx`
+        INSERT INTO player_auth_email (player, email)
+        SELECT ${playerId}, pgp_sym_encrypt(${authEmail}, ${process.env.DB_ENCODE})
+        WHERE NOT EXISTS (
+          SELECT 1 FROM player_auth_email
+          WHERE player = ${playerId}
+            AND LOWER(pgp_sym_decrypt(email, ${process.env.DB_ENCODE})::text) = LOWER(${authEmail})
+        )`;
+      return [{ id: playerId }];
+    });
   }
   return sql`
     UPDATE player

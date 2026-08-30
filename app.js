@@ -136,6 +136,18 @@ seasonModel.init()
     // Division/season option lists for the filter toolbar. Runs after
     // season.init() because the current season decides which seasons are
     // offerable (see middleware/filterState.js).
+    //
+    // Skipped under test for the same reason spamControls.refresh is below, but the
+    // consequence here is worse than an extra connection. test/helpers/app.js sets
+    // PGPASSWORD to a placeholder, and season.init() is stubbed there while this was
+    // not — so every test file that required app.js opened a connection to the real
+    // Supabase pooler and FAILED AUTHENTICATION. One run is ~15 failures. Enough runs
+    // in quick succession and Supavisor trips its circuit breaker
+    // (ECIRCUITBREAKER: "too many authentication failures, new connections are
+    // temporarily blocked"), which blocks new connections for everything sharing that
+    // pooler — including a cold-starting Cloud Run instance. Running the suite in a
+    // loop is normal; taking the site's connection budget with it is not.
+    if (process.env.NODE_ENV === 'test') return null;
     return filterState.init();
   })
   .then(function (counts) {

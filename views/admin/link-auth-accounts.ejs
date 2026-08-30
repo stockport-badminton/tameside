@@ -131,26 +131,12 @@
           <code><%= entry.email %></code> &rarr;
           <%= entry.linked.name %> (<%= entry.linked.club %>)
           — <%= entry.linked.role || 'no role' %><%= entry.linked.statsAccess ? ', stats' : '' %>
-        </li>
-      <% }); %>
-    </ul>
-  <% } %>
-
-  <% if (data.ambiguous.length) { %>
-    <h5 class="mt-4 text-warning">Needs a decision (<%= data.ambiguous.length %>)</h5>
-    <p class="small text-muted">
-      These say <code>league=stockport</code> in Auth0, but the club they claim also
-      exists in Tameside. Deciding on club name alone would hand all of them Tameside
-      admin; deciding on <code>league</code> alone would drop anyone who genuinely runs
-      a team in both. Not offered for linking here — if one is genuinely a Tameside
-      admin, grant the role on that player's edit form instead.
-    </p>
-    <ul class="small">
-      <% data.ambiguous.forEach(function(entry) { %>
-        <li>
-          <code><%= entry.email %></code> — claims <strong><%= entry.claimClub %></strong>
-          as <%= entry.target.role || 'club only' %>,
-          <%= entry.logins %> logins, last <%= entry.lastLogin || 'never' %>
+          <%# More than one address reaching the same player is normal, not a fault:
+              the results mailbox exists twice, and several people have both a password
+              and a Google identity. Shown so it doesn't look like a duplicate. %>
+          <% if (entry.linked.authEmails && entry.linked.authEmails.length > 1) { %>
+            <span class="badge bg-secondary"><%= entry.linked.authEmails.length %> login addresses</span>
+          <% } %>
         </li>
       <% }); %>
     </ul>

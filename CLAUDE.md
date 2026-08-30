@@ -101,11 +101,20 @@ Stockport's `23a5cea` + `551b6e8`.
   means no site role. **Deliberately not derived** from the club-role flags: ticking
   "teamCaptain" must not silently grant site access.
 - `player."statsAccess"` — lets an *admin* see the Individual/Pair Stats pages.
-- `player."authEmail"` — encrypted, like `playerEmail`. The address the Auth0 identity
-  logs in with, which is very often **not** the registered contact email (Stockport
-  measured 53 of 151 role-holders matching on `playerEmail` alone). This is the
-  login→player link; only `setAuthRole` writes it, and only when given a value, so an
-  ordinary player edit can't clear it.
+- `player_auth_email` (`migrations/player-auth-email.sql`) — encrypted login addresses,
+  **many per player**. This is the login→player link, and it is very often *not* the
+  registered contact email: only 34 of 101 Tameside role-holders matched on
+  `playerEmail` alone. Only `setAuthRole` writes here, only when given an address, and
+  it **adds** rather than replaces — so an ordinary player edit can't remove the link
+  the lookup depends on.
+  - Several per player because one person genuinely has several Auth0 identities. The
+    league results mailbox exists as both `stockport.badders.results@` and
+    `tameside.badders.results@` and **both are superadmin**; the original single
+    `player."authEmail"` column could hold one, so the other silently lost its role.
+    Three further addresses in the tenant carry two Auth0 identities each (a password
+    `auth0|…` login and a Google `google-oauth2|…` login).
+  - `player."authEmail"` is superseded and no longer read or written. Left in place as
+    the rollback path — drop it once this has been through a real cutover.
 
 **The claim keys did not change — only their source.** The Auth0Strategy verify
 callback in `app.js` calls `Player.getAuthRoleByEmail()` at login and writes the answer
@@ -184,35 +193,47 @@ node scripts/audit-auth-roles.js --csv > roles.csv   # 3. now proposes dbPlayerI
 # 4. review roles.csv: fill dbPlayerId where blank, delete stale/test accounts
 node scripts/backfill-auth-roles.js roles.csv        # 5. dry run
 node scripts/backfill-auth-roles.js roles.csv --commit
-node scripts/audit-auth-roles.js                     # 6. MISMATCHES must be empty. Then deploy.
+node scripts/audit-auth-roles.js                     # 6. check the CUTOVER GATE. Then deploy.
 ```
 
-#### What the audit actually found (2026-08-30, pre-migration)
+The **cutover gate has two conditions**, and an empty MISMATCHES list alone is not a
+pass: MISMATCHES only compares accounts the lookup already resolves, so before the
+backfill it is empty *because* nothing has been migrated. The gate also requires nothing
+"unreviewed" — an account that is neither linked nor named in
+`scripts/accepted-unlinked.txt`. Accounts are named rather than counted on purpose: a
+count silently absorbs the *next* unlinked account, so someone signing up tomorrow would
+keep the gate green while quietly having no role. `--write-accepted` generates that file
+from the current unlinked set.
+
+**MISMATCHES means someone's admin scope moves**, not that the wrong person is linked.
+After cutover an admin's club comes from `player.club`, so an account whose Auth0 claim
+named a different club changes scope. A player at the placeholder club **"No Club"** ends
+up scoped to nothing.
+
+#### What the audit actually found (2026-08-30)
 
 203 accounts in the tenant; **155 carry `role`/`club`/`stats`** (150 `admin`, 2
-`superadmin`, 3 club-only; only **3** have the `stats` flag). Just **34 of the 155
-(22%)** match a player row on `playerEmail` alone — a worse rate than Stockport's
-53/151, and the concrete argument for `player."authEmail"`.
+`superadmin`, 3 club-only; only **3** have the `stats` flag). **54 of the 155 belong to
+Stockport** — their `club` claim names a club Tameside has never heard of.
 
-**62 of the 155 are the other league's**, which is the headline. Cross-league is
-decided by *two* signals, because neither is sufficient:
+Of the 101 that are ours, only **34 matched a player row on `playerEmail` alone** — the
+concrete argument for `player_auth_email`.
 
-- the `club` claim names a club Tameside has never heard of — catches the obvious
-  ones, misses anyone whose Stockport club shares a name with a Tameside one;
-- `app_metadata.league === 'stockport'` — a key **this codebase never read**, and
-  authoritative when set, but present on only 51 of 203 accounts.
+**`app_metadata.league` is not an authorization signal.** It records which site someone
+signed up on (`stockport` | `tameside`, set on 51 of 203) and was an abandoned attempt
+at differentiating the two experiences. It was briefly used here as a second
+cross-league test, which wrongly held back **8 genuine Tameside admins** whose accounts
+happened to carry `league=stockport` (Alderley Park, College Green, Disley — all real
+Tameside clubs). The club claim is the only signal;
+`test/integration/auth-link.test.js` has a test that `league` is ignored.
 
-The overlap is the dangerous part: **8 accounts say `league=stockport` while their club
-also exists here** (Alderley Park, College Green, Disley). The club-name test alone
-would have granted all 8 Tameside admin. They're skipped by the backfill and printed
-under their own heading for review rather than silently dropped — someone could
-legitimately hold a role in both leagues, and `league` only records one.
+Other keys, for reference: `betaAccess` (162 — the login gate), `messeradmin` (1,
+Stockport's), `team` (1). Anything not `role`/`club`/`stats` belongs to the other site
+or to Auth0 itself; leave it alone.
 
-So this migration closes a live leak, not a theoretical one.
-
-Other keys in the tenant, for reference: `betaAccess` (162 — the login gate),
-`messeradmin` (1, Stockport's), `team` (1). Anything not `role`/`club`/`stats` belongs
-to the other site or to Auth0 itself; leave it alone.
+**Deduplicate by email, not by `user_id`.** Three addresses have two Auth0 identities
+each, and the lookup matches the address — so one link covers both, and counting
+identities overstates the work.
 
 `roles.csv` is gitignored — it holds every role-holder's email address.
 

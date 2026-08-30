@@ -1,9 +1,11 @@
 // /admin/link-auth-accounts — the worklist that moves site roles from Auth0
 // app_metadata onto the player table.
 //
-// The classification rules under test are the ones that took a live tenant dump to get
-// right: the Auth0 tenant is shared with the Stockport league site, so most accounts in
-// it are not ours, and "not ours" needs two signals rather than one.
+// The classification rule under test took a live tenant dump to get right: the Auth0
+// tenant is shared with the Stockport league site, so most accounts in it are not ours.
+// "Not ours" is decided solely by whether the claimed club exists in this league —
+// app_metadata.league looks like it should help and must not be used, see
+// utils/authMigration.js.
 const { describe, it, before, after, afterEach, mock } = require('node:test');
 const assert = require('node:assert');
 const request = require('supertest');
@@ -26,7 +28,9 @@ const TENANT = [
   // Other league: club Tameside has never heard of.
   { user_id: 'auth0|3', email: 'stockport@example.com', logins_count: 3, last_login: null,
     app_metadata: { role: 'admin', club: 'Cheadle Hulme' } },
-  // Ambiguous: says stockport, but College Green exists here too.
+  // Ours, despite league=stockport: that key recorded which site someone signed up on,
+  // not who administers what, so it is deliberately ignored. Treating it as an
+  // authorization signal held back 8 genuine Tameside admins.
   { user_id: 'auth0|4', email: 'both@example.com', logins_count: 76, last_login: '2026-08-27T00:00:00Z',
     app_metadata: { role: 'admin', club: 'College Green', league: 'stockport' } },
   // Not a role-holder at all — must not appear anywhere.
@@ -74,19 +78,31 @@ describe('worklist classification', () => {
   before(() => { process.env.DEV_MODE = 'true'; });
   after(() => { delete process.env.DEV_MODE; });
 
-  it('splits ours / other league / ambiguous, and ignores non-role-holders', async () => {
+  it('splits ours from the other league, and ignores non-role-holders', async () => {
     stubTenant();
     const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
     const data = await _buildWorklistForTesting();
 
     assert.deepStrictEqual(data.ours.map(e => e.email).sort(),
-      ['matched@example.com', 'ours@example.com']);
+      ['both@example.com', 'matched@example.com', 'ours@example.com']);
+    // Only signal: the claimed club is not one of ours.
     assert.deepStrictEqual(data.otherLeague.map(e => e.email), ['stockport@example.com']);
-    // Held back for a human: league says stockport but the club exists here too.
-    assert.deepStrictEqual(data.ambiguous.map(e => e.email), ['both@example.com']);
     // betaAccess alone is not authorization.
-    const all = [...data.ours, ...data.otherLeague, ...data.ambiguous].map(e => e.email);
+    const all = [...data.ours, ...data.otherLeague].map(e => e.email);
     assert.ok(!all.includes('nobody@example.com'));
+  });
+
+  it('ignores app_metadata.league entirely', async () => {
+    // It recorded signup origin, was set on only a quarter of accounts, and says
+    // nothing about who administers what — a person can sign up on one site and run a
+    // team in the other. Classifying on it wrongly excluded 8 real Tameside admins.
+    stubTenant();
+    const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
+    const data = await _buildWorklistForTesting();
+
+    const flagged = data.ours.find(e => e.email === 'both@example.com');
+    assert.ok(flagged, 'league=stockport must not exclude an account whose club is ours');
+    assert.strictEqual(flagged.target.role, 'admin');
   });
 
   it('proposes a link where the login email matches a contact email', async () => {
@@ -108,7 +124,7 @@ describe('worklist classification', () => {
     // player's contact address — so a linked account must be recognised by it alone.
     stubTenant({ roleIndex: [
       { id: 5, first_name: 'Al', family_name: 'Ready', role: 'admin', statsAccess: 0,
-        clubName: 'Hyde', authEmail: 'ours@example.com', playerEmail: 'something.else@example.com' },
+        clubName: 'Hyde', authEmails: ['ours@example.com'], playerEmail: 'something.else@example.com' },
     ] });
     const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
     const data = await _buildWorklistForTesting();
@@ -119,6 +135,29 @@ describe('worklist classification', () => {
     assert.strictEqual(data.linkedCount, 1);
     // Already linked, so no proposal should be computed for it.
     assert.strictEqual(linked.proposed, null);
+  });
+
+  it('resolves every login address a player holds, not just the first', async () => {
+    // One person, several Auth0 identities: the league results mailbox exists as both
+    // stockport.badders.results@ and tameside.badders.results@, and both are superadmin.
+    // The single-column version could only record one, so the other silently lost its
+    // role — see migrations/player-auth-email.sql.
+    stubTenant({ roleIndex: [
+      { id: 9, first_name: 'Multi', family_name: 'Login', role: 'superadmin', statsAccess: 0,
+        clubName: 'Hyde',
+        authEmails: ['ours@example.com', 'both@example.com'],
+        playerEmail: null },
+    ] });
+    const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
+    const data = await _buildWorklistForTesting();
+
+    for (const email of ['ours@example.com', 'both@example.com']) {
+      const entry = data.ours.find(e => e.email === email);
+      assert.strictEqual(entry.linked.id, 9, `${email} must resolve to the same player`);
+      assert.strictEqual(entry.linked.authEmails.length, 2);
+    }
+    // Both addresses reach one player, so only one of the three is left pending.
+    assert.strictEqual(data.linkedCount, 2);
   });
 
   it('queries a fixed number of times, not once per account', async () => {
@@ -140,15 +179,14 @@ describe('worklist classification', () => {
 
     assert.strictEqual(roleCalls, 1);
     assert.strictEqual(contactCalls, 1);
-    assert.ok(data.ours.length >= 2, 'sanity: the sample has accounts to resolve');
+    assert.ok(data.ours.length >= 3, 'sanity: the sample has accounts to resolve');
   });
 
   it('renders with the real counts', async () => {
     stubTenant();
     const res = await request(app).get('/admin/link-auth-accounts');
     assert.strictEqual(res.status, 200);
-    assert.match(res.text, /0 of 2 linked/);
-    assert.match(res.text, /Needs a decision \(1\)/);
+    assert.match(res.text, /0 of 3 linked/);
     assert.match(res.text, /Other league — not our work \(1\)/);
   });
 });
@@ -195,12 +233,14 @@ describe('linking', () => {
     assert.strictEqual(res.status, 400);
   });
 
-  it('refuses an ambiguous account — those need a human, not a form', async () => {
+  it('accepts an account carrying league=stockport whose club is ours', async () => {
     stubTenant();
-    setModel('Player', 'setAuthRole', async () => { throw new Error('must not write'); });
+    let seen;
+    setModel('Player', 'setAuthRole', async (id, opts) => { seen = { id, opts }; return [{ id }]; });
     const res = await request(app).post('/admin/link-auth-accounts').type('form')
-      .send({ email: 'both@example.com', playerId: '42' });
-    assert.strictEqual(res.status, 400);
+      .send({ email: 'both@example.com', playerId: '2026' });
+    assert.strictEqual(res.status, 302);
+    assert.strictEqual(seen.opts.role, 'admin');
   });
 
   it('404s an email that is not in the tenant', async () => {

@@ -46,8 +46,13 @@ async function buildWorklist({ refresh = false } = {}) {
   // keep this in step with what the login lookup will actually do.
   const byRoleEmail = new Map();
   for (const p of roleIndex) {
-    if (p.authEmail) byRoleEmail.set(p.authEmail, p);
-    // Don't let a contact-address collision mask a row already linked by authEmail.
+    // A player can have several login addresses — the results mailbox exists twice, and
+    // several people have both a password and a Google identity. Every one of them has
+    // to resolve to the same player.
+    for (const e of (p.authEmails || [])) {
+      if (e) byRoleEmail.set(e, p);
+    }
+    // Don't let a contact-address collision mask a row already linked by a login address.
     if (p.playerEmail && !byRoleEmail.has(p.playerEmail)) byRoleEmail.set(p.playerEmail, p);
   }
   const byContactEmail = new Map();
@@ -61,7 +66,6 @@ async function buildWorklist({ refresh = false } = {}) {
 
   const ours = [];
   const otherLeague = [];
-  const ambiguous = [];
 
   for (const u of holders) {
     const league = classifyLeague(u.app_metadata, ourClubNames);
@@ -75,7 +79,6 @@ async function buildWorklist({ refresh = false } = {}) {
       target: targetFromClaims(u.app_metadata),
     };
 
-    if (league.ambiguous) { ambiguous.push(entry); continue; }
     if (league.otherLeague) { otherLeague.push(entry); continue; }
     ours.push(entry);
   }
@@ -89,6 +92,9 @@ async function buildWorklist({ refresh = false } = {}) {
       club: live.clubName,
       role: live.role,
       statsAccess: live.statsAccess == 1,
+      // Every address that reaches this player, so it is obvious when one row carries
+      // more than one Auth0 identity.
+      authEmails: live.authEmails || [],
     } : null;
     // Only worth proposing when nothing is linked yet.
     const guess = entry.linked ? null : byContactEmail.get(lower(entry.email));
@@ -109,7 +115,6 @@ async function buildWorklist({ refresh = false } = {}) {
     linkedCount: ours.length - pending.length,
     proposedCount: pending.filter(e => e.proposed).length,
     otherLeague,
-    ambiguous,
     // A role on a player nobody's Auth0 account resolves to. Worth surfacing: it means
     // either a hand-granted role (fine) or a link that has drifted (not fine).
     orphanRoles: roleIndex
@@ -121,7 +126,7 @@ async function buildWorklist({ refresh = false } = {}) {
         role: p.role,
         statsAccess: p.statsAccess,
         clubName: p.clubName,
-        hasAuthEmail: !!p.authEmail,
+        hasAuthEmail: (p.authEmails || []).length > 0,
       })),
   };
 }
@@ -170,13 +175,11 @@ exports.link = async function(req, res, next) {
     const clubs = await getAllClubsP();
     const league = classifyLeague(user.app_metadata, new Set(clubs.map(c => c.name)));
     if (league.otherLeague) {
-      // Includes the ambiguous ones. Reaching this means the form was submitted for an
-      // account the worklist does not offer, so refuse rather than quietly widening the
-      // rule the whole migration rests on.
+      // Reaching this means the form was submitted for an account the worklist does not
+      // offer, so refuse rather than quietly widening the rule the migration rests on.
       const err = new Error(
-        'That account belongs to the other league (' +
-        (league.saysOtherLeague ? 'league=stockport' : 'club "' + league.club + '" is not a Tameside club') +
-        '). Grant the role on the player edit form if it is genuinely needed here.'
+        'That account claims club "' + league.club + '", which is not a Tameside club. ' +
+        'Grant the role on the player edit form if it is genuinely needed here.'
       );
       err.status = 400;
       return next(err);
