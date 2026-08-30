@@ -31,11 +31,30 @@ function forbidden() {
 // Build the worklist: every tenant account carrying authorization that is ours to
 // migrate, annotated with what the DB currently says and what we'd propose.
 async function buildWorklist({ refresh = false } = {}) {
-  const [users, clubs, alreadyRoled] = await Promise.all([
+  // Three queries total, regardless of how many accounts there are. This used to resolve
+  // each account with its own pair of queries — ~180 sequential round-trips for 90
+  // accounts, and a 12-second render.
+  const [users, clubs, roleIndex, contactIndex] = await Promise.all([
     Auth.listUsers({ refresh }),
     getAllClubsP(),
-    Player.getAllWithSiteRole(),
+    Player.getSiteRoleEmailIndex(),
+    Player.getContactEmailIndex(),
   ]);
+
+  // email -> player, for the two questions the worklist asks of every account.
+  // getAuthRoleByEmail matches authEmail OR playerEmail, so both are indexed here to
+  // keep this in step with what the login lookup will actually do.
+  const byRoleEmail = new Map();
+  for (const p of roleIndex) {
+    if (p.authEmail) byRoleEmail.set(p.authEmail, p);
+    // Don't let a contact-address collision mask a row already linked by authEmail.
+    if (p.playerEmail && !byRoleEmail.has(p.playerEmail)) byRoleEmail.set(p.playerEmail, p);
+  }
+  const byContactEmail = new Map();
+  for (const p of contactIndex) {
+    if (p.playerEmail && !byContactEmail.has(p.playerEmail)) byContactEmail.set(p.playerEmail, p);
+  }
+  const lower = e => (e || '').toLowerCase();
 
   const ourClubNames = new Set(clubs.map(c => c.name));
   const holders = users.filter(u => isRoleHolder(u.app_metadata));
@@ -61,12 +80,9 @@ async function buildWorklist({ refresh = false } = {}) {
     ours.push(entry);
   }
 
-  // Resolve each of ours against the DB. Sequential rather than Promise.all: every one
-  // of these decrypts an email column to compare it, and the pool is capped at 5
-  // (utils/db_connect.js) — firing 93 at once just queues them behind each other while
-  // holding every connection the rest of the site needs.
+  // Pure map lookups now — no I/O in this loop.
   for (const entry of ours) {
-    const live = await Player.getAuthRoleByEmail(entry.email);
+    const live = byRoleEmail.get(lower(entry.email));
     entry.linked = live ? {
       id: live.id,
       name: `${live.first_name} ${live.family_name}`,
@@ -75,17 +91,15 @@ async function buildWorklist({ refresh = false } = {}) {
       statsAccess: live.statsAccess == 1,
     } : null;
     // Only worth proposing when nothing is linked yet.
-    if (!entry.linked) {
-      const guess = await Player.getByPlayerEmail(entry.email);
-      entry.proposed = guess ? {
-        id: guess.id,
-        name: `${guess.first_name} ${guess.family_name}`,
-        club: guess.clubName,
-        team: guess.teamName,
-        // A proposal whose club matches the claim is much more likely to be right.
-        clubMatchesClaim: !!entry.claimClub && guess.clubName === entry.claimClub,
-      } : null;
-    }
+    const guess = entry.linked ? null : byContactEmail.get(lower(entry.email));
+    entry.proposed = guess ? {
+      id: guess.id,
+      name: `${guess.first_name} ${guess.family_name}`,
+      club: guess.clubName,
+      team: guess.teamName,
+      // A proposal whose club matches the claim is much more likely to be right.
+      clubMatchesClaim: !!entry.claimClub && guess.clubName === entry.claimClub,
+    } : null;
   }
 
   const pending = ours.filter(e => !e.linked);
@@ -96,10 +110,19 @@ async function buildWorklist({ refresh = false } = {}) {
     proposedCount: pending.filter(e => e.proposed).length,
     otherLeague,
     ambiguous,
-    alreadyRoled,
     // A role on a player nobody's Auth0 account resolves to. Worth surfacing: it means
     // either a hand-granted role (fine) or a link that has drifted (not fine).
-    orphanRoles: alreadyRoled.filter(p => !ours.some(e => e.linked && e.linked.id === p.id)),
+    orphanRoles: roleIndex
+      .filter(p => !ours.some(e => e.linked && e.linked.id === p.id))
+      .map(p => ({
+        id: p.id,
+        first_name: p.first_name,
+        family_name: p.family_name,
+        role: p.role,
+        statsAccess: p.statsAccess,
+        clubName: p.clubName,
+        hasAuthEmail: !!p.authEmail,
+      })),
   };
 }
 

@@ -34,15 +34,17 @@ const TENANT = [
     app_metadata: { betaAccess: true } },
 ];
 
-function stubTenant() {
+// The worklist resolves every account from two bulk indexes rather than a query per
+// account — that difference is what took the page from 12s to 0.09s, so the stubs are
+// the bulk shape.
+function stubTenant({ roleIndex = [] } = {}) {
   mock.method(Auth, 'listUsers', async () => TENANT);
   setModel('Club', 'getAll', (cb) => cb(null, CLUBS));
-  setModel('Player', 'getAllWithSiteRole', async () => []);
-  setModel('Player', 'getAuthRoleByEmail', async () => undefined);
-  setModel('Player', 'getByPlayerEmail', async (email) =>
-    email === 'matched@example.com'
-      ? { id: 77, first_name: 'Match', family_name: 'Ed', clubName: 'Aerospace', teamName: 'Aerospace A' }
-      : undefined);
+  setModel('Player', 'getSiteRoleEmailIndex', async () => roleIndex);
+  setModel('Player', 'getContactEmailIndex', async () => ([
+    { id: 77, first_name: 'Match', family_name: 'Ed', clubName: 'Aerospace',
+      teamName: 'Aerospace A', playerEmail: 'matched@example.com' },
+  ]));
 }
 
 describe('gating', () => {
@@ -99,6 +101,46 @@ describe('worklist classification', () => {
 
     const unmatched = data.ours.find(e => e.email === 'ours@example.com');
     assert.strictEqual(unmatched.proposed, null);
+  });
+
+  it('recognises an account already linked via authEmail', async () => {
+    // authEmail is the link the login lookup matches on, and it is usually NOT the
+    // player's contact address — so a linked account must be recognised by it alone.
+    stubTenant({ roleIndex: [
+      { id: 5, first_name: 'Al', family_name: 'Ready', role: 'admin', statsAccess: 0,
+        clubName: 'Hyde', authEmail: 'ours@example.com', playerEmail: 'something.else@example.com' },
+    ] });
+    const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
+    const data = await _buildWorklistForTesting();
+
+    const linked = data.ours.find(e => e.email === 'ours@example.com');
+    assert.strictEqual(linked.linked.id, 5);
+    assert.strictEqual(linked.linked.name, 'Al Ready');
+    assert.strictEqual(data.linkedCount, 1);
+    // Already linked, so no proposal should be computed for it.
+    assert.strictEqual(linked.proposed, null);
+  });
+
+  it('queries a fixed number of times, not once per account', async () => {
+    // The regression this guards: resolving each account with its own pair of queries
+    // made ~180 sequential round-trips for 90 accounts and a 12-second render. The
+    // query count must not scale with the tenant.
+    let roleCalls = 0, contactCalls = 0;
+    mock.method(Auth, 'listUsers', async () => TENANT);
+    setModel('Club', 'getAll', (cb) => cb(null, CLUBS));
+    setModel('Player', 'getSiteRoleEmailIndex', async () => { roleCalls++; return []; });
+    setModel('Player', 'getContactEmailIndex', async () => { contactCalls++; return []; });
+    // Would be called once per account by the old implementation.
+    setModel('Player', 'getAuthRoleByEmail', async () => {
+      throw new Error('per-account query — the bulk index should be used instead');
+    });
+
+    const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
+    const data = await _buildWorklistForTesting();
+
+    assert.strictEqual(roleCalls, 1);
+    assert.strictEqual(contactCalls, 1);
+    assert.ok(data.ours.length >= 2, 'sanity: the sample has accounts to resolve');
   });
 
   it('renders with the real counts', async () => {

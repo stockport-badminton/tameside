@@ -1232,34 +1232,21 @@ exports.getAuthRoleByEmail = async function(email) {
   return result[0];
 }
 
-// Find a player by their registered contact email, regardless of whether they carry a
-// site role. Distinct from getAuthRoleByEmail, which deliberately only looks at rows
-// that already have one.
+// Bulk lookups for the linking screen, which resolves ~90 Auth0 accounts at once.
 //
-// This is the "propose a link" half of the Auth0 -> player-table migration: an Auth0
-// login address that happens to match a contact address is a strong hint about which
-// player the account belongs to. Only a hint — it matches roughly a third of the time,
-// which is the whole reason player."authEmail" exists.
-exports.getByPlayerEmail = async function(email) {
-  if (!email) return undefined;
-  const result = await sql`
-    SELECT player.id::int AS id,
-           player.first_name,
-           player.family_name,
-           club.name AS "clubName",
-           team.name AS "teamName"
-    FROM player
-    JOIN club ON club.id = player.club
-    LEFT JOIN team ON team.id = player.team
-    WHERE player."playerEmail" IS NOT NULL
-      AND LOWER(pgp_sym_decrypt(player."playerEmail", ${process.env.DB_ENCODE})::text) = LOWER(${email})
-    LIMIT 1`;
-  return result[0];
-}
+// That screen resolves ~90 Auth0 accounts at once. Calling the single-row versions in a
+// loop made it ~180 sequential round-trips and a 12-second page render; these two
+// queries replace all of them. Decryption cost is per row either way — what was
+// expensive was the round-trips, not the pgp_sym_decrypt.
+//
+// Both return the decrypted addresses so the caller can index by email in JS. That is
+// deliberate rather than passing the emails in as a filter: the decrypted column can't
+// be indexed, so Postgres has to decrypt every candidate row regardless, and doing the
+// matching here keeps one query rather than one per shape of question.
 
-// Every player that already carries a site role, for the linking screen's progress
-// count and for spotting a role granted to somebody nobody expected.
-exports.getAllWithSiteRole = async function() {
+// Every player carrying a site role, with both addresses that could identify them.
+// Bounded by how many admins the league has, not by roster size.
+exports.getSiteRoleEmailIndex = async function() {
   return sql`
     SELECT player.id::int AS id,
            player.first_name,
@@ -1267,11 +1254,27 @@ exports.getAllWithSiteRole = async function() {
            player.role,
            player."statsAccess",
            club.name AS "clubName",
-           player."authEmail" IS NOT NULL AS "hasAuthEmail"
+           LOWER(pgp_sym_decrypt(player."authEmail", ${process.env.DB_ENCODE})::text) AS "authEmail",
+           LOWER(pgp_sym_decrypt(player."playerEmail", ${process.env.DB_ENCODE})::text) AS "playerEmail"
     FROM player
     JOIN club ON club.id = player.club
-    WHERE player.role IS NOT NULL OR player."statsAccess" = 1
-    ORDER BY club.name, player.family_name`;
+    WHERE player.role IS NOT NULL OR player."statsAccess" = 1`;
+}
+
+// Every player with a registered contact address, for proposing links. This is the
+// whole roster, so it is the more expensive of the two — still one query.
+exports.getContactEmailIndex = async function() {
+  return sql`
+    SELECT player.id::int AS id,
+           player.first_name,
+           player.family_name,
+           club.name AS "clubName",
+           team.name AS "teamName",
+           LOWER(pgp_sym_decrypt(player."playerEmail", ${process.env.DB_ENCODE})::text) AS "playerEmail"
+    FROM player
+    JOIN club ON club.id = player.club
+    LEFT JOIN team ON team.id = player.team
+    WHERE player."playerEmail" IS NOT NULL`;
 }
 
 // Writes the site-wide role fields. Used by the superadmin-only controls on the
