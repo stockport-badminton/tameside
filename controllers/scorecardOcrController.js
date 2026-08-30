@@ -26,9 +26,8 @@ const getRosterP = promisify(Player.getEligibleByTeamName);
 const getOutstandingFixtureP = promisify(Fixture.getOutstandingFixtureId);
 const getFixtureDetailsP = promisify(Fixture.getFixtureDetailsById);
 
-function isSuperAdmin(req) {
-  return !!(req.user && req.user._json && req.user._json['https://my-app.example.com/role'] === 'superadmin');
-}
+// Shared with every other admin-gated controller — utils/authz.js owns the claim key.
+const { isSuperAdmin } = require('../utils/authz');
 
 const BUCKET = process.env.S3_BUCKET_NAME || 'badmintontemp';
 // Prefer the S3_LOGS_STORAGE key pair (valid both locally and on Cloud Run);

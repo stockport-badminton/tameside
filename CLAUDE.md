@@ -79,7 +79,94 @@ Sensitive columns (player phone, email) are PgP-encrypted in the DB; decrypted w
 - **Session**: `express-session` with cookie name `__session`.
 - **Protected routes**: wrapped with `secured()` middleware — checks `req.isAuthenticated()`, redirects to `/login` if not.
 - **Local dev bypass**: `middleware/devMode.js` injects a mock **superadmin** `req.user` when `DEV_MODE=true` and `NODE_ENV !== 'production'`, so admin/superadmin routes can be exercised locally without a real Auth0 login. No-op in the deployed image, which sets `ENV NODE_ENV=production` in the `Dockerfile` — note Cloud Run does **not** set `NODE_ENV` itself (only the buildpack path does, and this project builds from a Dockerfile), so that ENV line is what keeps the bypass off in production. Run locally with `DEV_MODE=true NODE_ENV=development npm run dev`.
+  `DEV_ROLE` / `DEV_CLUB` / `DEV_STATS` override the mock's claims —
+  `DEV_ROLE=admin DEV_CLUB=Hyde` gives a club-scoped admin, `DEV_ROLE=none` an
+  ordinary logged-in user. Use them: the admin branch is a materially different
+  site and is the least-exercised one.
 - **JWT**: `checkJwt` middleware (RS256, JWKS from Auth0) used on API-style routes like `PATCH /club/:id` and `DELETE /club/:id`.
+- **The Auth0 tenant is shared with the Stockport league site** (`~/league-site`) —
+  same `AUTH0_DOMAIN`, two applications with different client IDs and audiences. So
+  the user directory and `app_metadata` are *one set of records read by both sites*.
+  Anything you change tenant-side affects both.
+
+### Authorization
+
+**Postgres is the single source of truth; Auth0 only proves identity.** Site-wide role
+used to live in Auth0 `app_metadata` custom claims while club roles (`teamCaptain`,
+`clubSecretary`, …) lived on the `player` table — two sources for one question. The
+claims now come from the player table (`migrations/player-auth-roles.sql`), ported from
+Stockport's `23a5cea` + `551b6e8`.
+
+- `player.role` — `'admin'` (scoped to that row's own club) or `'superadmin'`; NULL
+  means no site role. **Deliberately not derived** from the club-role flags: ticking
+  "teamCaptain" must not silently grant site access.
+- `player."statsAccess"` — lets an *admin* see the Individual/Pair Stats pages.
+- `player."authEmail"` — encrypted, like `playerEmail`. The address the Auth0 identity
+  logs in with, which is very often **not** the registered contact email (Stockport
+  measured 53 of 151 role-holders matching on `playerEmail` alone). This is the
+  login→player link; only `setAuthRole` writes it, and only when given a value, so an
+  ordinary player edit can't clear it.
+
+**The claim keys did not change — only their source.** The Auth0Strategy verify
+callback in `app.js` calls `Player.getAuthRoleByEmail()` at login and writes the answer
+onto the same three `_json` keys the app always read, via `authz.applyRoleClaims()`.
+That's what kept a ~46-call-site change small. Consequences worth knowing:
+
+- **`utils/authz.js` owns the claim strings.** Every JS reader goes through it
+  (`isSuperAdmin`, `isAdmin`, `userClub`, `hasClubAccess`, `hasStatsAccess`,
+  `scopeToAdminClub`). Only `middleware/devMode.js` also names them, because it builds
+  a mock — and it does so through `applyRoleClaims` so it can't drift. Four **views**
+  still spell the keys out longhand, so a rename has to land in the same commit;
+  `test/authz.test.js` pins the literal strings for that reason.
+- **One query per login, not per request** — the profile is serialised into the
+  session. So **a role change only takes effect on that person's next login.**
+- **A DB failure at login grants no role rather than failing the login.**
+  Authentication now touches Postgres; blocking login on a DB blip would take the whole
+  site down. Logged as `[authz] role lookup failed at login` and sent to Sentry.
+- **`club` is `'All'` for a superadmin, and `'All'` is not a club name.** Never
+  interpolate the claim into a URL or a club lookup without branching first — Stockport
+  shipped `/manage-players/club-All` to its own superadmin exactly that way (`ce6250d`).
+  `scopeToAdminClub` and `hasClubAccess` both handle it.
+- **Roles moving to the DB puts far more people in the `admin` branch.** Stockport's
+  127 club captains landed there and found a crash nobody had hit (`72f54fa`). Browse
+  as `DEV_ROLE=admin` before believing a change is safe.
+- **`app_metadata.betaAccess` looks dead and is not.** Nothing in either repo reads it;
+  a separate Auth0 **Action gates real login on it**, and the tenant is shared. The
+  PATCH in `models/auth.js` must stay.
+- Auth0-side cleanup (dropping the Action/Rule that injects `role`/`club`/`stats`) is
+  **still outstanding** and is a two-site change — don't do it until both are stable.
+
+Approving a new signup and assigning a role are one step: `GET /approve-user/:userId`
+renders `views/approve-signup.ejs` (superadmin only, pure display), and the POST does
+everything. Both used to be a single **unauthenticated GET with side effects**, so a
+mail scanner prefetching the link in the notification email could approve someone.
+
+The central error handler in `app.js` honours `err.status` for 4xx: an expected 403/404
+answers with that status and **no Sentry event**. Before this, every `next(...)`
+rendered a 500 and spent an event — and several call sites passed a bare **string**,
+which carries no status at all.
+
+#### Migration ordering
+
+`migrations/player-auth-roles.sql` **must be applied before this code is deployed**.
+Without those columns, `getAuthRoleByEmail` throws on every login and the fail-safe
+path grants nobody a role — i.e. every admin silently loses access. Additive and
+idempotent, so it's safe to run first and safe to re-run.
+
+Backfill (one-off, `scripts/` is gitignored):
+
+```bash
+node scripts/audit-auth-roles.js --csv > roles.csv   # read-only; also flags cross-league claims
+node scripts/backfill-auth-roles.js roles.csv        # dry run
+node scripts/backfill-auth-roles.js roles.csv --commit
+node scripts/audit-auth-roles.js                     # MISMATCHES must be empty before cutover
+```
+
+`audit-auth-roles.js` reports **CROSS-LEAGUE** rows separately: a `club` claim naming a
+club Tameside has never heard of belongs to a Stockport admin, courtesy of the shared
+tenant. Those are not migrated — which incidentally closes a standing leak, since a
+Stockport club admin could previously arrive here holding admin over a same-named
+Tameside club.
 
 ### Season Detection
 

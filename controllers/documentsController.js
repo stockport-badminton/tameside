@@ -6,7 +6,7 @@ const Player = require('../models/players');
 // The fillable AcroForm template (static/docs/Team Registration.pdf). Its
 // header/intro/branding are baked in; we only populate the form fields.
 const TEAM_REGISTRATION_TEMPLATE = path.join(__dirname, '../static/docs/Team Registration.pdf');
-const CLUB_CLAIM = 'https://my-app.example.com/club';
+const authz = require('../utils/authz');
 
 // Tameside's roster query is callback-style (models/players.js) — promisify it.
 const getRoster = club => new Promise((resolve, reject) =>
@@ -166,10 +166,7 @@ function nominatedOverflowRows(letter, ladies, men, limit) {
 
 // A captain may only generate their own club's form; the "All" claim (superadmin)
 // may generate any. Returns true if allowed.
-function hasClubAccess(req, club) {
-  const userClub = req.user && req.user._json && req.user._json[CLUB_CLAIM];
-  return userClub === club || userClub === 'All';
-}
+const hasClubAccess = authz.hasClubAccess;
 
 exports.teamRegistrationFormPrefilled = async function(req, res, next) {
   try {

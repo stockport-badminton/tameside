@@ -136,7 +136,9 @@ exports.new_user = function(req,res,next){
     ],
     "Subject": "new user signup",
     "TextPart": "a new user has signed up: " + req.body.user,
-      "HTMLPart": "<p>a new user has signed up: "+ req.body.user +"<br /><a href=\"https://tameside-badminton.co.uk/approve-user/"+req.body.id+"\">Approve?</a></p>",
+      // Auth0 ids contain a `|` ("auth0|abc123"), which went into the emailed link
+      // raw. Encode it so the link survives the mail client and matches the route.
+      "HTMLPart": "<p>a new user has signed up: "+ req.body.user +"<br /><a href=\"https://tameside-badminton.co.uk/approve-user/"+encodeURIComponent(req.body.id)+"\">Approve?</a></p>",
       "CustomID": "UserSignUp"
   }
   
@@ -337,9 +339,8 @@ exports.contactus_get = function(req, res,next) {
 const _promisify = fn => (...args) => new Promise((resolve, reject) =>
   fn(...args, (err, result) => err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result)));
 
-function _isSuperAdmin(req) {
-  return !!(req.user && req.user._json && req.user._json['https://my-app.example.com/role'] === 'superadmin');
-}
+// Shared with every other admin-gated controller — utils/authz.js owns the claim key.
+const { isSuperAdmin: _isSuperAdmin } = require('../utils/authz');
 
 const _getEmailsP    = _promisify(Player.getEmails);
 const _getAllClubsP  = _promisify(Club.getAll);

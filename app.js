@@ -116,6 +116,12 @@ app.locals.assetUrl = function assetUrl(urlPath) {
 // lookup fails (see models/season.js).
 const seasonModel = require('./models/season');
 const filterState = require('./middleware/filterState');
+
+// Authorization: the player table is the source of truth, resolved at login by the
+// Auth0Strategy verify callback below. utils/authz.js owns the claim key strings.
+const Player = require('./models/players');
+const authz = require('./utils/authz');
+
 app.locals.pastSeasons = [];
 seasonModel.init()
   .then(function (resolved) {
@@ -255,7 +261,39 @@ var strategy = new Auth0Strategy(
       // accessToken is the token to call Auth0 API (not needed in the most cases)
       // extraParams.id_token has the JSON Web Token
       // profile has all the information from the user
-      return done(null, profile);
+      //
+      // Authorization comes from the player table, not from Auth0 app_metadata
+      // (migrations/player-auth-roles.sql). This writes the DB answer onto the same
+      // three claim keys the rest of the app already reads, which is what kept that
+      // switch to a handful of files: ~46 read sites, views/nav.ejs and
+      // documentsController.hasClubAccess all carried on unchanged.
+      //
+      // One query per login, not per request — the whole profile is serialised into
+      // the session for its lifetime. The flip side is that a role change only takes
+      // effect on the person's next login.
+      //
+      // Note this is also what closes a cross-league leak: the Auth0 tenant is shared
+      // with the Stockport league site (same domain, different application), so
+      // app_metadata is one blob read by both. A Stockport club admin could arrive
+      // here holding admin over a same-named Tameside club. Tameside's own player and
+      // club tables can't say that.
+      var email = (profile.emails && profile.emails[0] && profile.emails[0].value)
+        || (profile._json && profile._json.email);
+
+      Player.getAuthRoleByEmail(email).then(function (authRow) {
+        authz.applyRoleClaims(profile._json, authRow);
+        return done(null, profile);
+      }).catch(function (err) {
+        // Authentication now touches Postgres, which it never used to. Failing the
+        // login here would mean a DB blip locks everyone out of a site that is
+        // otherwise serving fine, so log it and continue with no role: the site stays
+        // usable and the failure direction is toward less privilege, never more.
+        // Same principle as models/spamControls never failing closed.
+        console.error('[authz] role lookup failed at login:', err.message);
+        Sentry.captureException(err);
+        authz.applyRoleClaims(profile._json, null);
+        return done(null, profile);
+      });
     }
   );
 
@@ -352,7 +390,14 @@ app.use(filterState.middleware)
   });
 
   app.post('/new-users-v2',contactus_controller.new_user)
-  app.get('/approve-user/:userId',auth_controller.grantResultsAccess);
+
+  // Approving a signup grants login access and can grant a site role, so both halves
+  // are `secured` plus a superadmin check in the handler. The GET was previously open
+  // to anyone who knew an Auth0 user_id — and, being a GET with side effects, to any
+  // scanner that prefetched the link in the notification email. The GET now only
+  // renders; the POST does the work.
+  app.get('/approve-user/:userId', secured, auth_controller.approve_signup_get);
+  app.post('/approve-user/:userId', secured, auth_controller.approve_signup_post);
 
 
 app.get('/resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division',social_controller.social_get_result)
@@ -447,7 +492,10 @@ app.get('/dev/elo-audit', player_controller.player_elo_audit);
 app.get('/dev/elo-raw/:playerId(\\d+)', player_controller.player_elo_raw);
 
 /* GET request to update Player. */
-app.get('/player/:id(\\d+)/update', player_controller.player_update_get);
+// `secured` because this form shows decrypted contact details (email and phone) and
+// now the site-role controls too. It had no auth gate of any kind: the page was
+// readable by anyone who guessed a player id.
+app.get('/player/:id(\\d+)/update', secured, player_controller.player_update_get);
 
 app.get('/player/:id(\\d+)', player_controller.player_detail);
 
@@ -646,10 +694,37 @@ app.use(function(req, res) {
 // Run still has CPU allocated (post-response CPU is throttled), capped so the
 // error page isn't held up if Sentry is slow/unreachable.
 app.use(function(error, req, res, next) {
+    // A 4xx carried on an Error is an *expected* condition someone chose to signal —
+    // "you may not edit this player", "no such Auth0 account", "pick a player first".
+    // Without this branch all three answered 500 and spent a Sentry event each, which
+    // buries the real faults. Only 5xx is a fault.
+    const status = Number(error && error.status) || 500;
+    res.set('Cache-Control', 'private, no-store'); // never edge-cache error pages
+
+    if (status >= 400 && status < 500) {
+      res.status(status);
+      if (status === 404) {
+        return res.render('404-error', {
+          static_path: "/static",
+          title: "Can't find the page your looking for",
+          pageDescription: "Can't find the page your looking for",
+          entry: "<p>Sorry can't find that page</p>"
+        });
+      }
+      // 403/400 and friends. Reuses the 500 template purely as a generic message page
+      // — it takes a heading and a body and has no 500-specific content.
+      return res.render('500-error', {
+        pageHeading: String(status),
+        static_path: "/static",
+        title: status === 403 ? "You don't have access to that" : "That request couldn't be processed",
+        pageDescription: status === 403 ? "You don't have access to that" : "That request couldn't be processed",
+        entry: "<p>" + (error.message || 'Sorry, that request could not be processed') + "</p>"
+      });
+    }
+
     console.error(error);
     Sentry.captureException(error);
     Sentry.flush(2000).catch(() => {}).finally(function() {
-        res.set('Cache-Control', 'private, no-store'); // never edge-cache error pages
         res.status(500);
         res.render('500-error', {
             pageHeading: "500",

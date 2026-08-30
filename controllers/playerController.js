@@ -8,7 +8,7 @@ var seasonModel = require('../models/season');
 var async = require('async');
 var jp = require('jsonpath');
 const {distance, closest} = require('fastest-levenshtein');
-var Auth = require('../models/auth.js');
+const authz = require('../utils/authz');
 const { validationResult } = require('express-validator');
 const docx = require("docx");
 const fs = require("fs")
@@ -123,44 +123,23 @@ exports.find_closest_matched_player = function(req, res,next) {
 
 
 exports.manage_player_list_clubs_teams = function(req, res,next) {
-  Auth.getManagementAPIKey(function (err,apiKey){
-    if (err){
-      next(err);
-    }
-    else{
-      fetch(`https://${process.env.AUTH0_DOMAIN}/api/v2/users?q=user_id:${req.user.id}&fields=app_metadata,nickname,email`, {
-        method: 'GET',
-        headers: { "Authorization": "Bearer " + apiKey }
-      })
-      .then(response => response.json())
-      .then(function(user){
-          // The DEV_MODE mock user (middleware/devMode.js) has no Auth0 record,
-          // so this lookup returns [] — fall back to its claims. Also guards a
-          // genuinely missing record rather than crashing on user[0].app_metadata.
-          if (!user || !user[0] || !user[0].app_metadata) {
-            const j = (req.user && req.user._json) || {};
-            const claimRole = j['https://my-app.example.com/role'];
-            const claimClub = j['https://my-app.example.com/club'];
-            if (claimRole === undefined && claimClub === undefined) {
-              return next("Could not resolve your account details");
-            }
-            user = [{ app_metadata: { role: claimRole, club: claimClub }, email: req.user && req.user.email }];
-          }
-          if (user[0].app_metadata.role) {
-            if (user[0].app_metadata.role == "superadmin"){
-              var superadmin = true;
-            }
-            else {
-              var superadmin = false;
-            }
-          }
-          if (user[0].app_metadata.club) {
-            var club = user[0].app_metadata.club;
-          }
-          else {
-            var club = false;
-          }
-          if (user[0].app_metadata.club == req.params.club || user[0].app_metadata.club == "All"){
+  // This used to fetch app_metadata from the Auth0 Management API on every request —
+  // two HTTP round-trips (token, then user) for data already sitting on req.user from
+  // login. Authorization now comes from the player table via the Auth0Strategy verify
+  // callback in app.js, so the claims on req.user *are* the source of truth and the
+  // round-trip is pure latency. The DEV_MODE fallback that used to live here went with
+  // it: it existed only because the mock user has no Auth0 record to fetch.
+  //
+  // The promise wrapper is deliberately kept for its .catch(next). The body below
+  // builds a .docx and writes it synchronously, and a throw in there has to become a
+  // 500 for this request rather than an unhandled rejection.
+  Promise.resolve().then(function(){
+          const superadmin = authz.isSuperAdmin(req);
+          // 'All' for a superadmin, a club name for an admin, false for neither —
+          // passed to the view as-is, which is what it rendered before.
+          const club = authz.userClub(req) || false;
+
+          if (authz.hasClubAccess(req, req.params.club)){
             Player.getNamesClubsTeams(req.params, function(err,rows){
               // console.log(rows);
               if (err){
@@ -168,7 +147,9 @@ exports.manage_player_list_clubs_teams = function(req, res,next) {
                 return next(err)
               }
               else if (rows.length < 1){
-                return next("no club by that name");
+                const notFound = new Error("No club named " + req.params.club);
+                notFound.status = 404;
+                return next(notFound);
               }
               else {
                 
@@ -372,12 +353,14 @@ exports.manage_player_list_clubs_teams = function(req, res,next) {
           })
         }
           else {
-            return next("Sorry you don't have access to this page");
+            // A 403, not a fault. As a bare string this rendered the 500 page and
+            // reported to Sentry — the authorization check working as designed.
+            const denied = new Error("Sorry you don't have access to this page");
+            denied.status = 403;
+            return next(denied);
           }
-      })
-      .catch(next); // a throw/rejection here must not take down the process
-    }
   })
+  .catch(next); // a throw/rejection here must not take down the process
 };
 // Return list of players eligible based on team
 exports.eligible_players_list = function(req, res) {
@@ -441,16 +424,11 @@ exports.all_player_stats = function (req, res,next){
     divisionString = replacedMatches[0]
   }
   
-    if (typeof req.session.passport !== 'undefined'){
-      console.log(`sesion: ${JSON.stringify(req.session.passport.user)}`)
-      if (req.session.passport.user._json["https://my-app.example.com/role"] !== undefined){
-        if (req.session.passport.user._json["https://my-app.example.com/role"] == "admin"){
-          if (req.session.passport.user._json["https://my-app.example.com/club"] != "All" && req.session.passport.user._json["https://my-app.example.com/club"] !== undefined){
-          searchObj.club = req.session.passport.user._json["https://my-app.example.com/club"]
-          }
-        }
-      }
-    }
+    // A club admin only sees their own club here; superadmins and no-role users see
+    // everything. Read off req.user rather than the session copy — same object after
+    // deserialize, and it drops a per-request log line that printed the whole
+    // identity into Cloud Run.
+    authz.scopeToAdminClub(req, searchObj);
 
   // console.log(regexParams)
   console.log(searchObj)
@@ -520,16 +498,11 @@ exports.all_pair_stats = function (req, res,next){
     }, {});
     // console.log(searchObj)
     // console.log(req.session.user)
-    if (typeof req.session.passport !== 'undefined'){
-      console.log(`sesion: ${JSON.stringify(req.session.passport.user)}`)
-      if (req.session.passport.user._json["https://my-app.example.com/role"] !== undefined){
-        if (req.session.passport.user._json["https://my-app.example.com/role"] == "admin"){
-          if (req.session.passport.user._json["https://my-app.example.com/club"] != "All" && req.session.passport.user._json["https://my-app.example.com/club"] !== undefined){
-          searchObj.club = req.session.passport.user._json["https://my-app.example.com/club"]
-          }
-        }
-      }
-    }
+    // A club admin only sees their own club here; superadmins and no-role users see
+    // everything. Read off req.user rather than the session copy — same object after
+    // deserialize, and it drops a per-request log line that printed the whole
+    // identity into Cloud Run.
+    authz.scopeToAdminClub(req, searchObj);
     
   }
   else {
@@ -755,9 +728,7 @@ async function recalcSeasonElo(seasonParam, carryoverRatings = {}) {
 }
 
 function isEloAdmin(req) {
-  const isSuperAdmin = req.user && req.user._json &&
-    req.user._json['https://my-app.example.com/role'] === 'superadmin'
-  return isSuperAdmin || (process.env.DEV_MODE === 'true' && process.env.NODE_ENV !== 'production')
+  return authz.isSuperAdmin(req) || (process.env.DEV_MODE === 'true' && process.env.NODE_ENV !== 'production')
 }
 
 // GET /players/eloFullRecalc?season=20242025  (superadmin or DEV_MODE only)
@@ -1070,6 +1041,21 @@ exports.player_batch_update = function(req, res){
 
 // Handle Player delete on POST
 
+// Who may edit this player row at all: a superadmin may edit anyone, a club admin
+// only players in their own club. Nobody else — before this, the GET had no auth gate
+// whatsoever and the POST had only `secured`, so any logged-in user could read and
+// rewrite any player's decrypted contact details and club-role flags.
+//
+// Returns a 403-shaped Error rather than calling next() bare, so the central handler
+// can tell "not allowed" from "not found".
+function assertPlayerEditAccess(req, playerRow) {
+  if (authz.isSuperAdmin(req)) return null;
+  if (authz.isAdmin(req) && authz.hasClubAccess(req, playerRow.clubName)) return null;
+  const err = new Error("You don't have access to edit this player");
+  err.status = 403;
+  return err;
+}
+
 // Display Player update form on GET
 exports.player_update_get = function(req, res,next) {
   Player.getPlayerDetailsbyId(req.params.id,function(err,result){
@@ -1081,12 +1067,18 @@ exports.player_update_get = function(req, res,next) {
       return next()
     }
     else {
+      const denied = assertPlayerEditAccess(req, result[0]);
+      if (denied) return next(denied);
 
       res.render('player_update_form', {
            static_path: '/static',
            title : "Pair Stats",
            pageDescription : "Geek out on Stockport League Player stats!",
            result : result,
+           // Gates the Site Role / Stats Access controls in the view. The POST
+           // re-derives this rather than trusting it back, so this only decides what
+           // is rendered — it is not the security boundary.
+           canEditRole : authz.isSuperAdmin(req),
            canonical:("https://" + req.get("host") + req.originalUrl).replace("www.'","").replace(".com",".co.uk").replace("-badders.herokuapp","-badminton")
        });
     }
@@ -1094,27 +1086,50 @@ exports.player_update_get = function(req, res,next) {
 };
 
 // Handle Player update on POST
-// Handle Player update on POST
-exports.player_update_post = function(req, res) {
-  console.log("inside player_update_post")
-  let patchObj = {
-    "tablename":"player",
-    "fields":[
-        "id","first_name","family_name","gender","playerTel","playerEmail","teamCaptain","clubSecretary","matchSecrertary","treasurer"
-    ],
-    "data":[[req.params.id,req.body.first_name,req.body.family_name,req.body.gender,req.body.playerTel,req.body.playerEmail, req.body.teamCaptain == 1 ? 1 :0, req.body.clubSecretary == 1 ? 1 :0, req.body.matchSecrertary == 1 ? 1 :0, req.body.treasurer == 1 ? 1 : 0]
-  ]
-}
- console.log('patchObj')
- console.log(patchObj)
-  Player.updateBulk(patchObj, function(err,row){
-    if (err){
-      res.send(err);
-      console.log(err)
+//
+// The row is loaded before anything is written, for two reasons: the club-scoped
+// authorization check needs to know which club this player is in, and the site-role
+// fields must only be honoured for a superadmin. `secured` alone used to be the whole
+// check here, which meant any logged-in user could rewrite any player.
+exports.player_update_post = function(req, res, next) {
+  Player.getPlayerDetailsbyId(req.params.id, function(err, existing){
+    if (err) return next(err);
+    if (!existing || !existing.length) return next();
+
+    const denied = assertPlayerEditAccess(req, existing[0]);
+    if (denied) return next(denied);
+
+    const patchObj = {
+      "tablename":"player",
+      // otherComms was missing from this list even though the column and the form
+      // control both existed, so every save silently cleared it.
+      "fields":[
+          "id","first_name","family_name","gender","playerTel","playerEmail","teamCaptain","clubSecretary","matchSecrertary","treasurer","otherComms"
+      ],
+      "data":[[req.params.id,req.body.first_name,req.body.family_name,req.body.gender,req.body.playerTel,req.body.playerEmail, req.body.teamCaptain == 1 ? 1 :0, req.body.clubSecretary == 1 ? 1 :0, req.body.matchSecrertary == 1 ? 1 :0, req.body.treasurer == 1 ? 1 : 0, req.body.otherComms == 1 ? 1 : 0]
+      ]
     }
-    else {
-      console.log("redirecting")
-      res.redirect(`/player/${req.params.id}/update`);
-    }
+
+    Player.updateBulk(patchObj, function(err,row){
+      if (err) return next(err);
+
+      // Site role and stats access are superadmin-only, and this is where that is
+      // actually enforced: the view hides the controls for everyone else, but a club
+      // admin can still POST the fields by hand, so they are read only after the
+      // check rather than trusted because the form omitted them. A superadmin who
+      // submits the form is authoritative — no role posted means no role.
+      if (!authz.isSuperAdmin(req)) {
+        return res.redirect(`/player/${req.params.id}/update`);
+      }
+
+      // Never touches authEmail: that link is what the login lookup matches on, and
+      // this form knows nothing about it (see models/players.setAuthRole).
+      Player.setAuthRole(req.params.id, {
+        role: req.body.role || null,
+        statsAccess: req.body.statsAccess == 1,
+      }).then(function(){
+        res.redirect(`/player/${req.params.id}/update`);
+      }).catch(next);
+    })
   })
 };

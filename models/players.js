@@ -1173,11 +1173,87 @@ exports.getById = async function(playerId,done){
   done(null,result);
 }
 
+// "otherComms" was missing here even though the column has existed as long as the
+// other four club-role flags, so the edit form silently rendered it unchecked and
+// then cleared it on save. role/statsAccess are new (migrations/player-auth-roles.sql)
+// and are rendered superadmin-only by the view.
+// try/catch, not the `.catch(err => done(err))` idiom the rest of this file still
+// uses. That idiom calls done(err) and then falls through to done(null, undefined),
+// so the caller runs twice: once on the error and once on an empty result. Here that
+// turned a failing query into a 404 and then threw inside the already-sent response
+// ("req.next is not a function"). It matters more than usual on this function, because
+// its result is now what the per-row authorization check reads.
 exports.getPlayerDetailsbyId = async function(playerId, done){
-  let result = await sql`select id, first_name, family_name, pgp_sym_decrypt("playerEmail",${process.env.DB_ENCODE}) as "playerEmail", pgp_sym_decrypt("playerTel",${process.env.DB_ENCODE}) as "playerTel", gender, "teamCaptain", "clubSecretary", treasurer, "matchSecrertary" from player where id = ${playerId}`.catch(err =>{
+  // clubName (not just the club id) because the club claim used for per-row
+  // authorization on this form is a club *name* — see utils/authz.hasClubAccess.
+  try {
+    const result = await sql`select player.id, player.first_name, player.family_name, pgp_sym_decrypt(player."playerEmail",${process.env.DB_ENCODE}) as "playerEmail", pgp_sym_decrypt(player."playerTel",${process.env.DB_ENCODE}) as "playerTel", player.gender, player.club, club.name as "clubName", player."teamCaptain", player."clubSecretary", player.treasurer, player."matchSecrertary", player."otherComms", player.role, player."statsAccess" from player join club on club.id = player.club where player.id = ${playerId}`;
+    return done(null, result);
+  } catch (err) {
     return done(err);
-  })
-  done(null,result)
+  }
+}
+
+// Site-wide role lookup by login email, for the Auth0Strategy verify callback in
+// app.js to enrich req.user at login. Postgres — not Auth0 app_metadata — is the
+// source of truth for authorization; see migrations/player-auth-roles.sql.
+//
+// Bounded on purpose. This decrypts an email column to compare it, and it runs on
+// every login, so the WHERE restricts the work to rows that could plausibly carry
+// a role (a partial index in the migration covers exactly that set). It is not a
+// full-roster scan — it is bounded by how many admins the league ever has.
+//
+// Matches EITHER "authEmail" (the address the Auth0 identity logs in with) or the
+// older "playerEmail" (registered contact address). Both, because the two are
+// frequently different people-facts about the same person: Stockport found only
+// 53 of 151 role-holders matched on playerEmail alone.
+//
+// Returns undefined when there is no match, which the caller reads as "no
+// site-wide role" — the same meaning an absent Auth0 claim had.
+exports.getAuthRoleByEmail = async function(email) {
+  if (!email) return undefined;
+  const result = await sql`
+    SELECT player.id::int AS id,
+           player.first_name,
+           player.family_name,
+           player.role,
+           player."statsAccess",
+           club.name AS "clubName"
+    FROM player
+    JOIN club ON club.id = player.club
+    WHERE (player.role IS NOT NULL OR player."statsAccess" = 1)
+      AND (
+        (player."authEmail" IS NOT NULL
+          AND LOWER(pgp_sym_decrypt(player."authEmail", ${process.env.DB_ENCODE})::text) = LOWER(${email}))
+        OR (player."playerEmail" IS NOT NULL
+          AND LOWER(pgp_sym_decrypt(player."playerEmail", ${process.env.DB_ENCODE})::text) = LOWER(${email}))
+      )
+    LIMIT 1`;
+  return result[0];
+}
+
+// Writes the site-wide role fields. Used by the superadmin-only controls on the
+// player edit form and by the one-off backfill script.
+//
+// authEmail is only touched when a value is actually supplied, so an ordinary
+// player edit — which knows nothing about it — can never clear the link that the
+// login lookup depends on.
+exports.setAuthRole = async function(playerId, { role, statsAccess, authEmail } = {}) {
+  if (authEmail) {
+    return sql`
+      UPDATE player
+      SET role = ${role || null},
+          "statsAccess" = ${statsAccess ? 1 : 0},
+          "authEmail" = pgp_sym_encrypt(${authEmail}, ${process.env.DB_ENCODE})
+      WHERE id = ${playerId}
+      RETURNING id`;
+  }
+  return sql`
+    UPDATE player
+    SET role = ${role || null},
+        "statsAccess" = ${statsAccess ? 1 : 0}
+    WHERE id = ${playerId}
+    RETURNING id`;
 }
 
 exports.getPlayerClubandTeamById = async function(playerId,done){

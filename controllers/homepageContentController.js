@@ -15,9 +15,8 @@ const SANITIZE_OPTS = {
   }
 };
 
-function isSuperAdmin(req) {
-  return !!(req.user && req.user._json && req.user._json['https://my-app.example.com/role'] === 'superadmin');
-}
+// Shared with every other admin-gated controller — utils/authz.js owns the claim key.
+const { isSuperAdmin } = require('../utils/authz');
 
 // NB: page titles must not contain "Homepage" or "Event" — header.ejs branches
 // on those substrings and dereferences homepage-only locals.

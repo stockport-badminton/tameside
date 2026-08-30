@@ -5,7 +5,6 @@ let Player = require("../models/players");
 let Game = require("../models/game");
 let HomepageContent = require("../models/homepageContent");
 let SiteSettings = require("../models/siteSettings");
-let Auth = require("../models/auth");
 const ejs = require('ejs');
 const ICAL = require("ical.js");
 const mailjet = require ('node-mailjet').apiConnect(process.env.MAILJET_KEY, process.env.MAILJET_SECRET)
@@ -17,6 +16,9 @@ const seasonModel = require("../models/season");
 const { body, validationResult } = require("express-validator");
 const { sanitizeBody } = require("express-validator");
 const { hasWinner, hasValidMargin } = require("../utils/scorecardValidation");
+// Shared with every other admin-gated controller — utils/authz.js owns the claim key.
+const authz = require("../utils/authz");
+const { isSuperAdmin } = authz;
 
 const promisify = (fn) => (...args) => new Promise((resolve, reject) =>
   fn(...args, (err, result) => (err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result))));
@@ -289,26 +291,13 @@ exports.fixture_detail_byDivision = function (req, res, next) {
             division: divisionString,
             nearestDate: nearestFixture ? nearestFixture.date : undefined
           };
-          if (req.path.search("admin") != -1) {
-            if (
-              req.user._json["https://my-app.example.com/role"] !== undefined
-            ) {
-              if (
-                req.user._json["https://my-app.example.com/role"] == "admin"
-              ) {
-                renderObject.admin = true;
-                renderObject.superadmin = false;
-                renderObject.user = req.user;
-              }
-              if (
-                req.user._json["https://my-app.example.com/role"] ==
-                "superadmin"
-              ) {
-                renderObject.admin = true;
-                renderObject.superadmin = true;
-                renderObject.user = req.user;
-              }
-            }
+          // `admin` is "has any site role", `superadmin` is the stronger one — the
+          // view branches on both. Neither is set for a user with no role, so the
+          // template's `typeof superadmin !== 'undefined'` guards still hold.
+          if (req.path.search("admin") != -1 && authz.role(req) !== undefined) {
+            renderObject.admin = true;
+            renderObject.superadmin = authz.isSuperAdmin(req);
+            renderObject.user = req.user;
           }
           res.render("fixtures-results" + type, renderObject);
         }
@@ -349,18 +338,9 @@ exports.fixture_detail_byDivision = function (req, res, next) {
       const [key, value] = str.split("-");
       return { ...acc, [key]: value };
     }, {});
-    // console.log(req.session.user)
+    // Only the /admin view is club-scoped; the public results pages show everything.
     if (req.path.search("admin") != -1) {
-      if (req.user._json["https://my-app.example.com/role"] !== undefined) {
-        if (req.user._json["https://my-app.example.com/role"] == "admin") {
-          if (
-            req.user._json["https://my-app.example.com/club"] != "All" &&
-            req.user._json["https://my-app.example.com/club"] !== undefined
-          ) {
-            searchObj.club = req.user._json["https://my-app.example.com/club"];
-          }
-        }
-      }
+      authz.scopeToAdminClub(req, searchObj);
     }
  // console.log(searchObj);
     Fixture.getFixtureDetails(searchObj, function (err, result) {
@@ -459,21 +439,10 @@ exports.fixture_detail_byDivision = function (req, res, next) {
           division: divisionString,
           nearestDate: nearestFixture ? nearestFixture.date : undefined
         };
-        if (req.path.search("admin") != -1) {
-          if (req.user._json["https://my-app.example.com/role"] !== undefined) {
-            if (req.user._json["https://my-app.example.com/role"] == "admin") {
-              renderObject.admin = true;
-              renderObject.superadmin = false;
-              renderObject.user = req.user;
-            }
-            if (
-              req.user._json["https://my-app.example.com/role"] == "superadmin"
-            ) {
-              renderObject.admin = true;
-              renderObject.superadmin = true;
-              renderObject.user = req.user;
-            }
-          }
+        if (req.path.search("admin") != -1 && authz.role(req) !== undefined) {
+          renderObject.admin = true;
+          renderObject.superadmin = authz.isSuperAdmin(req);
+          renderObject.user = req.user;
         }
         if (req.path.indexOf("fixtures") > -1) {
           res.status(200);
@@ -619,28 +588,27 @@ exports.email_scorecard = function (req, res, next) {
       });
     }
 
-    // DEV_MODE's mock user already carries an email (middleware/devMode.js) —
-    // skip the live Auth0 Management API round-trip so this page renders
-    // locally/in tests without real Auth0 credentials. Same gating as the
-    // devMode middleware itself, so it's a no-op on Cloud Run.
-    if (process.env.DEV_MODE === 'true' && process.env.NODE_ENV !== 'production') {
-      return renderWithEmail(req.user.email);
+    // The logged-in user's email, which is all this page ever wanted. It used to
+    // cost two Auth0 Management API round-trips (fetch a token, then look the user
+    // up by id) for a value passport already put on req.user at login — plus a
+    // DEV_MODE branch that existed purely to skip those calls when there are no real
+    // Auth0 credentials to make them with. Both are gone.
+    //
+    // Three shapes because passport-auth0 fills them inconsistently across identity
+    // providers, and middleware/devMode.js's mock sets only the last one.
+    const email = (req.user && req.user.emails && req.user.emails[0] && req.user.emails[0].value)
+      || (req.user && req.user._json && req.user._json.email)
+      || (req.user && req.user.email);
+
+    if (!email) {
+      // getMissingScorecardPhotos filters on it, so without an email this page would
+      // silently show someone else's outstanding scorecards, or all of them.
+      const noEmail = new Error("Could not determine your email address — try logging out and back in.");
+      noEmail.status = 400;
+      return next(noEmail);
     }
 
-    Auth.getManagementAPIKey(function (err, apiKey) {
-      if (err) {
-        return next(err);
-      }
-      // console.log(req.session)
-      fetch(`https://${process.env.AUTH0_DOMAIN}/api/v2/users?q=user_id:${req.user.id}&fields=app_metadata,nickname,email`, {
-        headers: { Authorization: "Bearer " + apiKey }
-      })
-      .then(r => r.json())
-      .then(function(user) {
-        renderWithEmail(user[0].email);
-      })
-      .catch(err => { console.log(err); return next(err); });
-    });
+    return renderWithEmail(email);
   })
 };
 
@@ -1795,10 +1763,6 @@ exports.add_scorecard_photo = function(req,res,next){
  * from the rearrangement flow, which archives the fixture and inserts a new
  * one.
  * ------------------------------------------------------------------ */
-function isSuperAdmin(req) {
-  return !!(req.user && req.user._json && req.user._json['https://my-app.example.com/role'] === 'superadmin');
-}
-
 exports.admin_fixture_date_update = function (req, res, next) {
   if (!isSuperAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
   const date = (req.body.date || '').trim();

@@ -45,8 +45,44 @@
             <label for="matchSecrertary" class="btn btn-outline-primary">match Secretary</label>
             <input type="checkbox" class="btn-check" id="treasurer" name="treasurer" value="1" <%= result[0].treasurer == 1 ? 'checked':'' %>>
             <label for="treasurer" class="btn btn-outline-primary">Treasurer</label>
+            <!-- The column and this control both existed, but otherComms was absent
+                 from the POST handler's field list, so saving always cleared it. -->
+            <input type="checkbox" class="btn-check" id="otherComms" name="otherComms" value="1" <%= result[0].otherComms == 1 ? 'checked':'' %>>
+            <label for="otherComms" class="btn btn-outline-primary">Other Comms</label>
           </div>
       </div>
+
+      <!-- Site-wide authorization. These live on the player table rather than in Auth0
+           app_metadata (migrations/player-auth-roles.sql) and are read at login by the
+           Auth0Strategy verify callback, so a change here takes effect on that person's
+           next login, not immediately.
+
+           Superadmin-only, and the POST handler re-checks that rather than trusting
+           this template to have hidden the fields — a club admin can still craft the
+           request by hand. -->
+      <% if (typeof canEditRole !== 'undefined' && canEditRole) { %>
+        <div class="row mt-3">
+          <div class="col-12">
+            <hr>
+            <h5>Site access <small class="text-muted">(superadmin only)</small></h5>
+          </div>
+          <div class="col-6 mt-2">
+            <label for="role" class="form-label">Site Role</label>
+            <select name="role" id="role" class="form-control">
+              <option value="" <%= !result[0].role ? 'selected' : '' %>>None</option>
+              <option value="admin" <%= result[0].role === 'admin' ? 'selected' : '' %>>Admin (own club only)</option>
+              <option value="superadmin" <%= result[0].role === 'superadmin' ? 'selected' : '' %>>Superadmin (all clubs)</option>
+            </select>
+            <div class="form-text">An Admin is scoped to <%= result[0].clubName %>.</div>
+          </div>
+          <div class="btn-group-vertical col-6 mt-2">
+            <input type="checkbox" class="btn-check" id="statsAccess" name="statsAccess" value="1" <%= result[0].statsAccess == 1 ? 'checked':'' %>>
+            <label for="statsAccess" class="btn btn-outline-primary">Stats Access</label>
+            <div class="form-text">Lets an Admin see the Individual and Pair Stats pages. Superadmins always can.</div>
+          </div>
+        </div>
+      <% } %>
+
       <div class="row mt-1">
         <button id="submit" type="submit" class="btn btn-primary">Submit</button>
       </div>

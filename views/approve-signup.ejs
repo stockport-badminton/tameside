@@ -1,0 +1,125 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<!-- Approve a new signup AND link it to a player row, in one step. These used to be
+     two disconnected jobs: click the emailed link (which approved them), then
+     separately hunt down the right player in /player/:id/update to grant a role.
+
+     Everything here posts; the GET that renders this page writes nothing. -->
+<div class="container my-4" style="max-width: 720px;">
+  <h3>Approve New Signup</h3>
+
+  <p><strong>Email:</strong> <%= authUser.email %></p>
+  <% if (authUser.name && authUser.name !== authUser.email) { %>
+    <p><strong>Name:</strong> <%= authUser.name %></p>
+  <% } %>
+
+  <% if (existingLink) { %>
+    <div class="alert alert-warning">
+      This email already resolves to
+      <strong><%= existingLink.first_name %> <%= existingLink.family_name %></strong>
+      (<%= existingLink.clubName %>, role: <%= existingLink.role || 'none' %><% if (existingLink.statsAccess == 1) { %>, stats access<% } %>).
+      Submitting below links the account to whichever player you pick instead.
+    </div>
+  <% } %>
+
+  <form method="post" action="/approve-user/<%= encodeURIComponent(userId) %>">
+    <div class="mb-3" style="position:relative;">
+      <label for="playerSearch" class="form-label">Player to link this account to</label>
+      <input type="text" class="form-control" id="playerSearch" placeholder="Start typing a name…" autocomplete="off">
+      <div id="playerSearchResults" class="list-group" style="display:none; position:absolute; z-index:10; width:100%; max-height:260px; overflow-y:auto;"></div>
+    </div>
+
+    <input type="hidden" name="playerId" id="playerId">
+    <div id="selectedPlayer" class="mb-3" style="display:none;">
+      Selected: <strong id="selectedPlayerName"></strong>
+      <button type="button" id="clearPlayer" class="btn btn-sm btn-link">change</button>
+    </div>
+
+    <div class="mb-3">
+      <label for="role" class="form-label">Site Role</label>
+      <select name="role" id="role" class="form-control">
+        <option value="">None — approve login only</option>
+        <option value="admin">Admin (own club only)</option>
+        <option value="superadmin">Superadmin (all clubs)</option>
+      </select>
+      <div class="form-text">
+        Most new signups need no role: approving them is what lets them log in and
+        enter their own results.
+      </div>
+    </div>
+
+    <div class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" id="statsAccess" name="statsAccess" value="1">
+      <label class="form-check-label" for="statsAccess">
+        Stats access <span class="text-muted">— lets an Admin see Individual/Pair Stats</span>
+      </label>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="submitBtn" disabled>Approve &amp; Assign</button>
+  </form>
+</div>
+
+<script>
+  (function() {
+    var searchInput = document.getElementById('playerSearch');
+    var searchResult = document.getElementById('playerSearchResults');
+    var playerIdInput = document.getElementById('playerId');
+    var selectedPlayerDiv = document.getElementById('selectedPlayer');
+    var selectedPlayerName = document.getElementById('selectedPlayerName');
+    var clearBtn = document.getElementById('clearPlayer');
+    var submitBtn = document.getElementById('submitBtn');
+    var searchTimer;
+
+    // textContent throughout, never innerHTML: player names are user-entered data and
+    // this is the highest-privilege page on the site.
+    function runSearch() {
+      var q = searchInput.value.trim();
+      if (q.length < 2) { searchResult.style.display = 'none'; return; }
+
+      fetch('/api/players/search?q=' + encodeURIComponent(q))
+        .then(function(r) { return r.json(); })
+        .then(function(players) {
+          searchResult.textContent = '';
+          if (!players.length) { searchResult.style.display = 'none'; return; }
+          players.forEach(function(p) {
+            var item = document.createElement('a');
+            item.href = '#';
+            item.className = 'list-group-item list-group-item-action py-1 small';
+            var strong = document.createElement('strong');
+            strong.textContent = p.name;
+            var span = document.createElement('span');
+            span.className = 'text-muted';
+            span.textContent = p.teamName ? ' — ' + p.teamName : '';
+            item.appendChild(strong);
+            item.appendChild(span);
+            item.addEventListener('click', function(e) {
+              e.preventDefault();
+              playerIdInput.value = p.id;
+              selectedPlayerName.textContent = p.name + (p.teamName ? ' (' + p.teamName + ')' : '');
+              selectedPlayerDiv.style.display = 'block';
+              searchInput.value = '';
+              searchResult.style.display = 'none';
+              submitBtn.disabled = false;
+            });
+            searchResult.appendChild(item);
+          });
+          searchResult.style.display = 'block';
+        })
+        .catch(function() { searchResult.style.display = 'none'; });
+    }
+
+    searchInput.addEventListener('input', function() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(runSearch, 250);
+    });
+
+    clearBtn.addEventListener('click', function() {
+      playerIdInput.value = '';
+      selectedPlayerDiv.style.display = 'none';
+      submitBtn.disabled = true;
+    });
+  })();
+</script>
+
+<%- include('footer.ejs') %>

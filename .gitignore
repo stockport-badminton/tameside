@@ -25,6 +25,10 @@ static/docs/Mellor.docx
 .claude/
 .vscode/
 
+# One-off operational scripts (auth-role audit/backfill, etc). Deliberately not
+# committed: they hold cutover-specific assumptions and are run by hand once.
+scripts/
+
 # local scorecard-OCR proof-of-concept (not for main)
 scorecard-poc/
 uat-cards/
