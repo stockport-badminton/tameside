@@ -153,20 +153,49 @@ Without those columns, `getAuthRoleByEmail` throws on every login and the fail-s
 path grants nobody a role — i.e. every admin silently loses access. Additive and
 idempotent, so it's safe to run first and safe to re-run.
 
-Backfill (one-off, `scripts/` is gitignored):
+Backfill (one-off, `scripts/` is gitignored). `audit-auth-roles.js` is read-only and
+runs on either side of the migration, reporting which mode it's in; `backfill` refuses
+to run before it.
 
 ```bash
-node scripts/audit-auth-roles.js --csv > roles.csv   # read-only; also flags cross-league claims
-node scripts/backfill-auth-roles.js roles.csv        # dry run
+node scripts/audit-auth-roles.js                     # 1. read-only. pre-migration: how many
+                                                     #    role-holders match on playerEmail alone
+# 2. apply migrations/player-auth-roles.sql
+node scripts/audit-auth-roles.js --csv > roles.csv   # 3. now proposes dbPlayerId per account
+# 4. review roles.csv: fill dbPlayerId where blank, delete stale/test accounts
+node scripts/backfill-auth-roles.js roles.csv        # 5. dry run
 node scripts/backfill-auth-roles.js roles.csv --commit
-node scripts/audit-auth-roles.js                     # MISMATCHES must be empty before cutover
+node scripts/audit-auth-roles.js                     # 6. MISMATCHES must be empty. Then deploy.
 ```
 
-`audit-auth-roles.js` reports **CROSS-LEAGUE** rows separately: a `club` claim naming a
-club Tameside has never heard of belongs to a Stockport admin, courtesy of the shared
-tenant. Those are not migrated — which incidentally closes a standing leak, since a
-Stockport club admin could previously arrive here holding admin over a same-named
-Tameside club.
+#### What the audit actually found (2026-08-30, pre-migration)
+
+203 accounts in the tenant; **155 carry `role`/`club`/`stats`** (150 `admin`, 2
+`superadmin`, 3 club-only; only **3** have the `stats` flag). Just **34 of the 155
+(22%)** match a player row on `playerEmail` alone — a worse rate than Stockport's
+53/151, and the concrete argument for `player."authEmail"`.
+
+**62 of the 155 are the other league's**, which is the headline. Cross-league is
+decided by *two* signals, because neither is sufficient:
+
+- the `club` claim names a club Tameside has never heard of — catches the obvious
+  ones, misses anyone whose Stockport club shares a name with a Tameside one;
+- `app_metadata.league === 'stockport'` — a key **this codebase never read**, and
+  authoritative when set, but present on only 51 of 203 accounts.
+
+The overlap is the dangerous part: **8 accounts say `league=stockport` while their club
+also exists here** (Alderley Park, College Green, Disley). The club-name test alone
+would have granted all 8 Tameside admin. They're skipped by the backfill and printed
+under their own heading for review rather than silently dropped — someone could
+legitimately hold a role in both leagues, and `league` only records one.
+
+So this migration closes a live leak, not a theoretical one.
+
+Other keys in the tenant, for reference: `betaAccess` (162 — the login gate),
+`messeradmin` (1, Stockport's), `team` (1). Anything not `role`/`club`/`stats` belongs
+to the other site or to Auth0 itself; leave it alone.
+
+`roles.csv` is gitignored — it holds every role-holder's email address.
 
 ### Season Detection
 

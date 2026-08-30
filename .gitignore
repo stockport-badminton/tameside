@@ -29,6 +29,10 @@ static/docs/Mellor.docx
 # committed: they hold cutover-specific assumptions and are run by hand once.
 scripts/
 
+# Output of scripts/audit-auth-roles.js --csv. Every role-holder's email address —
+# never commit it.
+roles.csv
+
 # local scorecard-OCR proof-of-concept (not for main)
 scorecard-poc/
 uat-cards/
