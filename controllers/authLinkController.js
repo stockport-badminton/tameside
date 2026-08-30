@@ -168,8 +168,11 @@ exports.link = async function(req, res, next) {
       authEmail: user.email,
     });
 
+    // #worklist so the next account is on screen straight away. Without it the redirect
+    // lands at the top of the page and every one of ~90 iterations starts with a scroll.
     res.redirect('/admin/link-auth-accounts?linked=' +
-      encodeURIComponent(user.email) + '&as=' + encodeURIComponent(target.role || 'no role'));
+      encodeURIComponent(user.email) + '&as=' + encodeURIComponent(target.role || 'no role') +
+      '#worklist');
   } catch (err) {
     next(err);
   }

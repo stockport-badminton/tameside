@@ -9,52 +9,51 @@
      the columns are written but unread. -->
 <div class="container my-4">
 
-  <h3>Link Auth0 accounts to players</h3>
-  <p class="text-muted">
-    Site roles now live on the player table. Every Tameside role-holder needs linking to
-    a player row before this can be deployed — anyone still unlinked loses their access
-    at cutover.
-  </p>
-
-  <% if (flash) { %>
-    <div class="alert alert-success"><%= flash %></div>
-  <% } %>
-
-  <!-- Progress. The denominator is Tameside role-holders only; the other league's
-       accounts are listed separately at the bottom and are not work. -->
   <%
     const total = data.ours.length;
     const done = data.linkedCount;
     const pct = total ? Math.round((done / total) * 100) : 100;
   %>
-  <div class="mb-3">
-    <div class="d-flex justify-content-between">
+
+  <!-- Deliberately compact above the table. Linking is a ~90-iteration loop, and every
+       row of chrome here is scrolled past on every one of them. The POST redirects to
+       #worklist, so progress and the confirmation both have to sit inside that anchor
+       rather than above it — otherwise you jump past the feedback you just earned. -->
+  <div class="d-flex justify-content-between align-items-baseline flex-wrap">
+    <h5 class="mb-1">Link Auth0 accounts to players</h5>
+    <span class="small text-muted">
+      Roles live on the player table now — anyone still unlinked loses access at cutover.
+      <a href="/admin/link-auth-accounts?refresh=1">Refresh from Auth0</a>
+    </span>
+  </div>
+
+  <div id="worklist" style="scroll-margin-top: 0.5rem;">
+    <div class="d-flex justify-content-between align-items-baseline">
       <strong><%= done %> of <%= total %> linked</strong>
-      <span class="text-muted">
+      <span class="small text-muted">
         <%= data.proposedCount %> of the remaining <%= data.pending.length %> have a suggested match
       </span>
     </div>
-    <div class="progress" style="height: 8px;">
+    <div class="progress mb-2" style="height: 6px;">
       <div class="progress-bar" role="progressbar" style="width: <%= pct %>%;"
            aria-valuenow="<%= pct %>" aria-valuemin="0" aria-valuemax="100"></div>
     </div>
+
+    <!-- One line, not a full-width alert block: it is read once per iteration. -->
+    <% if (flash) { %>
+      <div class="alert alert-success py-1 px-2 mb-2 small" role="status"><%= flash %></div>
+    <% } %>
+
     <% if (!data.pending.length) { %>
-      <div class="alert alert-success mt-3 mb-0">
+      <div class="alert alert-success">
         Nothing left to link. Re-run <code>node scripts/audit-auth-roles.js</code> and
         check the cutover gate, then deploy.
       </div>
     <% } %>
   </div>
 
-  <p>
-    <a class="btn btn-sm btn-outline-secondary" href="/admin/link-auth-accounts?refresh=1">
-      Refresh from Auth0
-    </a>
-    <span class="text-muted ms-2">The tenant list is cached for 5 minutes.</span>
-  </p>
-
   <% if (data.pending.length) { %>
-    <h5 class="mt-4">Needs linking (<%= data.pending.length %>)</h5>
+    <h6 class="text-muted mt-2">Needs linking (<%= data.pending.length %>)</h6>
     <div class="table-responsive">
       <table class="table table-sm align-middle">
         <thead>
