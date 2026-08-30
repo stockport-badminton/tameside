@@ -338,6 +338,7 @@ let league_controller = require(__dirname + '/controllers/leagueController');
 let club_controller = require(__dirname + '/controllers/club_controller');
 let contactus_controller = require(__dirname + '/controllers/contactusController');
 let spam_admin_controller = require(__dirname + '/controllers/spamAdminController');
+let auth_link_controller = require(__dirname + '/controllers/authLinkController');
 const spamGate = require(__dirname + '/middleware/spamGate');
 let player_controller = require(__dirname + '/controllers/playerController');
 let userInViews = require(__dirname + '/models/userInViews');
@@ -537,6 +538,11 @@ app.post('/admin/site-settings', secured, site_settings_controller.update);
 
 // Blocklists and the submission log. `secured` proves someone is logged in; the controller
 // checks superadmin, same as the other /admin screens.
+// One-time worklist for the Auth0 -> player-table authorization migration. Superadmin
+// check is in the controller, as with every other /admin page.
+app.get('/admin/link-auth-accounts', secured, auth_link_controller.list);
+app.post('/admin/link-auth-accounts', secured, auth_link_controller.link);
+
 app.get('/admin/spam', secured, spam_admin_controller.form);
 app.post('/admin/spam', secured, spam_admin_controller.add);
 app.post('/admin/spam/:id/active', secured, spam_admin_controller.toggle);

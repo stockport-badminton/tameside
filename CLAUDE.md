@@ -153,9 +153,28 @@ Without those columns, `getAuthRoleByEmail` throws on every login and the fail-s
 path grants nobody a role — i.e. every admin silently loses access. Additive and
 idempotent, so it's safe to run first and safe to re-run.
 
+Migrations have a runner now: `node tools/run-migration.js <file.sql>` (dry run by
+default, `--commit` to apply, `--list` to see them). It sends the file whole via the
+simple query protocol rather than splitting on semicolons — `player-auth-roles.sql`
+contains a `DO $$ … $$` block whose body has its own semicolons, and splitting mangles
+it. Applied to production 2026-08-30.
+
+**Linking is a screen, not a spreadsheet**: `/admin/link-auth-accounts` (superadmin, in
+the Admin nav) is the worklist — it lists every Tameside role-holder still needing a
+player, offers a one-click link where the login email happens to match a contact email,
+and a search-and-link for the rest. The role it writes comes from the **tenant**, never
+from the form body, so a tampered POST can't mint a superadmin;
+`test/integration/auth-link.test.js` guards that. It also surfaces "roles with no
+matching Auth0 account", which is how a drifted link shows up.
+
+The classification rules live in `utils/authMigration.js` — committed, unlike the
+scripts, because the two-signal cross-league rule is the part worth keeping.
+
 Backfill (one-off, `scripts/` is gitignored). `audit-auth-roles.js` is read-only and
 runs on either side of the migration, reporting which mode it's in; `backfill` refuses
-to run before it.
+to run before it. Its **cutover gate has two conditions**, not one: an empty MISMATCHES
+list alone is not a pass, because it only compares accounts the lookup already resolves
+— before the backfill it's empty *because* nothing has been migrated.
 
 ```bash
 node scripts/audit-auth-roles.js                     # 1. read-only. pre-migration: how many

@@ -1,0 +1,276 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<!-- One-time worklist for moving site-wide roles out of Auth0 app_metadata onto the
+     player table. Each row links one Auth0 account to one player, which is what
+     records player."authEmail" — the address getAuthRoleByEmail matches on afterwards.
+
+     Nothing here changes anyone's live access until the code is deployed: until then
+     the columns are written but unread. -->
+<div class="container my-4">
+
+  <h3>Link Auth0 accounts to players</h3>
+  <p class="text-muted">
+    Site roles now live on the player table. Every Tameside role-holder needs linking to
+    a player row before this can be deployed — anyone still unlinked loses their access
+    at cutover.
+  </p>
+
+  <% if (flash) { %>
+    <div class="alert alert-success"><%= flash %></div>
+  <% } %>
+
+  <!-- Progress. The denominator is Tameside role-holders only; the other league's
+       accounts are listed separately at the bottom and are not work. -->
+  <%
+    const total = data.ours.length;
+    const done = data.linkedCount;
+    const pct = total ? Math.round((done / total) * 100) : 100;
+  %>
+  <div class="mb-3">
+    <div class="d-flex justify-content-between">
+      <strong><%= done %> of <%= total %> linked</strong>
+      <span class="text-muted">
+        <%= data.proposedCount %> of the remaining <%= data.pending.length %> have a suggested match
+      </span>
+    </div>
+    <div class="progress" style="height: 8px;">
+      <div class="progress-bar" role="progressbar" style="width: <%= pct %>%;"
+           aria-valuenow="<%= pct %>" aria-valuemin="0" aria-valuemax="100"></div>
+    </div>
+    <% if (!data.pending.length) { %>
+      <div class="alert alert-success mt-3 mb-0">
+        Nothing left to link. Re-run <code>node scripts/audit-auth-roles.js</code> and
+        check the cutover gate, then deploy.
+      </div>
+    <% } %>
+  </div>
+
+  <p>
+    <a class="btn btn-sm btn-outline-secondary" href="/admin/link-auth-accounts?refresh=1">
+      Refresh from Auth0
+    </a>
+    <span class="text-muted ms-2">The tenant list is cached for 5 minutes.</span>
+  </p>
+
+  <% if (data.pending.length) { %>
+    <h5 class="mt-4">Needs linking (<%= data.pending.length %>)</h5>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>Auth0 account</th>
+            <th>Claims</th>
+            <th>Activity</th>
+            <th style="min-width: 320px;">Link to player</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% data.pending.forEach(function(entry, i) { %>
+            <tr>
+              <td><code><%= entry.email %></code></td>
+              <td>
+                <span class="badge bg-secondary"><%= entry.target.role || 'club only' %></span>
+                <%= entry.claimClub || '' %>
+                <% if (entry.target.statsAccess) { %>
+                  <span class="badge bg-info">stats</span>
+                <% } %>
+              </td>
+              <td class="text-muted small">
+                <%= entry.logins %> logins<br>
+                last <%= entry.lastLogin || 'never' %>
+              </td>
+              <td>
+                <% if (entry.proposed) { %>
+                  <!-- A free match: the Auth0 login address equals this player's
+                       registered contact address. Still confirmed by a click, because
+                       shared family addresses do happen. -->
+                  <form method="post" action="/admin/link-auth-accounts" class="mb-2">
+                    <input type="hidden" name="email" value="<%= entry.email %>">
+                    <input type="hidden" name="playerId" value="<%= entry.proposed.id %>">
+                    <button type="submit" class="btn btn-sm btn-success">
+                      Link to <%= entry.proposed.name %>
+                    </button>
+                    <span class="small text-muted">
+                      <%= entry.proposed.club %><%= entry.proposed.team ? ' / ' + entry.proposed.team : '' %>
+                      <% if (entry.proposed.clubMatchesClaim) { %>
+                        <span class="badge bg-success">club matches claim</span>
+                      <% } else { %>
+                        <span class="badge bg-warning text-dark">claims <%= entry.claimClub %></span>
+                      <% } %>
+                    </span>
+                  </form>
+                <% } %>
+
+                <form method="post" action="/admin/link-auth-accounts"
+                      class="link-form" style="position:relative;">
+                  <input type="hidden" name="email" value="<%= entry.email %>">
+                  <input type="hidden" name="playerId" class="player-id">
+                  <div class="input-group input-group-sm">
+                    <input type="text" class="form-control player-search"
+                           placeholder="<%= entry.proposed ? 'or search for someone else…' : 'search for a player…' %>"
+                           autocomplete="off" data-claim-club="<%= entry.claimClub || '' %>">
+                    <button type="submit" class="btn btn-sm btn-primary link-submit" disabled>Link</button>
+                  </div>
+                  <div class="list-group search-results"
+                       style="display:none; position:absolute; z-index:20; width:100%; max-height:240px; overflow-y:auto;"></div>
+                  <div class="small mt-1 selected-label text-success" style="display:none;"></div>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <% if (data.linkedCount) { %>
+    <h5 class="mt-4">Already linked (<%= data.linkedCount %>)</h5>
+    <ul class="small">
+      <% data.ours.filter(e => e.linked).forEach(function(entry) { %>
+        <li>
+          <code><%= entry.email %></code> &rarr;
+          <%= entry.linked.name %> (<%= entry.linked.club %>)
+          — <%= entry.linked.role || 'no role' %><%= entry.linked.statsAccess ? ', stats' : '' %>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+
+  <% if (data.ambiguous.length) { %>
+    <h5 class="mt-4 text-warning">Needs a decision (<%= data.ambiguous.length %>)</h5>
+    <p class="small text-muted">
+      These say <code>league=stockport</code> in Auth0, but the club they claim also
+      exists in Tameside. Deciding on club name alone would hand all of them Tameside
+      admin; deciding on <code>league</code> alone would drop anyone who genuinely runs
+      a team in both. Not offered for linking here — if one is genuinely a Tameside
+      admin, grant the role on that player's edit form instead.
+    </p>
+    <ul class="small">
+      <% data.ambiguous.forEach(function(entry) { %>
+        <li>
+          <code><%= entry.email %></code> — claims <strong><%= entry.claimClub %></strong>
+          as <%= entry.target.role || 'club only' %>,
+          <%= entry.logins %> logins, last <%= entry.lastLogin || 'never' %>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+
+  <% if (data.orphanRoles.length) { %>
+    <h5 class="mt-4">Roles with no matching Auth0 account (<%= data.orphanRoles.length %>)</h5>
+    <p class="small text-muted">
+      These players carry a site role that no Tameside Auth0 account resolves to. Either
+      granted by hand — fine — or a link that has drifted, which is not.
+    </p>
+    <ul class="small">
+      <% data.orphanRoles.forEach(function(p) { %>
+        <li>
+          <a href="/player/<%= p.id %>/update"><%= p.first_name %> <%= p.family_name %></a>
+          (<%= p.clubName %>) — <%= p.role || 'no role' %><%= p.statsAccess == 1 ? ', stats' : '' %>
+          <%= p.hasAuthEmail ? '' : ' — no authEmail recorded' %>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+
+  <% if (data.otherLeague.length) { %>
+    <h5 class="mt-4 text-muted">Other league — not our work (<%= data.otherLeague.length %>)</h5>
+    <p class="small text-muted">
+      The Auth0 tenant is shared with the Stockport league site, so most of what is in it
+      is theirs. Listed for completeness only.
+    </p>
+    <details>
+      <summary class="small">Show <%= data.otherLeague.length %> accounts</summary>
+      <ul class="small mt-2">
+        <% data.otherLeague.forEach(function(entry) { %>
+          <li><code><%= entry.email %></code> — <%= entry.claimClub || '(no club)' %></li>
+        <% }); %>
+      </ul>
+    </details>
+  <% } %>
+</div>
+
+<script>
+  // Per-row player search. One delegated set of handlers rather than one closure per
+  // row, because there can be ~90 rows on this page.
+  (function () {
+    var timers = new WeakMap();
+
+    // textContent everywhere: player names are user-entered, and this page grants roles.
+    function render(form, players) {
+      var box = form.querySelector('.search-results');
+      var claimClub = form.querySelector('.player-search').dataset.claimClub;
+      box.textContent = '';
+      if (!players.length) { box.style.display = 'none'; return; }
+
+      players.slice(0, 8).forEach(function (p) {
+        var item = document.createElement('a');
+        item.href = '#';
+        item.className = 'list-group-item list-group-item-action py-1 small';
+
+        var name = document.createElement('strong');
+        name.textContent = p.name;
+        item.appendChild(name);
+
+        var meta = document.createElement('span');
+        meta.className = 'text-muted';
+        meta.textContent = p.teamName ? ' — ' + p.teamName : '';
+        item.appendChild(meta);
+
+        // The claimed club is the strongest hint available at a glance, so say when a
+        // candidate is in it.
+        if (claimClub && p.teamName && p.teamName.indexOf(claimClub) === 0) {
+          var flag = document.createElement('span');
+          flag.className = 'badge bg-success ms-1';
+          flag.textContent = 'claimed club';
+          item.appendChild(flag);
+        }
+
+        item.addEventListener('click', function (e) {
+          e.preventDefault();
+          form.querySelector('.player-id').value = p.id;
+          var label = form.querySelector('.selected-label');
+          label.textContent = 'Selected: ' + p.name + (p.teamName ? ' (' + p.teamName + ')' : '');
+          label.style.display = 'block';
+          form.querySelector('.link-submit').disabled = false;
+          form.querySelector('.player-search').value = '';
+          box.style.display = 'none';
+        });
+
+        box.appendChild(item);
+      });
+      box.style.display = 'block';
+    }
+
+    document.addEventListener('input', function (e) {
+      var input = e.target.closest('.player-search');
+      if (!input) return;
+      var form = input.closest('.link-form');
+
+      clearTimeout(timers.get(input));
+      timers.set(input, setTimeout(function () {
+        var q = input.value.trim();
+        if (q.length < 2) {
+          form.querySelector('.search-results').style.display = 'none';
+          return;
+        }
+        fetch('/api/players/search?q=' + encodeURIComponent(q))
+          .then(function (r) { return r.json(); })
+          .then(function (players) { render(form, players); })
+          .catch(function () { form.querySelector('.search-results').style.display = 'none'; });
+      }, 250));
+    });
+
+    // Guard against submitting a row whose hidden playerId was never filled — the
+    // button starts disabled, but Enter in the text field would otherwise bypass that.
+    document.addEventListener('submit', function (e) {
+      var form = e.target.closest('.link-form');
+      if (form && !form.querySelector('.player-id').value) {
+        e.preventDefault();
+      }
+    });
+  })();
+</script>
+
+<%- include('../footer.ejs') %>

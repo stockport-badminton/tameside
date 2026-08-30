@@ -1232,6 +1232,48 @@ exports.getAuthRoleByEmail = async function(email) {
   return result[0];
 }
 
+// Find a player by their registered contact email, regardless of whether they carry a
+// site role. Distinct from getAuthRoleByEmail, which deliberately only looks at rows
+// that already have one.
+//
+// This is the "propose a link" half of the Auth0 -> player-table migration: an Auth0
+// login address that happens to match a contact address is a strong hint about which
+// player the account belongs to. Only a hint — it matches roughly a third of the time,
+// which is the whole reason player."authEmail" exists.
+exports.getByPlayerEmail = async function(email) {
+  if (!email) return undefined;
+  const result = await sql`
+    SELECT player.id::int AS id,
+           player.first_name,
+           player.family_name,
+           club.name AS "clubName",
+           team.name AS "teamName"
+    FROM player
+    JOIN club ON club.id = player.club
+    LEFT JOIN team ON team.id = player.team
+    WHERE player."playerEmail" IS NOT NULL
+      AND LOWER(pgp_sym_decrypt(player."playerEmail", ${process.env.DB_ENCODE})::text) = LOWER(${email})
+    LIMIT 1`;
+  return result[0];
+}
+
+// Every player that already carries a site role, for the linking screen's progress
+// count and for spotting a role granted to somebody nobody expected.
+exports.getAllWithSiteRole = async function() {
+  return sql`
+    SELECT player.id::int AS id,
+           player.first_name,
+           player.family_name,
+           player.role,
+           player."statsAccess",
+           club.name AS "clubName",
+           player."authEmail" IS NOT NULL AS "hasAuthEmail"
+    FROM player
+    JOIN club ON club.id = player.club
+    WHERE player.role IS NOT NULL OR player."statsAccess" = 1
+    ORDER BY club.name, player.family_name`;
+}
+
 // Writes the site-wide role fields. Used by the superadmin-only controls on the
 // player edit form and by the one-off backfill script.
 //

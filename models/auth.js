@@ -42,6 +42,45 @@ exports.getUserByAuthId = async function(userId){
   return Array.isArray(body) ? body[0] : undefined;
 }
 
+// Every account in the tenant, with the app_metadata the migration cares about.
+//
+// Cached in-process, because the linking screen reads it on every page load and the
+// Management API pages at 100 — three round-trips per render otherwise, for a list that
+// changes when somebody signs up. `?refresh=1` on that page clears it.
+//
+// Remember this is the SHARED tenant: most of what comes back belongs to the Stockport
+// league site. utils/authMigration.js decides which accounts are ours.
+let _userCache = null;
+let _userCacheAt = 0;
+const USER_CACHE_MS = 5 * 60 * 1000;
+
+exports.listUsers = async function({ refresh = false } = {}) {
+  if (!refresh && _userCache && (Date.now() - _userCacheAt) < USER_CACHE_MS) {
+    return _userCache;
+  }
+  const apiKey = await module.exports.getManagementAPIKey();
+  const out = [];
+  for (let page = 0; page < 50; page++) {
+    const res = await fetch(
+      `https://${process.env.AUTH0_DOMAIN}/api/v2/users` +
+      `?per_page=100&page=${page}&include_fields=true` +
+      `&fields=user_id,email,app_metadata,logins_count,last_login`,
+      { headers: { Authorization: 'Bearer ' + apiKey } }
+    );
+    const batch = await res.json();
+    if (!Array.isArray(batch)) {
+      throw new Error('Auth0 user list failed: ' + JSON.stringify(batch).slice(0, 300));
+    }
+    out.push(...batch);
+    if (batch.length < 100) break;
+  }
+  _userCache = out;
+  _userCacheAt = Date.now();
+  return out;
+}
+
+exports._clearUserCacheForTesting = function() { _userCache = null; _userCacheAt = 0; };
+
 // GET /approve-user/:userId — pure display, no side effects.
 //
 // This used to be the whole flow: one unauthenticated GET that PATCHed Auth0, emailed
