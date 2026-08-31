@@ -88,6 +88,13 @@ Sensitive columns (player phone, email) are PgP-encrypted in the DB; decrypted w
   same `AUTH0_DOMAIN`, two applications with different client IDs and audiences. So
   the user directory and `app_metadata` are *one set of records read by both sites*.
   Anything you change tenant-side affects both.
+- **The login page is Classic Universal Login (Lock 11), and its HTML is in this repo** —
+  `auth0/tameside-login-page.html`, deployed into Auth0 by `tools/auth0-login-page.js`.
+  It is per-application (`custom_login_page` on the client), which is the only way to
+  brand Tameside separately without a paid plan. `GET /api/v2/prompts` claims
+  `universal_login_experience: "new"` and is misleading — the rendered page is Lock.
+  Read `auth0/README.md` before touching any Auth0 setting; several are shared with
+  Stockport.
 
 ### Authorization
 
