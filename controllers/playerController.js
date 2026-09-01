@@ -1024,17 +1024,141 @@ exports.player_create = function(req,res){
 
 
 
-exports.player_batch_update = function(req, res){
-  Player.updateBulk(req.body,function(err,result){
-    if(err){
-      res.send(err);
- console.log(err);
+// POST /player/batch-update — the team-admin drag-and-drop write path.
+//
+// This route had NO auth gate and NO validation, and it passed req.body straight into
+// Player.updateBulk as `tablename` / `fields` / `data`. That is an unauthenticated
+// "UPDATE any table SET any column WHERE id = any id" endpoint: identifiers are escaped
+// by postgres.js so it was not SQL injection, which hardly helped — `player.role` was
+// writable by anyone who could reach the URL.
+//
+// It is NOT redundant and cannot simply be removed: three views drive it
+// (views/team-admin.ejs twice, views/AddCreatePlayerModal.ejs once), all of them
+// reordering players within a club. So it is gated instead, to exactly what those
+// callers need.
+//
+// Four checks, in order of what they cost:
+//
+//   1. `secured` on the route (app.js).
+//   2. Shape. Every id and value must be a finite integer, and the batch is capped.
+//      updateBulk splices its way through parallel arrays and would happily write
+//      `undefined` into a column on a ragged payload.
+//   3. An allowlist of one table and four columns. The three callers send
+//      `player` with some subset of {id, team, rank, club}; nothing else has ever been
+//      a legitimate use of this endpoint, and `role` / `statsAccess` must never be
+//      reachable from it.
+//   4. Club scope, resolved from the DATABASE rather than from the payload. A club admin
+//      may only touch players in their own club, and an id that does not exist is a
+//      refusal rather than a pass. This is checked for the whole batch BEFORE any write,
+//      so a batch that is half in scope writes nothing.
+//
+// A club admin may also only move a player *to* their own club, which is why `club` is
+// range-checked against the caller's own club id as well.
+const BATCH_ALLOWED_TABLE = 'player';
+const BATCH_ALLOWED_FIELDS = new Set(['id', 'team', 'rank', 'club']);
+const BATCH_MAX_ROWS = 200;
+
+function badBatchRequest(message) {
+  const err = new Error(message);
+  err.status = 400;
+  return err;
+}
+
+// Parsed and validated payload, or an Error with .status set.
+function parseBatchPayload(body) {
+  if (!body || typeof body !== 'object') return badBatchRequest('Expected a JSON body');
+  const { tablename, fields, data } = body;
+
+  if (tablename !== BATCH_ALLOWED_TABLE) {
+    return badBatchRequest(`This endpoint only updates the ${BATCH_ALLOWED_TABLE} table`);
+  }
+  if (!Array.isArray(fields) || !fields.length) return badBatchRequest('fields must be a non-empty array');
+  if (!Array.isArray(data) || !data.length) return badBatchRequest('data must be a non-empty array');
+  if (data.length > BATCH_MAX_ROWS) return badBatchRequest(`At most ${BATCH_MAX_ROWS} rows per batch`);
+
+  const unknown = fields.filter(f => !BATCH_ALLOWED_FIELDS.has(f));
+  if (unknown.length) return badBatchRequest(`Not updatable here: ${unknown.join(', ')}`);
+  if (new Set(fields).size !== fields.length) return badBatchRequest('duplicate field names');
+
+  const idIndex = fields.indexOf('id');
+  if (idIndex < 0) return badBatchRequest('fields must include id');
+
+  const ids = [];
+  for (const row of data) {
+    if (!Array.isArray(row) || row.length !== fields.length) {
+      return badBatchRequest('every data row must have one value per field');
     }
-    else{
-       // console.log(result)
-      res.send(result);
+    for (const value of row) {
+      // Integers only. Every allowed column is a bigint, and this is what stops a
+      // ragged or coerced payload writing nonsense.
+      if (!Number.isInteger(value)) return badBatchRequest('every value must be an integer');
     }
-  })
+    ids.push(row[idIndex]);
+  }
+  if (new Set(ids).size !== ids.length) return badBatchRequest('the same player appears twice');
+
+  return { tablename, fields, data, ids, clubIndex: fields.indexOf('club') };
+}
+
+exports.player_batch_update = function(req, res, next){
+  const parsed = parseBatchPayload(req.body);
+  if (parsed instanceof Error) return next(parsed);
+
+  const superadmin = authz.isSuperAdmin(req);
+  if (!superadmin && !authz.isAdmin(req)) {
+    const err = new Error("You don't have access to update players");
+    err.status = 403;
+    return next(err);
+  }
+
+  Player.getClubsForPlayerIds(parsed.ids, function (err, rows) {
+    if (err) return next(err);
+
+    // Every id must exist. A missing row is a refusal: without this, an id that is not
+    // in the table has no club to compare and would fall through the scope check.
+    const byId = new Map((rows || []).map(r => [Number(r.id), r]));
+    const missing = parsed.ids.filter(id => !byId.has(id));
+    if (missing.length) {
+      const e = new Error(`Unknown player id: ${missing.join(', ')}`);
+      e.status = 400;
+      return next(e);
+    }
+
+    if (!superadmin) {
+      const outOfScope = parsed.ids.filter(id => !authz.hasClubAccess(req, byId.get(id).clubName));
+      if (outOfScope.length) {
+        const e = new Error("Some of those players are not in your club");
+        e.status = 403;
+        return next(e);
+      }
+      // A club admin must not move a player INTO another club either. Their own club id
+      // is whatever their existing players have; taken from the batch's own rows, which
+      // have just been confirmed to be theirs.
+      if (parsed.clubIndex >= 0) {
+        const ownClubIds = new Set(parsed.ids.map(id => Number(byId.get(id).club)));
+        const targets = parsed.data.map(row => row[parsed.clubIndex]);
+        const foreign = targets.filter(c => !ownClubIds.has(Number(c)));
+        if (foreign.length) {
+          const e = new Error("You can't move a player into another club from here");
+          e.status = 403;
+          return next(e);
+        }
+      }
+    }
+
+    // updateBulk mutates the arrays it is given, so hand it a fresh copy — the
+    // validated `parsed` is still needed for nothing after this, but the callers'
+    // payload should not be the thing that gets spliced either.
+    const patch = {
+      tablename: parsed.tablename,
+      fields: parsed.fields.slice(),
+      data: parsed.data.map(row => row.slice()),
+    };
+    Player.updateBulk(patch, function(updateErr, result){
+      if (updateErr) return next(updateErr);
+      res.json(result);
+    });
+  });
 }
 
 // Display Player delete form on GET

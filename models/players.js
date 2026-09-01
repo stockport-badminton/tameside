@@ -27,13 +27,23 @@ async function snapshotHasRating(season) {
 
 
 // POST
+// `returning id` so a caller can rank the row it just created — the registration import
+// needs it to put a new nominated player at the right position in their team.
+//
+// Also moved off the `.catch(err => done(err))` idiom, which called done(err) and then
+// fell through to a second done(null, undefined) on the same request.
+//
+// NB the pre-existing caller at playerController's /player/create reads `row.insertId`,
+// which is a MySQL-ism postgres.js has never set — that path was already broken and this
+// does not change it either way.
 exports.create = async function(first_name,family_name,team,club,gender,done){
   var date_of_registration = new Date();
-  let result = await sql`INSERT INTO player ("first_name","family_name","date_of_registration","team","club",gender) VALUES (${first_name},${family_name},${date_of_registration},${team},${club},${gender})`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-
+  try {
+    const result = await sql`INSERT INTO player ("first_name","family_name","date_of_registration","team","club",gender) VALUES (${first_name},${family_name},${date_of_registration},${team},${club},${gender}) returning id`;
+    done(null, result);
+  } catch (err) {
+    done(err);
+  }
 }
 
 
@@ -1183,6 +1193,67 @@ exports.getById = async function(playerId,done){
 // turned a failing query into a 404 and then threw inside the already-sent response
 // ("req.next is not a function"). It matters more than usual on this function, because
 // its result is now what the per-row authorization check reads.
+// Roster reads for the registration-form import (utils/registrationDiff.js).
+//
+// Two queries rather than one, because the diff treats them differently: a name found in
+// the club's own roster is an ordinary change, whereas one found outside it is either a
+// transfer (never auto-applied) or a dormant player being reactivated. Keeping them apart
+// here means the diff never has to re-derive which pool a match came from.
+//
+// Promise-returning rather than callback-style: these are only called from the async
+// controller, and the callback idiom in this file has a history of dropping errors.
+//
+// first_name / family_name come back trimmed. The columns are padded, so a raw read
+// yields "Alice  Cooper" from a concat — see the note in documentsController. The matcher
+// normalises anyway, but the trimmed value is what gets displayed and what a new row
+// would be created from.
+exports.searchRosterForClub = async function(clubId){
+  return await sql`
+    select p.id, trim(p.first_name) as first_name, trim(p.family_name) as family_name,
+           p.gender, p.team, t.name as "teamName", p.rank, p.club
+    from player p
+    left join team t on t.id = p.team
+    where p.club = ${clubId}
+    order by t.name nulls last, p.gender, p.rank`;
+}
+
+// Everyone NOT in this club: other clubs' players (potential transfers) and the dormant
+// ones parked at "No Club" or with no club row at all. Both are needed before concluding
+// that a name on a form is a new person — 486 of 1,138 players sit at "No Club" and 196
+// have no club at all, so "not in this roster" is far more often dormant than new.
+exports.searchRosterOutsideClub = async function(clubId){
+  return await sql`
+    select p.id, trim(p.first_name) as first_name, trim(p.family_name) as family_name,
+           p.gender, p.team, t.name as "teamName", p.rank, p.club, c.name as "clubName"
+    from player p
+    left join team t on t.id = p.team
+    left join club c on c.id = p.club
+    where p.club is distinct from ${clubId}`;
+}
+
+// The club each of these player ids belongs to, for authorizing a bulk write before
+// any of it runs. Returns clubName as well as the id because the club claim used for
+// per-row authorization is a club *name* — see utils/authz.hasClubAccess.
+//
+// One query for the whole batch rather than one per id: /player/batch-update is used by
+// the team-admin drag-and-drop, which sends a whole team's worth of rows at once, and a
+// per-row lookup would be a round trip per player on a screen that fires on every drop.
+//
+// Rows that do not exist simply come back absent, which the caller must treat as a
+// refusal rather than as "no club to check".
+exports.getClubsForPlayerIds = async function(ids, done){
+  try {
+    if (!Array.isArray(ids) || !ids.length) return done(null, []);
+    const result = await sql`
+      select player.id, player.club, club.name as "clubName"
+      from player left join club on club.id = player.club
+      where player.id = any(${ids})`;
+    return done(null, result);
+  } catch (err) {
+    return done(err);
+  }
+}
+
 exports.getPlayerDetailsbyId = async function(playerId, done){
   // clubName (not just the club id) because the club claim used for per-row
   // authorization on this form is a club *name* — see utils/authz.hasClubAccess.

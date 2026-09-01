@@ -1,0 +1,160 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+<%
+  // Presentation order: the things a reviewer must decide first, then the bulk edits,
+  // then removals (deliberately last and never pre-ticked), then the no-ops.
+  var GROUPS = [
+    { kind:'ambiguous',    title:'Needs a decision — the name matches more than one player', cls:'warning', tick:false },
+    { kind:'transfer',     title:'Transfers — not applied here',                             cls:'warning', tick:false },
+    { kind:'no-such-team', title:'Team does not exist',                                      cls:'warning', tick:false },
+    { kind:'new',          title:'New players',                                              cls:'success', tick:true  },
+    { kind:'reactivate',   title:'Returning players (currently no club)',                    cls:'success', tick:true  },
+    { kind:'team',         title:'Team changes',                                             cls:'primary', tick:true  },
+    { kind:'reserve',      title:'Nominated / reserve changes',                              cls:'primary', tick:true  },
+    { kind:'order',        title:'Order changes',                                            cls:'primary', tick:true  },
+    { kind:'remove',       title:'On our books but not on the form',                         cls:'danger',  tick:false },
+    { kind:'unchanged',    title:'Unchanged',                                                cls:'secondary', tick:false }
+  ];
+  var byKind = {};
+  result.changes.forEach(function(c){ (byKind[c.kind] = byKind[c.kind] || []).push(c); });
+  var applicable = {}; applicable_list.forEach(function(k){ applicable[k] = true; });
+%>
+
+<div class="col-12">
+  <h1>Registrations — <%= club.name %></h1>
+  <p class="text-muted">
+    <%= filename %> (<%= result.source %>) — <%= result.changes.length %> rows compared.
+    Nothing has been saved yet.
+  </p>
+
+  <% (result.warnings || []).forEach(function(w){ %>
+    <div class="alert alert-warning"><%= w %></div>
+  <% }); %>
+
+  <p>
+    <% GROUPS.forEach(function(g){ var n = (byKind[g.kind]||[]).length; if (!n) return; %>
+      <span class="badge bg-<%= g.cls %> me-1"><%= n %> <%= g.kind %></span>
+    <% }); %>
+  </p>
+
+  <% if ((byKind['remove']||[]).length > 5) { %>
+    <div class="alert alert-danger">
+      <strong><%= byKind['remove'].length %> players are on our books but not on this form.</strong>
+      That is normal if the club has genuinely dropped them — and it is also what a missing
+      page looks like. None of them is ticked; check the form covers every team before
+      ticking any.
+    </div>
+  <% } %>
+
+  <form id="apply-form" onsubmit="return false;">
+  <% GROUPS.forEach(function(g){
+       var rows = byKind[g.kind] || []; if (!rows.length) return; %>
+    <h2 class="h5 mt-4">
+      <%= g.title %>
+      <span class="text-muted fw-normal">(<%= rows.length %>)</span>
+      <% if (applicable[g.kind]) { %>
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-2 toggle-group" data-kind="<%= g.kind %>">
+          toggle all
+        </button>
+      <% } %>
+    </h2>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th style="width:3rem"><%= applicable[g.kind] ? 'Apply' : '' %></th>
+            <th>Player</th>
+            <th>On the form</th>
+            <th>What would change</th>
+          </tr>
+        </thead>
+        <tbody>
+        <% rows.forEach(function(c){ %>
+          <tr>
+            <td>
+              <% if (applicable[g.kind]) { %>
+                <input type="checkbox" class="form-check-input change-tick"
+                       data-key="<%= c.key %>" data-kind="<%= c.kind %>"
+                       <%= g.tick ? 'checked' : '' %>>
+              <% } %>
+            </td>
+            <td>
+              <%= c.name %>
+              <span class="text-muted small">(<%= c.gender === 'Female' ? 'L' : 'M' %>)</span>
+              <% if (c.matchNote) { %><br><span class="text-warning small"><%= c.matchNote %></span><% } %>
+            </td>
+            <td class="small">
+              <% if (c.kind === 'remove') { %>
+                <span class="text-muted">absent</span>
+              <% } else { %>
+                <%= c.docReserve ? 'reserve' : (c.docLetter || '?') %>
+                <% if (!c.docReserve && c.targetRank) { %> · no. <%= c.targetRank %><% } %>
+              <% } %>
+            </td>
+            <td class="small">
+              <%= c.detail || '—' %>
+              <% if (c.kind === 'ambiguous' && c.candidates && c.candidates.length) { %>
+                <div class="mt-1">
+                  <% c.candidates.forEach(function(cand){ %>
+                    <label class="d-block">
+                      <input type="radio" name="pick-<%= c.key %>" value="<%= cand.id %>" class="ambiguous-pick" data-key="<%= c.key %>">
+                      <%= cand.name %> — <%= cand.clubName || 'no club' %>,
+                      <%= cand.teamName || 'no team' %><% if (cand.rank !== null) { %>, rank <%= cand.rank %><% } %>
+                      <span class="text-muted">#<%= cand.id %></span>
+                    </label>
+                  <% }); %>
+                  <span class="text-muted">Picking one here does not apply it — resolve duplicates on the player edit screen.</span>
+                </div>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% }); %>
+
+  <div class="d-flex gap-2 my-4">
+    <button class="btn btn-primary" id="apply" type="button">Apply ticked changes</button>
+    <a class="btn btn-outline-secondary" href="/admin/team-registrations">Start again</a>
+  </div>
+  </form>
+  <div id="status"></div>
+</div>
+
+<script>
+document.querySelectorAll('.toggle-group').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var boxes = document.querySelectorAll('.change-tick[data-kind="' + btn.dataset.kind + '"]');
+    var anyOff = Array.prototype.some.call(boxes, function (b) { return !b.checked; });
+    boxes.forEach(function (b) { b.checked = anyOff; });
+  });
+});
+
+document.getElementById('apply').addEventListener('click', async function () {
+  var status = document.getElementById('status');
+  var selections = [];
+  document.querySelectorAll('.change-tick:checked').forEach(function (box) {
+    selections.push({ key: box.dataset.key });
+  });
+  if (!selections.length) {
+    status.innerHTML = '<div class="alert alert-warning">Nothing is ticked.</div>';
+    return;
+  }
+  status.innerHTML = '<div class="alert alert-info">Applying ' + selections.length + ' change(s)…</div>';
+  try {
+    var res = await fetch('/admin/team-registrations/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selections: selections }),
+    });
+    var html = await res.text();
+    if (!res.ok) { status.innerHTML = '<div class="alert alert-danger">' + html + '</div>'; return; }
+    document.open(); document.write(html); document.close();
+  } catch (e) {
+    status.innerHTML = '<div class="alert alert-danger">Failed: ' + e.message + '</div>';
+  }
+});
+</script>
+
+<%- include('../footer.ejs') %>

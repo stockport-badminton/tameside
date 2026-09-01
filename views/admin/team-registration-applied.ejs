@@ -1,0 +1,43 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<div class="col-12">
+  <h1>Registrations applied — <%= club.name %></h1>
+
+  <% if (applied.length) { %>
+    <div class="alert alert-success"><%= applied.length %> change(s) applied.</div>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Player</th><th>Now</th></tr></thead>
+        <tbody>
+          <% applied.forEach(function(a){ %>
+            <tr><td><%= a.label %></td><td class="small"><%= a.what %></td></tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } else { %>
+    <div class="alert alert-warning">Nothing was applied.</div>
+  <% } %>
+
+  <% if (skipped.length) { %>
+    <h2 class="h5 mt-4">Skipped (<%= skipped.length %>)</h2>
+    <p class="text-muted small">
+      A change is skipped when it is not the kind this screen applies, or when the database
+      moved on since the comparison — the changes are re-derived at the moment you press
+      Apply, so anything that no longer holds is dropped rather than forced.
+    </p>
+    <ul>
+      <% skipped.forEach(function(s){ %>
+        <li><%= s.label || s.key %> — <%= s.reason %></li>
+      <% }); %>
+    </ul>
+  <% } %>
+
+  <p class="mt-4">
+    <a class="btn btn-primary" href="/admin/team-registrations">Import another</a>
+    <a class="btn btn-outline-secondary" href="/team-admin">Back to team admin</a>
+  </p>
+</div>
+
+<%- include('../footer.ejs') %>

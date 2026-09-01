@@ -361,6 +361,7 @@ let fixture_gen_controller = require(__dirname + '/controllers/fixtureGenControl
 let homepage_content_controller = require(__dirname + '/controllers/homepageContentController')
 let site_settings_controller = require(__dirname + '/controllers/siteSettingsController')
 let documents_controller = require(__dirname + '/controllers/documentsController')
+let team_registration_controller = require(__dirname + '/controllers/teamRegistrationController')
 
 app.use(userInViews())
 
@@ -690,6 +691,22 @@ function secured(req, res, next) {
   app.get('/email-scorecard', secured,fixture_controller.email_scorecard);
   app.post('/email-scorecard', secured, fixture_controller.validateScorecard, fixture_controller.fixture_populate_scorecard_errors);
   app.post('/add-scorecard-photo/:id(\\d+)', secured, fixture_controller.add_scorecard_photo)
+  // Registration-form import: upload the .docx or PDF a club sent back, see it diffed
+  // against the current roster, tick what to apply. Superadmin or a club admin for their
+  // own club — checked in the controller, and the write path enforces club scope again
+  // independently.
+  //
+  // The review route takes the file as the RAW request body rather than as multipart:
+  // this app has no multipart parser and does not need one for a single file. The limit is
+  // sized for the PDF, whose template alone is ~1MB before a club fills it in — the .docx
+  // is about 8KB. express.raw is mounted on this one route, not globally, so nothing else
+  // starts buffering bodies.
+  app.get('/admin/team-registrations', secured, team_registration_controller.index);
+  app.post('/admin/team-registrations/review', secured,
+    express.raw({ type: () => true, limit: '12mb' }),
+    team_registration_controller.review);
+  app.post('/admin/team-registrations/apply', secured, team_registration_controller.apply);
+
   // The only way a scorecard photo is read. Keyed by scorecardstore id, never by object
   // key — see controllers/fixtureController.js and utils/scorecardPhoto.js for why that
   // matters when the bucket is shared with the other league. `(\\d+)` so a non-numeric id
@@ -699,7 +716,11 @@ function secured(req, res, next) {
 
   /* GET request for creating a Player. NOTE This must come before routes that display Player (uses id) */
   app.get('/player/create', secured,player_controller.player_create_get);
-  app.post('/player/batch-update',player_controller.player_batch_update);
+  // Was ungated entirely, and took `tablename`/`fields`/`data` from the request body —
+  // an unauthenticated write to any table, column and row in the database, `player.role`
+  // included. Kept (not removed) because the team-admin drag-and-drop and the
+  // add-player modal all drive it; narrowed to that use in the controller.
+  app.post('/player/batch-update', secured, player_controller.player_batch_update);
   app.post('/player/:id',secured, player_controller.player_update_post);
   app.get('/club-api/:id', secured,club_controller.club_detail_api);
   app.get('/admin/info/clubs', secured,club_controller.club_list_detail);

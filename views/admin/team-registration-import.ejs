@@ -1,0 +1,68 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<div class="col-12">
+  <h1>Import team registrations</h1>
+  <p class="text-muted">
+    Upload the form a club has sent back — either the Word document from the team admin
+    page or the filled-in PDF registration form. Nothing is saved until you have seen the
+    changes and confirmed them.
+  </p>
+
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+  <form id="import-form" class="row g-3 align-items-end" onsubmit="return false;">
+    <div class="col-12 col-md-4">
+      <label class="form-label" for="club">Club</label>
+      <select class="form-select" id="club" name="club" required>
+        <option value="">Choose a club…</option>
+        <% clubs.forEach(function(c){ %>
+          <option value="<%= c.id %>"><%= c.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="col-12 col-md-5">
+      <label class="form-label" for="file">Returned form (.docx or .pdf)</label>
+      <input class="form-control" type="file" id="file" name="file"
+             accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+    </div>
+    <div class="col-12 col-md-3">
+      <button class="btn btn-primary w-100" id="go" type="button">Compare</button>
+    </div>
+  </form>
+
+  <div id="status" class="mt-3"></div>
+</div>
+
+<script>
+// The file is posted as the raw request body rather than as multipart: this app has no
+// multipart parser and does not need one for a single file. express.raw() on the route
+// takes it exactly as sent.
+document.getElementById('go').addEventListener('click', async function () {
+  var club = document.getElementById('club').value;
+  var input = document.getElementById('file');
+  var status = document.getElementById('status');
+  if (!club) { status.innerHTML = '<div class="alert alert-warning">Choose a club first.</div>'; return; }
+  if (!input.files || !input.files.length) { status.innerHTML = '<div class="alert alert-warning">Choose a file first.</div>'; return; }
+
+  var file = input.files[0];
+  status.innerHTML = '<div class="alert alert-info">Reading ' + file.name.replace(/[<>&]/g, '') + '…</div>';
+  try {
+    var url = '/admin/team-registrations/review?club=' + encodeURIComponent(club)
+            + '&filename=' + encodeURIComponent(file.name);
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: file,
+    });
+    var html = await res.text();
+    if (!res.ok) { status.innerHTML = '<div class="alert alert-danger">' + html + '</div>'; return; }
+    // The review page is a full document; replace this one with it.
+    document.open(); document.write(html); document.close();
+  } catch (e) {
+    status.innerHTML = '<div class="alert alert-danger">Upload failed: ' + e.message + '</div>';
+  }
+});
+</script>
+
+<%- include('../footer.ejs') %>
