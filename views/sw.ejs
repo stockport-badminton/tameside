@@ -42,6 +42,9 @@ var EXCLUDED_PATH_PREFIXES = [
   '/scorecard-beta',
   '/email-scorecard',
   '/add-scorecard-photo',
+  // Served with `Cache-Control: private` because a session is the authorization on it.
+  // The service worker cache is not per-user, so it must never hold one of these.
+  '/scorecard-photo',
   '/populated-scorecard',
   '/calendars',
   '/club',

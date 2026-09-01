@@ -867,6 +867,13 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
           req.headers.host +
           "/populated-scorecard-beta/" +
           rows[0].id;
+        // The photo link the results secretary gets. It used to be the raw public S3
+        // URL, which meant the authorization on a scorecard photo was "know the URL",
+        // for anyone this email was ever forwarded to — and it breaks outright once the
+        // shared bucket's public ACLs are stripped. /scorecard-photo/:id is `secured`,
+        // so the recipient sees it as themselves or gets sent to log in.
+        let photoUrl =
+          "https://" + req.headers.host + "/scorecard-photo/" + rows[0].id;
         msg = {
             "From": {
               "Email": "results@tameside-badminton.co.uk"
@@ -885,8 +892,8 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
               }
             ],
             "Subject": "scorecard received",
-            "TextPart": `a new scorecard has been uploaded: ${req.body["scoresheet-url"]} check the result here: ${scorecardUrl}`,
-            "HTMLPart": `<p>a new scorecard has been uploaded: <a href="${req.body["scoresheet-url"]}">${req.body["scoresheet-url"]}</a><br />Check the result here: <a href="${scorecardUrl}">Confirm</a> or <a href="${scorecardUrlBeta}">${scorecardUrlBeta}</a></p>`,
+            "TextPart": `a new scorecard has been uploaded: ${photoUrl} check the result here: ${scorecardUrl}`,
+            "HTMLPart": `<p>a new scorecard has been uploaded: <a href="${photoUrl}">View the scorecard photo</a><br />Check the result here: <a href="${scorecardUrl}">Confirm</a> or <a href="${scorecardUrlBeta}">${scorecardUrlBeta}</a></p>`,
             
           }
         };
@@ -904,6 +911,9 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
                 "Tameside Badminton League Scorecard Upload",
               pageDescription: "Upload your scorecard and send to the website",
               scorecard: req.body,
+              // The row id, so the view can point at /scorecard-photo/:id instead of
+              // the public bucket URL in req.body. `scorecard` is req.body and has no id.
+              scorecardId: rows[0].id,
             });
           })
           .catch((error) => {
@@ -1744,8 +1754,11 @@ exports.add_scorecard_photo = function(req,res,next){
           }
         ],
         "Subject": "scorecard updated",
-        "TextPart": `a scorecard has been updated with a photo: ${req.body.imgURL} check the result here: https://tameside-badminton.co.uk/populated-scorecard-beta/${req.params.id}`,
-        "HTMLPart": `<p>a scorecard has been updated with a photo: <a href="${req.body.imgURL}">${req.body.imgURL}}</a><br />Check the result here: <a href="https://tameside-badminton.co.uk/populated-scorecard-beta/${req.params.id}">Confirm</a> or <a href="https://tameside-badminton.co.uk/populated-scorecard-beta/${req.params.id}">https://tameside-badminton.co.uk/populated-scorecard-beta/${req.params.id}</a></p>`,
+        // Same reasoning as the "scorecard received" mail above: the photo goes as a
+        // `secured` /scorecard-photo/:id link rather than the raw public S3 URL, which
+        // stops working once the shared bucket's public ACLs are stripped.
+        "TextPart": `a scorecard has been updated with a photo: https://tameside-badminton.co.uk/scorecard-photo/${req.params.id} check the result here: https://tameside-badminton.co.uk/populated-scorecard-beta/${req.params.id}`,
+        "HTMLPart": `<p>a scorecard has been updated with a photo: <a href="https://tameside-badminton.co.uk/scorecard-photo/${req.params.id}">View the scorecard photo</a><br />Check the result here: <a href="https://tameside-badminton.co.uk/populated-scorecard-beta/${req.params.id}">Confirm</a> or <a href="https://tameside-badminton.co.uk/populated-scorecard-beta/${req.params.id}">https://tameside-badminton.co.uk/populated-scorecard-beta/${req.params.id}</a></p>`,
       }
     const request = mailjet
       .post("send", {'version': 'v3.1'})
@@ -1774,5 +1787,101 @@ exports.admin_fixture_date_update = function (req, res, next) {
     if (err) return next(err);
     if (!result || !result.count) return res.status(404).json({ error: 'Fixture not found' });
     res.json({ ok: true, id: req.params.id, date: date });
+  });
+};
+
+/* ------------------------------------------------------------------ *
+ * GET /scorecard-photo/:id — the only way a scorecard photo is read
+ * ------------------------------------------------------------------ */
+
+// Required as a module rather than destructured so the tests can stub s3Client() —
+// a destructured reference is bound at require time and cannot be replaced.
+const s3util = require("../utils/s3");
+const { GetObjectCommand } = require("@aws-sdk/client-s3");
+const {
+  photoKeyFromStored,
+  contentTypeFor,
+  downloadTypeFor,
+  downloadNameFor,
+} = require("../utils/scorecardPhoto");
+
+// Scorecard photos were uploaded `ACL: public-read` and rendered straight out of the
+// bucket, with the public URL stored in `scorecardstore."scoresheet-url"` and pasted into
+// the notification email. So the authorization on a photo of a match was "know the URL",
+// and the bucket is shared with the Stockport league site, which is now stripping those
+// ACLs. Without this route every Tameside scorecard photo 403s when they do.
+//
+// THIS ROUTE IS KEYED BY ROW ID, NEVER BY OBJECT KEY. That is the whole design. There is
+// deliberately no endpoint here that takes a key from the request: a proxy that streams
+// any object in the bucket to anyone who knows a name has moved the problem rather than
+// solved it, and the bucket holds another league's scorecards.
+//
+// Every part of the object's identity comes from the row: the draft must exist and must
+// have a photo, and `photoKeyFromStored` accepts only an object under our own
+// `tameside-` prefix — which is what stops the 817 inherited Stockport rows in this table
+// (see utils/scorecardPhoto.js) resolving to another league's scorecard served from our
+// origin.
+//
+// AUTHORIZATION IS `secured` — any logged-in user — and that is a deliberate match for
+// the two places a photo is surfaced, rather than an oversight:
+//
+//   - the upload thank-you page, which the captain who just uploaded has to be able to
+//     see, and
+//   - the results-secretary email, read by a superadmin.
+//
+// Tameside has no per-draft link token (Stockport's HARD-03), so the alternative would be
+// identifying the uploader. That is exactly the trap `player_auth_email` exists to
+// document: a login address is very often not the contact address someone types into the
+// form — only 34 of 101 role-holders matched on `playerEmail` alone — so matching on it
+// would lock captains out of the photo they had just filed. Tightening this needs a token,
+// which is its own change.
+exports.scorecard_photo = function (req, res, next) {
+  Fixture.getScorecardById(req.params.id, async (err, rows) => {
+    if (err) return next(err);
+    if (!rows || !rows.length) return res.status(404).end();
+
+    const key = photoKeyFromStored(rows[0]["scoresheet-url"]);
+    if (!key) return res.status(404).end();
+
+    // An image is served inline; a PDF or Word document is a real scorecard too — 40 of
+    // our 322 photos are PDFs — and is served as a download, because an inline PDF
+    // renders in our origin and PDFs can carry script. Neither type is ever taken from
+    // what S3 reports: see contentTypeFor.
+    const contentType = contentTypeFor(key);
+    const downloadType = contentType ? null : downloadTypeFor(key);
+    if (!contentType && !downloadType) return res.status(404).end();
+
+    let obj;
+    try {
+      obj = await s3util.s3Client().send(new GetObjectCommand({
+        Bucket: process.env.S3_BUCKET_NAME,
+        Key: key,
+      }));
+    } catch (s3err) {
+      // A key the bucket does not hold is a 404, not a 500, and not a Sentry event.
+      // One row already points at a missing object (id 1767), and a photo that has gone
+      // astray must not take the page with it.
+      return res.status(404).end();
+    }
+
+    res.set("Content-Type", contentType || downloadType);
+    // Belt and braces with the type rules above: the browser must not re-guess a type we
+    // have deliberately narrowed.
+    res.set("X-Content-Type-Options", "nosniff");
+    res.set("Content-Disposition", contentType
+      ? "inline"
+      : 'attachment; filename="' + downloadNameFor(key) + '"');
+    // `private` because a session is the authorization — a shared cache must not hold
+    // the answer and hand it to the next person.
+    res.set("Cache-Control", "private, max-age=300");
+    if (obj.ContentLength) res.set("Content-Length", String(obj.ContentLength));
+
+    // The stream needs its own 'error' listener. Without one, a failure part-way through
+    // the transfer is an unhandled 'error' event on an EventEmitter, which takes the
+    // whole instance down — the same shape as the unguarded model callbacks that were
+    // killing the process from the filters work. Headers are already sent by then, so
+    // all that is left is to stop talking.
+    obj.Body.on("error", () => res.destroy());
+    obj.Body.pipe(res);
   });
 };

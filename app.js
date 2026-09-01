@@ -25,10 +25,11 @@ let jwksRsa = require('jwks-rsa');
 let sassMiddleware = require('express-dart-sass')
 let path = require('path')
 const {
-  S3Client,
   PutObjectCommand,
 } = require ("@aws-sdk/client-s3");
 const { getSignedUrl } = require ("@aws-sdk/s3-request-presigner");
+// One place that knows which credentials actually work — see utils/s3.js.
+const { s3Client } = require('./utils/s3');
 const { title } = require('process');
 const { appendFile } = require('fs/promises');
 
@@ -370,26 +371,36 @@ app.use(filterState.middleware)
 
     
 
-    app.get('/sign-s3', async (req, res, next) => {
+    // `secured`, and no longer `ACL: 'public-read'`.
+    //
+    // This was an UNAUTHENTICATED endpoint that presigned a PUT with a caller-chosen key
+    // and content type into a bucket shared with the Stockport league site — so anyone
+    // could write any object anywhere in it, including over another league's scorecards,
+    // and every object it minted was world-readable by its own ACL. Every caller is on a
+    // `secured` page already (the entry wizard and the OCR panel, both in
+    // views/email-scorecard.ejs), so the session requirement costs nothing; the service
+    // worker never touches this path (EXCLUDED_PATH_PREFIXES in views/sw.ejs).
+    //
+    // Dropping the ACL is what makes the private read path durable. Stockport's sweep
+    // over the bucket root is one-off; while this line stayed, the bucket would drift
+    // back to world-readable one scorecard at a time and nobody would notice.
+    // Objects already in the bucket keep the ACL they were written with — that half is
+    // the sweep's job, on their side, and nothing here depends on which way it has gone:
+    // GET /scorecard-photo/:id reads with credentials either way.
+    app.get('/sign-s3', secured, async (req, res, next) => {
       const fileName = req.query['file-name'];
       const fileType = req.query['file-type'];
       const s3Params = {
           Bucket: process.env.S3_BUCKET_NAME,
           Key: fileName,
           ContentType: fileType,
-          ACL: 'public-read'
-          // ACL: 'bucket-owner-full-control'
       };
       // Prefer the S3_LOGS_STORAGE key pair: the default AWS_ACCESS_KEY_ID env
       // credential was rotated out at some point, so URLs presigned with it get
       // 403 InvalidAccessKeyId from S3 — which silently broke ALL scorecard
-      // photo uploads until the OCR wizard surfaced it.
-      const s3 = new S3Client({
-        region: 'eu-west-1',
-        credentials: process.env.S3_LOGS_STORAGE_KEY
-          ? { accessKeyId: process.env.S3_LOGS_STORAGE_KEY, secretAccessKey: process.env.S3_LOGS_STORAGE_SECRET }
-          : undefined,
-      })
+      // photo uploads until the OCR wizard surfaced it. utils/s3.js owns that choice
+      // now, because three copies of it is how one gets missed at the next rotation.
+      const s3 = s3Client()
       const command = new PutObjectCommand(s3Params);
   
       try {
@@ -679,7 +690,12 @@ function secured(req, res, next) {
   app.get('/email-scorecard', secured,fixture_controller.email_scorecard);
   app.post('/email-scorecard', secured, fixture_controller.validateScorecard, fixture_controller.fixture_populate_scorecard_errors);
   app.post('/add-scorecard-photo/:id(\\d+)', secured, fixture_controller.add_scorecard_photo)
-  
+  // The only way a scorecard photo is read. Keyed by scorecardstore id, never by object
+  // key — see controllers/fixtureController.js and utils/scorecardPhoto.js for why that
+  // matters when the bucket is shared with the other league. `(\\d+)` so a non-numeric id
+  // is a routing 404 rather than a Postgres type error rendered as a 500.
+  app.get('/scorecard-photo/:id(\\d+)', secured, fixture_controller.scorecard_photo)
+
 
   /* GET request for creating a Player. NOTE This must come before routes that display Player (uses id) */
   app.get('/player/create', secured,player_controller.player_create_get);

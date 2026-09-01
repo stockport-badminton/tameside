@@ -5,7 +5,7 @@
 // (/populated-scorecard/...), so submission goes through the same validated
 // entry path as manual entry — this feature never writes results directly.
 require('dotenv').config();
-const { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
+const { GetObjectCommand, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 
 const { annotateScorecard } = require('../utils/scorecardVision');
 const { extractScorecard, parseCardDate } = require('../utils/scorecardExtraction');
@@ -30,14 +30,13 @@ const getFixtureDetailsP = promisify(Fixture.getFixtureDetailsById);
 const { isSuperAdmin } = require('../utils/authz');
 
 const BUCKET = process.env.S3_BUCKET_NAME || 'badmintontemp';
-// Prefer the S3_LOGS_STORAGE key pair (valid both locally and on Cloud Run);
-// fall back to the default AWS_* env credentials.
-const s3 = new S3Client({
-  region: 'eu-west-1',
-  credentials: process.env.S3_LOGS_STORAGE_KEY
-    ? { accessKeyId: process.env.S3_LOGS_STORAGE_KEY, secretAccessKey: process.env.S3_LOGS_STORAGE_SECRET }
-    : undefined,
-});
+// Prefer the S3_LOGS_STORAGE key pair (valid both locally and on Cloud Run); fall back to
+// the default AWS_* env credentials. utils/s3.js is the one place that knows this, because
+// the default pair was silently rotated out once already.
+const { s3Client } = require('../utils/s3');
+const s3 = s3Client();
+// Extension -> the type this route will admit to. Shared with GET /scorecard-photo/:id.
+const { contentTypeFor, downloadTypeFor, downloadNameFor } = require('../utils/scorecardPhoto');
 
 // "tameside-20252026-Mellor B-Syddal Park A.jpg" -> { home, away }
 // (older keys omit the season: "tameside-GHAP B-GHAP A.jpeg")
@@ -289,14 +288,32 @@ exports.analyse = async function (req, res) {
 /* ------------------------------------------------------------------ *
  * GET /admin/scorecard-ocr/image?key=... — stream the photo for preview
  * ------------------------------------------------------------------ */
+// Unlike GET /scorecard-photo/:id this one legitimately takes a key, because the whole
+// point of the OCR list is to preview objects that have no row yet. The `tameside-` test
+// is what keeps it from being a proxy for the rest of a bucket that also holds another
+// league's scorecards and their SES mail drop.
+//
+// The content type is NOT echoed from S3. These objects were uploaded through a /sign-s3
+// that was unauthenticated and took the caller's content type, so one can claim anything
+// — and reflecting that back would serve attacker-chosen HTML from our own origin, which
+// is worse than from the bucket because here it is same-origin with the session cookie.
+// The extension decides, and anything unrecognised is a 404 rather than a guess.
 exports.image = async function (req, res, next) {
   if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
   const key = req.query.key;
   if (!key || !/^tameside-/.test(key)) return res.status(400).send('Bad or missing ?key');
+  const contentType = contentTypeFor(key);
+  const downloadType = contentType ? null : downloadTypeFor(key);
+  if (!contentType && !downloadType) return res.status(404).end();
   try {
     const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
-    res.set('Content-Type', obj.ContentType || 'image/jpeg');
+    res.set('Content-Type', contentType || downloadType);
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Content-Disposition', contentType
+      ? 'inline'
+      : 'attachment; filename="' + downloadNameFor(key) + '"');
     res.set('Cache-Control', 'private, max-age=3600');
+    obj.Body.on('error', () => res.destroy());
     obj.Body.pipe(res);
   } catch (err) { next(err); }
 };

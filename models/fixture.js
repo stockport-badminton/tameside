@@ -320,13 +320,17 @@ exports.createScorecard = async function(fixtureObj,done){
   done(null,result);
 }
 
+// The `.catch(err => done(err))` idiom this used to use called done(err) and then fell
+// through to `result.statement.string` on an undefined result — so a DB error threw
+// outside the request chain and killed the process, and on the happy path it logged the
+// full SQL on every call. try/catch removes the path rather than guarding it.
 exports.getScorecardById = async function(fixtureId,done){
-  let result = await sql`SELECT * FROM scorecardstore WHERE "id" = ${fixtureId}`.catch(err => {
-    return done(err)
-  })
-  console.log(result.statement.string)
-  done(null,result);
-  
+  try {
+    const result = await sql`SELECT * FROM scorecardstore WHERE "id" = ${fixtureId}`;
+    done(null, result);
+  } catch (err) {
+    done(err);
+  }
 }
 
 // All seasons oldest-first — used by the ELO backfill and season pickers.

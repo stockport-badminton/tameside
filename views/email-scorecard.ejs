@@ -33,8 +33,15 @@
         <% } %>
         <% if (hasScorecard && !hasErrors) { %>
             <p>Thanks for entering your result - the Results Secretary has been emailed and will verify your result soon! Thanks!</p>
-            <img src="<%= scorecard['scoresheet-url'] %>" class="img-fluid" />
-            <a href="<%= scorecard['scoresheet-url'] %>" class="img-fluid"><%= scorecard['scoresheet-url'] %></a>
+            <%# The photo comes from /scorecard-photo/:id, never from the bucket. The
+                objects are going private (the bucket is shared with the Stockport league
+                site, which is stripping the public ACLs), so a direct S3 <img> here would
+                turn into a broken image the day they sweep. `scorecardId` is the
+                scorecardstore row just created. %>
+            <% if (typeof scorecardId !== 'undefined' && scorecardId) { %>
+            <img src="/scorecard-photo/<%= scorecardId %>" class="img-fluid" alt="The scorecard you just uploaded" />
+            <a href="/scorecard-photo/<%= scorecardId %>">View the uploaded scorecard</a>
+            <% } %>
             <% } %>
         <% if (hasResult && !hasErrors) { %>
         <p>Welcome to results entry. If you have any problems email the results secretary, it's more likely to be something broken than something you did wrong.<br />
