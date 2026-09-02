@@ -96,6 +96,58 @@ Sensitive columns (player phone, email) are PgP-encrypted in the DB; decrypted w
   Read `auth0/README.md` before touching any Auth0 setting; several are shared with
   Stockport.
 
+### Sessions
+
+`express-session`, cookie name `__session`, **stored in Postgres** —
+`utils/sessionStore.js`, table from `migrations/session-store.sql` (applied to production
+2026-09-02).
+
+**There was no `store` at all until then**, so it used the built-in `MemoryStore`: one
+object, per Node process. This service runs with `maxScale 4`, **session affinity OFF**
+and `minScale 0`, so a session was valid only on the instance that created it and every
+session died when the service scaled to zero. `Warning: connect.session() MemoryStore is
+not designed for a production environment` was in the Cloud Run logs several times a day.
+
+The symptom was the **login round trip**, which is three hops — `/login`, Auth0,
+`/callback` — any of which can land on a different instance:
+
+- **OAuth state lost** → `passport.authenticate` finds no user and `/callback` redirects
+  back to `/login`. Reads as "the link just fails".
+- **`returnTo` lost** → the callback's `|| '/'` fallback fires and you arrive at the
+  homepage instead of the page you clicked.
+
+It was always broken; it became obvious when `GET /scorecard-photo/:id` replaced the
+public S3 URL in the results-secretary email, because that turned a link needing no
+session into one that forces the whole round trip. It had also silently broken the
+registration-import **review → apply** handover, which parks the parsed document in the
+session — fine locally, where there is one process, and an intermittent "that review has
+expired" in production.
+
+- **Not `connect-pg-simple`.** It needs `pg`, and this app uses `postgres` (postgres.js).
+  A second driver means a second pool, and `POOL_MAX` (5) × `_MAX_INSTANCES` (4) ≤ 60 is
+  a hard ceiling that `test/db-pool.test.js` asserts. A store on the existing `sql` adds
+  no dependency and opens no pool.
+- **`touch` is not optional here.** The app runs `resave: false`, so a session that is
+  read but not modified is never written back; without `touch` its `expire` never moves
+  and an admin is logged out mid-session at a fixed time after logging in.
+- **The cookie sets no `maxAge`**, so `session.cookie.expires` is null and the row would
+  have no TTL at all — hence the 24h default in `expiryFor`. `test/session-store.test.js`
+  fails if a `maxAge` appears, so the two can't drift apart silently.
+- **Cost is paid by admins only.** express-session calls `get` only when the request
+  carries a `__session` cookie, and `saveUninitialized: false` means anonymous visitors
+  never get one. The public pages that carry the traffic touch the store not at all.
+- **Apply the migration before deploying**: without the table every session read throws
+  and nobody can log in.
+- **A `secured` link in an email now costs a full Auth0 login.** That is the intended
+  security posture, but it is a real UX cost against the public URL it replaced. Stockport
+  solved the same problem with a signed per-draft token (their HARD-03); Tameside has no
+  equivalent, which is noted in `docs/handover/s3-bucket-reply-to-stockport.md`.
+
+> Browser Sentry captures console at `levels: ['error']` (`views/header.ejs`), so a stray
+> `console.error` used as a debug log files a Sentry issue per occurrence. One in the
+> scorecard upload path (logging the S3 URL) was doing exactly that — Sentry
+> JAVASCRIPT-1VD. Use `console.log` for debug output on any page a logged-in user sees.
+
 ### Authorization
 
 **Postgres is the single source of truth; Auth0 only proves identity.** Site-wide role
@@ -487,6 +539,13 @@ have turned into a broken image on the day they swept.
   write any object anywhere in it. Dropping the ACL is what makes the lockdown durable:
   Stockport's sweep is one-off, so while that line stayed the bucket would drift back to
   world-readable one scorecard at a time.
+- **A `secured` link in an email needs a working session**, and sessions used to live in
+  a per-process MemoryStore — so replacing the public URL here is what exposed that bug.
+  See **Sessions** above; the fix is `utils/sessionStore.js`.
+- **Preview an upload from the local file, not the bucket.** `views/email-scorecard.ejs`
+  uses `URL.createObjectURL(file)`: at upload time there is no `scorecardstore` row yet,
+  so `/scorecard-photo/:id` does not exist for it, and an `<img>` aimed at S3 breaks the
+  day the ACLs come off.
 - **Ask before Stockport changes Object Ownership.** Their sweep only covers reads. If they
   set Object Ownership to "bucket owner enforced", a presigned PUT that carries
   `x-amz-acl` fails outright — that would have broken *uploads*, not just reads, which is

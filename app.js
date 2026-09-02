@@ -336,6 +336,25 @@ var strategy = new Auth0Strategy(
     sess.proxy = true;
     sess.cookie.secure = true;
   }
+
+  // Sessions live in Postgres, not in the process.
+  //
+  // Without a `store` express-session uses its built-in MemoryStore — one object, per
+  // Node process. This service runs with maxScale 4, session affinity OFF and minScale 0,
+  // so a session was valid only on the instance that created it and every session died
+  // when the service scaled to zero. The login round trip is three hops (/login, Auth0,
+  // /callback) and any of them could land elsewhere: a lost OAuth state made
+  // authentication fail, and a lost `returnTo` sent people to the homepage instead of the
+  // page they clicked. See utils/sessionStore.js for the full account.
+  //
+  // Skipped under test, where MemoryStore is correct: the suite runs in one process, and
+  // test/helpers/app.js deliberately has no working database credentials.
+  if (process.env.NODE_ENV !== 'test') {
+    const { PostgresSessionStore, startPruning } = require('./utils/sessionStore');
+    sess.store = new PostgresSessionStore();
+    startPruning();
+  }
+
   app.use(session(sess));
   app.use(passport.initialize());
   app.use(passport.session());

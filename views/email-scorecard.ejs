@@ -263,7 +263,13 @@
                          // official scoresheet-url so step 13 doesn't ask for it again.
                          var uploadedUrl = sign.signedUrl.substr(0, sign.signedUrl.indexOf('?X-Amz')).replaceAll('%20', '+');
                          document.querySelectorAll('#scoresheet-url').forEach(function (el) { el.value = uploadedUrl; });
-                         document.querySelectorAll('#scoresheet-img').forEach(function (el) { el.src = uploadedUrl; });
+                         // Preview from the LOCAL file, not from the bucket. The stored
+                         // value still has to be the object URL (that is what the row
+                         // records), but the objects are going private, so an <img> aimed
+                         // at S3 would become a broken image. There is no scorecardstore
+                         // row yet either, so /scorecard-photo/:id does not exist for it.
+                         var localPreview = URL.createObjectURL(f);
+                         document.querySelectorAll('#scoresheet-img').forEach(function (el) { el.src = localPreview; });
                          status('Reading the card… (takes a few seconds)');
                          var resp = await fetch('/scorecard-ocr/analyse', {
                            method: 'POST',
@@ -767,11 +773,15 @@
                   for (const ssUrl of scoresheetUrls){
                     ssUrl.value = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz")).replaceAll('%20','+')
                   }
+                  // Preview from the local file rather than the bucket — see the note
+                  // at the OCR upload above. Also drops a stray console.error that was
+                  // logging this URL: browser Sentry captures console at level 'error'
+                  // (views/header.ejs), so a debug line was filing an issue per upload.
+                  let localPreview = URL.createObjectURL(file)
                   let scoresheetImgs = await document.querySelectorAll('#scoresheet-img')
                   for (const ssImg of scoresheetImgs){
-                    ssImg.src = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz")).replaceAll('%20','+')
+                    ssImg.src = localPreview
                   }
-                  console.error(document.getElementById('scoresheet-url').value)
                 }
               }
             }
