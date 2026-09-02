@@ -188,10 +188,12 @@ intermittent "that review has expired" in production.
   never get one. The public pages that carry the traffic touch the store not at all.
 - **Apply the migration before deploying**: without the table every session read throws
   and nobody can log in.
-- **A `secured` link in an email now costs a full Auth0 login.** That is the intended
-  security posture, but it is a real UX cost against the public URL it replaced. Stockport
-  solved the same problem with a signed per-draft token (their HARD-03); Tameside has no
-  equivalent, which is noted in `docs/handover/s3-bucket-reply-to-stockport.md`.
+- **A `secured` link in an email costs a full Auth0 login**, which is the intended
+  security posture. Stockport avoids that with a signed per-draft token (their HARD-03) and
+  Tameside has no equivalent — **decided 2026-09-02 not to build one**: in practice only
+  the results secretary opens these photos and is normally already logged in, so the token
+  would be machinery for a problem nobody has. Revisit only if photo review is ever shared
+  out to captains.
 
 > Browser Sentry captures console at `levels: ['error']` (`views/header.ejs`), so a stray
 > `console.error` used as a debug log files a Sentry issue per occurrence. One in the
@@ -449,7 +451,10 @@ Rules worth not rediscovering:
   file doesn't open its own connection.
 - **`SESSION_SECRET` signs the timing stamp** and `app.js` falls back to a hardcoded
   string if it is unset. With a known key a stamp can be forged, which downgrades that
-  check. Set it in the deployed environment.
+  check. It is **still unset in Cloud Run, and deliberately parked until the end of the
+  2026/27 season (June 2027)** — setting it invalidates every live session, so it wants a
+  quiet moment rather than mid-season. Don't re-raise it before then; the honeypot and the
+  two blocklists are unaffected.
 - The profanity list was **not** carried over: politeness policing rather than spam
   defence, and it cost real messages ("ass", "sex", "gay", "hell" as bare substrings).
   `Christ` and `God` were in the *spam* half as substrings and blocked Christine,
@@ -604,6 +609,11 @@ have turned into a broken image on the day they swept.
   rotated out at some point and everything presigned with it gets 403
   `InvalidAccessKeyId`; `S3_LOGS_STORAGE_*` is the live pair. That selection used to be
   copy-pasted in three places, which is how one of them gets missed at the next rotation.
+
+The reply telling Stockport we took option A is
+`docs/handover/s3-bucket-reply-to-stockport.md`, **sent 2026-09-02** — so they are clear to
+sweep the whole bucket root with no `tameside-*` carve-out, and the Object Ownership
+sequencing ask in that note is with them.
 
 Verified against production 2026-09-01: 322 rows claimed as ours, 321 resolve via
 credentialed `HeadObject`, 817 correctly refused. The one miss (id 1767) is a pre-existing
