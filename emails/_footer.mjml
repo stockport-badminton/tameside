@@ -1,0 +1,29 @@
+<!--
+  The footer earns its place: it is the main defence against a transactional email being
+  marked as junk. One captain's address already carries a spam-complaint flag in Mailjet,
+  which suppresses delivery to them permanently and leaves no bounce behind to diagnose.
+  These emails do go to people who asked for them, but the old ones looked like marketing
+  (a SendGrid template complete with hotlinked social icons) and never said why they had
+  arrived or who to ask. Saying that plainly is what makes "junk" the wrong button.
+
+  `whyReceiving` is per-email, because the audiences are genuinely different: a captain
+  confirming a result, a club secretary receiving a message from the public, and a player
+  on the league mailing list should not all be told the same thing. Templates that do not
+  set it get the captain wording, which is the common case.
+-->
+<mj-section background-color="#f4f6f9" padding="20px 0 24px">
+  <mj-column>
+    <mj-text mj-class="footer" align="center">
+      <strong style="color:#5a6675;">Tameside Badminton League</strong><br />
+      <%- typeof whyReceiving !== 'undefined' && whyReceiving
+            ? whyReceiving
+            : 'You are receiving this because you are a registered team captain or club contact.' %><br />
+      Reply to this email, or write to
+      <a href="mailto:tameside.badders.results@gmail.com" style="color:#0d6efd;">the results secretary</a>,
+      and a human will read it.
+    </mj-text>
+    <mj-text mj-class="footer" align="center" padding="10px 24px 0">
+      <a href="https://tameside-badminton.co.uk/" style="color:#7c8798;">tameside-badminton.co.uk</a>
+    </mj-text>
+  </mj-column>
+</mj-section>

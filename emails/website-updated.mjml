@@ -1,0 +1,72 @@
+<mjml>
+  <mj-head>
+    <mj-include path="./_theme.mjml" />
+    <mj-title>Result published</mj-title>
+    <mj-preview><%= homeTeamName %> <%= homeScore %>-<%= awayScore %> <%= awayTeamName %> is now on the site</mj-preview>
+  </mj-head>
+  <mj-body background-color="#eef0f4" width="600px">
+    <mj-include path="./_header.mjml" />
+    <mj-section padding="28px 0 0">
+      <mj-column>
+        <mj-text mj-class="h1">Thanks &mdash; your result is live</mj-text>
+        <mj-text mj-class="lede" padding="10px 24px 0">
+          The tables, the player statistics and the club pages have all been updated.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-include path="./_fixture-panel.mjml" />
+
+    <!-- The shareable score graphic the site generates for social. Hotlinked from the
+         site because that is what mail clients fetch; alt text carries the score for
+         anyone with images turned off, which is most Outlook users by default. -->
+    <mj-raw><% if (typeof imageUrl !== 'undefined' && imageUrl) { %></mj-raw>
+    <mj-section padding="20px 24px 0">
+      <mj-column>
+        <mj-image src="<%= imageUrl %>" width="552px" padding="0" border-radius="6px"
+                  alt="<%= homeTeamName %> <%= homeScore %>-<%= awayScore %> <%= awayTeamName %>" />
+      </mj-column>
+    </mj-section>
+    <mj-raw><% } %></mj-raw>
+
+    <!-- Per-player breakdown. A plain <table> inside mj-text rather than mj-table, so the
+         EJS loop lives in a text node and survives compilation. -->
+    <mj-raw><% if (typeof matchStats !== 'undefined' && matchStats && matchStats.length) { %></mj-raw>
+    <mj-section padding="26px 0 0">
+      <mj-column>
+        <mj-text mj-class="label" text-transform="uppercase">How everyone played</mj-text>
+        <mj-text padding="8px 24px 0">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                 style="border-collapse:collapse;font-size:13px;">
+            <tr>
+              <th align="left"  style="padding:6px 6px 6px 0;border-bottom:1px solid #dfe4ec;color:#68758a;font-weight:600;">Player</th>
+              <th align="left"  style="padding:6px;border-bottom:1px solid #dfe4ec;color:#68758a;font-weight:600;">Team</th>
+              <th align="center" style="padding:6px;border-bottom:1px solid #dfe4ec;color:#68758a;font-weight:600;">Won</th>
+              <th align="center" style="padding:6px;border-bottom:1px solid #dfe4ec;color:#68758a;font-weight:600;">For</th>
+              <th align="center" style="padding:6px 0 6px 6px;border-bottom:1px solid #dfe4ec;color:#68758a;font-weight:600;">Agst</th>
+            </tr>
+            <% matchStats.forEach(function (row) { %>
+            <tr>
+              <td align="left"  style="padding:7px 6px 7px 0;border-bottom:1px solid #f0f3f7;"><%= row.name %></td>
+              <td align="left"  style="padding:7px 6px;border-bottom:1px solid #f0f3f7;color:#68758a;"><%= row.teamName %></td>
+              <td align="center" style="padding:7px 6px;border-bottom:1px solid #f0f3f7;font-weight:bold;"><%= row.gamesWon %></td>
+              <td align="center" style="padding:7px 6px;border-bottom:1px solid #f0f3f7;color:#68758a;"><%= Number(row.avgPtsFor).toFixed(1) %></td>
+              <td align="center" style="padding:7px 0 7px 6px;border-bottom:1px solid #f0f3f7;color:#68758a;"><%= Number(row.avgPtsAgainst).toFixed(1) %></td>
+            </tr>
+            <% }) %>
+          </table>
+        </mj-text>
+        <mj-text mj-class="muted" padding="10px 24px 0">
+          Games won, and average points for and against across this match.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-raw><% } %></mj-raw>
+
+    <mj-section>
+      <mj-column>
+        <mj-button href="<%= resultUrl %>" css-class="cta">See the result on the site</mj-button>
+      </mj-column>
+    </mj-section>
+    <mj-include path="./_footer.mjml" />
+  </mj-body>
+</mjml>

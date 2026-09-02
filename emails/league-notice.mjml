@@ -1,0 +1,31 @@
+<mjml>
+  <mj-head>
+    <mj-include path="./_theme.mjml" />
+    <mj-title><%= subject %></mj-title>
+    <mj-preview><%= preview %></mj-preview>
+  </mj-head>
+  <mj-body background-color="#eef0f4" width="600px">
+    <mj-include path="./_header.mjml" />
+    <mj-section padding="28px 0 0">
+      <mj-column>
+        <mj-text mj-class="h1"><%= subject %></mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="14px 0 0">
+      <mj-column>
+        <!-- Escaped upstream and newlines converted; never raw operator input. -->
+        <mj-text padding="0 24px" color="#22303f"><%- messageHtml %></mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section><mj-column><mj-divider /></mj-column></mj-section>
+    <mj-section padding="0 0 26px">
+      <mj-column>
+        <mj-text mj-class="muted">
+          Sent to the league&rsquo;s registered players and club contacts. Other recipients
+          are in Bcc, so nobody can see anyone else&rsquo;s address.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-include path="./_footer.mjml" />
+  </mj-body>
+</mjml>

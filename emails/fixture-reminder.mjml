@@ -1,0 +1,38 @@
+<mjml>
+  <mj-head>
+    <mj-include path="./_theme.mjml" />
+    <mj-title>Scorecard still outstanding</mj-title>
+    <mj-preview><%= homeTeamName %> vs <%= awayTeamName %> — we have not had the scorecard yet</mj-preview>
+  </mj-head>
+  <mj-body background-color="#eef0f4" width="600px">
+    <mj-include path="./_header.mjml" />
+    <mj-section padding="28px 0 0">
+      <mj-column>
+        <mj-text mj-class="h1">We are still missing this scorecard</mj-text>
+        <mj-text mj-class="lede" padding="10px 24px 0">
+          Nothing has come through for the match below. Entering it keeps the tables and
+          the player statistics up to date &mdash; it takes a couple of minutes.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-include path="./_fixture-panel.mjml" />
+    <mj-section>
+      <mj-column>
+        <mj-button href="<%= enterUrl %>" css-class="cta">Enter the result</mj-button>
+        <mj-text mj-class="muted" align="center" padding="14px 24px 0">
+          You can photograph the card and let the site read it, or type the scores in.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section><mj-column><mj-divider /></mj-column></mj-section>
+    <mj-section padding="0 0 26px">
+      <mj-column>
+        <mj-text mj-class="muted">
+          Already sent it, or the match did not happen? Reply and say so and we will sort
+          the record out &mdash; no need to enter anything.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-include path="./_footer.mjml" />
+  </mj-body>
+</mjml>

@@ -1,0 +1,43 @@
+<mjml>
+  <mj-head>
+    <mj-include path="./_theme.mjml" />
+    <mj-title>Your results access is ready</mj-title>
+    <mj-preview>You can now enter results for your club</mj-preview>
+  </mj-head>
+  <mj-body background-color="#eef0f4" width="600px">
+    <mj-include path="./_header.mjml" />
+    <mj-section padding="28px 0 0">
+      <mj-column>
+        <mj-text mj-class="h1">You&rsquo;re all set</mj-text>
+        <mj-text mj-class="lede" padding="10px 24px 0">
+          Your account has been approved, so you can now sign in and enter results for
+          your club.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="22px 24px 0">
+      <mj-column background-color="#f4f6f9" padding="18px 20px" border-radius="6px">
+        <mj-text mj-class="label" text-transform="uppercase" padding="0">Entering a result</mj-text>
+        <mj-text padding="8px 0 0" font-size="14px">
+          Photograph the scorecard and the site will read the scores off it, or type them
+          in by hand. Either way you get a summary to check before anything is saved.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section>
+      <mj-column>
+        <mj-button href="<%= enterUrl %>" css-class="cta">Enter a result</mj-button>
+      </mj-column>
+    </mj-section>
+    <mj-section><mj-column><mj-divider /></mj-column></mj-section>
+    <mj-section padding="0 0 26px">
+      <mj-column>
+        <mj-text mj-class="muted">
+          Stuck, or something looks wrong? Reply to this email. It is far more likely to
+          be the website than you.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-include path="./_footer.mjml" />
+  </mj-body>
+</mjml>

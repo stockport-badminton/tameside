@@ -1,0 +1,7 @@
+<mj-section background-color="#0b2d6d" padding="22px 0">
+  <mj-column>
+    <mj-image src="https://tameside-badminton.co.uk/static/images/Logo.png"
+              alt="Tameside Badminton League" width="180px" padding="0"
+              href="https://tameside-badminton.co.uk/" />
+  </mj-column>
+</mj-section>

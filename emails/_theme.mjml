@@ -1,0 +1,35 @@
+<!--
+  Shared look for every league email. Included by each template's <mj-head>, so a colour
+  or font change happens in one file.
+
+  Palette taken from the live site rather than invented: #0d6efd is the site's own
+  --bs-primary (it runs stock Bootstrap 5, not the flatly theme the THEME env var
+  implies), #f8f9fa its --bs-body-bg. #0b2d6d is the league's own navy, already used for
+  the table headers in the generated registration PDFs and the social images, so it is the
+  closest thing the league has to a brand colour.
+-->
+<mj-attributes>
+  <!-- Arial/Helvetica rather than a webfont: Outlook renders through Word and ignores
+       @font-face entirely, so a webfont would only ever apply for some readers and make
+       the design inconsistent. -->
+  <mj-all font-family="Arial, Helvetica, sans-serif" />
+  <mj-text font-size="15px" line-height="1.6" color="#333f4d" padding="0 24px" />
+  <mj-section background-color="#ffffff" padding="0" />
+  <mj-column padding="0" />
+  <mj-button background-color="#0d6efd" color="#ffffff" font-size="16px"
+             font-weight="bold" inner-padding="14px 28px" border-radius="6px"
+             padding="20px 24px 8px" />
+  <mj-divider border-color="#e4e8ee" border-width="1px" padding="20px 24px" />
+  <mj-class name="lede" font-size="16px" color="#22303f" />
+  <mj-class name="muted" font-size="13px" color="#68758a" />
+  <mj-class name="footer" font-size="12px" color="#7c8798" line-height="1.5" />
+  <mj-class name="h1" font-size="22px" color="#0b2d6d" font-weight="bold" line-height="1.3" />
+  <mj-class name="label" font-size="11px" color="#68758a" letter-spacing="0.6px" />
+  <mj-class name="value" font-size="16px" color="#22303f" font-weight="bold" />
+</mj-attributes>
+<mj-style>
+  /* Belt and braces for clients that strip the button's own styles. */
+  .cta a { color: #ffffff !important; text-decoration: none !important; }
+  /* Long urls in the plain fallback must not force horizontal scrolling on a phone. */
+  .breakable { word-break: break-all; }
+</mj-style>

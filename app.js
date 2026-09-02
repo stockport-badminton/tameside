@@ -383,6 +383,7 @@ let homepage_content_controller = require(__dirname + '/controllers/homepageCont
 let site_settings_controller = require(__dirname + '/controllers/siteSettingsController')
 let documents_controller = require(__dirname + '/controllers/documentsController')
 let team_registration_controller = require(__dirname + '/controllers/teamRegistrationController')
+let mailjet_webhook_controller = require(__dirname + '/controllers/mailjetWebhookController')
 
 app.use(userInViews())
 
@@ -392,6 +393,13 @@ app.use(userInViews())
 app.use(filterState.middleware)
 
     
+
+    // Mailjet event callbacks. Authenticated by the ?t= shared secret in the controller,
+    // and mounted with its own JSON parser so the payload does not depend on where the
+    // global body parsers sit. See controllers/mailjetWebhookController.js for why this
+    // exists: a spam complaint silently and permanently suppresses an address, and there
+    // is otherwise nothing to look at afterwards.
+    app.post('/webhooks/mailjet', express.json({ limit: '512kb' }), mailjet_webhook_controller.receive);
 
     // `secured`, and no longer `ACL: 'public-read'`.
     //
@@ -458,7 +466,9 @@ app.post('/contact-us', spamGate({ endpoint: '/contact-us' }), contactus_control
 app.get('/info/clubs', club_controller.club_list_detail)
 app.get('/rules', static_controller.rules)
 app.get('/history', static_controller.history)
-app.get('/mailjet', contactus_controller.mailjet_test)
+// GET /mailjet deleted: the Mailjet getting-started sample, unauthenticated, sending a
+// hardcoded message to the league results mailbox. A curl loop was a mail bomb and
+// nothing ever linked to it. Same shape as the /SESemail endpoint Stockport removed.
 app.get('/event/:id/:date-:homeTeam-:awayTeam', fixture_controller.fixture_event_detail);
 
 /* POST request for batch creating Fixture. */

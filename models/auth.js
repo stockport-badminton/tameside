@@ -5,7 +5,9 @@
 // getAuthRoleByEmail, and the Auth0Strategy verify callback in app.js). What is left
 // in this file is the two things that genuinely need Auth0: reading an account we only
 // know by its Auth0 user_id, and setting the app_metadata flag that gates login.
-const mailjet = require ('node-mailjet').apiConnect(process.env.MAILJET_KEY, process.env.MAILJET_SECRET)
+// One mailer for every league email — see utils/mailer.js.
+const mailer = require('../utils/mailer');
+const { absoluteUrl } = require('../utils/siteUrl');
 const Player = require('./players');
 const { isSuperAdmin } = require('../utils/authz');
 
@@ -168,15 +170,22 @@ exports.approve_signup_post = async function(req, res, next){
       authEmail: user.email
     });
 
-    const msg = {
-      From: { Email: 'website@tameside-badminton.co.uk' },
-      To: [{ Email: user.email }],
-      Bcc: [{ Email: 'tameside.badders.results@gmail.com' }],
-      Subject: 'Result Entry Access',
-      TextPart: "Thanks for registering - i've approved your access",
-      HTMLPart: "<p>Thanks for registering - i've approved your access</p>"
-    };
-    await mailjet.post('send', { version: 'v3.1' }).request({ Messages: [msg] });
+    // Was a one-line "i've approved your access" with no indication of what to do next.
+    // From was `website@` here and `results@` everywhere else; utils/mailer.js settles that.
+    await mailer.send({
+      template: 'access-approved',
+      subject: 'Your results access is ready',
+      text: 'Your account has been approved, so you can now sign in and enter results for '
+          + 'your club: ' + absoluteUrl('/email-scorecard')
+          + '\n\nStuck, or something looks wrong? Reply to this email.',
+      to: user.email,
+      bcc: true,
+      data: {
+        enterUrl: absoluteUrl('/email-scorecard'),
+        whyReceiving: 'You are receiving this because you asked for results-entry access on the league website.',
+      },
+      customId: 'AccessApproved',
+    });
 
     res.render('userapproved', {
       static_path: '/static',

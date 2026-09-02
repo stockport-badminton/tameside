@@ -1,0 +1,55 @@
+<mjml>
+  <mj-head>
+    <mj-include path="./_theme.mjml" />
+    <mj-title>Scorecard received</mj-title>
+    <!-- The inbox preview line. Without it clients scrape the first body text, which
+         here would be the logo's alt text. -->
+    <mj-preview><%= homeTeamName %> <%= homeScore %>-<%= awayScore %> <%= awayTeamName %> — check and confirm</mj-preview>
+  </mj-head>
+  <mj-body background-color="#eef0f4" width="600px">
+    <mj-include path="./_header.mjml" />
+
+    <mj-section padding="28px 0 0">
+      <mj-column>
+        <mj-text mj-class="h1">Scorecard received</mj-text>
+        <mj-text mj-class="lede" padding="10px 24px 0">
+          A result has been entered and is waiting for you to check it against the card.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-include path="./_fixture-panel.mjml" />
+
+    <mj-section>
+      <mj-column>
+        <mj-button href="<%= confirmUrl %>" css-class="cta">Check and confirm the result</mj-button>
+        <!-- The conditional MUST be wrapped in mj-raw. An EJS tag sitting directly
+             between two MJML components is discarded by the compiler and the content it
+             was meant to guard renders unconditionally — no error, no warning. Inside a
+             text node it survives; between components it does not. tools/build-emails.js
+             counts EJS tags before and after compiling so this cannot slip through. -->
+        <mj-raw><% if (photoUrl) { %></mj-raw>
+        <mj-text align="center" padding="4px 24px 0">
+          <a href="<%= photoUrl %>" style="color:#0d6efd;font-size:15px;">View the scorecard photo</a>
+        </mj-text>
+        <mj-raw><% } %></mj-raw>
+        <mj-text mj-class="muted" align="center" padding="14px 24px 0">
+          Both links ask you to sign in first.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section><mj-column><mj-divider /></mj-column></mj-section>
+
+    <mj-section padding="0 0 26px">
+      <mj-column>
+        <mj-text mj-class="muted">
+          If a link does not work, paste this into your browser:<br />
+          <span class="breakable"><%= confirmUrl %></span>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-include path="./_footer.mjml" />
+  </mj-body>
+</mjml>

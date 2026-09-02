@@ -1,0 +1,27 @@
+<!--
+  The fixture at a glance. Every fixture-related email opens with this, so a reader can
+  answer "which match is this about?" without opening the site — which the old emails all
+  required. Score is optional: a reminder has no result yet.
+-->
+<mj-section padding="20px 24px 0">
+  <mj-column background-color="#f4f6f9" padding="18px 20px" border-radius="6px">
+    <mj-text mj-class="label" text-transform="uppercase" padding="0">Fixture</mj-text>
+    <mj-text mj-class="value" padding="4px 0 0">
+      <%= homeTeamName %> <span style="color:#68758a;font-weight:normal;">vs</span> <%= awayTeamName %>
+    </mj-text>
+    <mj-raw><% if (typeof homeScore !== 'undefined' && homeScore !== null && homeScore !== '') { %></mj-raw>
+    <mj-text mj-class="value" padding="10px 0 0" font-size="24px" color="#0b2d6d">
+      <%= homeScore %> &ndash; <%= awayScore %>
+      <%- (typeof scoreLabel !== 'undefined' && scoreLabel)
+            ? '<span style="font-size:12px;font-weight:normal;color:#68758a;">&nbsp;' + scoreLabel + '</span>'
+            : '' %>
+    </mj-text>
+    <mj-raw><% } %></mj-raw>
+    <mj-text mj-class="muted" padding="12px 0 0">
+      <%- [ (typeof divisionName !== 'undefined' && divisionName) ? divisionName : null,
+            (typeof playedOn !== 'undefined' && playedOn) ? 'played ' + playedOn : null
+          ].filter(Boolean).join(' &middot; ') %>
+      <%- (typeof enteredBy !== 'undefined' && enteredBy) ? '<br />Entered by ' + enteredBy : '' %>
+    </mj-text>
+  </mj-column>
+</mj-section>

@@ -7,10 +7,6 @@ let HomepageContent = require("../models/homepageContent");
 let SiteSettings = require("../models/siteSettings");
 const ejs = require('ejs');
 const ICAL = require("ical.js");
-const mailjet = require ('node-mailjet').apiConnect(process.env.MAILJET_KEY, process.env.MAILJET_SECRET)
-// Test-only seam: exposes the same client instance the module calls into, so
-// tests can stub `.post` (mock.method) instead of hitting the real Mailjet API.
-exports._mailjetClientForTesting = mailjet;
 const seasonModel = require("../models/season");
 
 const { body, validationResult } = require("express-validator");
@@ -32,8 +28,76 @@ const render404 = require('../utils/render404');
 // break the Auth0 round trip — a different origin is a different cookie jar, so the
 // session holding `returnTo` never comes back. See utils/siteUrl.js.
 const { siteUrl, absoluteUrl, canonicalFor } = require('../utils/siteUrl');
+// One mailer for every league email; templates compile from emails/*.mjml.
+const mailer = require('../utils/mailer');
+
+// Test-only seam: exposes the same client instance the module sends through, so tests can
+// stub `.post` (mock.method) instead of hitting the real Mailjet API. It MUST be the very
+// client utils/mailer.js uses — a separate instance would leave the stub intercepting
+// nothing while real mail went out.
+exports._mailjetClientForTesting = mailer.client;
+
+// Turn a scorecard submission into something an email can name.
+//
+// The form posts team and division IDS, so an email built straight from req.body can only
+// manage "a new scorecard has been uploaded" — which is what the old one said, and why the
+// results secretary had to open the site to find out which match it was.
+//
+// Never rejects: a failed lookup falls back to the id. An email naming the match is better
+// than the old one; an email that fails to send because a lookup timed out is worse.
+//
+// The score is counted from the SUBMITTED GAMES rather than read from fixture.homeScore —
+// at this point the row is a draft in scorecardstore and no fixture score exists yet. It is
+// labelled "games" in the email so it cannot be mistaken for the league's own match score,
+// which is set later when the result is confirmed.
+async function describeFixtureFromBody(body) {
+  const described = {
+    homeTeamName: 'Team ' + body.homeTeam,
+    awayTeamName: 'Team ' + body.awayTeam,
+    divisionName: null,
+    playedOn: null,
+    scoreLabel: 'games',
+  };
+
+  let home = 0, away = 0;
+  for (let g = 1; g <= 18; g++) {
+    const h = parseInt(body[`Game${g}homeScore`], 10);
+    const a = parseInt(body[`Game${g}awayScore`], 10);
+    if (Number.isInteger(h) && Number.isInteger(a)) { if (h > a) home++; else if (a > h) away++; }
+  }
+  described.homeScore = home;
+  described.awayScore = away;
+
+  try {
+    const [homeRows, awayRows] = await Promise.all([
+      getTeamByIdP(body.homeTeam), getTeamByIdP(body.awayTeam),
+    ]);
+    if (homeRows && homeRows[0] && homeRows[0].name) described.homeTeamName = homeRows[0].name;
+    if (awayRows && awayRows[0] && awayRows[0].name) described.awayTeamName = awayRows[0].name;
+  } catch (err) {
+    console.warn('[email] team name lookup failed:', err.message);
+  }
+  try {
+    const rows = await getDivisionByIdP(body.division);
+    if (rows && rows[0] && rows[0].name) described.divisionName = rows[0].name;
+  } catch (err) {
+    console.warn('[email] division name lookup failed:', err.message);
+  }
+  if (body.date) {
+    const when = new Date(body.date);
+    if (!Number.isNaN(when.getTime())) {
+      described.playedOn = when.toLocaleDateString('en-GB',
+        { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    }
+  }
+  return described;
+}
+
 
 const getDivisionsP = promisify(Division.getAllAndSelectedById);
+const getTeamByIdP = promisify(Team.getById);
+const getDivisionByIdP = promisify(Division.getById);
+const getScorecardByIdP = promisify(Fixture.getScorecardById);
 const getTeamsP = promisify(Team.getAllAndSelectedById);
 // getEligiblePlayersAndSelectedById takes its callback as the 5th arg, with
 // the optional third/fourth player ids trailing after it — promisify()
@@ -862,7 +926,10 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
     Fixture.createScorecard(scorecardObj, function (err, rows) {
       if (err) {
         console.log(err);
-        next(err);
+        // `return`, because the send below sits outside this else (closed off by a stray
+        // `};` further down) and used to run anyway on the error path — a second response
+        // on a request that had already failed.
+        return next(err);
       } else {
  // console.log(rows);
         let scorecardUrlBeta =
@@ -873,33 +940,34 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
         // shared bucket's public ACLs are stripped. /scorecard-photo/:id is `secured`,
         // so the recipient sees it as themselves or gets sent to log in.
         let photoUrl = absoluteUrl("/scorecard-photo/" + rows[0].id);
-        msg = {
-            "From": {
-              "Email": "results@tameside-badminton.co.uk"
-            },
-            "ReplyTo": {
-              "Email": "tameside.badders.results@gmail.com"
-            },
-            "To": [
-              {
-                "Email": "tameside.badders.results@gmail.com"
-              }
-            ],
-            "Bcc": [
-              {
-                "Email": "tameside.badders.results@gmail.com"
-              }
-            ],
-            "Subject": "scorecard received",
-            "TextPart": `a new scorecard has been uploaded: ${photoUrl} check the result here: ${scorecardUrl}`,
-            "HTMLPart": `<p>a new scorecard has been uploaded: <a href="${photoUrl}">View the scorecard photo</a><br />Check the result here: <a href="${scorecardUrl}">Confirm</a> or <a href="${scorecardUrlBeta}">${scorecardUrlBeta}</a></p>`,
-            
-          }
+        // `var`, not `const`: the send below is outside this else (see the stray `};`
+        // on the next line, which is how the original worked at all — `msg` was an
+        // implicit global). var hoists to the function, so the links survive the block.
+        var emailContext = {
+          confirmUrl: scorecardUrlBeta,
+          legacyConfirmUrl: scorecardUrl,
+          photoUrl: photoUrl,
+          body: req.body,
         };
-        const request = mailjet
-          .post("send", {'version': 'v3.1'})
-          .request({
-          "Messages":[msg]})
+        };
+        const request = describeFixtureFromBody(emailContext.body)
+          .then((described) => mailer.send({
+            template: 'scorecard-received',
+            subject: `Scorecard received: ${described.homeTeamName} vs ${described.awayTeamName}`,
+            text: `A result has been entered for ${described.homeTeamName} vs `
+                + `${described.awayTeamName} (${described.homeScore}-${described.awayScore} games).`
+                + `\n\nCheck and confirm: ${emailContext.confirmUrl}`
+                + (emailContext.photoUrl ? `\nScorecard photo: ${emailContext.photoUrl}` : '')
+                + `\n\nOlder confirm link: ${emailContext.legacyConfirmUrl}`,
+            to: mailer.RESULTS_MAILBOX,
+            replyTo: mailer.RESULTS_MAILBOX,
+            data: Object.assign({}, described, {
+              confirmUrl: emailContext.confirmUrl,
+              photoUrl: emailContext.photoUrl,
+              enteredBy: emailContext.body.email || 'someone who left no address',
+            }),
+            customId: 'ScorecardReceived',
+          }))
           .then(() => {
  // console.log(msg);
             res.render("email-scorecard", {
@@ -1538,35 +1606,34 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                                   "matchStats":matchStats
                                 }
                                 // console.log(emailData);
-                                ejs.renderFile('views/emails/websiteUpdated.ejs', {data:emailData}, function(err, str){
-                                  if (err) console.log(err);
-                                  console.log("logged in user email:" + req.body.email);
-                                  msg = {
-                                    "From": {
-                                      "Email": "results@tameside-badminton.co.uk"
+                                // The fallback recipient was stockport.badders.results@
+                                // — the OTHER league's mailbox — whenever req.body.email
+                                // was missing or malformed, so a Tameside result went to
+                                // Stockport. It is the Tameside results mailbox now.
+                                const enteredByEmail = (typeof req.body.email === 'string' && req.body.email.indexOf('@') > 1)
+                                  ? req.body.email
+                                  : mailer.RESULTS_MAILBOX;
+                                const request = mailer.send({
+                                    template: 'website-updated',
+                                    subject: `Result published: ${zapObject.homeTeam} vs ${zapObject.awayTeam}`,
+                                    text: `Thanks for sending your scorecard — ${zapObject.homeTeam} `
+                                        + `${zapObject.homeScore}-${zapObject.awayScore} ${zapObject.awayTeam} `
+                                        + `is now on the site.\n\n${absoluteUrl('/fixtures')}`,
+                                    to: enteredByEmail,
+                                    bcc: true,
+                                    replyTo: mailer.RESULTS_MAILBOX,
+                                    data: {
+                                      homeTeamName: zapObject.homeTeam,
+                                      awayTeamName: zapObject.awayTeam,
+                                      homeScore: zapObject.homeScore,
+                                      awayScore: zapObject.awayScore,
+                                      divisionName: zapObject.division,
+                                      matchStats: matchStats,
+                                      imageUrl: absoluteUrl('/static/images/generated/' + emailData.generatedImage + '.png'),
+                                      resultUrl: absoluteUrl('/fixtures'),
                                     },
-                                    "ReplyTo": {
-                                      "Email": "tameside.badders.results@gmail.com"
-                                    },
-                                    "To": [
-                                      {
-                                       "Email": (typeof req.body.email !== 'undefined' ? (req.body.email.indexOf('@') > 1 ? req.body.email : 'stockport.badders.results@gmail.com') : 'stockport.badders.results@gmail.com')
-                                       //"Email":"tameside.badders.results@gmail.com"
-                                      }
-                                    ],
-                                    "Bcc": [
-                                      {
-                                        "Email": "tameside.badders.results@gmail.com"
-                                      }
-                                    ],
-                                    "Subject": "Website Updated: " + zapObject.homeTeam + " vs " + zapObject.awayTeam,
-                                    "TextPart": "Thanks for sending your scorecard - website updated",
-                                    "HTMLPart": str,
-                                  }
-                                const request = mailjet
-                                  .post("send", {'version': 'v3.1'})
-                                  .request({
-                                  "Messages":[msg]})
+                                    customId: 'WebsiteUpdated',
+                                  })
                                   .then(()=>{                                
                                     res.render('index-scorecard',{
                                       static_path:'/static',
@@ -1584,7 +1651,6 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                                     console.log(error.toString());
                                     res.send("Sorry something went wrong sending your email - try sending it manually" + error);
                                   })
-                                });   
                               })
                             })
                           })
@@ -1698,36 +1764,33 @@ exports.fixture_reminder_post = function(req,res,next){
   let toField = (req.body.email.indexOf(',') > 0 ? req.body.email.split(',') : [req.body.email])
   toField = toField.map(row => { return { "Email": row } } )
   console.log(toField)
-  ejs.renderFile('views/emails/scorecardReminder.ejs', {}, {debug:true}, function(err, str){
-    if (err) console.log("Error:" + err);
-  msg = {
-    "From": {
-      "Email": "results@tameside-badminton.co.uk"
+  // The old template was scorecardReminder.ejs, which took NO variables at all — it
+  // could not name the match it was chasing, even though the subject line did, and it
+  // signed off "Thanks / Jonny" in the plain-text part only.
+  const enterUrl = absoluteUrl('/email-scorecard');
+  mailer.send({
+    template: 'fixture-reminder',
+    subject: `Scorecard still outstanding: ${req.body.hometeam} vs ${req.body.awayteam}`,
+    text: `We have not had the scorecard for ${req.body.hometeam} vs ${req.body.awayteam} yet.`
+        + `\n\nEntering it keeps the tables and the player statistics up to date, and takes`
+        + ` a couple of minutes: ${enterUrl}`
+        + `\n\nAlready sent it, or the match did not happen? Reply and say so.`,
+    to: toField,
+    bcc: true,
+    replyTo: mailer.RESULTS_MAILBOX,
+    data: {
+      homeTeamName: req.body.hometeam,
+      awayTeamName: req.body.awayteam,
+      divisionName: req.body.division || null,
+      playedOn: req.body.date || null,
+      enterUrl,
     },
-    "ReplyTo": {
-      "Email": "tameside.badders.results@gmail.com"
-    },
-    "To": toField,
-    "Bcc": [
-      {
-        "Email": "tameside.badders.results@gmail.com"
-      }
-    ],
-    "Subject": `Reminder: ${req.body.hometeam} vs ${req.body.awayteam}`,
-    "TextPart": ` Just a timely reminder that the scorecard for your recent match is still outstanding, please enter it as soon as possible to help keep the website up to date
-                  Thanks
-                  Jonny`,
-    "HTMLPart": str,
-  }
-const request = mailjet
-  .post("send", {'version': 'v3.1'})
-  .request({
-  "Messages":[msg]})
+    customId: 'FixtureReminder',
+  })
   .then(() => {
     res.sendStatus(200)
   })
   .catch((err) => next(err))
-})
 }
 
 exports.add_scorecard_photo = function(req,res,next){
@@ -1737,37 +1800,34 @@ exports.add_scorecard_photo = function(req,res,next){
       // console.log(err);
     }
     else{
-      msg = {
-        "From": {
-          "Email": "results@tameside-badminton.co.uk"
-        },
-        "ReplyTo": {
-          "Email": "tameside.badders.results@gmail.com"
-        },
-        "To": [
-          {
-            "Email": "tameside.badders.results@gmail.com"
-          }
-        ],
-        "Bcc": [
-          {
-            "Email": "tameside.badders.results@gmail.com"
-          }
-        ],
-        "Subject": "scorecard updated",
-        // Same reasoning as the "scorecard received" mail above: the photo goes as a
-        // `secured` /scorecard-photo/:id link rather than the raw public S3 URL, which
-        // stops working once the shared bucket's public ACLs are stripped.
-        "TextPart": `a scorecard has been updated with a photo: https://tameside-badminton.co.uk/scorecard-photo/${req.params.id} check the result here: https://tameside-badminton.co.uk/populated-scorecard-beta/${req.params.id}`,
-        "HTMLPart": `<p>a scorecard has been updated with a photo: <a href="https://tameside-badminton.co.uk/scorecard-photo/${req.params.id}">View the scorecard photo</a><br />Check the result here: <a href="https://tameside-badminton.co.uk/populated-scorecard-beta/${req.params.id}">Confirm</a> or <a href="https://tameside-badminton.co.uk/populated-scorecard-beta/${req.params.id}">https://tameside-badminton.co.uk/populated-scorecard-beta/${req.params.id}</a></p>`,
-      }
-    const request = mailjet
-      .post("send", {'version': 'v3.1'})
-      .request({
-      "Messages":[msg]})
-      .then(() => {
-        res.sendStatus(200)
-      })
+      // The photo goes as a `secured` /scorecard-photo/:id link, not the raw public S3
+      // URL, which stops working once the shared bucket's public ACLs are stripped.
+      const confirmUrl = absoluteUrl('/populated-scorecard-beta/' + req.params.id);
+      const photoUrl = absoluteUrl('/scorecard-photo/' + req.params.id);
+      // A scorecardstore row carries the same Game* columns the form posts, so the same
+      // describe helper names the fixture here. This handler previously knew nothing but
+      // the row id, so the email could not say which match had gained a photo.
+      getScorecardByIdP(req.params.id)
+        .then((rows) => describeFixtureFromBody((rows && rows[0]) || {}))
+        .catch(() => ({ homeTeamName: 'a fixture', awayTeamName: '', scoreLabel: 'games' }))
+        .then((described) => mailer.send({
+          template: 'scorecard-photo-added',
+          subject: `Scorecard photo added: ${described.homeTeamName} vs ${described.awayTeamName}`,
+          text: `A scorecard photo has been added to ${described.homeTeamName} vs `
+              + `${described.awayTeamName}.\n\nCheck and confirm: ${confirmUrl}`
+              + `\nScorecard photo: ${photoUrl}`,
+          to: mailer.RESULTS_MAILBOX,
+          replyTo: mailer.RESULTS_MAILBOX,
+          data: Object.assign({}, described, { confirmUrl, photoUrl }),
+          customId: 'ScorecardPhotoAdded',
+        }))
+        .then(() => res.sendStatus(200))
+        // The original send had no .catch at all, so a Mailjet failure here was an
+        // unhandled rejection and the request never got a response.
+        .catch((sendErr) => {
+          console.error('[email] scorecard-photo-added failed:', sendErr.message);
+          next(sendErr);
+        });
     }
   })
 }

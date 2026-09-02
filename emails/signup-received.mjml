@@ -1,0 +1,36 @@
+<mjml>
+  <mj-head>
+    <mj-include path="./_theme.mjml" />
+    <mj-title>New signup waiting for approval</mj-title>
+    <mj-preview><%= userEmail %> has asked for results-entry access</mj-preview>
+  </mj-head>
+  <mj-body background-color="#eef0f4" width="600px">
+    <mj-include path="./_header.mjml" />
+    <mj-section padding="28px 0 0">
+      <mj-column>
+        <mj-text mj-class="h1">Someone wants results access</mj-text>
+        <mj-text mj-class="lede" padding="10px 24px 0">
+          A new account has been created and is waiting for you to approve it.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="20px 24px 0">
+      <mj-column background-color="#f4f6f9" padding="18px 20px" border-radius="6px">
+        <mj-text mj-class="label" text-transform="uppercase" padding="0">Signed up as</mj-text>
+        <mj-text mj-class="value" padding="4px 0 0" font-size="15px">
+          <span class="breakable"><%= userEmail %></span>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section>
+      <mj-column>
+        <mj-button href="<%= approveUrl %>" css-class="cta">Review and approve</mj-button>
+        <mj-text mj-class="muted" align="center" padding="14px 24px 0">
+          Opening the link only shows you the request &mdash; nothing is granted until you
+          submit the form.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-include path="./_footer.mjml" />
+  </mj-body>
+</mjml>

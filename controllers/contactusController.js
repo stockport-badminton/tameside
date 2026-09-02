@@ -1,4 +1,6 @@
-const mailjet = require ('node-mailjet').apiConnect(process.env.MAILJET_KEY, process.env.MAILJET_SECRET)
+// Every send goes through utils/mailer.js, which owns the one Mailjet client.
+const mailer = require('../utils/mailer');
+const { absoluteUrl } = require('../utils/siteUrl');
 var Club = require('../models/club.js');
 var Player = require('../models/players.js');
 var Division = require('../models/division.js');
@@ -11,43 +13,16 @@ const fs = require('fs');
 var Spam = require('../models/spamControls');
 const spamGate = require('../middleware/spamGate');
 
-// Test seam, mirroring fixtureController._mailjetClientForTesting: lets the suite stub
-// `post` so a submission test never sends a real email.
-exports._mailjetClientForTesting = mailjet;
+// Test seam: the suite stubs `post` on this so a submission test never sends a real
+// email. It MUST be the very client utils/mailer.js sends through — exporting a separate
+// instance would leave the stub intercepting nothing while real mail went out.
+exports._mailjetClientForTesting = mailer.client;
 
-exports.mailjet_test = function(req,res,next) {
-    
-    const request = mailjet
-    .post("send", {'version': 'v3.1'})
-    .request({
-    "Messages":[
-        {
-        "From": {
-            "Email": "results@tameside-badminton.co.uk",
-            "Name": "Neil"
-        },
-        "To": [
-            {
-            "Email": "tameside.badders.results@gmail.com",
-            "Name": "Neil"
-            }
-        ],
-        "Subject": "Greetings from Mailjet.",
-        "TextPart": "My first Mailjet email",
-        "HTMLPart": "<h3>Dear passenger 1, welcome to <a href='https://www.mailjet.com/'>Mailjet</a>!</h3><br />May the delivery force be with you!",
-        "CustomID": "AppGettingStartedTest"
-        }
-    ]
-    })
-    .then((result) => {
-        console.log(result.body)
-        res.send(result.body)
-    })
-    .catch((err) => {
-        console.log(err.statusCode)
-        next(err)
-    })
-}
+// GET /mailjet is gone. It was the Mailjet getting-started sample, never removed: an
+// UNAUTHENTICATED endpoint that sent a hardcoded "Greetings from Mailjet / Dear passenger 1"
+// message to the league results mailbox, so a one-line curl loop was a mail bomb. Nothing
+// in the app ever linked to it. The Stockport side deleted its equivalent (/SESemail) for
+// exactly this reason.
 
 function validCaptcha(value,{req}){
   // console.log('https://www.google.com/recaptcha/api/siteverify?secret='+ process.env.RECAPTCHA_SECRET +'&response='+value);
@@ -115,6 +90,40 @@ async function containsDodgyEmail(value,{req}){
 }
 
 
+// One place that turns a contact-form submission into an email, so the two branches
+// below (a club secretary, or a named league officer) cannot drift apart.
+//
+// Refuses to send with no recipient. The old code carried a placeholder To of
+// `passenger1@example.com` and relied on every branch overwriting it — and the
+// `default:` case did not, so a malformed `leagueSelect` posted somebody's enquiry to
+// example.com rather than failing.
+function sendContactMessage(msg, contactMessage) {
+  const recipients = (msg.To || []).filter(r => r && r.Email);
+  if (!recipients.length) {
+    const err = new Error('No contact could be resolved for that selection.');
+    err.status = 400;
+    return Promise.reject(err);
+  }
+  const senderName = String(contactMessage.senderEmail || 'them');
+  return mailer.send({
+    template: 'contact-us',
+    subject: contactMessage.subject,
+    text: 'A message from ' + contactMessage.senderEmail + ' via the league website:\n\n'
+        + contactMessage.body + '\n\nReply to this email to answer them directly.',
+    to: recipients,
+    bcc: true,
+    // Replying goes straight back to whoever filled the form in.
+    replyTo: contactMessage.senderEmail,
+    data: {
+      senderEmail: contactMessage.senderEmail,
+      senderName,
+      messageHtml: mailer.textToHtml(contactMessage.body),
+      whyReceiving: 'You are receiving this because you are listed as a contact for your club or the league.',
+    },
+    customId: 'ContactUs',
+  });
+}
+
 exports.validateContactUs = [
   body('contactEmail').not().isEmpty().withMessage('please enter an Email address').isEmail().withMessage('Please enter a valid email address').custom(containsDodgyEmail).withMessage("You have been blocked for spamming the contact form"),
   body('contactQuery').not().isEmpty().withMessage('Please enter something in message field.').custom(containsProfanity).withMessage("Please don't use profanity in the message body"),
@@ -122,42 +131,27 @@ exports.validateContactUs = [
 ]
 
 exports.new_user = function(req,res,next){
-  const msg = {
-    "From": {
-      "Email": "results@tameside-badminton.co.uk"
-    },
-    "ReplyTo": {
-      "Email": "results@tameside-badminton.co.uk"
-    },
-    "To": [
-      {
-        "Email": "results@tameside-badminton.co.uk"
-      }
-    ],
-    "Subject": "new user signup",
-    "TextPart": "a new user has signed up: " + req.body.user,
-      // Auth0 ids contain a `|` ("auth0|abc123"), which went into the emailed link
-      // raw. Encode it so the link survives the mail client and matches the route.
-      "HTMLPart": "<p>a new user has signed up: "+ req.body.user +"<br /><a href=\"https://tameside-badminton.co.uk/approve-user/"+encodeURIComponent(req.body.id)+"\">Approve?</a></p>",
-      "CustomID": "UserSignUp"
+  if (typeof req.body.id === 'undefined' || String(req.body.id).length <= 3 || req.body.id === 'undefined') {
+    return res.sendStatus(200);
   }
-  
-  if (typeof req.body.id != 'undefined' && req.body.id.length > 3 && req.body.id != 'undefined'){
-    const request = mailjet
-        .post("send", {'version': 'v3.1'})
-        .request({
-        "Messages":[msg]})
-    .then(()=>{
-      res.sendStatus(200)
-    })
+  // Auth0 ids contain a `|` ("auth0|abc123"), which has to be encoded or the emailed
+  // link neither survives the mail client nor matches the route.
+  const approveUrl = absoluteUrl('/approve-user/' + encodeURIComponent(req.body.id));
+  mailer.send({
+    template: 'signup-received',
+    subject: 'New signup waiting for approval',
+    text: 'A new user has signed up: ' + req.body.user
+        + '\n\nReview and approve: ' + approveUrl,
+    to: 'results@tameside-badminton.co.uk',
+    replyTo: 'results@tameside-badminton.co.uk',
+    data: { userEmail: req.body.user, approveUrl },
+    customId: 'UserSignUp',
+  })
+    .then(() => res.sendStatus(200))
     .catch(error => {
       console.log(error.toString());
       return next("Sorry something went wrong sending your email.");
-    })
-  }
-  else{
-    res.sendStatus(200);
-  }
+    });
 }
 
 exports.contactus = function(req, res,next){
@@ -184,31 +178,21 @@ exports.contactus = function(req, res,next){
       return;
   }
   else {
-  const msg = {
-    "From": {
-      "Email": "results@tameside-badminton.co.uk"
-    },
-    "ReplyTo": {
-      "Email": req.body.contactEmail
-    },
-    "To": [
-      {
-        "Email": "passenger1@example.com"
-      }
-    ],
-    "Bcc": [
-      {
-        "Email": "tameside.badders.results@gmail.com"
-      }
-    ],
-    "TemplateID": 6134550,
-    "TemplateLanguage": true,
-    "Subject": "Someone is trying to get in touch",
-    "Variables": {
-  "message": req.body.contactQuery,
-  "email": req.body.contactEmail
-}
+  // The message used to be built from a Mailjet-HOSTED template (TemplateID 6134550),
+  // i.e. the layout of an email this site sends lived outside version control and could
+  // not be reviewed, diffed or tested. It is now views/emails/contact-us.ejs.
+  //
+  // `To` was also a literal `passenger1@example.com` placeholder, overwritten further
+  // down — and the switch below has a `default:` that sets nothing, so an unrecognised
+  // `leagueSelect` sent a real enquiry to example.com. sendContactMessage() refuses to
+  // send without a recipient instead.
+  const contactMessage = {
+    subject: 'Someone is trying to get in touch',
+    senderEmail: req.body.contactEmail,
+    body: req.body.contactQuery,
   };
+  // Collects the recipient(s) the branches below resolve; see sendContactMessage.
+  const msg = { To: [] };
     var clubEmail = '';
 
     // Neither branch below matches unless contactType is exactly 'Clubs' or 'League', and
@@ -238,12 +222,9 @@ exports.contactus = function(req, res,next){
           // msg.to = rows[0].contactUs;
           // msg.to = (rows[0].clubSecEmail.indexOf(',') > 0 ? rows[0].clubSecEmail.split(',') : rows[0].clubSecEmail);
           msg.To = rows.map(row => ({"Email":row.clubSecEmail,"Name":row.clubSecretary}))
-          const request = mailjet
-          .post("send", {'version': 'v3.1'})
-          .request({
-          "Messages":[msg]})
+          sendContactMessage(msg, contactMessage)
             .then(()=>{
-              console.log(msg);
+              spamGate.logOutcome(req, { verdict: 'accepted' });
               res.render('contact-us-form-delivered', {
                   static_path: '/static',
                   title: 'Contact Us - Success',
@@ -287,13 +268,11 @@ exports.contactus = function(req, res,next){
             msg.To = [{"Email":"gillian.indexer@gmail.com"}]
             break;
         default:
+          // Deliberately leaves To empty — sendContactMessage rejects rather than
+          // falling back to the old example.com placeholder.
       }
-      const request = mailjet
-          .post("send", {'version': 'v3.1'})
-          .request({
-          "Messages":[msg]})
+      sendContactMessage(msg, contactMessage)
       .then(()=>{
-        console.log(msg);
         spamGate.logOutcome(req, { verdict: 'accepted' });
         res.render('contact-us-form-delivered', {
             static_path: '/static',
@@ -402,20 +381,25 @@ exports.admin_distribution_send = async function(req, res, next) {
     if (!emails.length) {
       return res.status(400).json({ error: 'No recipients match those filters.' });
     }
-    const html = '<div>' + message.replace(/\n/g, '<br />') + '</div>';
-    const msg = {
-      "From":    { "Email": "results@tameside-badminton.co.uk", "Name": "Tameside Badminton League" },
-      "ReplyTo": { "Email": "results@tameside-badminton.co.uk" },
-      // Visible To is the league address; the list itself goes in Bcc so
-      // recipients never see each other's addresses.
-      "To":  [{ "Email": "results@tameside-badminton.co.uk" }],
-      "Bcc": emails.map(e => ({ "Email": e })),
-      "Subject": subject,
-      "TextPart": message,
-      "HTMLPart": html,
-      "CustomID": "DistributionList"
-    };
-    await mailjet.post("send", { 'version': 'v3.1' }).request({ "Messages": [msg] });
+    // Visible To is the league address; the list itself goes in Bcc so recipients never
+    // see each other's addresses. The body was previously wrapped in a bare <div> with
+    // no layout at all — it is the same league template as everything else now.
+    await mailer.send({
+      template: 'league-notice',
+      subject,
+      text: message,
+      to: 'results@tameside-badminton.co.uk',
+      bcc: emails.map(e => ({ Email: e })),
+      replyTo: 'results@tameside-badminton.co.uk',
+      data: {
+        subject,
+        // First line of the message, so the inbox preview says something useful.
+        preview: message.split(/\r?\n/).find(Boolean) || subject,
+        messageHtml: mailer.textToHtml(message),
+        whyReceiving: 'You are receiving this because you are a registered player or club contact in the league.',
+      },
+      customId: 'DistributionList',
+    });
     res.json({ ok: true, sent: emails.length });
   } catch (err) {
     console.error('distribution send failed:', err && err.toString());

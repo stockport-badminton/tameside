@@ -1,0 +1,42 @@
+<mjml>
+  <mj-head>
+    <mj-include path="./_theme.mjml" />
+    <mj-title>Scorecard photo added</mj-title>
+    <mj-preview>A photo has been added to <%= homeTeamName %> vs <%= awayTeamName %></mj-preview>
+  </mj-head>
+  <mj-body background-color="#eef0f4" width="600px">
+    <mj-include path="./_header.mjml" />
+    <mj-section padding="28px 0 0">
+      <mj-column>
+        <mj-text mj-class="h1">Scorecard photo added</mj-text>
+        <mj-text mj-class="lede" padding="10px 24px 0">
+          A result you already have was missing its card. The photo is now attached to it.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-include path="./_fixture-panel.mjml" />
+    <mj-section>
+      <mj-column>
+        <mj-button href="<%= confirmUrl %>" css-class="cta">Check and confirm the result</mj-button>
+        <mj-raw><% if (photoUrl) { %></mj-raw>
+        <mj-text align="center" padding="4px 24px 0">
+          <a href="<%= photoUrl %>" style="color:#0d6efd;font-size:15px;">View the scorecard photo</a>
+        </mj-text>
+        <mj-raw><% } %></mj-raw>
+        <mj-text mj-class="muted" align="center" padding="14px 24px 0">
+          Both links ask you to sign in first.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section><mj-column><mj-divider /></mj-column></mj-section>
+    <mj-section padding="0 0 26px">
+      <mj-column>
+        <mj-text mj-class="muted">
+          If a link does not work, paste this into your browser:<br />
+          <span class="breakable"><%= confirmUrl %></span>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-include path="./_footer.mjml" />
+  </mj-body>
+</mjml>

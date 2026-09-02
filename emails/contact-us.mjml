@@ -1,0 +1,43 @@
+<mjml>
+  <mj-head>
+    <mj-include path="./_theme.mjml" />
+    <mj-title>Someone is trying to get in touch</mj-title>
+    <mj-preview>A message from <%= senderEmail %> via the league website</mj-preview>
+  </mj-head>
+  <mj-body background-color="#eef0f4" width="600px">
+    <mj-include path="./_header.mjml" />
+    <mj-section padding="28px 0 0">
+      <mj-column>
+        <mj-text mj-class="h1">Someone is trying to get in touch</mj-text>
+        <mj-text mj-class="lede" padding="10px 24px 0">
+          This came through the contact form on the league website. Replying to this email
+          goes straight back to them.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="20px 24px 0">
+      <mj-column background-color="#f4f6f9" padding="18px 20px" border-radius="6px">
+        <mj-text mj-class="label" text-transform="uppercase" padding="0">From</mj-text>
+        <mj-text mj-class="value" padding="4px 0 0" font-size="15px">
+          <span class="breakable"><%= senderEmail %></span>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="18px 0 0">
+      <mj-column>
+        <mj-text mj-class="label" text-transform="uppercase">Their message</mj-text>
+        <!-- Escaped with <%= %>, then newlines turned into <br /> by the caller. This is
+             text a stranger typed into a public form: it must never be interpolated raw. -->
+        <mj-text padding="8px 24px 0" color="#22303f">
+          <%- messageHtml %>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section>
+      <mj-column>
+        <mj-button href="mailto:<%= senderEmail %>" css-class="cta">Reply to <%= senderName %></mj-button>
+      </mj-column>
+    </mj-section>
+    <mj-include path="./_footer.mjml" />
+  </mj-body>
+</mjml>

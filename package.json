@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "mjml": "^5.4.0",
     "nodemon": "^3.0.1",
     "supertest": "^7.2.2"
   },
@@ -49,6 +50,9 @@
     "start": "node server.js",
     "dev": "npm run build:css && nodemon server.js",
     "test": "node --test 'test/**/*.test.js'",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "build:email": "node tools/build-emails.js",
+    "build:email:check": "node tools/build-emails.js --check",
+    "preview:email": "node tools/preview-emails.js"
   }
 }

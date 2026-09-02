@@ -45,3 +45,4 @@ uat-cards/
 # Generated from bootstrap/style.scss by `npm run build:css` (and in the Docker build).
 # Not committed: the SCSS is the source of truth.
 static/css/style.css
+.preview-emails/

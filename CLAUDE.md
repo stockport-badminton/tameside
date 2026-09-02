@@ -96,6 +96,69 @@ Sensitive columns (player phone, email) are PgP-encrypted in the DB; decrypted w
   Read `auth0/README.md` before touching any Auth0 setting; several are shared with
   Stockport.
 
+### Emails
+
+Nine emails, one pipeline. `emails/*.mjml` → `npm run build:email` → committed
+`views/emails/*.ejs` → sent by `utils/mailer.js`.
+
+Before this there were nine send sites across three files: seven inline HTML string
+literals, one from a **Mailjet-hosted** template (`TemplateID 6134550` — the layout of an
+email this site sends lived outside version control), and two SendGrid exports. Three
+files each built their own Mailjet client. Adding an email meant copying whichever block
+looked closest.
+
+Adding one now: write `emails/<name>.mjml`, run `npm run build:email`, call
+`mailer.send({ template, subject, text, to, data })`, add a case to
+`test/email-templates.test.js`.
+
+**MJML is a devDependency and never ships.** The Dockerfile runs `npm ci --omit=dev`, so
+the compiled `.ejs` is committed and production renders it with the `ejs` it already had —
+the runtime path is unchanged. Compiling in the image (as `build:css` does) would make
+mjml a production dependency for the sake of a build step.
+
+Three MJML 5 traps, all of which fail **silently**:
+
+- **The API is async.** `mjml2html()` returns a Promise; treating it as synchronous yields
+  an object with no `html` and a template containing only the banner comment.
+- **`mj-include` is off by default.** Passing `filePath` is not enough — without
+  `ignoreIncludes: false` the partials are dropped with no error, and you get a template
+  with no header, footer or theme. The CLI spelling is `--config.allowIncludes true`.
+- **An EJS tag between two MJML components is discarded, and the content it guarded then
+  renders unconditionally.** `<% if (photoUrl) { %>` around an `<mj-text>` produced a photo
+  link that always showed. Inside a text node EJS survives; between components it does not.
+  Wrap those in `<mj-raw>`. `tools/build-emails.js` counts EJS tags in the source (and its
+  includes) against the output and **fails the build** if any were eaten — verified by
+  reintroducing the bug on purpose.
+
+Other things worth not rediscovering:
+
+- **`utils/mailer.js` owns the one Mailjet client**, and both controllers re-export it as
+  `_mailjetClientForTesting`. That export **must be `mailer.client`** — a separate instance
+  would leave the test stub intercepting nothing while real mail went out.
+- **Every email needs a plain-text part**; `send()` throws without one. Some senders had
+  none, which scores worse with filters and renders as an empty body in a text-only client.
+- **The footer's "why you are receiving this" line is per-email** (`whyReceiving`), because
+  the audiences differ — a captain, a club secretary hearing from a stranger, a player on
+  the mailing list. It is the main defence against a junk click, which in Mailjet
+  permanently suppresses that address with no bounce. See `docs/email-deliverability.md`.
+- **The score in a "scorecard received" email is counted from the submitted games and
+  labelled "games".** At that point the row is a draft in `scorecardstore` and no
+  `fixture.homeScore` exists yet, so it must not be presented as the league's match score.
+- **`GET /mailjet` is deleted.** The Mailjet getting-started sample, never removed: an
+  unauthenticated endpoint that sent a hardcoded message to the league results mailbox, so
+  a curl loop was a mail bomb. (An HTTP **HEAD** probe fires it too — Express routes HEAD to
+  the GET handler.) Same shape as the `/SESemail` endpoint Stockport deleted.
+- **`describeFixtureFromBody` never rejects.** An email naming the match beats the old one;
+  an email that fails to send because a team-name lookup timed out is worse than both, so a
+  failed lookup degrades to the team id.
+- Two pre-existing bugs fixed in passing: the "website updated" email fell back to
+  **`stockport.badders.results@`** — the *other* league's mailbox — whenever the submitter's
+  address was missing; and `POST /add-scorecard-photo` had no `.catch` on its send, so a
+  Mailjet failure was an unhandled rejection and the request never got a response.
+- The `scorecard received` send also sat **outside** its `else` (closed off early by a stray
+  `};`, working only because `msg` was an implicit global), so on a create error it called
+  `next(err)` and then sent anyway. It `return`s now.
+
 ### Absolute URLs — never from `req.headers.host`
 
 `utils/siteUrl.js` owns the site's public address. Anything that must be absolute — links
@@ -748,6 +811,13 @@ DB_ENCODE          # PgP key for decrypting player contact data
 SENTRY_DSN         # Server-side error reporting (instrument.js). Dormant unless set;
                    # only sends when NODE_ENV=production or K_SERVICE is set (Cloud Run).
 SENTRY_AUTH_TOKEN  # Read-only token for the tools/sentry/sentry-issues.js triage helper
+SITE_URL           # The site's own public address for absolute links (emails, canonical,
+                   # logout returnTo). Defaults to https://tameside-badminton.co.uk.
+                   # NEVER derive one from req.headers.host — Firebase rewrites Host to the
+                   # Cloud Run hostname. See utils/siteUrl.js.
+MAILJET_WEBHOOK_TOKEN  # Shared secret in the Mailjet event-callback URL
+                   # (/webhooks/mailjet?t=...). Unset means the route 404s, i.e. inert.
+                   # See docs/email-deliverability.md.
 ```
 
 ## Scorecard Validation
