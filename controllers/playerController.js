@@ -1,4 +1,7 @@
 var Club = require('../models/club');
+// Absolute urls come from configuration, not from req.get('host'): Firebase Hosting
+// rewrites Host to the Cloud Run hostname. See utils/siteUrl.js.
+const { canonicalFor } = require('../utils/siteUrl');
 var Player = require('../models/players');
 var Team = require('../models/teams');
 var Fixture = require('../models/fixture');
@@ -1203,7 +1206,7 @@ exports.player_update_get = function(req, res,next) {
            // re-derives this rather than trusting it back, so this only decides what
            // is rendered — it is not the security boundary.
            canEditRole : authz.isSuperAdmin(req),
-           canonical:("https://" + req.get("host") + req.originalUrl).replace("www.'","").replace(".com",".co.uk").replace("-badders.herokuapp","-badminton")
+           canonical: canonicalFor(req)
        });
     }
   })

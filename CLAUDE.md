@@ -96,6 +96,50 @@ Sensitive columns (player phone, email) are PgP-encrypted in the DB; decrypted w
   Read `auth0/README.md` before touching any Auth0 setting; several are shared with
   Stockport.
 
+### Absolute URLs — never from `req.headers.host`
+
+`utils/siteUrl.js` owns the site's public address. Anything that must be absolute — links
+in emails, the Auth0 logout `returnTo`, webhook payloads, `rel=canonical` — goes through
+`siteUrl()` / `absoluteUrl(path)` / `canonicalFor(req)`, which read `SITE_URL` (default
+`https://tameside-badminton.co.uk`).
+
+**tameside-badminton.co.uk resolves to Firebase Hosting, which proxies to Cloud Run and
+REWRITES the Host header.** Proven by experiment 2026-09-02: a request sent to
+`https://tameside-badminton.co.uk/hostprobe-…` was recorded by Cloud Run as
+`https://tameside-site-p6gfjwl72q-nw.a.run.app/hostprobe-…`. So in production
+`req.headers.host` is **always** the run.app hostname and the domain the visitor typed
+**cannot be recovered from the request at all**.
+
+What that broke, and why it looked like a scorecard bug: the results-secretary email built
+its links from `req.headers.host`, so it sent
+`https://tameside-site-…a.run.app/populated-scorecard-beta/2164`. Clicking one puts the
+browser on the run.app origin, and then
+
+1. `secured` stores `returnTo` and sets `__session` — for `*.a.run.app`;
+2. `/login` goes to Auth0, whose callback is (correctly) `…co.uk/callback`;
+3. the browser returns to the **`.co.uk` origin — a different cookie jar** — which does not
+   send that cookie;
+4. no OAuth state and no `returnTo`, so `/callback`'s `|| '/'` fires and you land logged in
+   on the homepage having asked for a scorecard.
+
+**No session store can fix this** — two origins cannot share a cookie. The only fix is to
+never emit a run.app link. `test/site-url.test.js` has a repo-wide source assertion that
+fails if `req.headers.host` / `req.get('host')` reappears anywhere outside the helper: this
+was one expression copy-pasted into seven files, and it is exactly what gets reintroduced
+from an older handler.
+
+- **The app cannot detect which origin the browser is on**, so a "redirect to the canonical
+  host" middleware is NOT safe here — it would loop on every page. Don't add one.
+- **Emails already sent still contain run.app links** and will still misbehave. Editing the
+  host in the address bar is the workaround.
+- The `.replace('.com', '.co.uk')` chains that used to decorate the canonical-url code were
+  earlier attempts at the same problem; they could never work, because a run.app hostname
+  contains no `.com` to replace.
+- **Nothing renders `canonical`.** Several controllers pass it as a view local and no view
+  reads it, so it is dead — worth knowing before "fixing" it again.
+- `AUTH0_CALLBACK_URL` is `https://tameside-badminton.co.uk/callback`, which is correct and
+  should stay on the custom domain.
+
 ### Sessions
 
 `express-session`, cookie name `__session`, **stored in Postgres** —
@@ -116,12 +160,18 @@ The symptom was the **login round trip**, which is three hops — `/login`, Auth
 - **`returnTo` lost** → the callback's `|| '/'` fallback fires and you arrive at the
   homepage instead of the page you clicked.
 
-It was always broken; it became obvious when `GET /scorecard-photo/:id` replaced the
-public S3 URL in the results-secretary email, because that turned a link needing no
-session into one that forces the whole round trip. It had also silently broken the
-registration-import **review → apply** handover, which parks the parsed document in the
-session — fine locally, where there is one process, and an intermittent "that review has
-expired" in production.
+It was always broken, and it became reachable far more often when
+`GET /scorecard-photo/:id` replaced the public S3 URL in the results-secretary email,
+because that turned a link needing no session into one that forces the whole round trip.
+It had also silently broken the registration-import **review → apply** handover, which
+parks the parsed document in the session — fine locally, where there is one process, and an
+intermittent "that review has expired" in production.
+
+> **This was not the cause of the "emailed link dumps me on the homepage" report**, though
+> it looks identical. That was the Host rewrite putting a `*.a.run.app` link in the email —
+> see **Absolute URLs** above. Both bugs are real and both had to be fixed; when a session
+> appears to vanish across the Auth0 round trip, check which ORIGIN the browser is on before
+> assuming the store.
 
 - **Not `connect-pg-simple`.** It needs `pg`, and this app uses `postgres` (postgres.js).
   A second driver means a second pool, and `POOL_MAX` (5) × `_MAX_INSTANCES` (4) ≤ 60 is

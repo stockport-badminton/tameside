@@ -30,6 +30,8 @@ const {
 const { getSignedUrl } = require ("@aws-sdk/s3-request-presigner");
 // One place that knows which credentials actually work — see utils/s3.js.
 const { s3Client } = require('./utils/s3');
+// The site's own public address. Never req.headers.host — see utils/siteUrl.js.
+const { siteUrl } = require('./utils/siteUrl');
 const { title } = require('process');
 const { appendFile } = require('fs/promises');
 
@@ -676,7 +678,10 @@ function secured(req, res, next) {
   app.get('/logout', function(req, res, next) {
     req.logout(function(err) {
       if (err) { return next(err); }
-      res.redirect('https://'+ process.env.AUTH0_DOMAIN + '/v2/logout?clientid='+ process.env.AUTH0_CLIENTID +'&returnTo=https://'+ req.headers.host);
+      // returnTo must be the canonical domain: req.headers.host is the Cloud Run
+    // hostname (Firebase rewrites it), so logging out used to land people on
+    // *.a.run.app — a different origin, hence a different session cookie.
+    res.redirect('https://'+ process.env.AUTH0_DOMAIN + '/v2/logout?clientid='+ process.env.AUTH0_CLIENTID +'&returnTo='+ encodeURIComponent(siteUrl()));
     });
   });
 

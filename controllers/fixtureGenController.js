@@ -1,6 +1,8 @@
 const { generateFixtureCalendar, getSeasonDates, computeStats, getLewisShieldQFWindow, getLewisEarlyWindows } = require('../utils/fixtureScheduler');
 const fixtureGenModel = require('../models/fixtureGenModel');
 
+// Not req.get('host') — Firebase rewrites Host to the run.app hostname (utils/siteUrl.js).
+const { absoluteUrl } = require('../utils/siteUrl');
 function buildRenderContext(req, seasonCalendar, divisions, seasonDates, stats, lewisConstraints = {}, meta = {}) {
   // Flatten fixtures per division for the client-side spreadsheet builder
   function flattenDiv(divName) {
@@ -39,7 +41,7 @@ function buildRenderContext(req, seasonCalendar, divisions, seasonDates, stats, 
     static_path:     '/static',
     title:           'Fixture Generator',
     pageDescription: `Tameside ${seasonDates.season} fixture generator`,
-    canonical:       `https://${req.get('host')}/fixture-gen`,
+    canonical:       absoluteUrl('/fixture-gen'),
     fixturesOutput:  seasonCalendar,
     divData,
     stats,

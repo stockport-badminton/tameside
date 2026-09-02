@@ -27,6 +27,11 @@ const promisify = (fn) => (...args) => new Promise((resolve, reject) =>
 // fixture that isn't there. Now shared with teamController's Lewis route — see
 // utils/render404.js for why the no-store header matters.
 const render404 = require('../utils/render404');
+// Absolute urls for emails and rel=canonical. NOT req.headers.host: Firebase Hosting
+// rewrites Host to the Cloud Run hostname, so that produced *.a.run.app links, which
+// break the Auth0 round trip — a different origin is a different cookie jar, so the
+// session holding `returnTo` never comes back. See utils/siteUrl.js.
+const { siteUrl, absoluteUrl, canonicalFor } = require('../utils/siteUrl');
 
 const getDivisionsP = promisify(Division.getAllAndSelectedById);
 const getTeamsP = promisify(Team.getAllAndSelectedById);
@@ -674,9 +679,7 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
       });
     })();
   } else {
-    let scorecardUrl =
-      "https://" +
-      req.headers.host +
+    let scorecardUrl = absoluteUrl(
       "/populated-scorecard/" +
       req.body.division +
       "/" +
@@ -778,7 +781,7 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
       "/" +
       req.body.Game18homeScore +
       "/" +
-      req.body.Game18awayScore;
+      req.body.Game18awayScore);
     let scorecardObj = {};
     scorecardObj.date = req.body.date;
     scorecardObj.division = req.body.division;
@@ -863,17 +866,13 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
       } else {
  // console.log(rows);
         let scorecardUrlBeta =
-          "https://" +
-          req.headers.host +
-          "/populated-scorecard-beta/" +
-          rows[0].id;
+          absoluteUrl("/populated-scorecard-beta/" + rows[0].id);
         // The photo link the results secretary gets. It used to be the raw public S3
         // URL, which meant the authorization on a scorecard photo was "know the URL",
         // for anyone this email was ever forwarded to — and it breaks outright once the
         // shared bucket's public ACLs are stripped. /scorecard-photo/:id is `secured`,
         // so the recipient sees it as themselves or gets sent to log in.
-        let photoUrl =
-          "https://" + req.headers.host + "/scorecard-photo/" + rows[0].id;
+        let photoUrl = absoluteUrl("/scorecard-photo/" + rows[0].id);
         msg = {
             "From": {
               "Email": "results@tameside-badminton.co.uk"
@@ -1079,7 +1078,7 @@ exports.getScorecard = function(req, res,next) {
       pageDescription : "View scorecard for this match",
       result: games,
       summary: summary,
-      canonical:("https://" + req.get("host") + req.originalUrl).replace("www.'","").replace(".com",".co.uk").replace("-badders.herokuapp","-badminton")
+      canonical: canonicalFor(req)
     });
 
     if (games.length){
@@ -1503,7 +1502,9 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                   Fixture.getFixtureDetailsById(FixtureIdResult[0].id,function(err,getFixtureDetailsResult){
                     if(err) res.send(err)
                     zapObject = {
-                      "host":req.headers.host,
+                      // Canonical host, not req.headers.host — whatever consumes this
+                      // webhook builds links from it.
+                      "host":siteUrl().replace(/^https?:\/\//, ''),
                       "homeTeam":getFixtureDetailsResult[0].homeTeam,
                       "awayTeam":getFixtureDetailsResult[0].awayTeam,
                       "homeScore":getFixtureDetailsResult[0].homeScore,
@@ -1687,7 +1688,7 @@ exports.fixture_event_detail = function(req, res,next) {
           pageDescription : "View scorecard for this match",
           fixtureDetails: row[0],
           mapsApiKey:process.env.GMAPSAPIKEY,
-          canonical:("https://" + req.get("host") + req.originalUrl).replace("www.'","").replace(".com",".co.uk").replace("-badders.herokuapp","-badminton")
+          canonical: canonicalFor(req)
       });
     }
   })

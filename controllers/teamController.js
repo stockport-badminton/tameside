@@ -1,5 +1,8 @@
 require('dotenv').config()
 const contentful = require('contentful')
+// Absolute urls come from configuration, not from req.get('host'): Firebase Hosting
+// rewrites Host to the Cloud Run hostname. See utils/siteUrl.js.
+const { canonicalFor } = require('../utils/siteUrl');
 let { BLOCKS } = require('@contentful/rich-text-types') 
 let { documentToHtmlString } = require('@contentful/rich-text-html-renderer');
 let Team = require('../models/teams');
@@ -101,7 +104,7 @@ exports.lewis_draw = async function(req, res,next) {
         teams: otherArray,
         title : "Lewis Shield Draw and results" ,
         pageDescription : "Lewis Shield Draw and results",
-        canonical:("https://" + req.get("host") + req.originalUrl).replace("www.'","").replace(".com",".co.uk").replace("-badders.herokuapp","-badminton")
+        canonical: canonicalFor(req)
       });
     }
   })

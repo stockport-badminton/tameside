@@ -14,11 +14,11 @@ const { isSuperAdmin } = require('../utils/authz');
 
 const KINDS = ['ip', 'email', 'phrase', 'word'];
 
-// Matches how the other admin screens build it (see teamController/club_controller).
-function canonicalFor(req) {
-  return ('https://' + req.get('host') + req.originalUrl)
-    .replace('www.\'', '').replace('.com', '.co.uk').replace('-badders.herokuapp', '-badminton');
-}
+// Shared with every other page that needs an absolute url. Not req.get('host'):
+// Firebase Hosting rewrites Host to the Cloud Run hostname, so that produced
+// *.a.run.app urls — and the .replace('.com', …) chain it used to carry could never fix
+// one, because there is no `.com` in a run.app hostname. See utils/siteUrl.js.
+const { canonicalFor } = require('../utils/siteUrl');
 
 exports.form = async function (req, res, next) {
   if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
