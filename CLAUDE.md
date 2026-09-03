@@ -844,6 +844,33 @@ as a whole, because each part looks harmless alone:
    validation message crashed on the bad value instead
    (`invalid input syntax for type bigint: "Choose Lady 2"`), and every retry did the same.
 
+**The duplicate message names the player and both slots** — "Away Man 2: Dave Lee is
+already down as Away Man 1" — and how it does that is the interesting part, because the
+obvious way is wrong twice over.
+
+The validator stays **synchronous**. It writes the message with the slots named and the
+literal placeholder `that player`, and `namePlayersInErrors` substitutes the real name at
+render time from the roster rows the error branch **already fetches for the selects**. So
+naming a player costs no queries at all.
+
+Looking the name up inside the validator was the first attempt, and it fails two ways:
+
+- **An async validator that returns `false` is a SILENT PASS.** express-validator judges an
+  async validator on whether its promise *rejects*, so the natural
+  `return !group.some(...)` shape stops rejecting anything the moment it becomes async.
+  Same trap as the spam blocklists (see the note under Spam and abuse controls).
+- **Validation would open a DB connection on every duplicate**, including under test, where
+  `PGPASSWORD` is a placeholder and repeated auth failures trip Supavisor's circuit breaker
+  for everything sharing the pooler. That is how it was caught: an existing regression test
+  went red.
+
+Two details that keep it honest: the placeholder is real English, so an id that cannot be
+resolved degrades to "that player is already down as Home Man 1" rather than leaking a
+token; and there is no `.withMessage()` after the `.custom()`, because that would overwrite
+the thrown per-field message with a static string again.
+`test/scorecard-duplicate-message.test.js` pins all of it, including that the validator is
+not async and that the naming step touches no model.
+
 Rules that follow, all pinned by `test/scorecard-no-player.test.js`:
 
 - **No `<option>` on a form may lack a `value`.** Without one the browser posts the

@@ -154,8 +154,36 @@ describe('POST /email-scorecard — error-recovery render (regression suite)', (
       baseScorecardBody({ FourthMixedhomeMan4: '101', FourthMixedawayMan4: '301' }) // dup vs First
     );
     assert.strictEqual(res.status, 200);
-    assert.match(res.text, /Fourth Mixed Home Man: can&#39;t use the same player more than once/);
-    assert.match(res.text, /Fourth Mixed Away Man: can&#39;t use the same player more than once/);
+    // The subject label is what this guards: the bug it was written for reported "Third"
+    // here. The wording after it changed when the message started naming the player and
+    // the other slot, so the assertion pins the label and the slot it clashes with.
+    assert.match(res.text, /Fourth Mixed Home Man: [^<]*already down as First Mixed Home Man/);
+    assert.match(res.text, /Fourth Mixed Away Man: [^<]*already down as First Mixed Away Man/);
+    assert.doesNotMatch(res.text, /Third Mixed Home Man: [^<]*already down as First/);
+  });
+
+  it('names the duplicated player, using rows already fetched for the selects', async () => {
+    // No extra query for this: the error render has the rosters in hand, so the name is
+    // substituted into the message afterwards (namePlayersInErrors). Alice A is id 101.
+    mockScorecardModels();
+    const res = await request(app).post('/email-scorecard').type('form').send(
+      baseScorecardBody({ homeMan2: '101' }) // same as homeMan1
+    );
+    assert.strictEqual(res.status, 200);
+    assert.match(res.text, /Home Man 2: Alice A is already down as Home Man 1/);
+    assert.match(res.text, /Home Man 1: Alice A is already down as Home Man 2/);
+  });
+
+  it('falls back to readable wording when the name cannot be resolved', async () => {
+    // An id nobody has: still a duplicate, still rejected, just unnamed. The placeholder
+    // the validator writes is real English so this degrades rather than leaking a token.
+    mockScorecardModels();
+    const res = await request(app).post('/email-scorecard').type('form').send(
+      baseScorecardBody({ homeMan1: '999999', homeMan2: '999999' })
+    );
+    assert.strictEqual(res.status, 200);
+    assert.match(res.text, /Home Man 1: that player is already down as Home Man 2/);
+    assert.doesNotMatch(res.text, /\{player\}|undefined is already down/);
   });
 
   it('the error-form modal uses Bootstrap 5 close-button markup (regression: BS3/4 mismatch)', async () => {

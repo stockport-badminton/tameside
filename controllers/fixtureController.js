@@ -37,6 +37,10 @@ const mailer = require('../utils/mailer');
 // nothing while real mail went out.
 exports._mailjetClientForTesting = mailer.client;
 
+// Test seams for the duplicate-player message (test/scorecard-duplicate-message.test.js).
+exports._namePlayersInErrorsForTesting = (...args) => namePlayersInErrors(...args);
+exports._duplicateNamePlaceholderForTesting = () => DUPLICATE_NAME_PLACEHOLDER;
+
 // Turn a scorecard submission into something an email can name.
 //
 // The form posts team and division IDS, so an email built straight from req.body can only
@@ -164,14 +168,66 @@ function gameScoreValidators(gameNumber, label) {
 // step of the trap that ended in a 500 loop: the rejection re-rendered the form with a
 // poisoned dropdown (see views/partials/scorecard-player-options.ejs) and every retry
 // then died in the error branch below.
-function noDuplicatePlayerValidator(field, group, label) {
+//
+// THE MESSAGE NAMES BOTH SLOTS: "Away Man 2: that player is already down as Away Man 1",
+// and namePlayersInErrors() below upgrades "that player" to the actual name once the
+// rosters have been fetched. The old wording was "can't use the same player more than
+// once", identical for every field in the group, which told a captain something was wrong
+// but not what or where — on a form with twelve player selects.
+//
+// STAYS SYNCHRONOUS, DELIBERATELY. Getting the name in here would mean a database lookup,
+// which would make this an async validator — and express-validator judges an async
+// validator on whether its promise REJECTS, so `return false` becomes a SILENT PASS. That
+// is the trap the spam blocklists already fell into (models/spamControls,
+// test/integration/spam-gate.test.js). It would also mean validation opening a connection
+// on every duplicate, including under test, where the credentials are placeholders and
+// repeated auth failures trip Supavisor's circuit breaker for everything sharing the
+// pooler. The name is added later instead, from rows the error render fetches anyway, so
+// it costs nothing and the trap never comes near this function.
+//
+// It throws rather than returning false so the message can be built per field, and there
+// is no trailing `.withMessage()` — that would overwrite the thrown text with a static
+// string again.
+function noDuplicatePlayerValidator(field, group, labels) {
+  const label = labels[field] || field;
   return body(field, "Please choose a player.")
     .isInt()
     .custom((value, { req }) => {
       if (value == 0) return true;
-      return !group.some((other) => other !== field && value == req.body[other]);
-    })
-    .withMessage(`${label}: can't use the same player more than once`);
+      const clash = group.find((other) => other !== field && value == req.body[other]);
+      if (!clash) return true;
+      throw new Error(`${label}: ${DUPLICATE_NAME_PLACEHOLDER} is already down as ${labels[clash] || clash}`);
+    });
+}
+
+// The phrase the validator leaves for namePlayersInErrors() to replace. It is real
+// English, so a message that never gets enriched still reads correctly.
+const DUPLICATE_NAME_PLACEHOLDER = "that player";
+
+// Put the player's NAME into the duplicate messages, using the roster rows the error
+// render has already fetched for the selects. No extra queries, and nothing to go wrong if
+// a name cannot be found — the message keeps the wording the validator wrote.
+//
+// express-validator gives each error the submitted `value`, which is the player id, so the
+// only thing needed is an id -> name map over the rows already in hand.
+function namePlayersInErrors(errorList, rosterRowSets) {
+  const names = new Map();
+  for (const rows of rosterRowSets) {
+    for (const row of rows || []) {
+      if (row && row.id != null) {
+        names.set(String(row.id), `${row.first_name || ''} ${row.family_name || ''}`.replace(/\s+/g, ' ').trim());
+      }
+    }
+  }
+  return errorList.map((error) => {
+    if (!error || typeof error.msg !== "string") return error;
+    if (!error.msg.includes(DUPLICATE_NAME_PLACEHOLDER)) return error;
+    const name = names.get(String(error.value));
+    if (!name) return error;
+    return Object.assign({}, error, {
+      msg: error.msg.replace(DUPLICATE_NAME_PLACEHOLDER, name),
+    });
+  });
 }
 
 const MEN_FIELDS = ["homeMan1", "homeMan2", "homeMan3", "homeMan4", "awayMan1", "awayMan2", "awayMan3", "awayMan4"];
@@ -209,10 +265,10 @@ exports.validateScorecard = [
     .custom((value, { req }) => value != req.body.homeTeam)
     .withMessage("Home team and away team can't be the same."),
   ...GAME_LABELS.flatMap((label, i) => gameScoreValidators(i + 1, label)),
-  ...MEN_FIELDS.map((f) => noDuplicatePlayerValidator(f, MEN_FIELDS, FIELD_LABELS[f])),
-  ...LADY_FIELDS.map((f) => noDuplicatePlayerValidator(f, LADY_FIELDS, FIELD_LABELS[f])),
-  ...HOME_MIXED_MAN_FIELDS.map((f) => noDuplicatePlayerValidator(f, HOME_MIXED_MAN_FIELDS, MIXED_MAN_LABELS[f])),
-  ...AWAY_MIXED_MAN_FIELDS.map((f) => noDuplicatePlayerValidator(f, AWAY_MIXED_MAN_FIELDS, MIXED_MAN_LABELS[f])),
+  ...MEN_FIELDS.map((f) => noDuplicatePlayerValidator(f, MEN_FIELDS, FIELD_LABELS)),
+  ...LADY_FIELDS.map((f) => noDuplicatePlayerValidator(f, LADY_FIELDS, FIELD_LABELS)),
+  ...HOME_MIXED_MAN_FIELDS.map((f) => noDuplicatePlayerValidator(f, HOME_MIXED_MAN_FIELDS, MIXED_MAN_LABELS)),
+  ...AWAY_MIXED_MAN_FIELDS.map((f) => noDuplicatePlayerValidator(f, AWAY_MIXED_MAN_FIELDS, MIXED_MAN_LABELS)),
   ...MIXED_LADY_FIELDS.map((f) => body(f, "Please choose a player.").isInt()),
 ];
 
@@ -764,7 +820,10 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
           awayLadiesRows,
         },
         data: data,
-        errors: errors.array(),
+        // Names filled in from the roster rows just fetched — see namePlayersInErrors.
+        errors: namePlayersInErrors(errors.array(), [
+          homeMenRows, homeLadiesRows, awayMenRows, awayLadiesRows,
+        ]),
       });
     })();
   } else {
