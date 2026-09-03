@@ -822,7 +822,47 @@ MAILJET_WEBHOOK_TOKEN  # Shared secret in the Mailjet event-callback URL
 
 ## Scorecard Validation
 
+**`0` is a player id meaning "nobody".** It is the `No Player Home Team` /
+`No Player Away Team` option, which is how a captain records a side that turned up short,
+and several slots can legitimately hold it in one match. `noDuplicatePlayerValidator`
+therefore **skips** the duplicate check for `0` — it used to `return false`, which failed
+validation with "can't use the same player more than once" and made the documented
+workflow impossible on `/email-scorecard`.
+
+That was the first link in a three-bug chain that put a captain in an unrecoverable 500
+loop on 3 Sep 2026 (three `POST /email-scorecard` 500s in 18 seconds). Worth understanding
+as a whole, because each part looks harmless alone:
+
+1. Picking `No Player` failed validation, with a message that pointed at the wrong thing.
+2. The rejection re-renders the form, and on that render the first option was
+   `<option>Choose Lady 2</option>` — **no `value`, not `disabled`, so submittable**. The
+   options partial also marked a row selected only where `row[ordinalKey] == 1`, which
+   nothing satisfies when the previous choice was `0`. So the captain's choice vanished,
+   the select fell back to the placeholder, and **the label was posted as the player id**.
+3. The error branch of `fixture_populate_scorecard_errors` feeds those values into
+   `getEligiblePlayersP` → a `bigint` column. So the page whose entire job is to show the
+   validation message crashed on the bad value instead
+   (`invalid input syntax for type bigint: "Choose Lady 2"`), and every retry did the same.
+
+Rules that follow, all pinned by `test/scorecard-no-player.test.js`:
+
+- **No `<option>` on a form may lack a `value`.** Without one the browser posts the
+  option's own label, so a placeholder becomes a fake data value. Placeholders are
+  `value="" disabled`.
+- **The error branch must never query with unvalidated input.** It coerces every player
+  field with `parseInt`, falling back to `0`. Bug 3 predates the rest and is reachable by
+  anyone: the same crash hit revision 00235 on 19 Aug 2026 with `"lmdkqrfp"` and
+  `"gkuhrrew"`, i.e. a scanner posting junk.
+- **`views/partials/scorecard-player-options.ejs` re-selects what was actually posted**
+  (`selectedValue`), not what the ordinal columns say, so a `No Player` choice survives a
+  validation error. `side` picks the matching home/away label — cosmetic, since both carry
+  `0`, but showing "No Player Home Team" in an away dropdown reads like a bug.
+- The happy path builds these selects client-side from `static/playerFormOptions.ejs`,
+  whose placeholder is already `disabled`. Only the **error re-render** used the server
+  partial, which is why this went unnoticed for so long: it needs a first failure to reach.
+
 Badminton scoring rules enforced in `fixtureController.validateScorecard`:
+
 - Each game score: 0–30 points
 - Winner must score ≥ 21; winning margin ≥ 2 (except at 30)
 - Applied across all 18 games in a fixture

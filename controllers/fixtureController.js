@@ -154,11 +154,21 @@ function gameScoreValidators(gameNumber, label) {
 
 // A player field can't hold the same player as any other field in its group
 // (0 means "no player chosen", so it's exempt from the duplicate check).
+// 0 is the "No Player Home Team" / "No Player Away Team" option, which is how a captain
+// records a side that turned up short. It is NOT a duplicate: several slots can
+// legitimately be empty in the same match, so 0 skips the check entirely.
+//
+// This used to `return false` for 0, which failed validation with
+// "can't use the same player more than once" — so the workflow captains are told to use
+// could never succeed on this form, and the message did not hint at why. It is the first
+// step of the trap that ended in a 500 loop: the rejection re-rendered the form with a
+// poisoned dropdown (see views/partials/scorecard-player-options.ejs) and every retry
+// then died in the error branch below.
 function noDuplicatePlayerValidator(field, group, label) {
   return body(field, "Please choose a player.")
     .isInt()
     .custom((value, { req }) => {
-      if (value == 0) return false;
+      if (value == 0) return true;
       return !group.some((other) => other !== field && value == req.body[other]);
     })
     .withMessage(`${label}: can't use the same player more than once`);
@@ -700,7 +710,22 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
       "homeMan1", "homeMan2", "homeMan3", "homeMan4", "homeLady1", "homeLady2",
       "awayMan1", "awayMan2", "awayMan3", "awayMan4", "awayLady1", "awayLady2",
     ].forEach((field) => {
-      if (data[field] === undefined) data[field] = 0;
+      // Coerce to an integer, not just "default the missing ones to 0".
+      //
+      // This branch exists to RE-RENDER THE FORM WITH ITS VALIDATION MESSAGES, and it
+      // feeds these values straight into getEligiblePlayersP -> a bigint column. So any
+      // non-numeric value here made the error page itself 500, and the visitor never saw
+      // the message telling them what was wrong.
+      //
+      // It is reachable two ways. A captain hits it when the error re-render leaves a
+      // select on its own placeholder and the label ("Choose Lady 2") is posted as the
+      // value. A scanner hits it directly: the same crash on revision 00235 on 19 Aug
+      // 2026 carried the values "lmdkqrfp" and "gkuhrrew".
+      //
+      // 0 is the safe fallback because it is already the "No Player" sentinel, so the
+      // lookup treats it as an empty slot rather than erroring.
+      const asInt = parseInt(data[field], 10);
+      data[field] = Number.isInteger(asInt) ? asInt : 0;
     });
 
     // None of these 7 lookups depend on each other's results — they all read

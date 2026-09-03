@@ -1,5 +1,22 @@
+<%#
+  Player options for one select on the scorecard form's ERROR re-render.
+  (The happy path builds these client-side from static/playerFormOptions.ejs.)
+
+  `selectedValue` is the value the captain posted, and it exists because of a real trap:
+  the partial used to mark a row selected only where `row[ordinalKey] == 1`, which no row
+  satisfies when the previous choice was "No Player" (id 0). So the select fell back to
+  whatever came first, the captain's choice was silently lost on every validation error,
+  and — because the placeholder above carried no value — the label itself got posted as
+  the player id, which crashed the error page in a loop.
+-%>
+<% var selected = (typeof selectedValue === 'undefined' || selectedValue === null) ? null : String(selectedValue); %>
 <% rows.forEach(function(row){ %>
-  <option value="<%= row.id %>"<% if (row[ordinalKey] == 1) { %> selected<% } %>><%= row.first_name %> <%= row.family_name %></option>
+  <option value="<%= row.id %>"<% if (selected !== null ? selected === String(row.id) : row[ordinalKey] == 1) { %> selected<% } %>><%= row.first_name %> <%= row.family_name %></option>
 <% }) %>
-<option value="0">No Player Home Team</option>
-<option value="0">No Player Away Team</option>
+<%# Both carry 0 — the sentinel for an empty slot — so which one is marked selected makes
+    no difference downstream. It does to the reader though: showing "No Player Home Team"
+    in an away dropdown looks like the form has misunderstood. `side` picks the matching
+    label; without it the home one is marked, which is the old behaviour. -%>
+<% var noPlayerSide = (typeof side === 'undefined' || !side) ? 'home' : String(side); %>
+<option value="0"<% if (selected === '0' && noPlayerSide === 'home') { %> selected<% } %>>No Player Home Team</option>
+<option value="0"<% if (selected === '0' && noPlayerSide === 'away') { %> selected<% } %>>No Player Away Team</option>

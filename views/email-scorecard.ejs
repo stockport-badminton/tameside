@@ -327,7 +327,7 @@
                    <label for="homeTeam">Home Team</label>
                    <select class="form-control" id="homeTeam" name="homeTeam" placeholder="Home Team">
                      <% if (hasErrors) { %>
-                     <option>Choose Home Team</option>
+                     <option value="" disabled>Choose Home Team</option>
                      <%- include('partials/scorecard-select-options', { rows: scorecard.homeTeamRows }) %>
                      <% } else { %>
                      <option disabled selected>Select a team</option>
@@ -338,7 +338,7 @@
                    <label for="awayTeam">Away Team</label>
                    <select class="form-control" id="awayTeam" name="awayTeam" placeholder="Away Team">
                      <% if (hasErrors) { %>
-                     <option>Choose Away Team</option>
+                     <option value="" disabled>Choose Away Team</option>
                      <%- include('partials/scorecard-select-options', { rows: scorecard.awayTeamRows }) %>
                      <% } else { %>
                      <option disabled selected>Select a team</option>
@@ -354,8 +354,8 @@
                        <label for="homeMan1">Man 1</label>
                        <select class="form-control" id="homeMan1" name="homeMan1" placeholder="Home Man 1">
                          <% if (hasErrors) { %>
-                         <option>Choose Man 1</option>
-                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, ordinalKey: 'first' }) %>
+                         <option value="" disabled>Choose Man 1</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, side: 'home', selectedValue: data['homeMan1'], ordinalKey: 'first' }) %>
                          <% } else { %>
                          <option disabled selected>Select a player</option>
                          <% } %>
@@ -365,8 +365,8 @@
                        <label for="homeMan2">Man 2</label>
                        <select class="form-control" id="homeMan2" name="homeMan2" placeholder="Home Man 2">
                          <% if (hasErrors) { %>
-                         <option>Choose Man 2</option>
-                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, ordinalKey: 'second' }) %>
+                         <option value="" disabled>Choose Man 2</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, side: 'home', selectedValue: data['homeMan2'], ordinalKey: 'second' }) %>
                          <% } else { %>
                          <option disabled selected>Select a player</option>
                          <% } %>
@@ -376,8 +376,8 @@
                        <label for="homeMan3">Man 3</label>
                        <select class="form-control" id="homeMan3" name="homeMan3" placeholder="Home Man 3">
                          <% if (hasErrors) { %>
-                         <option>Choose Man 3</option>
-                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, ordinalKey: 'third' }) %>
+                         <option value="" disabled>Choose Man 3</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, side: 'home', selectedValue: data['homeMan3'], ordinalKey: 'third' }) %>
                          <% } else { %>
                          <option disabled selected>Select a player</option>
                          <% } %>
@@ -389,8 +389,8 @@
                         <label for="homeMan4">Man 4</label>
                         <select class="form-control" id="homeMan4" name="homeMan4" placeholder="Home Man 4">
                           <% if (hasErrors) { %>
-                          <option>Choose Man 4</option>
-                          <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, ordinalKey: 'fourth' }) %>
+                          <option value="" disabled>Choose Man 4</option>
+                          <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, side: 'home', selectedValue: data['homeMan4'], ordinalKey: 'fourth' }) %>
                           <% } else { %>
                           <option disabled selected>Select a player</option>
                           <% } %>
@@ -400,8 +400,8 @@
                        <label for="homeLady1">Lady 1</label>
                        <select class="form-control" id="homeLady1" name="homeLady1" placeholder="Home Lady 1">
                          <% if (hasErrors) { %>
-                         <option>Choose Lady 1</option>
-                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeLadiesRows, ordinalKey: 'first' }) %>
+                         <option value="" disabled>Choose Lady 1</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeLadiesRows, side: 'home', selectedValue: data['homeLady1'], ordinalKey: 'first' }) %>
                          <% } else { %>
                          <option disabled selected>Select a player</option>
                          <% } %>
@@ -411,8 +411,8 @@
                        <label for="homeLady2">Lady 2</label>
                        <select class="form-control" id="homeLady2" name="homeLady2" placeholder="Home Lady 2">
                          <% if (hasErrors) { %>
-                         <option>Choose Lady 2</option>
-                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeLadiesRows, ordinalKey: 'second' }) %>
+                         <option value="" disabled>Choose Lady 2</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.homeLadiesRows, side: 'home', selectedValue: data['homeLady2'], ordinalKey: 'second' }) %>
                          <% } else { %>
                          <option disabled selected>Select a player</option>
                          <% } %>
@@ -430,8 +430,8 @@
                        <label for="awayMan1">Man 1</label>
                        <select class="form-control" id="awayMan1" name="awayMan1" placeholder="Away Man 1">
                          <% if (hasErrors) { %>
-                         <option>Choose Man 1</option>
-                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, ordinalKey: 'first' }) %>
+                         <option value="" disabled>Choose Man 1</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, side: 'away', selectedValue: data['awayMan1'], ordinalKey: 'first' }) %>
                          <% } else { %>
                          <option disabled selected>Select a player</option>
                          <% } %>
@@ -441,8 +441,8 @@
                        <label for="awayMan2">Man 2</label>
                        <select class="form-control" id="awayMan2" name="awayMan2" placeholder="Away Man 2">
                          <% if (hasErrors) { %>
-                         <option>Choose Man 2</option>
-                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, ordinalKey: 'second' }) %>
+                         <option value="" disabled>Choose Man 2</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, side: 'away', selectedValue: data['awayMan2'], ordinalKey: 'second' }) %>
                          <% } else { %>
                          <option disabled selected>Select a player</option>
                          <% } %>
@@ -452,8 +452,8 @@
                        <label for="awayMan3">Man 3</label>
                        <select class="form-control" id="awayMan3" name="awayMan3" placeholder="Away Man 3">
                          <% if (hasErrors) { %>
-                         <option>Choose Man 3</option>
-                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, ordinalKey: 'third' }) %>
+                         <option value="" disabled>Choose Man 3</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, side: 'away', selectedValue: data['awayMan3'], ordinalKey: 'third' }) %>
                          <% } else { %>
                          <option disabled selected>Select a player</option>
                          <% } %>
@@ -465,8 +465,8 @@
                       <label for="awayMan4">Man 4</label>
                       <select class="form-control" id="awayMan4" name="awayMan4" placeholder="Away Man 4">
                         <% if (hasErrors) { %>
-                        <option>Choose Man 4</option>
-                        <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, ordinalKey: 'fourth' }) %>
+                        <option value="" disabled>Choose Man 4</option>
+                        <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, side: 'away', selectedValue: data['awayMan4'], ordinalKey: 'fourth' }) %>
                         <% } else { %>
                         <option disabled selected>Select a player</option>
                         <% } %>
@@ -476,8 +476,8 @@
                        <label for="awayLady1">Lady 1</label>
                        <select class="form-control" id="awayLady1" name="awayLady1" placeholder="Away Lady 1">
                          <% if (hasErrors) { %>
-                         <option>Choose Lady 1</option>
-                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayLadiesRows, ordinalKey: 'first' }) %>
+                         <option value="" disabled>Choose Lady 1</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayLadiesRows, side: 'away', selectedValue: data['awayLady1'], ordinalKey: 'first' }) %>
                          <% } else { %>
                          <option disabled selected>Select a player</option>
                          <% } %>
@@ -487,8 +487,8 @@
                        <label for="awayLady2">Lady 2</label>
                        <select class="form-control" id="awayLady2" name="awayLady2" placeholder="Away Lady 2">
                          <% if (hasErrors) { %>
-                         <option>Choose Lady 2</option>
-                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayLadiesRows, ordinalKey: 'second' }) %>
+                         <option value="" disabled>Choose Lady 2</option>
+                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayLadiesRows, side: 'away', selectedValue: data['awayLady2'], ordinalKey: 'second' }) %>
                          <% } else { %>
                          <option disabled selected>Select a player</option>
                          <% } %>
