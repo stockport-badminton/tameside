@@ -141,9 +141,12 @@ Other things worth not rediscovering:
   the audiences differ — a captain, a club secretary hearing from a stranger, a player on
   the mailing list. It is the main defence against a junk click, which in Mailjet
   permanently suppresses that address with no bounce. See `docs/email-deliverability.md`.
-- **The score in a "scorecard received" email is counted from the submitted games and
-  labelled "games".** At that point the row is a draft in `scorecardstore` and no
-  `fixture.homeScore` exists yet, so it must not be presented as the league's match score.
+- **The score in a "scorecard received" email is counted from the submitted games.** At
+  that point the row is a draft in `scorecardstore` and no `fixture.homeScore` exists yet.
+  It is labelled "games", which was originally defensive — the convention could not be
+  found in the code. **Confirmed 4 Sep 2026**: the photographed card for row 2176 reads
+  `RESULT: 13 | 5`, and counting won games off the stored row gives exactly 13-5. So the
+  league's match score *is* games won out of 18, and the count is right.
 - **`GET /mailjet` is deleted.** The Mailjet getting-started sample, never removed: an
   unauthenticated endpoint that sent a hardcoded message to the league results mailbox, so
   a curl loop was a mail bomb. (An HTTP **HEAD** probe fires it too — Express routes HEAD to
@@ -880,6 +883,14 @@ Rules that follow, all pinned by `test/scorecard-no-player.test.js`:
   field with `parseInt`, falling back to `0`. Bug 3 predates the rest and is reachable by
   anyone: the same crash hit revision 00235 on 19 Aug 2026 with `"lmdkqrfp"` and
   `"gkuhrrew"`, i.e. a scanner posting junk.
+- **Every field the form carries forward needs `value=` on the error render, not just the
+  selects.** The hidden `scoresheet-url` had none, so an error re-render discarded the
+  photo a captain had already uploaded and a resubmission saved an empty string, leaving
+  the object in S3 with nothing pointing at it.
+- **Never offer a photo link without checking there is a photo.** The "scorecard received"
+  email built `/scorecard-photo/:id` unconditionally, so a submission with no photo emailed
+  a link that correctly 404s. The email and the thank-you page now gate on
+  `photoKeyFromStored` — the same authority the route uses — so the two cannot disagree.
 - **`views/partials/scorecard-player-options.ejs` re-selects what was actually posted**
   (`selectedValue`), not what the ordinal columns say, so a `No Player` choice survives a
   validation error. `side` picks the matching home/away label — cosmetic, since both carry

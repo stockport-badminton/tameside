@@ -531,7 +531,13 @@
                         </div>
                         <div class="form-row">
                             <div class="col-12"><input type="file" name="scoresheet-spreadsheet" id="scoresheet-spreadsheet" /></div>
-                            <input type="hidden" name="scoresheet-url" id="scoresheet-url" />
+                            <%# value= matters: on the error re-render this field is how the photo the captain
+                                 already uploaded survives. Without it their upload was silently
+                                 discarded and the resubmitted row saved an empty scoresheet-url —
+                                 the object sat in S3 with nothing pointing at it. `data` only
+                                 exists on the error render, hence the locals guard. -%>
+                            <input type="hidden" name="scoresheet-url" id="scoresheet-url"
+                                   value="<%= (typeof data !== 'undefined' && data && data['scoresheet-url']) || '' %>" />
                             <img src="" id="scoresheet-img" width="200%" />
                         </div>
                     </div>

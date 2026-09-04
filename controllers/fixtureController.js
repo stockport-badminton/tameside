@@ -1023,7 +1023,15 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
         // for anyone this email was ever forwarded to — and it breaks outright once the
         // shared bucket's public ACLs are stripped. /scorecard-photo/:id is `secured`,
         // so the recipient sees it as themselves or gets sent to log in.
-        let photoUrl = absoluteUrl("/scorecard-photo/" + rows[0].id);
+        // Only offer the photo if there IS one. `photoKeyFromStored` is the same
+        // authority GET /scorecard-photo/:id uses, so the email cannot promise a link the
+        // route will refuse — which is exactly what happened for row 2176: a captain hit
+        // a validation error, the error re-render dropped the hidden scoresheet-url field,
+        // the resubmitted row saved an empty string, and the email still linked to a photo
+        // that 404'd. (The upload itself was fine; the object was in S3 the whole time.)
+        let photoUrl = photoKeyFromStored(scorecardObj["scoresheet-url"])
+          ? absoluteUrl("/scorecard-photo/" + rows[0].id)
+          : null;
         // `var`, not `const`: the send below is outside this else (see the stray `};`
         // on the next line, which is how the original worked at all — `msg` was an
         // implicit global). var hoists to the function, so the links survive the block.
@@ -1064,7 +1072,8 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
               scorecard: req.body,
               // The row id, so the view can point at /scorecard-photo/:id instead of
               // the public bucket URL in req.body. `scorecard` is req.body and has no id.
-              scorecardId: rows[0].id,
+              // Null when no photo was uploaded, so the page does not show a broken image.
+              scorecardId: emailContext.photoUrl ? rows[0].id : null,
             });
           })
           .catch((error) => {
@@ -1943,6 +1952,9 @@ exports.admin_fixture_date_update = function (req, res, next) {
 // a destructured reference is bound at require time and cannot be replaced.
 const s3util = require("../utils/s3");
 const { GetObjectCommand } = require("@aws-sdk/client-s3");
+// photoKeyFromStored is used by the scorecard-received email too (further up), so that
+// an email never links a photo GET /scorecard-photo/:id would refuse. Keep this a
+// module-level require rather than moving it inside the handler below.
 const {
   photoKeyFromStored,
   contentTypeFor,

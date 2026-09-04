@@ -136,6 +136,46 @@ describe('B: the error re-render keeps the choice and cannot post a label', () =
   });
 });
 
+describe('D: an uploaded photo survives a validation error', () => {
+  // The captain on 3 Sep uploaded his photo at 19:01:58, nine seconds before the first
+  // 500. The object reached S3 fine — `tameside-20262027-Disley A-Hyde C.jpeg`, 2.8MB —
+  // but the hidden scoresheet-url field carried no `value`, so the error re-render dropped
+  // it and any resubmission would have saved an empty string, orphaning the upload.
+  const view = fs.readFileSync(path.join(__dirname, '..', 'views', 'email-scorecard.ejs'), 'utf8');
+
+  it('the hidden scoresheet-url field is repopulated from the submitted data', () => {
+    const field = view.match(/<input type="hidden" name="scoresheet-url"[\s\S]{0,220}?\/>/);
+    assert.ok(field, 'the hidden scoresheet-url input is gone');
+    assert.match(field[0], /value="/, 'without value= the upload is lost on every error render');
+    assert.match(field[0], /data\['scoresheet-url'\]/);
+  });
+
+  it('guards on locals, because `data` only exists on the error render', () => {
+    const field = view.match(/<input type="hidden" name="scoresheet-url"[\s\S]{0,220}?\/>/)[0];
+    assert.match(field, /typeof data !== 'undefined'/);
+  });
+});
+
+describe('E: nothing offers a photo that is not there', () => {
+  // Row 2176 had an empty scoresheet-url, and the email linked to
+  // /scorecard-photo/2176 anyway — which correctly 404s, so the captain got a dead link.
+  const controller = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'fixtureController.js'), 'utf8');
+
+  it('the email builds a photo url only when the stored value resolves to a key', () => {
+    // Uses the SAME authority as the route, so the two cannot disagree.
+    assert.match(controller, /photoKeyFromStored\(scorecardObj\["scoresheet-url"\]\)\s*\n?\s*\? absoluteUrl\("\/scorecard-photo\/"/);
+  });
+
+  it('the thank-you page gets a null id when there is no photo, so it shows no broken image', () => {
+    assert.match(controller, /scorecardId: emailContext\.photoUrl \? rows\[0\]\.id : null/);
+  });
+
+  it('the template already treats the photo block as optional', () => {
+    const tpl = fs.readFileSync(path.join(__dirname, '..', 'emails', 'scorecard-received.mjml'), 'utf8');
+    assert.match(tpl, /<mj-raw><% if \(photoUrl\) \{ %><\/mj-raw>/);
+  });
+});
+
 describe('C: the error page must never crash on the value it is reporting', () => {
   // The page's whole job is to say what was wrong. Feeding the offending value into a
   // bigint column instead produced a 500, so the message was never seen and every retry
