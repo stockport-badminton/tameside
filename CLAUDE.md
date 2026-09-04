@@ -887,6 +887,26 @@ Rules that follow, all pinned by `test/scorecard-no-player.test.js`:
   selects.** The hidden `scoresheet-url` had none, so an error re-render discarded the
   photo a captain had already uploaded and a resubmission saved an empty string, leaving
   the object in S3 with nothing pointing at it.
+- **A stored `0` must be shown as "No Player", and that means marking the option
+  `selected`.** `views/populated-scorecard.ejs` never did, across all 28 player selects, so
+  a stored 0 matched no option — and with nothing selected a single-select displays the
+  first NON-DISABLED option, i.e. a real player. The confirmation form for row 2176 showed
+  Claire DeWeever, Sophie Yates, Catherine Tann and Kay Wilkinson for six fields all stored
+  `0`, and `full_fixture_post` validates with `isInt()`, which a real player id passes — so
+  confirming it would have **silently recorded four women as playing events the scorecard
+  photo shows dashed out**. Worse than a crash: no error, just invented results.
+  - **The disabled placeholder is what hid it.** `<option disabled>Choose Lady 2</option>`
+    is skipped by the browser rather than displayed, so the field looks legitimately filled
+    in. The mixed selects have no placeholder at all. Judge a select by the first
+    *non-disabled* option, never the first option.
+  - The helper tolerates both key styles because the two routes differ:
+    `/populated-scorecard-beta/:id` renders the `scorecardstore` row (camelCase columns),
+    `/populated-scorecard/:division/...` renders URL params (snake_case), and only the
+    former carries the mixed-event fields at all.
+  - `test/integration/confirmation-no-player.test.js` pins it. Its mock computes the
+    ordinal flags from the ids it is passed, exactly as the real query does
+    (`case when player.id = ${second} then 1 else 0 end`) — a mock with hardcoded flags
+    passes while the form is still wrong.
 - **Never offer a photo link without checking there is a photo.** The "scorecard received"
   email built `/scorecard-photo/:id` unconditionally, so a submission with no photo emailed
   a link that correctly 404s. The email and the thank-you page now gate on
