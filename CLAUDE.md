@@ -98,7 +98,7 @@ Sensitive columns (player phone, email) are PgP-encrypted in the DB; decrypted w
 
 ### Emails
 
-Nine emails, one pipeline. `emails/*.mjml` → `npm run build:email` → committed
+Eleven emails, one pipeline. `emails/*.mjml` → `npm run build:email` → committed
 `views/emails/*.ejs` → sent by `utils/mailer.js`.
 
 Before this there were nine send sites across three files: seven inline HTML string
@@ -766,6 +766,63 @@ warnings, and feeding a freshly generated PDF back produces **zero** spurious ch
 `test/registration-doc.test.js` builds its fixture with the same `docx` package the real
 generator uses, so it can't drift from it.
 
+#### Chasing clubs for the form
+
+`/admin/registration-reminders` (superadmin, in the Admin nav) is the worklist: every club
+with a fixture this season, ordered by how soon it is, with a one-click "send the club its
+pre-filled form" and a tick for "received". A daily digest goes to the results mailbox.
+Full setup, including the Cloud Scheduler job, is in `docs/registration-reminders.md`.
+
+- **The status is keyed by season and resets itself.** `club_registration` has one row per
+  `(season, club)`, created lazily; absence means "nothing received, nothing chased". So a
+  new season simply has no rows — nothing to clear in July, no cron to remember, and last
+  season's record survives. A `received` boolean on `club` would have needed exactly the
+  annual wipe nobody would run.
+- **`club.registrations` already exists as a boolean, is read by NOTHING in either repo,
+  and carries five stale `true`s** from an earlier attempt. It is not this feature's state.
+  Leave it alone; using it would reintroduce the reset problem.
+- **`GET /tasks/registration-digest` is not `secured`** — Cloud Scheduler cannot log in
+  through Auth0 — so it carries a `?t=` shared secret and **404s** without one, exactly
+  like `POST /webhooks/mailjet`. Unset `REGISTRATION_DIGEST_TOKEN` means the route is
+  inert. This is an endpoint that sends mail and needs no session, which is the shape of
+  the deleted `GET /mailjet` mail bomb; `test/integration/registration-reminders.test.js`
+  asserts a rejected request sends nothing.
+- **Nothing is sent on a quiet day.** Ten months of "nothing to do" is how a daily report
+  becomes a filter rule. The cost is that silence and a broken scheduler look the same
+  from the inbox, so the run still answers with what it decided for anyone who curls it.
+- **A club id from a POST is checked against the worklist before anything is written.**
+  The `club` table holds ids belonging to the other league, and a club with no fixture has
+  no deadline; neither should get a row from a hand-made POST.
+- **The chase is recorded only after Mailjet accepts.** Ticking first would leave a club
+  looking chased when nothing reached it — worse than looking un-chased, because the
+  digest would then stop reporting it as due.
+- **10 of the league's 14 officers hold BOTH the club- and match-secretary flags**, and
+  the query is one row per player, so the role label has to be built from both flags —
+  a plain `CASE WHEN "clubSecretary" THEN … ELSE …` labels that person "club secretary"
+  and silently drops the other half. Recipients are also de-duplicated by address, for
+  the separate case of two player rows sharing one (there are eight duplicated display
+  names in that table).
+- **Dates are formatted by hand, not by `toLocaleDateString`.** They are Postgres `DATE`s,
+  which arrive as JS Dates at UTC midnight — local formatting slips them a day west of
+  Greenwich, the same trap as reading `fixture.date` through a local Date. And `en-GB`'s
+  own answer depends on the ICU data in the running Node: current versions render
+  "Wed, 2 Sept 2026". A date in an email should not change shape because the base image
+  moved.
+- `utils/mailer.js` **takes attachments now** — `[{ filename, contentType, content }]`,
+  where `content` is a Buffer it base64-encodes. Mailjet v3.1 inlines them, so the whole
+  message has to fit its 15MB request limit; anything near that belongs behind a link and
+  `send()` refuses it rather than letting it become an opaque API error.
+
+**The `.docx` is no longer written to disk.** `utils/registrationDocx.js` returns a
+Buffer, and `GET /forms/team-registration/:club/docx` (`secured`) streams it. It used to be
+built as a side effect of rendering the team-admin page and `fs.writeFileSync`'d into
+`static/docs/`, so the Download link 404'd unless that page had already been served *on
+that container* — and it was named after the first **team** (`GHAP`) while the club is
+`G.H.A.P`, so for two clubs the link and the file disagreed. The seven committed
+`static/docs/*.docx` are dead weight. Note the widths in that document all carried
+`type: undefined`: the constant is `docx.WidthType.PERCENTAGE`, and the original used
+`docx.percentage` and `docx.PERCENTAGE`, neither of which exists.
+
 #### POST /player/batch-update
 
 Had **no auth gate and no validation**, and passed `req.body` straight into
@@ -818,6 +875,10 @@ SITE_URL           # The site's own public address for absolute links (emails, c
                    # logout returnTo). Defaults to https://tameside-badminton.co.uk.
                    # NEVER derive one from req.headers.host — Firebase rewrites Host to the
                    # Cloud Run hostname. See utils/siteUrl.js.
+REGISTRATION_DIGEST_TOKEN  # Shared secret in the registration digest's scheduler URL
+                   # (/tasks/registration-digest?t=...). Unset means the route 404s, i.e.
+                   # the daily digest is inert. See docs/registration-reminders.md.
+REGISTRATION_DIGEST_TO     # Who the digest goes to. Defaults to the results mailbox.
 MAILJET_WEBHOOK_TOKEN  # Shared secret in the Mailjet event-callback URL
                    # (/webhooks/mailjet?t=...). Unset means the route 404s, i.e. inert.
                    # See docs/email-deliverability.md.

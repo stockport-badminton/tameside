@@ -1,0 +1,57 @@
+<mjml>
+  <mj-head>
+    <mj-include path="./_theme.mjml" />
+    <mj-title>Team registration form</mj-title>
+    <mj-preview>We still need <%= clubName %>'s registration form — the pre-filled one is attached</mj-preview>
+  </mj-head>
+  <mj-body background-color="#eef0f4" width="600px">
+    <mj-include path="./_header.mjml" />
+
+    <mj-section padding="28px 0 0">
+      <mj-column>
+        <mj-text mj-class="h1">We still need <%= clubName %>&rsquo;s registration form</mj-text>
+        <mj-text mj-class="lede" padding="10px 24px 0">
+          Every club has to register its players with the league before its first match of
+          the season, and we have not had <%= clubName %>&rsquo;s form yet.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="20px 24px 0">
+      <mj-column background-color="#f4f6f9" padding="18px 20px" border-radius="6px">
+        <mj-text mj-class="label" text-transform="uppercase" padding="0">First fixture</mj-text>
+        <mj-text mj-class="value" padding="4px 0 0"><%= firstFixtureLabel %></mj-text>
+        <mj-text mj-class="muted" padding="8px 0 0"><%= dueSentence %></mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="22px 0 0">
+      <mj-column>
+        <mj-text>
+          <strong>The form is attached</strong>, already filled in with the players we
+          currently have registered to <%= clubName %>&rsquo;s
+          <%= teams === 1 ? 'team' : teams + ' teams' %>. Open it in Word, correct
+          anything that is wrong, and send it back as a reply to this email.
+        </mj-text>
+        <mj-text padding="14px 24px 0">
+          The letter beside each name is the team that player is nominated for, and
+          <strong>R</strong> means reserve. The order of the names within a team is the
+          ranking order, so move a row to change someone&rsquo;s rank.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section><mj-column><mj-divider /></mj-column></mj-section>
+
+    <mj-section padding="0 0 26px">
+      <mj-column>
+        <mj-text mj-class="muted">
+          Already sent it? Reply and say so and we will find it &mdash; no need to fill it
+          in twice.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-include path="./_footer.mjml" />
+  </mj-body>
+</mjml>
