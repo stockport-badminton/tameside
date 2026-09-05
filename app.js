@@ -372,6 +372,7 @@ let league_controller = require(__dirname + '/controllers/leagueController');
 let club_controller = require(__dirname + '/controllers/club_controller');
 let contactus_controller = require(__dirname + '/controllers/contactusController');
 let spam_admin_controller = require(__dirname + '/controllers/spamAdminController');
+let registration_reminder_controller = require(__dirname + '/controllers/registrationReminderController');
 let auth_link_controller = require(__dirname + '/controllers/authLinkController');
 const spamGate = require(__dirname + '/middleware/spamGate');
 let player_controller = require(__dirname + '/controllers/playerController');
@@ -400,6 +401,14 @@ app.use(filterState.middleware)
     // exists: a spam complaint silently and permanently suppresses an address, and there
     // is otherwise nothing to look at afterwards.
     app.post('/webhooks/mailjet', express.json({ limit: '512kb' }), mailjet_webhook_controller.receive);
+
+    // The daily registration digest, for Cloud Scheduler.
+    //
+    // NOT `secured`: a scheduler cannot log in through Auth0. It carries the same kind of
+    // shared secret as the Mailjet callback above and 404s without one, so an unconfigured
+    // or probed endpoint gives nothing away. GET because that is what Cloud Scheduler
+    // sends by default, and it writes nothing — it reports.
+    app.get('/tasks/registration-digest', registration_reminder_controller.digestTask);
 
     // `secured`, and no longer `ACL: 'public-read'`.
     //
@@ -598,6 +607,13 @@ app.post('/admin/site-settings', secured, site_settings_controller.update);
 app.get('/admin/link-auth-accounts', secured, auth_link_controller.list);
 app.post('/admin/link-auth-accounts', secured, auth_link_controller.link);
 
+/* Chasing clubs for their team registration forms. Superadmin check is in the
+   controller, as with every other /admin page. Status is per season and resets itself —
+   a new season simply has no club_registration rows. */
+app.get('/admin/registration-reminders', secured, registration_reminder_controller.index);
+app.post('/admin/registration-reminders/:club(\\d+)/received', secured, registration_reminder_controller.setReceived);
+app.post('/admin/registration-reminders/:club(\\d+)/chase', secured, registration_reminder_controller.chase);
+
 app.get('/admin/spam', secured, spam_admin_controller.form);
 app.post('/admin/spam', secured, spam_admin_controller.add);
 app.post('/admin/spam/:id/active', secured, spam_admin_controller.toggle);
@@ -722,6 +738,11 @@ function secured(req, res, next) {
   // (auth check in controller). Blank template is served statically from
   // /static/docs/Team Registration.pdf.
   app.get('/forms/team-registration/:club/prefilled', secured, documents_controller.teamRegistrationFormPrefilled);
+  // The same form as a .docx, which is the format most clubs actually edit and return.
+  // Generated on demand — it used to be written into static/docs as a side effect of
+  // rendering the team-admin page, so the link 404'd unless that page had been served on
+  // this container first.
+  app.get('/forms/team-registration/:club/docx', secured, documents_controller.teamRegistrationFormDocx);
   app.get('/email-scorecard', secured,fixture_controller.email_scorecard);
   app.post('/email-scorecard', secured, fixture_controller.validateScorecard, fixture_controller.fixture_populate_scorecard_errors);
   app.post('/add-scorecard-photo/:id(\\d+)', secured, fixture_controller.add_scorecard_photo)

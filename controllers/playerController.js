@@ -13,8 +13,7 @@ var jp = require('jsonpath');
 const {distance, closest} = require('fastest-levenshtein');
 const authz = require('../utils/authz');
 const { validationResult } = require('express-validator');
-const docx = require("docx");
-const fs = require("fs")
+const registrationDocx = require('../utils/registrationDocx');
 
 
 // Display list of all Players
@@ -143,7 +142,11 @@ exports.manage_player_list_clubs_teams = function(req, res,next) {
           const club = authz.userClub(req) || false;
 
           if (authz.hasClubAccess(req, req.params.club)){
+            // A throw inside a callback the model invokes is NOT caught by the
+            // .catch(next) on the promise below — it is outside the request chain, and
+            // would kill the process rather than 500 the request. Hence the try/catch.
             Player.getNamesClubsTeams(req.params, function(err,rows){
+             try {
               // console.log(rows);
               if (err){
                 // console.log("all_player_stats controller error")
@@ -156,177 +159,15 @@ exports.manage_player_list_clubs_teams = function(req, res,next) {
               }
               else {
                 
-                var manageTeamObject = {}
-                manageTeamObject.teams = [];
-                var teamNames = jp.query(rows,"$..teamName").filter((v,i,a)=>a.indexOf(v)==i)
-                var teamIds = jp.query(rows,"$..teamId").filter((v,i,a)=>a.indexOf(v)==i)
-                const table = new docx.Table({
-                  rows:[
-                    new docx.TableRow({
-                      children: [
-                          new docx.TableCell({
-                              children: [new docx.Paragraph({
-                                text: teamNames[0].substring(0,teamNames[0].length-2) + " Registrations",
-                                style:"docHeading"
-                            })],
-                              columnSpan:4
-                          })
-                      ]
-                  })
-                  ],
-                  margins: {
-                    top: docx.convertInchesToTwip(0.05),
-                    bottom: docx.convertInchesToTwip(0.05),
-                    right: docx.convertInchesToTwip(0.1),
-                    left: docx.convertInchesToTwip(0.1),
-                  },
-                  width:{
-                    size:100,
-                    type:docx.percentage
-                  }});
-                // console.log(teamNames);
-                for(let i=0; i < teamNames.length; i++) {
-                  table.addChildElement(new docx.TableRow({
-                    children: [
-                        new docx.TableCell({
-                            children: [new docx.Paragraph({
-                              text: teamNames[i],
-                              style:"teamHeading"
-                          })],
-                            columnSpan:4
-                        })
-                    ],
-                  }))
-                  table.addChildElement(new docx.TableRow({
-                    children: [
-                        new docx.TableCell({
-                            children: [new docx.Paragraph({
-                              text: "Men",
-                              style:"gender"
-                          })],
-                            columnSpan:2
-                        }),
-                        new docx.TableCell({
-                            children: [new docx.Paragraph({
-                              text: "Ladies",
-                              style:"gender"
-                          })],
-                            columnSpan:2
-                        }),
-                    ],
-                  }))
-                
-                  var nomMen = jp.query(rows,"$..[?(@.teamName=='"+teamNames[i]+"' && @.rank != 99 && @.gender == 'Male')]")
-                  var nomLadies = jp.query(rows,"$..[?(@.teamName=='"+teamNames[i]+"' && @.rank != 99 && @.gender == 'Female')]")
-                  var resMen = jp.query(rows,"$..[?(@.teamName=='"+teamNames[i]+"' && @.rank == 99 && @.gender == 'Male')]")
-                  var resLadies = jp.query(rows,"$..[?(@.teamName=='"+teamNames[i]+"' && @.rank == 99 && @.gender == 'Female')]")
-                  let longest = Math.max(nomMen.length + resMen.length,nomLadies.length + resLadies.length);
-                  // console.log(nomMen.length + ": " + resMen.length + ": " + nomLadies.length + ": " + resLadies.length + ": " + longest)
-                  for(let j=1; j <= longest; j++){
-                    var manName = (j > (nomMen.length + resMen.length) ? "" : (j > nomMen.length ? resMen[j - nomMen.length-1].name : nomMen[j-1].name))
-                    var menTeamName = teamNames[i].substring(teamNames[i].length - 1)
-                    var ladiesTeamName = menTeamName
-                    if (j > nomMen.length){
-                      menTeamName = "R"
-                    }
-                    if (j > nomLadies.length){
-                      ladiesTeamName = "R"
-                    }
-                    var ladyName = (j > (nomLadies.length + resLadies.length) ? "" : (j > nomLadies.length ? resLadies[j - nomLadies.length - 1].name : nomLadies[j-1].name))
-                    table.addChildElement(new docx.TableRow({
-                      children: [
-                          new docx.TableCell({
-                              children: [new docx.Paragraph(manName)],
-                              width:{
-                                size:40,
-                                type:docx.PERCENTAGE
-                              }
-                          }),
-                          new docx.TableCell({
-                              children: [new docx.Paragraph(menTeamName)],
-                              width:{
-                                size:10,
-                                type:docx.PERCENTAGE
-                              }
-                          }),
-                          new docx.TableCell({
-                              children: [new docx.Paragraph(ladyName)],
-                              width:{
-                                size:40,
-                                type:docx.PERCENTAGE
-                              }
-                          }),
-                          new docx.TableCell({
-                              children: [new docx.Paragraph(ladiesTeamName)],
-                              width:{
-                                size:10,
-                                type:docx.PERCENTAGE
-                              }
-                          }),
-                      ],
-                  }))
-                  }
+                // The team blocks the page renders come from the same helper that
+                // builds the .docx a club is sent (utils/registrationDocx.js), so the
+                // screen and the form cannot disagree about who is nominated where.
+                //
+                // This used to also build the document here and fs.writeFileSync it into
+                // static/docs, as a side effect of rendering. The Download link now goes
+                // to /forms/team-registration/:club/docx, which generates it on demand.
+                const manageTeamObject = registrationDocx.teamBlocks(rows);
 
-                  var teamObject = {
-                    name:teamNames[i],
-                    id:teamIds[i],
-                    nominated:{
-                      men:nomMen,
-                      ladies:nomLadies
-                    },
-                    reserves:{
-                      men:resMen,
-                      ladies:resLadies
-                    }
-                  }
-
-                  manageTeamObject.teams.push(teamObject);
-  
-                }
-                const doc = new docx.Document({
-                  title: "Title",
-                  sections: [
-                      {
-                          children: [table],
-                      },
-                  ],
-                  styles:{
-                    paragraphStyles:[{
-                      name:'Normal',
-                      run:{
-                        font:"Arial"
-                      }
-                    },
-                    {
-                      name:'docHeading',
-                      basedOn:"Normal",
-                      run:{
-                        bold:true,
-                        size:30
-                      }
-                    },
-                    {
-                      name:'teamHeading',
-                      basedOn:"Normal",
-                      run:{
-                        bold:true,
-                        size:24
-                      }
-                    },
-                    {
-                      name:'gender',
-                      basedOn:"Normal",
-                      run:{
-                        bold:true
-                      }
-                    }]
-                  }
-                });
-                
-                docx.Packer.toBuffer(doc).then((buffer) => {
-                    fs.writeFileSync('static/docs/'+teamNames[0].substring(0,teamNames[0].length-2)+'.docx', buffer);
-                });
-                // console.log(JSON.stringify(manageTeamObject));
                 Club.getAll( function(err,clubsRes){
                   console.log(clubsRes);
                   if (err){
@@ -343,6 +184,9 @@ exports.manage_player_list_clubs_teams = function(req, res,next) {
                         pageDescription : "List of players registered to teams in the Stockport League",
                         result : manageTeamObject,
                         clubId: rows[0].clubId,
+                        // The club this page is FOR, which is not `club` below — that is
+                        // the viewer's own claim, and is 'All' for a superadmin.
+                        pageClub: rows[0].clubName,
                         superadmin:superadmin,
                         filter:true,
                         hideFilters:["season","gametype","gender","division"],
@@ -353,6 +197,7 @@ exports.manage_player_list_clubs_teams = function(req, res,next) {
                   }
               })
             }
+             } catch (buildErr) { return next(buildErr); }
           })
         }
           else {

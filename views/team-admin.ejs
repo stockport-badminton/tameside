@@ -12,7 +12,12 @@
     <% if (typeof filter !== 'undefined' && filter == true){ %>
       <%- include('filters.ejs') %>
     <% } %>
-    <a href="/static/docs/<%= result.teams[0].name.substring(0,result.teams[0].name.length - 2) %>.docx">Download</a>
+    <%# Generated on demand rather than served out of static/docs, where it only existed
+        if this page had already been rendered on this container — and where it was named
+        after the first TEAM ("GHAP") while the club is "G.H.A.P", so for two clubs the
+        link and the file disagreed. `pageClub` is the club this page is for; `club` is
+        the viewer's own claim and is 'All' for a superadmin. %>
+    <a href="/forms/team-registration/<%= encodeURIComponent(pageClub) %>/docx">Download the registration form</a>
     <div class="container row">
     <% result.teams.forEach(function(team){ %>
         <div class="team-container border border-secondary rounded col p-3">

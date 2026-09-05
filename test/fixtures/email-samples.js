@@ -55,4 +55,30 @@ module.exports = {
       + 'at the AGM on 18 September, or ask your club secretary to bring them along.',
     whyReceiving: 'You are receiving this because you are a registered player or club contact in the league.',
   },
+  // The digest deliberately carries a club in each list rather than one empty list and
+  // one full one: both blocks render, and the "overdue" colouring on a negative daysAway
+  // is exercised. An empty list is covered by the guard test in the same file.
+  'registration-digest': {
+    dueSoon: [
+      { name: 'Hyde', firstFixtureLabel: 'Wed 2 Sep 2026', dueLabel: 'was 3 days ago',
+        daysAway: -3, chaseCount: 1 },
+      { name: 'Medlock', firstFixtureLabel: 'Tue 8 Sep 2026', dueLabel: 'in 3 days',
+        daysAway: 3, chaseCount: 0 },
+    ],
+    chased: [
+      { name: 'Shell', firstFixtureLabel: 'Wed 23 Sep 2026', dueLabel: 'in 18 days',
+        daysAway: 18, chaseCount: 2, chasedLabel: 'Mon 31 Aug 2026' },
+    ],
+    withinDays: 3, received: 4, total: 12, seasonLabel: '2026/2027',
+    worklistUrl: 'https://tameside-badminton.co.uk/admin/registration-reminders',
+    whyReceiving: 'You are receiving this because you are the league&rsquo;s results secretary '
+      + 'and clubs still owe their registration forms.',
+  },
+  'registration-chase': {
+    clubName: 'Hyde', teams: 3, firstFixtureLabel: 'Wed 2 Sep 2026',
+    dueSentence: 'That has already been played, so this is overdue — please send the form '
+      + 'back as soon as you can.',
+    whyReceiving: 'You are receiving this because you are listed as a club or match secretary '
+      + 'for Hyde in the league&rsquo;s records.',
+  },
 };

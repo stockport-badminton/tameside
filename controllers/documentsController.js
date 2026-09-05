@@ -7,6 +7,7 @@ const Player = require('../models/players');
 // header/intro/branding are baked in; we only populate the form fields.
 const TEAM_REGISTRATION_TEMPLATE = path.join(__dirname, '../static/docs/Team Registration.pdf');
 const authz = require('../utils/authz');
+const registrationDocx = require('../utils/registrationDocx');
 
 // Tameside's roster query is callback-style (models/players.js) — promisify it.
 const getRoster = club => new Promise((resolve, reject) =>
@@ -167,6 +168,40 @@ function nominatedOverflowRows(letter, ladies, men, limit) {
 // A captain may only generate their own club's form; the "All" claim (superadmin)
 // may generate any. Returns true if allowed.
 const hasClubAccess = authz.hasClubAccess;
+
+// GET /forms/team-registration/:club/docx
+//
+// The same pre-filled form as the PDF above, in the format most clubs actually edit and
+// return. Generated on demand from the same roster query.
+//
+// It used to be written to `static/docs/<name>.docx` by playerController as a side effect
+// of rendering the team-admin page — so the Download link there 404'd unless somebody had
+// loaded that page first, on that container, and the generated files kept appearing as
+// untracked changes in git. It also named the file after the first TEAM ("GHAP") while
+// the club is "G.H.A.P", so the link and the file disagreed for two clubs. Streaming it
+// removes all of that.
+exports.teamRegistrationFormDocx = async function(req, res, next) {
+  try {
+    const club = req.params.club;
+    // Expected conditions answer directly rather than via next(err), so they are not
+    // logged as 500s or reported to Sentry — same as the PDF route above.
+    if (!hasClubAccess(req, club)) {
+      return res.status(403).send("Sorry, you don't have access to this club's registration form.");
+    }
+    const roster = await getRoster(club);
+    if (roster.length < 1) {
+      return res.status(404).send(`No player registrations found for a club named "${club}".`);
+    }
+
+    const built = await registrationDocx.build(roster, club);
+    res.setHeader('Content-Type',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    // The filename is quoted because club names contain spaces and full stops.
+    res.setHeader('Content-Disposition',
+      `attachment; filename="${built.baseName.replace(/"/g, '')} Registrations.docx"`);
+    return res.send(built.buffer);
+  } catch (err) { next(err); }
+};
 
 exports.teamRegistrationFormPrefilled = async function(req, res, next) {
   try {

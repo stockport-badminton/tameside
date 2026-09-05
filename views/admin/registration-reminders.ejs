@@ -1,0 +1,138 @@
+<%#
+  The registration chase worklist.
+
+  One row per club with a fixture this season, ordered by how soon that fixture is. The
+  two buttons are the whole screen: send the club its pre-filled form, or tick it off.
+
+  Status is per season and resets itself — a new season simply has no rows in
+  club_registration, which reads as "nothing received, nothing chased". See
+  migrations/club-registration.sql.
+%>
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<div class="col-12">
+  <h1>Registration reminders</h1>
+  <p class="text-muted">
+    Every club must register its players before its first fixture of the season.
+    <strong><%= received.length %> of <%= clubs.length %></strong> clubs have sent their
+    form in for <%= seasonLabel %>.
+    Chasing one emails its club and match secretaries the form, pre-filled with the
+    players we currently hold, and records the chase.
+  </p>
+
+  <% if (message) { %><div class="alert alert-success"><%= message %></div><% } %>
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+  <h2 class="h4 mt-4">
+    Still outstanding <span class="text-muted">(<%= outstanding.length %>)</span>
+  </h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr>
+          <th>Club</th>
+          <th>First fixture</th>
+          <th>Chased</th>
+          <th>Who gets the email</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!outstanding.length) { %>
+          <tr><td colspan="5" class="text-muted">Every club has sent its form in. Nothing to chase.</td></tr>
+        <% } %>
+        <% outstanding.forEach(function(c){ %>
+        <tr>
+          <td><strong><%= c.name %></strong>
+            <span class="text-muted small">
+              <%= c.teams %> team<%= c.teams === 1 ? '' : 's' %>
+            </span>
+          </td>
+          <td style="white-space:nowrap;">
+            <%= c.firstFixtureLabel %>
+            <span class="<%= c.overdue ? 'text-danger fw-bold' : 'text-muted' %>">
+              <%= c.dueLabel %>
+            </span>
+          </td>
+          <td style="white-space:nowrap;">
+            <% if (c.chaseCount) { %>
+              <%= c.chaseCount %>&times;, last <%= c.chasedLabel %>
+            <% } else { %>
+              <span class="text-muted">not yet</span>
+            <% } %>
+          </td>
+          <td class="small">
+            <% if (!c.emailable) { %>
+              <span class="text-danger">no secretary with an email address</span>
+            <% } else { %>
+              <%# Names and roles, so it is obvious before sending who is about to hear
+                  from us. Most clubs have one person holding both roles. %>
+              <%= c.officers.filter(function(o){ return o.email; })
+                    .map(function(o){ return o.name + ' (' + o.role + ')'; }).join(', ') %>
+            <% } %>
+          </td>
+          <td class="text-end" style="white-space:nowrap;">
+            <form method="post" action="/admin/registration-reminders/<%= c.id %>/chase" class="d-inline">
+              <button type="submit" class="btn btn-sm btn-primary" <%= c.emailable ? '' : 'disabled' %>>
+                <i class="fas fa-envelope"></i>
+                <%= c.chaseCount ? 'Chase again' : 'Send the form' %>
+              </button>
+            </form>
+            <form method="post" action="/admin/registration-reminders/<%= c.id %>/received" class="d-inline">
+              <input type="hidden" name="received" value="true">
+              <button type="submit" class="btn btn-sm btn-outline-success">
+                <i class="fas fa-check"></i> Received
+              </button>
+            </form>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="h4 mt-4">
+    Received <span class="text-muted">(<%= received.length %>)</span>
+  </h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr>
+          <th>Club</th><th>First fixture</th><th>Marked received</th><th>By</th><th class="text-end"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!received.length) { %>
+          <tr><td colspan="5" class="text-muted">Nothing marked received yet this season.</td></tr>
+        <% } %>
+        <% received.forEach(function(c){ %>
+        <tr class="text-muted">
+          <td><strong class="text-body"><%= c.name %></strong></td>
+          <td style="white-space:nowrap;"><%= c.firstFixtureLabel %></td>
+          <td style="white-space:nowrap;"><%= c.receivedLabel %></td>
+          <td class="small"><%= c.updatedBy || '' %></td>
+          <td class="text-end">
+            <%# Unticking, because a form can turn out to be the wrong season's or half a
+                club. Nothing here deletes a row; it clears received_at and the chase
+                history stays. %>
+            <form method="post" action="/admin/registration-reminders/<%= c.id %>/received" class="d-inline">
+              <input type="hidden" name="received" value="false">
+              <button type="submit" class="btn btn-sm btn-outline-secondary">Undo</button>
+            </form>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="text-muted small mt-4">
+    A digest of everything due within <%= withinDays %> days, plus anything already chased
+    and still outstanding, is emailed daily while there is something to report.
+    Import a returned form on
+    <a href="/admin/team-registrations">Team Registration (import returned)</a>.
+  </p>
+</div>
+
+<%- include('../footer.ejs') %>

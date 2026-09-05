@@ -59,6 +59,25 @@ const asRecipients = (value) => (Array.isArray(value) ? value : [value])
   .filter(Boolean)
   .map(v => (typeof v === 'string' ? { Email: v } : v));
 
+// Mailjet's own cap is 15MB for the whole base64-encoded request. Ten is the point at
+// which a message starts being rejected by receiving servers rather than by Mailjet.
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+// Turn { filename, contentType, content } into Mailjet's Attachment shape. Content may
+// be a Buffer or an already-base64 string; a Buffer is the normal case and encoding it
+// here means no call site has to know the wire format.
+function asAttachments(list) {
+  return (Array.isArray(list) ? list : [list]).filter(Boolean).map(file => {
+    if (!file.filename) throw new Error('an attachment needs a filename');
+    if (!file.contentType) throw new Error(`attachment ${file.filename} needs a contentType`);
+    const content = Buffer.isBuffer(file.content)
+      ? file.content.toString('base64')
+      : String(file.content || '');
+    if (!content) throw new Error(`attachment ${file.filename} is empty`);
+    return { ContentType: file.contentType, Filename: file.filename, Base64Content: content };
+  });
+}
+
 /**
  * Render a template and send it.
  *
@@ -70,8 +89,9 @@ const asRecipients = (value) => (Array.isArray(value) ? value : [value])
  * @param {string|object|Array} [bcc]   omit for no Bcc; pass `true` for the results mailbox
  * @param {string|object} [replyTo]
  * @param {string} [customId]           shows up in Mailjet's message log
+ * @param {Array} [attachments]         [{ filename, contentType, content: Buffer }]
  */
-async function send({ template, data, subject, text, to, bcc, replyTo, customId }) {
+async function send({ template, data, subject, text, to, bcc, replyTo, customId, attachments }) {
   if (!template) throw new Error('send() needs a template');
   if (!subject) throw new Error(`send(${template}) needs a subject`);
   if (!text) throw new Error(`send(${template}) needs a plain-text alternative`);
@@ -92,11 +112,25 @@ async function send({ template, data, subject, text, to, bcc, replyTo, customId 
   if (bccList.length) message.Bcc = bccList;
   if (customId) message.CustomID = customId;
 
+  // Mailjet v3.1 takes attachments base64-encoded inline, so the whole message including
+  // the file has to fit its 15MB request limit. The registration form is ~8KB; anything
+  // approaching the limit belongs behind a link instead, so an oversized one is refused
+  // here rather than becoming an opaque API error at send time.
+  const files = asAttachments(attachments);
+  if (files.length) {
+    const total = files.reduce((n, f) => n + f.Base64Content.length, 0);
+    if (total > MAX_ATTACHMENT_BYTES) {
+      throw new Error(`send(${template}) attachments total ${total} bytes, over the ${MAX_ATTACHMENT_BYTES} limit`);
+    }
+    message.Attachments = files;
+  }
+
   return mailjet.post('send', { version: 'v3.1' }).request({ Messages: [message] });
 }
 
 module.exports = {
   send,
+  MAX_ATTACHMENT_BYTES,
   renderTemplate,
   textToHtml,
   client: mailjet,
