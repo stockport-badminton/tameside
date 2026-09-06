@@ -7,7 +7,12 @@
 require('dotenv').config();
 const { GetObjectCommand, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 
-const { annotateScorecard } = require('../utils/scorecardVision');
+// Held as a MODULE, and called as `vision.annotateScorecard(...)`, not destructured.
+// Destructuring captures the function at require time, so a test stub installed on the
+// module object never intercepts — and the test that asserts the convert endpoint does
+// NOT read the card would then pass whether that were true or not, which is worse than
+// no test at all.
+const vision = require('../utils/scorecardVision');
 const { extractScorecard, parseCardDate } = require('../utils/scorecardExtraction');
 const { matchScorecard, matchTeamName } = require('../utils/scorecardMatch');
 const Team = require('../models/teams');
@@ -37,6 +42,13 @@ const { s3Client } = require('../utils/s3');
 const s3 = s3Client();
 // Extension -> the type this route will admit to. Shared with GET /scorecard-photo/:id.
 const { contentTypeFor, downloadTypeFor, downloadNameFor } = require('../utils/scorecardPhoto');
+// Turning an uploaded pdf/docx into a stored photo. See utils/scorecardDocument.js for
+// why this takes a KEY rather than bytes, and utils/documentImage.js for what it can and
+// deliberately cannot read.
+// The module, not its members — see the note on `vision` above. `convertStoredDocument`
+// is the one the tests replace; the two predicates are pure and destructured freely.
+const scorecardDocument = require('../utils/scorecardDocument');
+const { isDocumentKey, isRefusedArchive } = scorecardDocument;
 
 // "tameside-20252026-Mellor B-Syddal Park A.jpg" -> { home, away }
 // (older keys omit the season: "tameside-GHAP B-GHAP A.jpeg")
@@ -68,6 +80,43 @@ function renderOpts(title, extra) {
  * ------------------------------------------------------------------ */
 const visionCacheKey = (key) => `scorecard-ocr-cache/${key}.vision.json`;
 
+/* ------------------------------------------------------------------ *
+ * Documents
+ *
+ * A pdf or a docx scorecard is a photo with a wrapper round it, and 41 of our 324
+ * scorecard objects are pdfs — an eighth of the archive. Two things were wrong with
+ * that before this: the browser will not preview one inline, so `GET /scorecard-photo/:id`
+ * has to serve it as a download; and Vision cannot read one, so the OCR wizard could
+ * never be used with a scanned card at all.
+ *
+ * So the photo is pulled out and stored beside the document, and the row points at the
+ * photo. The document is left exactly where it is — see utils/scorecardDocument.js.
+ *
+ * A document this cannot read is NOT an error. 15 of the 41 decline, 11 of them because
+ * they are MRC scans whose text lives in a separate layer that would be lost. Those keep
+ * the behaviour they have had for two seasons: stored as a pdf, no OCR.
+ * ------------------------------------------------------------------ */
+
+// Returns the key to actually read pixels from, plus the photo url when one was made.
+// For a photo upload this is a no-op, which is the common case.
+async function resolveToImageKey(key) {
+  if (!isDocumentKey(key)) return { imageKey: key, photoUrl: null, converted: false };
+  const stored = await scorecardDocument.convertStoredDocument(key);
+  if (!stored) return { imageKey: null, photoUrl: null, converted: false };
+  return { imageKey: stored.key, photoUrl: stored.url, converted: true };
+}
+
+// What to tell a captain when a document could not be converted. Named rather than
+// inlined because the two endpoints must say the same thing, and because a message that
+// sends someone round a loop that cannot close is worse than a plain refusal — the reason
+// this one names the alternative that actually works.
+const CANNOT_EXTRACT =
+  'That file could not be read as a scorecard photo. It has still been attached to the '
+  + 'scorecard, so nothing is lost — but to have the card read automatically, send a '
+  + 'photo of it instead (JPEG, PNG or HEIC).';
+
+
+
 async function getVisionForKey(key) {
   try {
     const cached = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: visionCacheKey(key) }));
@@ -75,13 +124,13 @@ async function getVisionForKey(key) {
   } catch (e) { /* cache miss */ }
   const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
   const buffer = Buffer.from(await obj.Body.transformToByteArray());
-  const vision = await annotateScorecard(buffer);
+  const annotated = await vision.annotateScorecard(buffer);
   // Fire-and-forget cache write — analysis shouldn't fail if this does.
   s3.send(new PutObjectCommand({
     Bucket: BUCKET, Key: visionCacheKey(key),
-    Body: JSON.stringify(vision), ContentType: 'application/json',
+    Body: JSON.stringify(annotated), ContentType: 'application/json',
   })).catch(() => {});
-  return vision;
+  return annotated;
 }
 
 async function analyseVision(vision, names, overrides) {
@@ -249,6 +298,9 @@ exports.review = async function (req, res, next) {
 exports.analyse = async function (req, res) {
   const key = req.body && req.body.key;
   if (!key || !/^tameside-/.test(key)) return res.status(400).json({ ok: false, error: 'Bad or missing key' });
+  if (isRefusedArchive(key)) {
+    return res.status(400).json({ ok: false, error: 'Archives are not accepted. Send the photo or the document itself.' });
+  }
   try {
     // Optional overrides: the wizard re-analyses with the user's team picks
     // when the header couldn't be read — same cached detection, new mapping.
@@ -256,8 +308,16 @@ exports.analyse = async function (req, res) {
       homeTeamId: req.body.homeTeamId || null,
       awayTeamId: req.body.awayTeamId || null,
     };
-    const vision = await getVisionForKey(key);
-    const r = await analyseVision(vision, teamsFromKey(key), overrides);
+
+    // A pdf or docx becomes a stored jpeg first, and everything downstream — Vision, the
+    // cache, teamsFromKey — then works on the photo exactly as it would on an uploaded
+    // one. On a re-analyse the document has already been converted, so this reruns on the
+    // photo key the client sent back and is a no-op.
+    const { imageKey, photoUrl } = await resolveToImageKey(key);
+    if (!imageKey) return res.status(422).json({ ok: false, error: CANNOT_EXTRACT });
+
+    const vision = await getVisionForKey(imageKey);
+    const r = await analyseVision(vision, teamsFromKey(imageKey), overrides);
     // Partial results are fine: unresolved teams come back null and the
     // wizard still prefills division/date/scores, leaving team/player picks
     // to the user (failing the whole flow put people off using it).
@@ -267,6 +327,11 @@ exports.analyse = async function (req, res) {
     });
     res.json({
       ok: true,
+      // Present only when a document was converted. The page swaps scoresheet-url onto
+      // this, so the row records the photo rather than the pdf — otherwise the whole
+      // conversion would happen and then be thrown away at submit time.
+      photoUrl,
+      photoKey: photoUrl ? imageKey : null,
       teams: {
         home: r.homeTeam ? { id: r.homeTeam.id, name: r.homeTeam.name } : null,
         away: r.awayTeam ? { id: r.awayTeam.id, name: r.awayTeam.name } : null,
@@ -282,6 +347,48 @@ exports.analyse = async function (req, res) {
     });
   } catch (err) {
     res.status(422).json({ ok: false, error: err.message });
+  }
+};
+
+/* ------------------------------------------------------------------ *
+ * POST /scorecard-document/convert — pull the photo out, and DO NOT read the card
+ *
+ * The wizard has two upload boxes and the split is deliberate: the auto-fill box reads
+ * the card, and the plain photo box does not. A captain who would rather a machine did
+ * not read their scorecard can use the second one, and that promise has to survive a
+ * document upload too — so this endpoint converts and stores and never calls Vision.
+ *
+ * There is a test asserting Vision is not called, because if that ever changes the
+ * promise the form makes is broken and nothing else would say so.
+ * ------------------------------------------------------------------ */
+exports.convert_document = async function (req, res) {
+  const key = req.body && req.body.key;
+  // Same ownership gate as everything else that names an object: this bucket is shared
+  // with the other league, and `tameside-` is what makes one ours.
+  if (!key || !/^tameside-/.test(key)) return res.status(400).json({ ok: false, error: 'Bad or missing key' });
+  if (isRefusedArchive(key)) {
+    return res.status(400).json({ ok: false, error: 'Archives are not accepted. Send the photo or the document itself.' });
+  }
+  if (!isDocumentKey(key)) {
+    return res.status(400).json({
+      ok: false,
+      error: 'That is not a PDF or Word file. A photo does not need converting.',
+    });
+  }
+  try {
+    const stored = await scorecardDocument.convertStoredDocument(key);
+    // Not an error: the document is still uploaded and still attached. The caller keeps
+    // the url it already has.
+    if (!stored) return res.json({ ok: true, converted: false, reason: CANNOT_EXTRACT });
+    res.json({ ok: true, converted: true, url: stored.url, key: stored.key });
+  } catch (err) {
+    if (err.status === 413) return res.status(413).json({ ok: false, error: err.message });
+    console.log('[scorecard-document] conversion failed:', err.message);
+    res.status(502).json({
+      ok: false,
+      error: 'The file was uploaded but the photo could not be pulled out of it. '
+        + 'It is still attached to the scorecard.',
+    });
   }
 };
 

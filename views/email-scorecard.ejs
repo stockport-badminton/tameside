@@ -55,7 +55,8 @@
             <% for (fixture of fixtures){ %>
               <li>
                 <%= fixture.homeTeam + ' vs ' + fixture.awayTeam %> 
-                <input type="file" class="scorecardimages" name="scorecard-image-<%= fixture.id %>" id="scorecard-image-<%= fixture.id %>" />
+                <input type="file" class="scorecardimages" accept="image/jpeg,image/png,image/heic,image/heif,application/pdf,.pdf,.docx"
+                       name="scorecard-image-<%= fixture.id %>" id="scorecard-image-<%= fixture.id %>" />
                 <input type="hidden" name="scoresheet-url-<%= fixture.id %>" id="scoresheet-url-<%= fixture.id %>" /> 
               </li>
             <% } %>
@@ -138,7 +139,7 @@
                      <h5 class="card-title mb-1"><i class="fas fa-wand-magic-sparkles"></i> Got a photo of the scorecard?</h5>
                      <p class="card-text small text-muted mb-2">Upload it and we'll read the card and prefill everything — you check it and submit as normal. Or skip this and enter manually below.</p>
                      <div class="form-row align-items-center">
-                       <div class="col-auto"><input type="file" id="ocr-file" accept="image/jpeg,image/png,image/jpg,image/heic" /></div>
+                       <div class="col-auto"><input type="file" id="ocr-file" accept="image/jpeg,image/png,image/heic,image/heif,application/pdf,.pdf,.docx" /></div>
                        <div class="col-auto"><button type="button" class="btn btn-primary btn-sm" id="ocr-go"><i class="fas fa-wand-magic-sparkles"></i> Read &amp; prefill</button></div>
                      </div>
                      <div id="ocr-status" class="small mt-2"></div>
@@ -253,7 +254,8 @@
                        if (!f) { status('Choose a photo first.'); return; }
                        go.disabled = true;
                        try {
-                         status('Uploading photo…');
+                         var isDoc = /\.(pdf|docx|doc)$/i.test(f.name);
+                         status(isDoc ? 'Uploading document…' : 'Uploading photo…');
                          var ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
                          var key = 'tameside-ocr-' + Date.now() + '.' + ext;
                          var sign = await fetch('/sign-s3?file-name=' + encodeURIComponent(key) + '&file-type=' + encodeURIComponent(f.type)).then(function (r) { return r.json(); });
@@ -261,16 +263,28 @@
                          if (!put.ok) throw new Error('Photo upload failed');
                          // This IS the scorecard photo — reuse it as the submission's
                          // official scoresheet-url so step 13 doesn't ask for it again.
-                         var uploadedUrl = sign.signedUrl.substr(0, sign.signedUrl.indexOf('?X-Amz')).replaceAll('%20', '+');
+                         //
+                         // No `.replaceAll('%20','+')`: that rewrite names a key GetObject
+                         // cannot find, and is why utils/scorecardPhoto.js has to undo it
+                         // for 314 existing rows.
+                         var uploadedUrl = sign.signedUrl.substr(0, sign.signedUrl.indexOf('?X-Amz'));
                          document.querySelectorAll('#scoresheet-url').forEach(function (el) { el.value = uploadedUrl; });
                          // Preview from the LOCAL file, not from the bucket. The stored
                          // value still has to be the object URL (that is what the row
                          // records), but the objects are going private, so an <img> aimed
                          // at S3 would become a broken image. There is no scorecardstore
                          // row yet either, so /scorecard-photo/:id does not exist for it.
-                         var localPreview = URL.createObjectURL(f);
-                         document.querySelectorAll('#scoresheet-img').forEach(function (el) { el.src = localPreview; });
-                         status('Reading the card… (takes a few seconds)');
+                         //
+                         // A document has nothing to preview: an <img> cannot render a pdf
+                         // blob, and the jpeg the server extracts is private with no row
+                         // pointing at it yet.
+                         if (!isDoc) {
+                           var localPreview = URL.createObjectURL(f);
+                           document.querySelectorAll('#scoresheet-img').forEach(function (el) { el.src = localPreview; });
+                         }
+                         status(isDoc
+                           ? 'Pulling the photo out of the document and reading the card… (takes a few seconds)'
+                           : 'Reading the card… (takes a few seconds)');
                          var resp = await fetch('/scorecard-ocr/analyse', {
                            method: 'POST',
                            headers: { 'Content-Type': 'application/json' },
@@ -278,6 +292,15 @@
                          });
                          var data = await resp.json();
                          if (!resp.ok || !data.ok) throw new Error(data.error || 'Could not read the card');
+                         // The server converted a document: record the extracted jpeg
+                         // rather than the pdf, or the whole conversion is thrown away at
+                         // submit time. `key` follows too, so a re-analyse after a manual
+                         // team pick reuses the photo (and its cached Vision response)
+                         // instead of converting the document a second time.
+                         if (data.photoUrl) {
+                           document.querySelectorAll('#scoresheet-url').forEach(function (el) { el.value = data.photoUrl; });
+                           if (data.photoKey) key = data.photoKey;
+                         }
                          status('Filling in the form…');
                          var full = await prefill(data);
                          var checkNote = (data.warnings && data.warnings.length)
@@ -717,37 +740,70 @@
               }
               else {
                 let response = await getSignReq.json()
-                console.log(response)
-                uploadFile(file, response.signedUrl);
-                console.log(response.signedUrl);
-                e.srcElement.nextSibling.nextSibling.value = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz")).replaceAll('%20','+')
+                // AWAITED. This used to be fire-and-forget, so the url below was recorded
+                // and the photo announced as saved whether or not the PUT succeeded.
+                if (!await uploadFile(file, response.signedUrl)) {
+                  throw new Error('The file could not be uploaded to storage.');
+                }
+                // No `.replaceAll('%20','+')`. That rewrite is why 314 rows in this table
+                // name a key that has never existed: S3's REST endpoint decodes `+` in a
+                // path as a space so both spellings answer 200 over HTTPS, but GetObject
+                // takes the key literally. utils/scorecardPhoto.js has to undo it.
+                let uploadedUrl = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz"))
+                // A pdf/docx becomes a stored jpeg, and the row records the jpeg.
+                uploadedUrl = await photoUrlAfterConversion(filename, uploadedUrl)
+                e.srcElement.nextSibling.nextSibling.value = uploadedUrl
 
                 const myHeaders = new Headers();
                 myHeaders.append("Content-Type", "application/json");
-                try {
-                  const updatedScorecard = await fetch(window.location.origin+"/add-scorecard-photo/"+scorecardId, {
-                    method: "POST",
-                    body: JSON.stringify({ imgURL:response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz")).replaceAll('%20','+') }),
-                    headers: myHeaders,
-                  });
-                  if (!updatedScorecard.ok) {
-                    throw new Error(`Response status: ${response.status}`);
-                  }
-                  else {
-                    window.alert('scorecard photo updated - Thank you!')
-                  }
+                const updatedScorecard = await fetch(window.location.origin+"/add-scorecard-photo/"+scorecardId, {
+                  method: "POST",
+                  body: JSON.stringify({ imgURL: uploadedUrl }),
+                  headers: myHeaders,
+                });
+                if (!updatedScorecard.ok) {
+                  throw new Error('The photo uploaded but the scorecard could not be updated.');
                 }
-                catch (error){
-                  console.error(error.message);
-                }
+                window.alert('scorecard photo updated - Thank you!')
               }
             }
             catch (error){
-              console.error(error.message);
+              uploadFailed(error);
             }
             
         }
         
+        // A pdf or docx is a photo with a wrapper round it, and the server can pull the
+        // photo out — see utils/documentImage.js. The file has already been PUT to the
+        // bucket by the time this runs, so the server is handed the KEY and reads it back.
+        //
+        // Returns the url to record. A document that cannot be read keeps its own url:
+        // the file is still uploaded and still attached, so this is never a failure.
+        async function photoUrlAfterConversion(key, uploadedUrl) {
+          if (!/\.(pdf|docx|doc)$/i.test(key)) return uploadedUrl;
+          const resp = await fetch('/scorecard-document/convert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: key }),
+          });
+          const data = await resp.json().catch(function () { return {}; });
+          if (!resp.ok) throw new Error(data.error || 'Could not read that file.');
+          return data.converted ? data.url : uploadedUrl;
+        }
+
+        // The upload boxes used to end `catch (error) { console.error(error.message) }`,
+        // so a captain picking a file the bucket refused saw NOTHING: no alert, no
+        // message, an empty scoresheet-url, and a filed scorecard with no photo. That is
+        // the shape of the "scorecard came in with no photo" reports. `console.log`
+        // rather than `console.error` because browser Sentry captures console at level
+        // 'error' (views/header.ejs) and would file an issue per occurrence.
+        function uploadFailed(error) {
+          console.log('scorecard upload failed:', error && error.message);
+          window.alert('Sorry — that file could not be uploaded.\n\n'
+            + (error && error.message ? error.message : 'Please try again.')
+            + '\n\nYou can still submit the scorecard without a photo.');
+        }
+
         async function getSignedRequest(file){
             // const xhr = new XMLHttpRequest();
             const name = file.name;
@@ -771,18 +827,26 @@
               }
               else {
                 let response = await getSignReq.json()
-                console.log(response)
-                if (await uploadFile(file, response.signedUrl)) {
-                  console.log(response.signedUrl);
-                  // document.getElementById('scoresheet-url').value = 'https://' + URL.parse(response.signedUrl).host+URL.parse(response.signedUrl).pathname.replaceAll('%20','+');
-                  let scoresheetUrls = await document.querySelectorAll('#scoresheet-url')
-                  for (const ssUrl of scoresheetUrls){
-                    ssUrl.value = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz")).replaceAll('%20','+')
-                  }
-                  // Preview from the local file rather than the bucket — see the note
-                  // at the OCR upload above. Also drops a stray console.error that was
-                  // logging this URL: browser Sentry captures console at level 'error'
-                  // (views/header.ejs), so a debug line was filing an issue per upload.
+                if (!await uploadFile(file, response.signedUrl)) {
+                  throw new Error('The file could not be uploaded to storage.');
+                }
+                // No `.replaceAll('%20','+')` — see the note on the other upload handler.
+                let uploadedUrl = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz"))
+                const wasDocument = /\.(pdf|docx|doc)$/i.test(filename)
+                uploadedUrl = await photoUrlAfterConversion(filename, uploadedUrl)
+                let scoresheetUrls = await document.querySelectorAll('#scoresheet-url')
+                for (const ssUrl of scoresheetUrls){
+                  ssUrl.value = uploadedUrl
+                }
+                // Preview from the local file rather than the bucket — see the note
+                // at the OCR upload above. Also drops a stray console.error that was
+                // logging this URL: browser Sentry captures console at level 'error'
+                // (views/header.ejs), so a debug line was filing an issue per upload.
+                //
+                // Skipped for a document: an <img> cannot render a pdf blob, and the
+                // extracted jpeg is a private object with no row pointing at it yet, so
+                // there is nothing to show either way.
+                if (!wasDocument) {
                   let localPreview = URL.createObjectURL(file)
                   let scoresheetImgs = await document.querySelectorAll('#scoresheet-img')
                   for (const ssImg of scoresheetImgs){
@@ -792,7 +856,7 @@
               }
             }
             catch (error){
-              console.error(error.message);
+              uploadFailed(error);
             }
         }
 

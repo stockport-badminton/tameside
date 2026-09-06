@@ -842,6 +842,89 @@ and would otherwise fall past the scope check.
 
 `GET /players/matching/:name/:gender` uses `fastest-levenshtein` to find the closest player name. Used when entering match results to handle name variations.
 
+### Document scorecards (pdf / docx)
+
+**41 of our 324 scorecard objects are PDFs — an eighth of the archive.** A captain
+scanning the card rather than photographing it is ordinary behaviour, and until now cost
+them two things: the browser will not preview a PDF inline, so `GET /scorecard-photo/:id`
+serves it as a download; and Vision cannot read one, so the OCR wizard was unusable with a
+scanned card.
+
+Every document scorecard is a *picture with a wrapper around it* — a PDF is one page whose
+only content is one image XObject with zero fonts; a `.docx` is `word/media/image1.*` and
+zero words. So the job is **byte extraction, not rendering**: no Ghostscript, no pdf.js, no
+new dependency. `utils/documentImage.js` (ported from Stockport's HARD-25) does it,
+`utils/scorecardDocument.js` is the Tameside glue, and the row ends up pointing at the
+extracted jpeg while the original document stays in the bucket untouched.
+
+- **It takes an S3 KEY, not bytes, and that is the whole architectural difference from
+  Stockport.** They POST the file to a multer endpoint, because their `/sign-s3` allows
+  images only so a document can never reach their bucket. Ours takes the client's content
+  type, which is how those 41 PDFs got there — so the browser has already PUT the file by
+  the time anything runs, and reading it back costs one GET. No multer, no new dependency,
+  no path where the app proxies a large upload.
+- **`POST /scorecard-document/convert` never calls Vision, and there is a test asserting
+  it.** The wizard has two upload boxes and the split is a promise made to captains: the
+  auto-fill box reads the card, the plain photo box does not. A document upload must not
+  quietly become an OCR run.
+
+#### The MRC trap — do not "fix" the multi-image guard
+
+`documentImage` declines a PDF that declares more than one image. **15 of the 41 decline;
+11 of those declare between 32 and 89 images.** That looks exactly like a keyword count
+fooled by binary stream data, and "fixing" it is a few lines and takes extraction from
+**63% to 90%**. It was written, measured, and reverted.
+
+Those files are **Mixed Raster Content** — what a photocopier means by "compact PDF": one
+large `[/FlateDecode /DCTDecode]` background *plus* 31–88 small `/CCITTFaxDecode` bitonal
+masks composited over it, **and the masks are where the sharp text lives**. Take the
+background alone and you get a real, plausible-looking scorecard with its text layer
+missing — verified by extracting one and looking at it: the grid and some handwriting
+survive, the printed team names are grey smudges. The row would then point at that instead
+of the complete PDF the captain filed. Silently losing information is worse than declining.
+
+`test/document-image.test.js` has a fixture (`scorecard-pdf-mrc-layered.pdf`) that fails
+loudly if the guard is loosened. Stockport's copy has the same guard and their HARD-25
+describes these as "strips, one scan sliced up" — same numbers, and almost certainly the
+same shape described slightly wrong; **the fix worth sending them is the diagnosis, not a
+loosened guard.**
+
+The other four: three are two-page (picking one is a guess) and one has its image dict
+inside a PDF 1.5 `/ObjStm`, where a byte-level walk cannot see it.
+
+#### Other things worth not rediscovering
+
+- **A failed extraction is not a failed upload.** The document is already in the bucket and
+  still attached; declining leaves it exactly as those files have been for two seasons.
+  This differs from Stockport, where a refusal is the only option because nothing can store
+  a document at all.
+- **The extracted photo's key is the document's key plus `-photo.<ext>`**, keeping the
+  `tameside-` prefix — that prefix *is* the ownership test in `utils/scorecardPhoto.js`,
+  and this bucket holds another league's scorecards. A photo that lost it would 404.
+- **`ContentType` comes from the sniffed bytes, never from anything the client said**, and
+  no ACL is set. These objects are served same-origin with the `__session` cookie.
+- **The size cap is checked from the GetObject response headers, before the body is
+  buffered.** `/sign-s3` presigns a PUT with no size limit of its own, so this is the only
+  bound on what a logged-in captain can make the server hold.
+- **`utils/scorecardVision` and `utils/scorecardDocument` are required as MODULES and
+  called through, not destructured.** Destructuring captures the function at require time,
+  so a test stub on the module object never intercepts — and the "never calls Vision" test
+  would then pass whether it were true or not, which is worse than no test.
+- **The `.replaceAll('%20','+')` rewrite is gone from all three upload paths.** It is why
+  314 existing rows name a key that has never existed: S3's REST endpoint decodes `+` in a
+  path as a space so both spellings answer 200 over HTTPS, but `GetObject` takes the key
+  literally. `utils/scorecardPhoto.js` still translates it for the old rows.
+- **Both photo upload handlers ended `catch (error) { console.error(error.message) }`**, so
+  a captain whose upload failed saw nothing at all — no alert, no message, an empty
+  `scoresheet-url`, and a filed scorecard with no photo. That is the shape of the
+  "scorecard came in with no photo" reports. They alert now, via `console.log` not
+  `console.error`, because browser Sentry captures console at level `error`.
+- **Without an `accept` attribute the file dialog never offered a PDF**, so the whole
+  server-side conversion was unreachable from the UI. All the file inputs carry one now.
+- **Fixtures are generated** (`test/fixtures/documents/make-document-fixtures.js`), one
+  structural shape each, named after the shape. Real scorecards are not usable: a filled
+  card carries twelve players' names and both captains' signatures.
+
 ### Scorecard OCR (superadmin)
 
 `/admin/scorecard-ocr` reads an uploaded scorecard photo from S3 and prefills the

@@ -645,6 +645,11 @@ app.get('/admin/scorecard-ocr/image', secured, scorecard_ocr_controller.image);
 /* Entry-wizard integration: any logged-in user uploads a photo (sign-s3), then
    posts the key here to get the prefilled-form URL. */
 app.post('/scorecard-ocr/analyse', secured, scorecard_ocr_controller.analyse);
+/* Pull the photo out of an uploaded pdf/docx and store it, WITHOUT reading the card.
+   The plain photo box uses this; the auto-fill box gets the same conversion for free
+   inside /scorecard-ocr/analyse. Both take an S3 key, because the browser has already
+   PUT the file through the presigned url from /sign-s3. */
+app.post('/scorecard-document/convert', secured, scorecard_ocr_controller.convert_document);
 
 /* Distribution lists (superadmin — role check in controller). */
 app.get('/admin/distribution', secured, contactus_controller.admin_distribution_form);
