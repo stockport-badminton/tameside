@@ -15,11 +15,6 @@ namecheap SPF record
 docker-compose.debug.yml
 scorecard-analysis/
 static/images/generated/
-static/docs/Aerospace.docx
-static/docs/College Green.docx
-static/docs/GHAP.docx
-static/docs/Medlock.docx
-static/docs/Mellor.docx
 
 # Editor / tooling
 .claude/
