@@ -55,6 +55,24 @@ var sentryEnabled = process.env.NODE_ENV === 'production' || !!process.env.K_SER
       if (enableReplay) {
         integrations.push(Sentry.replayIntegration({
           maskAllText: false,
+          // INPUTS ARE MASKED SEPARATELY, and default to on — which is why the scores and
+          // the player dropdowns came through as asterisks while the surrounding page text
+          // was readable. `maskAllText: false` alone does not cover them.
+          //
+          // Unmasked because a replay is useless for the thing it is here to do: the point
+          // is watching a captain fill the scorecard in and seeing WHICH value they typed
+          // into which slot. Starred-out fields show that something was entered and
+          // nothing more.
+          //
+          // The privacy call, made explicitly: the Sentry org has exactly one member (the
+          // results secretary, owner), so nobody else can open these. What the forms carry
+          // is league data that ends up published anyway — team names, player selections,
+          // scores, the fixture date — with ONE exception, the `email` field on
+          // /email-scorecard, which is the submitting captain's own address. That is
+          // already in `scorecardstore.email` and in the results mailbox, so the replay
+          // adds no exposure that the league does not already hold. Revisit this if anyone
+          // else is ever added to the Sentry org.
+          maskAllInputs: false,
           blockAllMedia: false
         }));
       }
