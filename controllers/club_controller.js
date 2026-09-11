@@ -1,6 +1,9 @@
 var Club = require('../models/club');
 var Venue = require('../models/venue');
 var Team = require('../models/teams');
+// Shared 404 renderer — keeps the no-store header that stops Firebase's edge pinning
+// a 404 to a club id (see utils/render404.js).
+const render404 = require('../utils/render404');
 require('dotenv').config()
 
 
@@ -91,14 +94,11 @@ exports.club_list_detail = function(req, res, next) {
 
 exports.club_detail_api = function(req, res,next) {
   Club.getContactDetailsById(req.params.id,function(err,clubrow){
-    if(err || typeof clubrow == 'undefined' || clubrow.length == 0){
-      console.log(err)
-      res.status(500);
-      next(err);
-    }
-    else{
-      res.send(clubrow)
-    }
+    if (err) return next(err);
+    // A club id that isn't in the table is a 404, not a 500. Lumping the two together
+    // meant an unknown id spent a Sentry event and answered with the error page.
+    if (!clubrow || clubrow.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.send(clubrow)
   })
 };
 
@@ -106,24 +106,21 @@ exports.club_detail_api = function(req, res,next) {
 exports.club_detail = function(req, res,next) {
   // console.log(req.session)
     Club.getContactDetailsById(req.params.id,function(err,clubrow){
-      if(err || typeof clubrow == 'undefined' || clubrow.length == 0){
-        console.log(err)
-        res.status(500);
-        next(err);
-      }
-      else{
-        //console.log("clubrow");
-        // console.log(clubrow);
-        res.status(200);
-        res.render('club-contact', {
-            static_path: '/static',
-            title : clubrow[0].clubName + " Contact information",
-            pageDescription : clubrow[0].clubName + "'s Club / Team Contact information",
-            clubrow: clubrow,
-            error: false,
-            mapsApiKey: process.env.GMAPSAPIKEY,
-        });
-      }
+      // An unknown club id, or a club with no teams, is a 404 — not the 500 both used
+      // to produce. The old branch also called `next(err)` with `err` undefined on the
+      // empty-result path, which rendered the error page and spent a Sentry event on
+      // an expected outcome (see the central handler's err.status contract in app.js).
+      if (err) return next(err);
+      if (!clubrow || clubrow.length === 0) return render404(req, res);
+      res.status(200);
+      res.render('club-contact', {
+          static_path: '/static',
+          title : clubrow[0].clubName + " Contact information",
+          pageDescription : clubrow[0].clubName + "'s Club / Team Contact information",
+          clubrow: clubrow,
+          error: false,
+          mapsApiKey: process.env.GMAPSAPIKEY,
+      });
     })
 };
 

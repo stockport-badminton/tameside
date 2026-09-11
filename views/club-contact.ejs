@@ -10,6 +10,29 @@
   </div>
 <% } else { %>
 
+<%
+  // Officers and captains resolve to null where the league has not recorded one
+  // (models/club.js). Rendering the card anyway produced an empty name and, worse,
+  // `mailto:` / `tel:` links with nothing after the colon. `officerCard` is the one
+  // place that decides what an unfilled role looks like.
+  // Escaped by hand: this helper returns markup as a string, so it has to be emitted
+  // with the raw-output tag, which by definition does not escape. Names, phone numbers
+  // and email addresses all come straight out of the player table.
+  function esc(v) {
+    return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function officerCard(role, name, tel, email) {
+    var out = '<div class="official-card"><div class="official-role">' + esc(role) + '</div>';
+    if (!name || !String(name).trim()) {
+      return out + '<div class="official-name text-muted fst-italic">Not recorded</div></div>';
+    }
+    out += '<div class="official-name">' + esc(name) + '</div><div class="official-contacts">';
+    if (tel) out += '<a href="tel:' + esc(tel) + '" class="contact-link"><i class="fas fa-phone"></i> ' + esc(tel) + '</a>';
+    if (email) out += '<a href="mailto:' + esc(email) + '" class="contact-link"><i class="fas fa-envelope"></i> ' + esc(email) + '</a>';
+    return out + '</div></div>';
+  }
+%>
 <!-- Page Header -->
 <section class="hero" style="padding: 4rem 2rem 3rem;">
   <h1><i class="fas fa-shield-halved"></i> Club Contact Information</h1>
@@ -48,7 +71,12 @@
           </div>
           
           <div class="info-section">
-            <% if (clubrow[0].venueId == clubrow[0].matchVenueId) { %>
+            <% if (!clubrow[0].venueId && !clubrow[0].matchVenueId) { %>
+              <div class="info-block">
+                <h3><i class="fas fa-map-marker-alt"></i> Venue</h3>
+                <p class="text-muted fst-italic mb-0">Not recorded</p>
+              </div>
+            <% } else if (clubrow[0].venueId == clubrow[0].matchVenueId) { %>
               <!-- Single Venue -->
               <div class="info-block">
                 <h3><i class="fas fa-map-marker-alt"></i> Venue</h3>
@@ -75,31 +103,8 @@
           <div class="officials-section">
             <h3><i class="fas fa-user-tie"></i> Club Officials</h3>
             
-            <div class="official-card">
-              <div class="official-role">Club Secretary</div>
-              <div class="official-name"><%= clubrow[0].clubSecretary %></div>
-              <div class="official-contacts">
-                <a href="tel:<%= clubrow[0].clubSecTel %>" class="contact-link">
-                  <i class="fas fa-phone"></i> <%= clubrow[0].clubSecTel %>
-                </a>
-                <a href="mailto:<%= clubrow[0].clubSecEmail %>" class="contact-link">
-                  <i class="fas fa-envelope"></i> <%= clubrow[0].clubSecEmail %>
-                </a>
-              </div>
-            </div>
-
-            <div class="official-card">
-              <div class="official-role">Match Secretary</div>
-              <div class="official-name"><%= clubrow[0].matchSecretary %></div>
-              <div class="official-contacts">
-                <a href="tel:<%= clubrow[0].matchSecTel %>" class="contact-link">
-                  <i class="fas fa-phone"></i> <%= clubrow[0].matchSecTel %>
-                </a>
-                <a href="mailto:<%= clubrow[0].matchSecEmail %>" class="contact-link">
-                  <i class="fas fa-envelope"></i> <%= clubrow[0].matchSecEmail %>
-                </a>
-              </div>
-            </div>
+            <%- officerCard('Club Secretary', clubrow[0].clubSecretary, clubrow[0].clubSecTel, clubrow[0].clubSecEmail) %>
+            <%- officerCard('Match Secretary', clubrow[0].matchSecretary, clubrow[0].matchSecTel, clubrow[0].matchSecEmail) %>
           </div>
         </div>
       </div>
@@ -120,18 +125,7 @@
                   <h4><%= teamRow.teamName %></h4>
                 </div>
                 <div class="captain-info">
-                  <div class="captain-name">
-                    <i class="fas fa-user"></i>
-                    <strong><%= teamRow.teamCaptain %></strong>
-                  </div>
-                  <div class="captain-contacts">
-                    <a href="mailto:<%= teamRow.teamCaptainEmail %>" class="contact-link">
-                      <i class="fas fa-envelope"></i> <%= teamRow.teamCaptainEmail %>
-                    </a>
-                    <a href="tel:<%= teamRow.teamCaptainTel %>" class="contact-link">
-                      <i class="fas fa-phone"></i> <%= teamRow.teamCaptainTel %>
-                    </a>
-                  </div>
+                  <%- officerCard('Captain', teamRow.teamCaptain, teamRow.teamCaptainTel, teamRow.teamCaptainEmail) %>
                 </div>
               </div>
             <% }) %>
