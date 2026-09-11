@@ -280,7 +280,7 @@
                          // pointing at it yet.
                          if (!isDoc) {
                            var localPreview = URL.createObjectURL(f);
-                           document.querySelectorAll('#scoresheet-img').forEach(function (el) { el.src = localPreview; });
+                           document.querySelectorAll('#scoresheet-img').forEach(function (el) { el.src = localPreview; el.hidden = false; });
                          }
                          status(isDoc
                            ? 'Pulling the photo out of the document and reading the card… (takes a few seconds)'
@@ -561,7 +561,19 @@
                                  exists on the error render, hence the locals guard. -%>
                             <input type="hidden" name="scoresheet-url" id="scoresheet-url"
                                    value="<%= (typeof data !== 'undefined' && data && data['scoresheet-url']) || '' %>" />
-                            <img src="" id="scoresheet-img" width="200%" />
+                            <%# No src attribute, and hidden until one is set. `src=""`
+                                 resolves against the DOCUMENT url, so WebKit fetches this
+                                 page as an image and paints a broken-image placeholder —
+                                 sitting under "Upload Scorecard" whenever there is nothing
+                                 to preview yet, which for a pdf/docx upload is always
+                                 (the preview is deliberately skipped: an <img> cannot
+                                 render a pdf blob). `width="200%"` was not a valid width
+                                 either — the attribute is pixels. -%>
+                            <img id="scoresheet-img" class="img-fluid mt-2" hidden
+                                 alt="The scorecard photo you just chose" />
+                            <div id="scoresheet-doc-attached" class="text-success small mt-2" hidden>
+                              <i class="fas fa-file-arrow-up"></i> Scorecard file attached.
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -846,11 +858,15 @@
                 // Skipped for a document: an <img> cannot render a pdf blob, and the
                 // extracted jpeg is a private object with no row pointing at it yet, so
                 // there is nothing to show either way.
+                if (wasDocument) {
+                  document.querySelectorAll('#scoresheet-doc-attached').forEach(function (el) { el.hidden = false })
+                }
                 if (!wasDocument) {
                   let localPreview = URL.createObjectURL(file)
                   let scoresheetImgs = await document.querySelectorAll('#scoresheet-img')
                   for (const ssImg of scoresheetImgs){
                     ssImg.src = localPreview
+                    ssImg.hidden = false
                   }
                 }
               }
@@ -1145,7 +1161,8 @@
         $(document).on('click', '#replace-scoresheet-link', function(e) {
           e.preventDefault();
           $('#scoresheet-url').val('');
-          $('#scoresheet-img').attr('src', '');
+          $('#scoresheet-img').removeAttr('src').prop('hidden', true);
+          $('#scoresheet-doc-attached').prop('hidden', true);
           $('#scoresheet-already-uploaded-msg').hide();
           $('#scoresheet-spreadsheet').show();
         });

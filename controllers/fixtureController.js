@@ -1004,8 +1004,17 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
     if (typeof scorecardObj.email === 'undefined'){
       scorecardObj.email = 'tameside.badders.results+missingemail@gmail.com'
     }
+    // A submission with no photo records no photo. This used to FABRICATE a bucket URL
+    // from the two team IDs — `tameside-55-56.jpg` — for a key that has never existed:
+    // the real ones are built from team NAMES and a season. Because it still started
+    // with `tameside-`, it passed the ownership test in utils/scorecardPhoto.js, so
+    // `photoKeyFromStored` said yes and both the confirmation page and the
+    // results-secretary email offered a photo link that GET /scorecard-photo/:id then
+    // correctly 404s. No row in scorecardstore has that shape, so it never fired — but
+    // it is exactly the "broken photo on the confirmation page" symptom waiting to
+    // happen, and it also threw outright when homeTeam was absent from the body.
     if (typeof scorecardObj["scoresheet-url"] === 'undefined'){
-      scorecardObj["scoresheet-url"] = 'https://badmintontemp.s3.eu-west-1.amazonaws.com/tameside-'+req.body.homeTeam.replaceAll(' ','+')+'-'+req.body.awayTeam.replaceAll(' ','+')+'.jpg'
+      scorecardObj["scoresheet-url"] = ''
     }
     Fixture.createScorecard(scorecardObj, function (err, rows) {
       if (err) {
