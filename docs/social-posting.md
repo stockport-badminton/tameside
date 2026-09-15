@@ -12,22 +12,39 @@ Everything here was measured against the live Graph API, not read from documenta
 
 ## The three things to know before touching any of it
 
-### 1. The two leagues share ONE Instagram account
+### 1. Tameside has its OWN Instagram account now — the handover's premise is gone
 
-Meta refused a second Instagram account when Tameside's was set up. Both leagues post to
-`stockport.badders.results` (`17841409056774880`).
+The handover states as a hard constraint that Meta refused a second Instagram account, so
+both leagues must post to `stockport.badders.results` (`17841409056774880`). **That stopped
+being true on 15 Sep 2026**, when `tameside.badminton` (`17841424897459443`) was created and
+linked to the Tameside Page in Business Manager.
 
-So the two codebases can double-post. For **results** that resolves itself: the Make
-scenario is webhook-triggered and routes on `imgUrl` containing `tameside-badminton`, so
-when this site stops sending, its route stops firing. No Make edit is needed, now or later.
+Verified the same day: the **existing** `META_TAMESIDE_PAGE_TOKEN` reaches the new account
+with no re-minting — it resolves the username, reads `content_publishing_limit`, and creates
+media containers against it.
 
-For the **weekly tables** it is a real constraint. Make's route 3 is *schedule*-triggered —
-it fires every Saturday whatever either site does — so that cutover has to be atomic.
+| Page | Instagram account |
+|---|---|
+| Tameside Badminton League (`413441425183665`) | `tameside.badminton` — `17841424897459443` |
+| Stockport & District (`101950371354925`) | `stockport.badders.results` — `17841409056774880` |
 
-Tameside's tables have never been on Instagram at all: Make posts them to Facebook only,
-and the Instagram carousel alongside carries Stockport's image URLs. Turning this on gives
-Tameside a post it has never had. **Leaving `META_IG_USER_ID` unset is the supported,
-one-variable way to stay on Facebook only.**
+**What that changes, and what it does not:**
+
+- **Results become a clean switch.** Make's Instagram module is unfiltered and has been
+  posting Tameside results to the *Stockport-branded* account. Setting
+  `SOCIAL_POST_DIRECT=true` stops our webhook, so that route stops firing, and our results go
+  to Tameside's own account instead. No double-post, and it fixes the branding oddity.
+- **The atomic cutover is still required — but for FACEBOOK, not Instagram.** Make's route 3
+  posts Tameside's tables to the same Tameside *Page* this does, and it is schedule-triggered,
+  so it fires every Saturday whatever either site does. Two live posters means two posts.
+  Instagram is no longer part of that risk: Make posts to the Stockport account, we post to
+  Tameside's.
+- Tameside's tables have still never been on Instagram, so the weekly post remains a new
+  thing rather than a reproduction — but it is now on Tameside's own account, which was the
+  open question and is now answered.
+
+**Leaving `META_IG_USER_ID` unset is still the supported, one-variable way to stay on
+Facebook only.**
 
 ### 2. Meta fetches the URL itself, later — and the format claim needs correcting
 
@@ -93,7 +110,7 @@ fallback hides the misconfiguration until it bites somewhere less convenient.
 |---|---|
 | Facebook page | `413441425183665` — *Tameside Badminton League* |
 | Page token | `META_TAMESIDE_PAGE_TOKEN`, already minted; copy it from Stockport's `.env` |
-| Instagram | `17841409056774880` — shared, see above |
+| Instagram | `17841424897459443` — `tameside.badminton`, Tameside's own (see above) |
 | Meta app | *Badminton Results App*, live. Nothing further needed from Meta |
 
 **One token covers both targets.** Measured 15 Sep 2026: `META_TAMESIDE_PAGE_TOKEN` resolves
@@ -113,7 +130,7 @@ surfacing `OAuthException`, which sends you hunting a code bug that is not there
 ```
 META_TAMESIDE_PAGE_ID        # 413441425183665
 META_TAMESIDE_PAGE_TOKEN     # the Page token
-META_IG_USER_ID              # 17841409056774880 — UNSET means Facebook only
+META_IG_USER_ID              # 17841424897459443 (tameside.badminton) — UNSET means Facebook only
 SOCIAL_POST_DIRECT           # 'true' posts results from here instead of via Make.com
 SOCIAL_WEEKLY_TABLES_TOKEN   # shared secret for the weekly scheduler job; unset = inert
 META_GRAPH_VERSION           # optional, defaults to v21.0
@@ -155,9 +172,9 @@ that retiring them is a disable rather than surgery. Each step is safe to stop a
    ```
 
    Use the custom domain, not the `run.app` hostname — see **Absolute URLs** in `CLAUDE.md`.
-   Make's route 3 is still posting both leagues' tables, so an *enabled* job means two posts
-   on a Saturday. Stockport's `sbl-weekly-tables-post` has been paused since 15 Sep for
-   exactly this reason.
+   Make's route 3 is still posting Tameside's tables to the same Facebook Page, so an
+   *enabled* job means two posts on a Saturday. Stockport's `sbl-weekly-tables-post` has been
+   paused since 15 Sep for the same reason on its side.
 6. **The one cutover that has to be atomic.** When both leagues are ready: **disable the
    Make scenario and unpause both scheduler jobs on the same day.** Either order within that
    day is fine; spanning a Saturday is not.

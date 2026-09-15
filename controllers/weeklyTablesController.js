@@ -8,16 +8,19 @@
 // **Tameside's league tables have never been on Instagram.** The Make scenario posts them
 // to the Facebook page only — the Instagram carousel alongside it carries the *Stockport*
 // league's image URLs, not ours. So this gives Tameside a post it has never had rather than
-// reproducing one, and that is a thing to decide rather than discover: the account is
-// `stockport.badders.results`, **shared between the two leagues** because Meta refused a
-// second one when Tameside's was set up. Leaving `META_IG_USER_ID` unset is the supported,
-// one-variable way to post to Facebook only.
+// reproducing one.
 //
-// **The two sites can therefore double-post.** For results that resolves itself, because
-// that scenario is webhook-triggered and stops firing when we stop sending. League Tables
-// is *schedule*-triggered: it fires every Saturday whatever either site does. So the
-// cutover has to be atomic — disable the Make scenario and unpause the scheduler jobs on
-// the same day, and do not span a Saturday. Until then the scheduler job stays PAUSED.
+// **It now has its own Instagram account**, `tameside.badminton` (15 Sep 2026). The handover
+// this was ported from treats "Meta refused a second account, so the two leagues share
+// `stockport.badders.results`" as a hard constraint, and that premise is gone. Leaving
+// `META_IG_USER_ID` unset is still the one-variable way to post to Facebook only.
+//
+// **The double-post risk is on FACEBOOK, and it is still real.** Make's route 3 posts
+// Tameside's tables to the same Tameside Page this does, and it is *schedule*-triggered —
+// it fires every Saturday whatever either site does. So the cutover still has to be atomic:
+// disable the Make scenario and unpause the scheduler job on the same day, never spanning a
+// Saturday. Until then the job stays PAUSED. Instagram is no longer part of that risk, since
+// Make posts to the Stockport account and this posts to Tameside's own.
 //
 // ── Tournament posters are not ported ────────────────────────────────────────
 //

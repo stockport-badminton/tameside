@@ -754,12 +754,19 @@ the cutover order and the measurements are in `docs/social-posting.md`; the Stoc
 handover it came from is `~/league-site/docs/handover/tameside-social-posting.md`. The parts
 that bite:
 
-- **The two leagues share ONE Instagram account** (`stockport.badders.results`) — Meta
-  refused a second. So two codebases can double-post. Results resolve themselves (that Make
-  scenario is webhook-triggered and stops firing when we stop sending, with no Make edit
-  ever needed). **The weekly tables post is schedule-triggered and fires whatever either
-  site does**, so that cutover must be atomic: disable the Make scenario and unpause both
-  scheduler jobs on the same day, never spanning a Saturday. The job is created **paused**.
+- **Tameside has its OWN Instagram account since 15 Sep 2026** — `tameside.badminton`
+  (`17841424897459443`), linked to the Tameside Page. The Stockport handover states as a hard
+  constraint that Meta refused a second account and both leagues must share
+  `stockport.badders.results`; **that premise is gone**, and it underpinned most of the
+  cutover sequencing. The existing Page token reaches the new account with no re-minting.
+- **The atomic cutover is still required, but for FACEBOOK.** Make's route 3 posts Tameside's
+  tables to the same Tameside *Page* this does, and it is schedule-triggered — it fires every
+  Saturday whatever either site does. Disable the Make scenario and unpause the job on the
+  same day, never spanning a Saturday; the job is created **paused**. Instagram is no longer
+  part of that risk (Make posts to the Stockport account, we post to Tameside's).
+- **Results are a clean switch.** Make's Instagram module is unfiltered and has been putting
+  Tameside results on the *Stockport-branded* account; `SOCIAL_POST_DIRECT=true` stops our
+  webhook, that route stops firing, and ours go to Tameside's own account instead.
 - **Tameside's tables have never been on Instagram.** Make posts them to Facebook only.
   Turning this on is a new post, not a reproduction — and **leaving `META_IG_USER_ID` unset
   is the supported one-variable way to stay Facebook-only**.

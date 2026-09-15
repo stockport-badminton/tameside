@@ -89,9 +89,10 @@ describe('targets', () => {
     assert.deepStrictEqual(meta.configuredTargets(), []);
   });
 
-  // Meta refused a second Instagram account for Tameside, so the account is shared with
-  // Stockport. Posting to Facebook only has to stay a supported configuration, and it has
-  // to be reachable by unsetting one variable rather than by editing code.
+  // Posting to Facebook only has to stay a supported configuration, and it has to be
+  // reachable by unsetting one variable rather than by editing code. (It was the whole
+  // fallback while the two leagues shared an Instagram account; Tameside has its own since
+  // 15 Sep 2026, but the escape hatch is worth keeping.)
   it('allows Facebook without Instagram', () => {
     process.env.META_TAMESIDE_PAGE_ID = '413441425183665';
     process.env.META_TAMESIDE_PAGE_TOKEN = 'tok';
@@ -106,7 +107,7 @@ describe('targets', () => {
   it('uses the one Tameside token for both targets', () => {
     process.env.META_TAMESIDE_PAGE_ID = '413441425183665';
     process.env.META_TAMESIDE_PAGE_TOKEN = 'tok';
-    process.env.META_IG_USER_ID = '17841409056774880';
+    process.env.META_IG_USER_ID = '17841424897459443';  // tameside.badminton
     const t = meta.configuredTargets();
     assert.deepStrictEqual(t.map(x => x.kind), ['page', 'instagram']);
     assert.ok(t.every(x => x.token === 'tok'));

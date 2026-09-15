@@ -307,10 +307,14 @@ async function publishingQuota(igUserId, token) {
  * resolves the Tameside Page and the Instagram account, and its scopes include
  * `instagram_content_publish`.
  *
- * **`META_IG_USER_ID` names an account the two leagues SHARE.** Meta refused a second
- * Instagram account when Tameside's was set up, so both sites post to
- * `stockport.badders.results`. Leaving it unset is therefore a supported configuration and
- * the one-variable way to keep Tameside off Instagram entirely.
+ * **`META_IG_USER_ID` is Tameside's OWN account as of 15 Sep 2026** — `tameside.badminton`
+ * (`17841424897459443`), linked to the Tameside Page in Business Manager. The handover this
+ * was ported from states as a hard constraint that Meta refused a second Instagram account
+ * and that both leagues must share `stockport.badders.results`; that is no longer true, and
+ * it was the premise under most of the cutover sequencing. The existing Page token reaches
+ * the new account with no re-minting — verified the same day.
+ *
+ * Leaving it unset is still supported, and is the one-variable way to post to Facebook only.
  */
 function targets() {
   const token = process.env.META_TAMESIDE_PAGE_TOKEN;
