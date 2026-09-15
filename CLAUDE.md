@@ -590,6 +590,12 @@ project. postgres.js won't retry it — its only retry path is `retryRoutines` o
 > (`npm test` intermittently fails 2 of the email-scorecard tests). Pre-existing, and
 > reproducible with these changes reverted; `node --test` runs files in parallel and the
 > one real-DB test contends. Serialising the runner or mocking that test's models fixes it.
+>
+> **Never run two `npm test` invocations at once.** Measured 2026-09-15: two overlapping
+> runs fail a *different* integration test each time (`team-registration-import`, then
+> `auth-gating`), each of which passes in isolation — and that looks exactly like a
+> regression in whatever you just changed. Four consecutive serial runs were green. If a
+> suite result surprises you, check nothing else is running before believing it.
 
 ### Key Dependencies
 
@@ -688,14 +694,119 @@ URL shapes; `test/integration/scorecard-photo.test.js` pins the route's gating a
 
 ### Social Image Generation
 
-`social_controller.js` generates PNG images of league tables and results (for social
-media) with **Jimp** — see `GET /resultImage/*` and `GET /tables-social`. Text is drawn
-from pre-baked bitmap fonts (`fonts/*.fnt` + their `.png` sheets), loaded via
-`Jimp.loadFont`. That is pure JS: no fontconfig, freetype or system font packages are
-involved, which is why the image installs none. `sharp` is used only for pixel ops in
-`utils/scorecardVision.js` (greyscale/normalize/sharpen) — never for rendering text —
-so it doesn't need them either. If you ever add SVG text rendering via sharp, you'll
-need to reinstate `fontconfig` + a font in the Dockerfile.
+`social_controller.js` generates images of league tables and results (for social media)
+with **Jimp** — see `GET /resultImage/*`, `GET /league-table-image/:division` and
+`GET /tables-social`. Text is drawn from pre-baked bitmap fonts (`fonts/*.fnt` + their
+`.png` sheets), loaded via `Jimp.loadFont`. That is pure JS: no fontconfig, freetype or
+system font packages are involved, which is why the image installs none. `sharp` is used
+only for pixel ops in `utils/scorecardVision.js` (greyscale/normalize/sharpen) — never
+for rendering text — so it doesn't need them either. If you ever add SVG text rendering
+via sharp, you'll need to reinstate `fontconfig` + a font in the Dockerfile.
+
+**This is the one part of the Stockport social stack that does NOT port.** That site draws
+the same pictures with sharp and an SVG overlay. Copying its drawing code across renders
+every label blank in production and nowhere else, because the Dockerfile here has no fonts
+by design. The route *shape* is what ports.
+
+**The images are served on demand, as JPEG, and both halves are load-bearing:**
+
+- **On demand** because `static/images/generated/` is a *container's own disk*. On Cloud Run
+  it belongs to one instance, does not outlive it, and is invisible to every other one — so
+  "generate, then fetch" only works when the same instance answers both requests. It never
+  does when **Meta** is the one fetching, because that request arrives later, from Meta's
+  servers. The results email linked one of those PNGs to captains for years.
+- **JPEG** because Meta *documents* Instagram publishing as JPEG-only, and serving JPEG
+  costs nothing. **The stronger version of that claim did not reproduce**: measured against
+  v21.0 on 15 Sep 2026, a PNG child container, a PNG carousel parent and a WebP control were
+  all accepted and all reached `status_code: FINISHED`. The Stockport handover names the
+  format as a proven cause of its carousel never working; the *other* cause it names — those
+  URLs 404'd — is measured, independent and sufficient on its own. See `docs/social-posting.md` §2.
+
+`utils/socialPaths.js` builds the URLs, and **every segment is percent-encoded**. Almost
+every team name in this league contains a space; interpolated raw, Facebook answers
+`Missing or invalid image file (324, OAuthException)` for a route that is fine the whole
+time. That expression was hand-built in `models/fixture.js` and `views/fixtures-results.ejs`
+in two different spellings, which is why it is a function now and why
+`test/social-post.test.js` fails if an interpolated one reappears.
+
+The **`.jpg` on the end is not decoration.** Instagram inspects the bytes rather than the
+extension, so an extensionless URL works — but then nothing upstream can tell a JPEG URL
+from the PNG one that broke the carousel, and `metaPublisher`'s guard has to choose between
+crying wolf and being useless. The routes strip it, so old links still resolve.
+
+Cache headers matter here more than usual: **Firebase Hosting applies its own
+`max-age=600` to any response that sets none, 404s included.** Meta fetches these URLs and
+retries, so a transient 404 during a deploy gets cached and the retry never sees the fix.
+The miss path sets `no-store`. The hit path sets `max-age=600` rather than Stockport's
+24 hours, because these tables change whenever a result is published.
+
+> **Look at the picture, not just the status code.** The Avg. column read **`NaN`** for
+> every team with no result yet — `(0 / 0).toFixed(1)` — and four of the nine Division 1
+> teams were in that state on 15 Sep 2026. Nobody had seen it because the URL serving the
+> picture 404'd from anywhere but the container that drew it. **A broken link was hiding a
+> broken picture**, and fixing the link is what exposed it. `tableRowValues` is exported so
+> the test checks what the image draws rather than a copy of the arithmetic.
+
+### Posting to Facebook and Instagram
+
+`utils/metaPublisher.js` posts to Meta directly, replacing Make.com scenarios. Full setup,
+the cutover order and the measurements are in `docs/social-posting.md`; the Stockport
+handover it came from is `~/league-site/docs/handover/tameside-social-posting.md`. The parts
+that bite:
+
+- **The two leagues share ONE Instagram account** (`stockport.badders.results`) — Meta
+  refused a second. So two codebases can double-post. Results resolve themselves (that Make
+  scenario is webhook-triggered and stops firing when we stop sending, with no Make edit
+  ever needed). **The weekly tables post is schedule-triggered and fires whatever either
+  site does**, so that cutover must be atomic: disable the Make scenario and unpause both
+  scheduler jobs on the same day, never spanning a Saturday. The job is created **paused**.
+- **Tameside's tables have never been on Instagram.** Make posts them to Facebook only.
+  Turning this on is a new post, not a reproduction — and **leaving `META_IG_USER_ID` unset
+  is the supported one-variable way to stay Facebook-only**.
+- **No targets is a failure, not a quiet success.** `SOCIAL_POST_DIRECT` lives in the service
+  config and the credentials in `.env`, which is never deployed; setting one without the
+  other gave Stockport a service that posted nowhere and returned `ok: true`. Both entry
+  points throw. **There is deliberately no fallback to Make** — a fallback hides the
+  misconfiguration until it bites somewhere less convenient.
+- **One token covers both targets here.** Measured 15 Sep 2026: `META_TAMESIDE_PAGE_TOKEN`
+  is `type: PAGE`, `expires_at: 0`, and reaches the shared Instagram account with
+  `instagram_content_publish`. Stockport pairs Instagram with its *own* page token; copying
+  that split would leave Instagram unconfigured whenever `META_PAGE_TOKEN` was absent.
+- **A Page token does not expire on a clock.** Code `190` means a person changed a password
+  or lost a role on the Page, and needs a human with a browser. `describeFailure` says that
+  in English, because a bare `OAuthException` sends you hunting a code bug that is not there.
+- **A dry run's `ok: true` means "Meta could fetch these", not "Instagram will publish
+  these".** `validateImages` *is* the container step, and the container step does not check
+  the format — so it cannot have proved the JPEG diagnosis it is credited with. It does
+  catch what actually recurs: a 404, a private URL, a host Meta cannot reach. Treating it as
+  a format check would make it another rejection that looks like an acceptance.
+- **`publishEverywhere` collects per-target outcomes and does not throw.** A post that
+  reached Facebook and not Instagram has still reached Facebook; throwing on the first
+  failure would lose that, or make a retry double-post the half that worked. The route
+  answers **207** for a partial success, because reporting only success makes a half failure
+  indistinguishable from a whole one.
+- **`fetch`, not axios** — this repo has neither and needs neither. Note `fetch` does not
+  throw on a 4xx and Meta puts its error in the *body*, not the status; missing that branch
+  turns every refusal into a silent success.
+- **`sendResultZap` never calls back with an error, deliberately.** The result is already
+  committed, and its caller in `fixtureController` is a nest of `if (err) res.send(err)` with
+  no `return` — an error there sent a body and then carried on to `res.render`, which throws
+  `ERR_HTTP_HEADERS_SENT` from inside a callback and kills the process. A social-post failure
+  is loud in the logs and Sentry, and silent in the response. Stockport reaches the same
+  place via `utils/afterCommit.js`; this repo has no equivalent.
+- **`POST /admin/social/weekly-tables` must not be `secured`.** `secured` redirects an
+  anonymous caller to `/login`; a scheduler's HTTP client follows the 302, gets a 200 from
+  Auth0 and records a successful run, so an endpoint refusing every request looks green for
+  a year. `middleware/requireCronCaller.js` takes `?t=` or a superadmin session and refuses
+  with a **404, never a redirect**. (Stockport's copy answers 403; 404 matches this repo's
+  other two scheduler endpoints.)
+- **Captions are built from the database**, never hardcoded — Make's carried
+  `@manor_badminton_club` where the stored handle was `manorbadmintonclubwilmslow`. **No
+  Tameside club has a handle stored yet**, so captions currently carry no mentions; fill in
+  `club.instagram`, don't hardcode. Facebook page mentions are omitted rather than faked:
+  they need the Pages API, and plain `@Club Name` text does nothing at all.
+- Tournament posters are **not** ported. Stockport's five are its own content down to the
+  venue address, and Tameside has neither the posters nor the background art.
 
 ### Team Registration Forms
 

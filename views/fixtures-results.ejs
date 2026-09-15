@@ -164,9 +164,20 @@
                   <% if(row['lewis_round']){ %>
                     <span class="status-badge <%= lewisClasses[row['lewis_round']] %>"><%= lewisLabels[row['lewis_round']] %></span>
                   <% } %>
-                  <% if (typeof superadmin !== 'undefined' && superadmin) { %>
+                  <%# Gated on a real division name as well as the role: the card's
+                      background is picked by division, so there is no image for "All". %>
+                  <% if (typeof superadmin !== 'undefined' && superadmin && division && division !== 'All') { %>
                     <br />
-                    <a href="/resultImage/<%= row['hometeam'] %>/<%= row['awayteam'] %>/<%= row['homeScore'] %>/<%= row['awayScore'] %>/<%= row['divisionName'] %>" 
+                    <%# Built through the helper, not interpolated. Every team name in this
+                        league contains a space and a raw space is not a legal URL character —
+                        that is what had Facebook answering "Missing or invalid image file
+                        (324, OAuthException)" for a route that was fine the whole time.
+
+                        The keys were `hometeam`/`awayteam` and `row['divisionName']`, none of
+                        which exist on these rows — so this link has been emitting
+                        `/resultImage////` for its whole life. Nobody noticed because only a
+                        superadmin sees it. %>
+                    <a href="<%= resultImagePath({ homeTeam: row['homeTeam'], awayTeam: row['awayTeam'], homeScore: row['homeScore'], awayScore: row['awayScore'], division: division }) %>" 
                        class="social-link">
                       <i class="fas fa-image"></i> Social Image
                     </a>

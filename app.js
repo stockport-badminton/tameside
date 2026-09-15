@@ -258,6 +258,11 @@ app.use(function (req, res, next) {
 // The stamp is per-request rather than app-wide because it has to be the time this page was
 // rendered — that is the whole point of it. One HMAC per request is nothing.
 const spamChecks = require('./utils/spamChecks');
+// Available to every view so that a social image URL is built in one place. Interpolated
+// by hand in a template it loses its percent-encoding, and a team name with a space in it
+// produces a link Facebook rejects outright — see utils/socialPaths.js.
+app.locals.resultImagePath = require(__dirname + '/utils/socialPaths').resultImagePath;
+
 app.locals.spamHoneypotField = spamChecks.HONEYPOT_FIELD;
 app.use(function (req, res, next) {
   res.locals.spamFormStamp = spamChecks.formStamp();
@@ -373,6 +378,8 @@ let club_controller = require(__dirname + '/controllers/club_controller');
 let contactus_controller = require(__dirname + '/controllers/contactusController');
 let spam_admin_controller = require(__dirname + '/controllers/spamAdminController');
 let registration_reminder_controller = require(__dirname + '/controllers/registrationReminderController');
+let weekly_tables_controller = require(__dirname + '/controllers/weeklyTablesController');
+const requireCronCaller = require(__dirname + '/middleware/requireCronCaller');
 let auth_link_controller = require(__dirname + '/controllers/authLinkController');
 const spamGate = require(__dirname + '/middleware/spamGate');
 let player_controller = require(__dirname + '/controllers/playerController');
@@ -463,7 +470,11 @@ app.use(filterState.middleware)
   app.post('/approve-user/:userId', secured, auth_controller.approve_signup_post);
 
 
+// The social images. Public and unauthenticated on purpose: **Meta fetches these URLs
+// itself, from its own servers, minutes after we hand them over**, so anything behind
+// `secured` can never work. See controllers/social_controller.js.
 app.get('/resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division',social_controller.social_get_result)
+app.get('/league-table-image/:division', social_controller.league_table_image)
 app.get('/tables-social',social_controller.social_get_tables)
 
 app.get('/', fixture_controller.fixture_get_summary)
@@ -613,6 +624,19 @@ app.post('/admin/link-auth-accounts', secured, auth_link_controller.link);
 app.get('/admin/registration-reminders', secured, registration_reminder_controller.index);
 app.post('/admin/registration-reminders/:club(\\d+)/received', secured, registration_reminder_controller.setReceived);
 app.post('/admin/registration-reminders/:club(\\d+)/chase', secured, registration_reminder_controller.chase);
+
+/* The weekly league-tables post to Facebook and Instagram.
+
+   The GET is `secured` like every other /admin page. **The POST deliberately is NOT**:
+   `secured` redirects an anonymous caller to /login, a scheduler's HTTP client follows the
+   302, gets a 200 from Auth0, and records a successful run — so an endpoint that has been
+   refusing every request looks green the whole time. `requireCronCaller` takes the shared
+   secret in `?t=` or a superadmin session, and refuses with a 404 rather than a redirect.
+   Unset SOCIAL_WEEKLY_TABLES_TOKEN means the scheduled half is inert. */
+app.get('/admin/social/weekly-tables', secured, weekly_tables_controller.preview);
+app.post('/admin/social/weekly-tables',
+  requireCronCaller({ envVar: 'SOCIAL_WEEKLY_TABLES_TOKEN', callerProp: 'socialCaller' }),
+  weekly_tables_controller.run);
 
 app.get('/admin/spam', secured, spam_admin_controller.form);
 app.post('/admin/spam', secured, spam_admin_controller.add);

@@ -28,7 +28,9 @@ module.exports = {
   'website-updated': {
     ...fixture, homeScore: 6, awayScore: 3,
     resultUrl: 'https://tameside-badminton.co.uk/fixtures',
-    imageUrl: 'https://tameside-badminton.co.uk/static/images/generated/Hyde-AMellor-B.png',
+    // The on-demand card, not a PNG on a container's disk — see the note at the
+    // imageUrl call site in fixtureController.
+    imageUrl: 'https://tameside-badminton.co.uk/resultImage/Hyde%20A/Mellor%20B/13/5/Division%201.jpg',
     matchStats: [
       { name: 'Andrew Capewell', teamName: 'Hyde A', gamesWon: 3, avgPtsFor: 20.6667, avgPtsAgainst: 14.25 },
       { name: 'Alice Cooper', teamName: 'Hyde A', gamesWon: 2, avgPtsFor: 18.5, avgPtsAgainst: 16 },

@@ -200,3 +200,33 @@ exports.updateById = async function(name, venue, clubId,done){
   done(null,result);
 }
 
+
+
+/**
+ * Clubs that have told us an Instagram handle, for the mentions in a social caption.
+ *
+ * Promise-returning rather than callback-style, deliberately: its only caller is an async
+ * controller, and wrapping a promise in a `done` only to await it again adds a way to get
+ * it wrong. The callback models above are the older convention, not a house rule.
+ *
+ * **Built from the database, never hardcoded into the caption.** The Make.com scenario this
+ * replaces carried `@manor_badminton_club` in its text where the club's stored handle was
+ * `manorbadmintonclubwilmslow`, and named another club that has no handle at all. A wrong
+ * `@handle` mentions a stranger, or nothing, and nobody ever notices.
+ *
+ * The character filter is not tidiness. A handle with a space or a `/` in it becomes a
+ * mention of something else once Instagram parses the caption, so a malformed one is
+ * dropped rather than posted.
+ *
+ * Note: as of Sep 2026 no Tameside club has a handle stored, so this correctly returns an
+ * empty list and captions carry no mentions. That is a gap in the data, not in the code.
+ */
+exports.getInstagramHandles = async function () {
+  const rows = await sql`
+    SELECT name, instagram FROM club
+     WHERE instagram IS NOT NULL AND TRIM(instagram) <> ''
+     ORDER BY name`;
+  return rows
+    .map(r => ({ name: r.name, handle: String(r.instagram).trim().replace(/^@+/, '') }))
+    .filter(r => /^[A-Za-z0-9._]+$/.test(r.handle));
+};

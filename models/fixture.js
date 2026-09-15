@@ -7,6 +7,8 @@ find: (?!JOIN|join|oin|concat|oncat)([tamevgsortsinnplyIdhcwvuMkLfx_]{2,20})([uT
 replace: "$1$2"
 */
 const seasonModel = require('./season');
+const { absoluteUrl } = require('../utils/siteUrl');
+const { resultImagePath } = require('../utils/socialPaths');
 
  exports.createBatch = async function(BatchObj,done){
   if(db.isObject(BatchObj)){
@@ -521,31 +523,121 @@ FROM (SELECT "fixturePlayers".*, club.name
     done(null,rows);
   }
 
+  /**
+   * Post one result to the league's own Facebook page and Instagram account.
+   *
+   * Each target succeeds or fails on its own — `publishEverywhere` collects rather than
+   * throwing on the first failure — because **a post that reached Facebook and not
+   * Instagram has still reached Facebook**, and a retry that re-posted it would be worse
+   * than the gap.
+   *
+   * Throws only when EVERY target failed, or when none is configured at all.
+   */
+  async function publishResultToMeta({ imgGen, message }) {
+    const meta = require('../utils/metaPublisher');
+    const configured = meta.configuredTargets();
+
+    // **No targets is a failure, not a quiet success.** `SOCIAL_POST_DIRECT` lives in the
+    // Cloud Run service config and the credentials live in `.env`, which is gitignored and
+    // never deployed — so setting the flag without copying the credentials across is the
+    // easy mistake, and on the Stockport side it produced a service that took the direct
+    // path, found nothing to post to, posted nowhere, and reported success. An empty target
+    // list produces neither a post nor a failure, which is the shape this pair of codebases
+    // keeps getting caught by: a rejection that looks like an acceptance.
+    //
+    // There is deliberately NO fallback to Make.com. A fallback hides the misconfiguration
+    // until it bites somewhere less convenient.
+    if (!configured.length) {
+      throw new Error(
+        'SOCIAL_POST_DIRECT is set but no Meta credentials are configured, so this result ' +
+        'would have been posted nowhere. Set META_TAMESIDE_PAGE_ID and ' +
+        'META_TAMESIDE_PAGE_TOKEN on the service, or unset SOCIAL_POST_DIRECT to go back ' +
+        'through Make.com.');
+    }
+
+    const out = await meta.publishEverywhere(configured, { imageUrls: imgGen, message });
+
+    for (const f of out.failed) console.error(`result post to ${f.target} failed:`, f.error.message);
+    if (out.posted.length) console.log('result posted to', out.posted.map(p => p.target).join(', '));
+
+    if (!out.posted.length && out.failed.length) throw out.failed[0].error;
+    return out;
+  }
+
+  /**
+   * Announce a published result — directly to Meta, or through the Make.com webhook.
+   *
+   * ── This never calls back with an error, and that is deliberate ─────────────
+   *
+   * The result is already committed by the time this runs, and the caller in
+   * fixtureController is a nest of `if (err) res.send(err)` with no `return`: an error here
+   * used to send a body and then carry on to `res.render`, which throws
+   * ERR_HTTP_HEADERS_SENT from inside a callback — outside the request chain, so it kills
+   * the process. A captain would see a failure for a submission that had worked, if the
+   * container survived long enough to tell him.
+   *
+   * So a social-post failure is loud in the logs and in Sentry, and silent in the response.
+   * The Stockport site reaches the same place via `utils/afterCommit.js`; this repo has no
+   * equivalent, so the separation is made here.
+   */
   exports.sendResultZap = async function(zapObject, done){
-    if (typeof zapObject.homeTeam !== 'undefined' && (zapObject.host !== '127.0.0.1:8080' || typeof zapObject.host === 'undefined')){
-      try {
-        await fetch('https://hook.integromat.com/uihmc7g54i8xrvdvpsec2f6ejfqul70g', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imgGen: `https://tameside-badminton.co.uk/resultImage/${zapObject.homeTeam}/${zapObject.awayTeam}/${zapObject.homeScore}/${zapObject.awayScore}/${zapObject.division}`,
-            message: `Result: ${zapObject.homeTeam} vs ${zapObject.awayTeam} : ${zapObject.homeScore}-${zapObject.awayScore} #tameside #badminton #tdbl #result #bulutangkis #badminton🏸 #badmintonclub https://tameside-badminton.co.uk`,
-            imgUrl: `https://tameside-badminton.co.uk/static/images/generated/${zapObject.homeTeam.replace(/([\s]{1,})/g,'-')}${zapObject.awayTeam.replace(/([\s]{1,})/g,'-')}.png`
-          })
-        });
-        const imgRes = await fetch(`https://tameside-badminton.co.uk/resultImage/${zapObject.homeTeam}/${zapObject.awayTeam}/${zapObject.homeScore}/${zapObject.awayScore}/${zapObject.division}`);
-        const body = await imgRes.text();
-        return done(null, body);
-      } catch(err) {
-        return done(err);
-      }
+    if (typeof zapObject.homeTeam === 'undefined') {
+      return done(null, { sent: false, reason: "no homeTeam — nothing to announce" });
     }
-    else if (zapObject.host == '127.0.0.1:8080'){
+    if (zapObject.host == '127.0.0.1:8080'){
       console.log("zap not sent!");
-      return done(null,'test env');
+      return done(null, { sent: false, reason: 'test env' });
     }
-    else {
-      return done("you've not supplied a valid object");
+
+    // Built through the helper and percent-encoded. Interpolated raw, "Hyde A" puts a
+    // literal space in the URL and Facebook answers `Missing or invalid image file
+    // (324, OAuthException)` — the endpoint is fine, the URL is not. This was interpolated
+    // by hand here and, separately, in views/fixtures-results.ejs, which is exactly why it
+    // is a function now.
+    const imgGen = absoluteUrl(resultImagePath(zapObject));
+    const message = `Result: ${zapObject.homeTeam} vs ${zapObject.awayTeam} : ${zapObject.homeScore}-${zapObject.awayScore} #tameside #badminton #tdbl #result #bulutangkis #badminton🏸 #badmintonclub https://tameside-badminton.co.uk`;
+
+    try {
+      // ── Direct, or through Make.com ──────────────────────────────────────────
+      //
+      // `SOCIAL_POST_DIRECT=true` posts from here instead of handing the job to a Make.com
+      // scenario, and turning one on turns the other off — they are the same change, not
+      // two. **No Make edit is needed, now or later**: that scenario is webhook-triggered
+      // and routes on `imgUrl` containing `tameside-badminton`, so when we stop sending,
+      // our route simply stops firing. Stockport's already has.
+      //
+      // Unset keeps the old path, so a rollback is one environment variable rather than one
+      // deploy — which matters because this runs when a captain publishes a result, and a
+      // bad week is a week of missing posts nobody notices.
+      if (process.env.SOCIAL_POST_DIRECT === 'true') {
+        const out = await publishResultToMeta({ imgGen, message });
+        return done(null, { sent: true, via: 'meta', posted: out.posted.map(p => p.target) });
+      }
+
+      await fetch('https://hook.integromat.com/uihmc7g54i8xrvdvpsec2f6ejfqul70g', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imgGen,
+          message,
+          // `imgUrl` used to name a PNG under /static/images/generated/ — the container's
+          // own disk, so it 404'd for anything but the instance that drew it. Pointed at
+          // `imgGen` rather than deleted, because removing a field from a live webhook
+          // payload is a change to somebody else's scenario: this way a step that reads it
+          // starts working instead of failing, and it still contains `tameside-badminton`,
+          // which is what the scenario routes on. Drop it once Make is retired.
+          imgUrl: imgGen,
+        })
+      });
+
+      // The self-fetch of the image that used to sit here is gone. It pulled ~150KB back
+      // as a *string* purely to make the route write its PNG to local disk, and handed that
+      // string to the callback, which ignores it. Make fetches `imgGen` itself.
+      return done(null, { sent: true, via: 'make.com' });
+    } catch (err) {
+      console.error('result announcement failed:', err.message);
+      try { require('@sentry/node').captureException(err); } catch (_) { /* Sentry is a no-op without a DSN */ }
+      return done(null, { sent: false, reason: err.message });
     }
   }
 

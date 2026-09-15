@@ -28,6 +28,7 @@ const render404 = require('../utils/render404');
 // break the Auth0 round trip — a different origin is a different cookie jar, so the
 // session holding `returnTo` never comes back. See utils/siteUrl.js.
 const { siteUrl, absoluteUrl, canonicalFor } = require('../utils/siteUrl');
+const { resultImagePath } = require('../utils/socialPaths');
 // One mailer for every league email; templates compile from emails/*.mjml.
 const mailer = require('../utils/mailer');
 
@@ -1701,13 +1702,6 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                               Player.getMatchStats(FixtureIdResult[0].id,function(err,matchStats){
                                 if (err) res.send(err);                              
                                 
-                                var emailData = {                                
-                                  "homeTeam":zapObject.homeTeam,
-                                  "awayTeam":zapObject.awayTeam,
-                                  "generatedImage":zapObject.homeTeam.replace(/([\s]{1,})/g,'-') + zapObject.awayTeam.replace(/([\s]{1,})/g,'-'),
-                                  "matchStats":matchStats
-                                }
-                                // console.log(emailData);
                                 // The fallback recipient was stockport.badders.results@
                                 // — the OTHER league's mailbox — whenever req.body.email
                                 // was missing or malformed, so a Tameside result went to
@@ -1731,7 +1725,16 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                                       awayScore: zapObject.awayScore,
                                       divisionName: zapObject.division,
                                       matchStats: matchStats,
-                                      imageUrl: absoluteUrl('/static/images/generated/' + emailData.generatedImage + '.png'),
+                                      // The on-demand card, NOT the PNG under
+                                      // /static/images/generated/. That directory is the
+                                      // container's own disk: the file is written by
+                                      // whichever instance drew it and is invisible to
+                                      // every other one, so the recipient — fetching
+                                      // minutes later, through Firebase, on any instance —
+                                      // got a broken image, and Firebase then cached that
+                                      // 404 for ten minutes. /resultImage renders per
+                                      // request and always works.
+                                      imageUrl: absoluteUrl(resultImagePath(zapObject)),
                                       resultUrl: absoluteUrl('/fixtures'),
                                     },
                                     customId: 'WebsiteUpdated',

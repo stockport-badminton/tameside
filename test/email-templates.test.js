@@ -121,7 +121,7 @@ describe('optional blocks are genuinely optional', () => {
     const html = await render('website-updated',
       { ...CASES['website-updated'], matchStats: [], imageUrl: null });
     assert.ok(!html.includes('How everyone played'));
-    assert.ok(!html.includes('/static/images/generated/'));
+    assert.ok(!html.includes('/resultImage/'));
   });
 });
 

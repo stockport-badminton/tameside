@@ -1,0 +1,82 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<div class="col-12">
+  <h1>Weekly tables post</h1>
+  <p class="text-muted">
+    Exactly what the Saturday post will contain. Nothing on this page sends anything.
+  </p>
+
+  <div class="alert <%= facebookConfigured ? 'alert-success' : 'alert-danger' %>">
+    <strong>Facebook:</strong>
+    <%= facebookConfigured
+      ? 'configured — the two tables go up as one album.'
+      : 'NOT configured. Set META_TAMESIDE_PAGE_ID and META_TAMESIDE_PAGE_TOKEN on the service.' %>
+  </div>
+
+  <div class="alert <%= instagramConfigured ? 'alert-success' : 'alert-warning' %>">
+    <strong>Instagram:</strong>
+    <% if (instagramConfigured) { %>
+      configured — the two tables go up as one carousel.
+      <em>This account is shared with the Stockport league</em>, so make sure the Make.com
+      scenario is not also posting tables before you unpause the scheduler job.
+    <% } else { %>
+      not configured (<code>META_IG_USER_ID</code> is unset), so this posts to Facebook only.
+      That is a supported setup, not a fault — Tameside's tables have never been on Instagram.
+    <% } %>
+  </div>
+
+  <h2 class="h4 mt-4">Images</h2>
+  <p class="text-muted">
+    Rendered on demand as JPEG. <strong>Meta fetches these URLs itself, later, from its own
+    servers</strong> — so they have to be public, and they have to still work minutes after
+    the post is made. If one of these is broken here, it is broken for Meta too.
+  </p>
+  <div class="row">
+    <% images.forEach(function (src) { %>
+      <div class="col-12 col-md-6 mb-3">
+        <img src="<%= src %>" class="img-fluid border" alt="League table">
+        <p class="small text-break mt-1"><a href="<%= src %>"><%= src %></a></p>
+      </div>
+    <% }); %>
+  </div>
+
+  <h2 class="h4 mt-4">Captions</h2>
+  <div class="row">
+    <div class="col-12 col-lg-6 mb-3">
+      <h3 class="h6">Facebook</h3>
+      <pre class="border p-2 bg-light"><%= captions.facebook %></pre>
+    </div>
+    <div class="col-12 col-lg-6 mb-3">
+      <h3 class="h6">Instagram</h3>
+      <pre class="border p-2 bg-light"><%= captions.instagram %></pre>
+    </div>
+  </div>
+
+  <p class="text-muted">
+    <% if (captions.mentioned.length) { %>
+      Clubs mentioned on Instagram: <%= captions.mentioned.join(', ') %>.
+    <% } else { %>
+      <strong>No clubs are mentioned</strong>, because no club has an Instagram handle stored
+      against it. Add them on the club admin pages and they appear here automatically —
+      hardcoding a handle into the caption is how the old automation ended up mentioning a
+      stranger. Facebook page mentions are omitted on purpose: they need the Pages API, and
+      plain <code>@Club Name</code> text does nothing at all.
+    <% } %>
+  </p>
+
+  <h2 class="h4 mt-4">Send it</h2>
+  <p class="text-muted">
+    A dry run creates unpublished Instagram containers to ask Meta whether it would accept
+    each image, then abandons them. Nothing becomes visible, and they expire in 24 hours.
+  </p>
+  <form method="post" action="/admin/social/weekly-tables?dry=1" class="d-inline">
+    <button type="submit" class="btn btn-secondary">Dry run (posts nothing)</button>
+  </form>
+  <form method="post" action="/admin/social/weekly-tables" class="d-inline ms-2"
+        onsubmit="return confirm('This posts publicly to Facebook and Instagram now. Continue?');">
+    <button type="submit" class="btn btn-danger">Post now</button>
+  </form>
+</div>
+
+<%- include('../footer.ejs') %>
