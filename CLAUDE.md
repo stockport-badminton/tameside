@@ -761,12 +761,15 @@ that bite:
   cutover sequencing. The existing Page token reaches the new account with no re-minting.
 - **The atomic cutover is still required, but for FACEBOOK.** Make's route 3 posts Tameside's
   tables to the same Tameside *Page* this does, and it is schedule-triggered — it fires every
-  Saturday whatever either site does. Disable the Make scenario and unpause the job on the
-  same day, never spanning a Saturday. Instagram is no longer part of that risk (Make posts
-  to the Stockport account, we post to Tameside's). **`gcloud scheduler jobs create http` has
-  no `--pause` flag** — the job is created ENABLED and is counting down from that moment, so
-  create and pause are two commands with a live job in between. `tbl-weekly-tables-post`
-  exists and is PAUSED.
+  Saturday whatever either site does. **The cutover was done 15 Sep 2026**: every Make.com
+  scenario is now inactive and `tbl-weekly-tables-post` (Sat 12:00) and Stockport's
+  `sbl-weekly-tables-post` (Sat 13:00) are both ENABLED. Two things from doing it:
+  **`gcloud scheduler jobs create http` has no `--pause` flag** — the job is created ENABLED
+  and counting down, so create and pause are two commands with a live job in between; and
+  **the Make scenario's `isActive` must be checked over the API before unpausing**, never
+  inferred, because the request came in while `League Tables` was still live an hour after
+  our slot. Disabling that shared scenario also ends Stockport's tables post, so its job had
+  to be unpaused in the same breath — one ask, two unpauses.
 - **Results are a clean switch.** Make's Instagram module is unfiltered and has been putting
   Tameside results on the *Stockport-branded* account; `SOCIAL_POST_DIRECT=true` stops our
   webhook, that route stops firing, and ours go to Tameside's own account instead.

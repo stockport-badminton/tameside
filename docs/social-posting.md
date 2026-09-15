@@ -147,8 +147,15 @@ success. That happened on the Stockport side.
 
 ## The order to do it in
 
-The agreed plan is to **leave both Make scenarios alone until Tameside is across too**, so
-that retiring them is a disable rather than surgery. Each step is safe to stop after.
+> **All six steps were completed on 15 Sep 2026 and Make.com is fully retired.** Every
+> scenario in the `My Lab` account is now inactive, including `League Tables` (`2235321`) and
+> `Post Results to Socials` (`732549`). Both leagues' weekly jobs are ENABLED and first fire
+> Sat 19 Sep — Tameside 12:00, Stockport 13:00 (Europe/London). The sequence is kept below
+> because it records why things are wired this way, and because the Make account can now be
+> downgraded: its free tier allows two active scenarios and nothing is active at all.
+
+The agreed plan was to **leave both Make scenarios alone until Tameside was across too**, so
+that retiring them was a disable rather than surgery. Each step is safe to stop after.
 
 1. **Serve table images on demand, as JPEG.** Done — `GET /league-table-image/:division`.
    Worth having on its own merits, and everything downstream needs it. Nothing in Make
@@ -193,6 +200,24 @@ that retiring them is a disable rather than surgery. Each step is safe to stop a
 6. **The one cutover that has to be atomic.** When both leagues are ready: **disable the
    Make scenario and unpause both scheduler jobs on the same day.** Either order within that
    day is fine; spanning a Saturday is not.
+
+   **Done 15 Sep 2026**, and worth recording how close it came to going wrong. The ask was
+   phrased as "unpause the scheduler for the weekend", and at that moment `League Tables` was
+   still ACTIVE at Sat 13:00 against Tameside's job at Sat 12:00 — one command away from two
+   posts on the same Facebook page an hour apart. **Check the scenario's `isActive` over the
+   API before unpausing anything.** Do not infer it from everything else being ready, and do
+   not infer it from someone saying it is about to be done:
+
+   ```bash
+   curl -s -H "Authorization: Token $MAKE_KEY" \
+     "https://eu1.make.com/api/v2/scenarios?teamId=213422" \
+     | python3 -c "import sys,json;[print(s['id'],s['isActive'],s['name']) for s in json.load(sys.stdin)['scenarios']]"
+   ```
+
+   **And unpausing Stockport's job is not optional.** The scenario is shared, so disabling it
+   ends Stockport's tables posting too. A request that sounds like one unpause is actually
+   two, and skipping the second means that league silently posts nothing — the kind of
+   failure nobody notices until they go looking for a post that never came.
 
 ---
 
