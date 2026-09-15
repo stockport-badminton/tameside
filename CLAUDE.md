@@ -762,8 +762,11 @@ that bite:
 - **The atomic cutover is still required, but for FACEBOOK.** Make's route 3 posts Tameside's
   tables to the same Tameside *Page* this does, and it is schedule-triggered — it fires every
   Saturday whatever either site does. Disable the Make scenario and unpause the job on the
-  same day, never spanning a Saturday; the job is created **paused**. Instagram is no longer
-  part of that risk (Make posts to the Stockport account, we post to Tameside's).
+  same day, never spanning a Saturday. Instagram is no longer part of that risk (Make posts
+  to the Stockport account, we post to Tameside's). **`gcloud scheduler jobs create http` has
+  no `--pause` flag** — the job is created ENABLED and is counting down from that moment, so
+  create and pause are two commands with a live job in between. `tbl-weekly-tables-post`
+  exists and is PAUSED.
 - **Results are a clean switch.** Make's Instagram module is unfiltered and has been putting
   Tameside results on the *Stockport-branded* account; `SOCIAL_POST_DIRECT=true` stops our
   webhook, that route stops firing, and ours go to Tameside's own account instead.

@@ -132,7 +132,9 @@ META_TAMESIDE_PAGE_ID        # 413441425183665
 META_TAMESIDE_PAGE_TOKEN     # the Page token
 META_IG_USER_ID              # 17841424897459443 (tameside.badminton) — UNSET means Facebook only
 SOCIAL_POST_DIRECT           # 'true' posts results from here instead of via Make.com
-SOCIAL_WEEKLY_TABLES_TOKEN   # shared secret for the weekly scheduler job; unset = inert
+SOCIAL_WEEKLY_TABLES_TOKEN   # shared secret for the weekly scheduler job; unset = inert.
+                             # Set on the service 15 Sep 2026; it also lives in the
+                             # scheduler job's URI, so rotating it means updating both.
 META_GRAPH_VERSION           # optional, defaults to v21.0
 META_GRAPH_ORIGIN            # test seam only — never set this in production
 ```
@@ -159,16 +161,29 @@ that retiring them is a disable rather than surgery. Each step is safe to stop a
    **It needs the images to be live in production**, so it comes after a deploy, not before.
 4. **Results: `SOCIAL_POST_DIRECT=true`.** This switches to direct *and* stops the webhook —
    they are the same change. No Make edit needed (see above).
-5. **Weekly tables: create the scheduler job PAUSED.**
+5. **Weekly tables: create the scheduler job, then pause it in the same breath.**
+
+   **`gcloud scheduler jobs create http` has no `--pause` flag.** An earlier draft of this
+   document said it did; the job is created **ENABLED** and starts counting down to its next
+   fire immediately. There is no way to create it paused, so the create and the pause are two
+   commands and the gap between them is a live job. Run them together and check the state
+   before walking away — done here 15 Sep 2026, and the job had already scheduled itself for
+   the following Saturday.
 
    ```bash
    gcloud scheduler jobs create http tbl-weekly-tables-post \
-     --location=europe-west2 \
+     --location=europe-west2 --project=avid-compound-429108-g9 \
      --schedule="0 12 * * 6" \
      --time-zone="Europe/London" \
      --uri="https://tameside-badminton.co.uk/admin/social/weekly-tables?t=<the token>" \
-     --http-method=POST \
-     --pause
+     --http-method=POST
+
+   gcloud scheduler jobs pause tbl-weekly-tables-post \
+     --location=europe-west2 --project=avid-compound-429108-g9
+
+   # and confirm — never assume
+   gcloud scheduler jobs list --location=europe-west2 \
+     --project=avid-compound-429108-g9 --format="table(name.basename(),schedule,state)"
    ```
 
    Use the custom domain, not the `run.app` hostname — see **Absolute URLs** in `CLAUDE.md`.
@@ -186,6 +201,16 @@ that retiring them is a disable rather than surgery. Each step is safe to stop a
 - **Firebase Hosting caches a response with no `Cache-Control` for ten minutes, 404s
   included.** Meta fetches these URLs and retries, so a transient 404 during a deploy gets
   cached and the retry never sees the fix. The miss path sets `no-store`.
+- **Do not debug this with `curl -d "url=…"`.** A form-encoded body is decoded by Meta, so
+  a `%20` in the URL arrives as a **raw space** — and Facebook then answers exactly the
+  `324 / 2069019 Missing or invalid image file` this document warns about, for a URL that is
+  perfectly fine. Cost an hour on 15 Sep 2026 and very nearly got read as a broken deploy.
+  The application code is unaffected: `graph()` builds its body with `URLSearchParams`,
+  which encodes the value properly (`%20` → `%2520`).
+  - **And the two platforms disagree about it.** Instagram *accepted* the same
+    raw-space URL and reported the container `FINISHED`; only Facebook refused. So a
+    hand-rolled check can pass Instagram and fail Facebook for a reason that has nothing to
+    do with either. Test through `utils/metaPublisher.js`, not through curl.
 - **Hardcoded Instagram handles rot.** Make's caption mentioned `@manor_badminton_club`
   where the club's stored handle was `manorbadmintonclubwilmslow`, and named a club with no
   handle at all. A wrong `@handle` mentions a stranger or nothing, and nobody ever notices.
