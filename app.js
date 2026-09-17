@@ -193,6 +193,30 @@ if (process.env.NODE_ENV !== 'test') {
 app.set('view engine', 'ejs');
 app.set('views', __dirname + '/views');
 
+/* ------------------------------------------------------------------ *
+ * Liveness probe. Registered FIRST — ahead of compression, the body parsers, the
+ * static mounts, the blocklist check and the session — so that what it reports on is
+ * the database pool and nothing else, and so that a wedged instance can still answer
+ * it. Cloud Run calls it; see the --liveness-probe flag in cloudbuild.yaml.
+ *
+ * utils/dbHealth.js has the why. The short version: a poisoned pool connection hangs
+ * forever because postgres.js has no client-side query timeout, and without this the
+ * instance stays wedged for the ~10-15 minutes TCP takes to give up, receiving
+ * traffic the whole time.
+ *
+ * no-store because a cached 200 here would keep a dead instance alive. The probe
+ * arrives straight at the container rather than through Firebase, but Firebase
+ * applies its own max-age=600 to any response that sets no cache header, so setting
+ * one is the habit worth keeping (see utils/render404.js for the same note).
+ * ------------------------------------------------------------------ */
+const dbHealth = require('./utils/dbHealth');
+app.get('/healthz', function (req, res) {
+  dbHealth.check().then(function (result) {
+    res.set('Cache-Control', 'no-store');
+    res.status(result.ok ? 200 : 503).json(result);
+  });
+});
+
 
 // Compress text responses. Registered ahead of the static mounts and all routes so
 // it covers both the served assets and the rendered HTML — nothing was compressed

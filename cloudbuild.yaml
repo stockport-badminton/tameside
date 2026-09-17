@@ -31,6 +31,38 @@ substitutions:
   # which at max 5 connections each is 500 clients against 60 Postgres backends.
   # 4 x 5 = 20, and at containerConcurrency 80 that is still 320 concurrent requests.
   _MAX_INSTANCES: '4'
+  # Per-request ceiling. Was 600 (the Cloud Run default) until 2026-09-17, which is
+  # what turned a stalled database connection into a site-wide outage: a wedged
+  # instance held every request it had been given for a full ten minutes, occupying
+  # concurrency slots and keeping the autoscaler from routing around it.
+  #
+  # 60 is far above anything real. Over the 7 days to 2026-09-17, across 3,000 sampled
+  # requests, the slowest SUCCESSFUL response on the whole site was 16.9s
+  # (/scorecard-beta) and nothing else cleared 10.5s. So this cuts nothing that works
+  # and caps what a stall can cost.
+  _REQUEST_TIMEOUT: '60'
+  # Liveness probe. Asserted here rather than left as a stored service setting for the
+  # same reason as _MAX_INSTANCES: it is a safety property, and one that is invisible
+  # until the day it is needed, so silent drift would not be noticed.
+  #
+  # It exists because of 2026-09-17, when connections to the Supabase pooler stopped
+  # answering without closing. postgres.js has no client-side query timeout, so every
+  # request on an affected instance hung; container CPU sat at 1-15% and Postgres
+  # showed zero active queries while the site served nothing. Nothing recycled the
+  # instance, because by every signal Cloud Run had, it was alive and idle.
+  #
+  # 30s x 3 failures is ~60-90s to replace a wedged instance, against the ~10-15
+  # minutes it previously took the OS TCP stack to give up on the dead socket.
+  #
+  # timeoutSeconds must stay at or above dbHealth's own deadline (DB_HEALTH_TIMEOUT_MS,
+  # 4s), or the probe gives up before the check it is waiting on has answered, and
+  # every instance fails liveness regardless of the pool.
+  #
+  # NOTE the ordering trap: /healthz has to EXIST in the image before a probe points at
+  # it. It is safe in one command because --image and --liveness-probe land on the same
+  # new revision — but setting the probe on its own, against a revision built before
+  # app.js had the route, 404s every check and kills every instance in a loop.
+  _LIVENESS_PROBE: 'httpGet.path=/healthz,initialDelaySeconds=10,timeoutSeconds=5,periodSeconds=30,failureThreshold=3'
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -95,6 +127,8 @@ steps:
     - 'SHA=${COMMIT_SHA}'
     - 'BID=${BUILD_ID}'
     - 'MAX_INSTANCES=${_MAX_INSTANCES}'
+    - 'REQUEST_TIMEOUT=${_REQUEST_TIMEOUT}'
+    - 'LIVENESS_PROBE=${_LIVENESS_PROBE}'
   script: |
     #!/usr/bin/env bash
     set -euo pipefail
@@ -108,6 +142,8 @@ steps:
       --image="$(cat /workspace/image)" \
       --labels="$LABELS" \
       --max-instances="$MAX_INSTANCES" \
+      --timeout="$REQUEST_TIMEOUT" \
+      --liveness-probe="$LIVENESS_PROBE" \
       --quiet
 
 tags:
