@@ -58,11 +58,17 @@ substitutions:
   # 4s), or the probe gives up before the check it is waiting on has answered, and
   # every instance fails liveness regardless of the pool.
   #
-  # NOTE the ordering trap: /healthz has to EXIST in the image before a probe points at
+  # NOTE the ordering trap: /health has to EXIST in the image before a probe points at
   # it. It is safe in one command because --image and --liveness-probe land on the same
   # new revision — but setting the probe on its own, against a revision built before
   # app.js had the route, 404s every check and kills every instance in a loop.
-  _LIVENESS_PROBE: 'httpGet.path=/healthz,initialDelaySeconds=10,timeoutSeconds=5,periodSeconds=30,failureThreshold=3'
+  #
+  # The path is /health and NOT /healthz. Google's frontend intercepts that exact
+  # literal string in front of Cloud Run and answers its own 404, so /healthz cannot be
+  # curled from outside even though the container serves it — which would leave the one
+  # path the prober uses being the one path nobody can verify. See app.js, and
+  # Stockport's HARD-04, which shipped an endpoint at exactly that unreachable spelling.
+  _LIVENESS_PROBE: 'httpGet.path=/health,initialDelaySeconds=10,timeoutSeconds=5,periodSeconds=30,failureThreshold=3'
 
 options:
   logging: CLOUD_LOGGING_ONLY

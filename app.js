@@ -208,14 +208,43 @@ app.set('views', __dirname + '/views');
  * arrives straight at the container rather than through Firebase, but Firebase
  * applies its own max-age=600 to any response that sets no cache header, so setting
  * one is the habit worth keeping (see utils/render404.js for the same note).
+ *
+ * ⚠️ **The probe points at `/health`, and that spelling is load-bearing.** Google's
+ * frontend intercepts the exact literal path `/healthz` in front of Cloud Run and
+ * answers its own "Error 404 (Not Found)!!1" page, so that request never reaches the
+ * container and nothing routed in here can serve it. Measured on this service
+ * 2026-09-17, on the run.app host and through the custom domain:
+ *
+ *   /healthz                     404, Google's page, absent from our request logs
+ *   /rules                       200, reaches the container
+ *   /health                      200, reaches the container
+ *
+ * Stockport hit this first (their HARD-04, 31 Aug 2026) and found /healthz/ and
+ * /HEALTHZ both answer 200 — it is that one literal string. Their endpoint shipped
+ * tested, documented and monitored at the only spelling production could not reach.
+ *
+ * Nothing local catches it: it passes in tests and against a real local server, and
+ * fails only once there is a Google frontend in front. So the rule is to point the
+ * probe at a path that can be curled from outside, and then to curl it.
+ *
+ * /healthz stays registered because it works everywhere except through that frontend,
+ * and because removing a health endpoint someone may already be pointed at is worse
+ * than keeping a second alias.
+ *
+ * NOTE the deliberate difference from Stockport's copy, which returns 503 when the
+ * database errors: this one drives a LIVENESS PROBE that kills the container, so a
+ * fast error is reported healthy and only silence is not. utils/dbHealth.js says why.
+ * Do not harmonise the two.
  * ------------------------------------------------------------------ */
 const dbHealth = require('./utils/dbHealth');
-app.get('/healthz', function (req, res) {
+function healthCheck(req, res) {
   dbHealth.check().then(function (result) {
     res.set('Cache-Control', 'no-store');
     res.status(result.ok ? 200 : 503).json(result);
   });
-});
+}
+app.get('/health', healthCheck);
+app.get('/healthz', healthCheck);
 
 
 // Compress text responses. Registered ahead of the static mounts and all routes so

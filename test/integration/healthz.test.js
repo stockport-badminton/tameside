@@ -14,10 +14,15 @@ const dbHealth = require('../../utils/dbHealth');
 
 afterEach(() => dbHealth._setProbeQueryForTests(null));
 
-describe('GET /healthz', () => {
+// Both spellings are registered, and /health is the one the liveness probe uses:
+// Google's frontend intercepts the literal path /healthz in front of Cloud Run and
+// answers its own 404, so /healthz cannot be reached from outside however correct the
+// route is. Nothing local can catch that — this suite passes either way — which is
+// exactly why the probe must point at a path that can be curled in production.
+for (const path of ['/health', '/healthz']) describe(`GET ${path}`, () => {
   it('answers 200 when the pool answers', async () => {
     dbHealth._setProbeQueryForTests(async () => [{ ok: 1 }]);
-    const res = await request(app).get('/healthz');
+    const res = await request(app).get(path);
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.ok, true);
   });
@@ -25,7 +30,7 @@ describe('GET /healthz', () => {
   it('answers 503 when the pool goes silent', async () => {
     dbHealth._setProbeQueryForTests(() => new Promise(() => {}));
     process.env.DB_HEALTH_TIMEOUT_MS = '100';
-    const res = await request(app).get('/healthz');
+    const res = await request(app).get(path);
     delete process.env.DB_HEALTH_TIMEOUT_MS;
     assert.strictEqual(res.status, 503);
     assert.strictEqual(res.body.reason, 'db-timeout');
@@ -35,7 +40,7 @@ describe('GET /healthz', () => {
   // cache entry, which is the exact failure the probe is meant to end.
   it('is never cacheable', async () => {
     dbHealth._setProbeQueryForTests(async () => [{ ok: 1 }]);
-    const res = await request(app).get('/healthz');
+    const res = await request(app).get(path);
     assert.match(res.headers['cache-control'] || '', /no-store/);
   });
 
@@ -43,7 +48,7 @@ describe('GET /healthz', () => {
   // still answer it, and so an anonymous probe never allocates a session row.
   it('sets no session cookie', async () => {
     dbHealth._setProbeQueryForTests(async () => [{ ok: 1 }]);
-    const res = await request(app).get('/healthz');
+    const res = await request(app).get(path);
     assert.ok(!(res.headers['set-cookie'] || []).some((c) => c.startsWith('__session')));
   });
 });
