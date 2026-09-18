@@ -1,7 +1,17 @@
-# Pooler connections stop answering without closing — 2026-09-17
+# Two issues on project `tdsvugmbkgakgbtmoajj` — September 2026
 
-Written to send to Supabase support. The app-side mitigations are already deployed and
-are described at the end; what this asks for is the pooler side, which we cannot see.
+Written to send to Supabase support. They are unrelated and can be split; the first is
+the serious one.
+
+1. **Pooler connections stop answering without closing** (2026-09-17) — caused a
+   repeated site outage. The app-side mitigations are deployed and described below;
+   what this asks for is the pooler side, which we cannot see.
+2. **A disabled Data API leaves PostgREST reconnecting every ~32 seconds**
+   (2026-09-18) — harmless but wasteful, and looks like an oversight in the toggle.
+
+---
+
+# 1. Pooler connections stop answering without closing
 
 ## Summary
 
@@ -103,3 +113,62 @@ The gap we cannot close ourselves: **postgres.js v3 has no client-side query tim
 Its `idle_timeout`, `connect_timeout`, `max_lifetime` and `keep_alive` all concern a
 connection at rest; none bounds a query already in flight. So a socket that accepts
 writes and never answers is, to this driver, indistinguishable from a slow query.
+
+---
+
+# 2. A disabled Data API leaves PostgREST reconnecting every ~32 seconds
+
+Separate issue, same project, noticed the following day while closing off the first.
+
+## What we did
+
+Having found that `anon` could read and write four tables over the Data API (RLS was off
+on three; a fourth had RLS *on* with a `FOR ALL / USING (true) / TO PUBLIC` policy), we
+fixed the RLS and then **disabled the Data API outright** in the dashboard, since nothing
+uses it — 43 days of `pg_stat_statements` show no PostgREST traffic at all beyond its own
+introspection.
+
+## What we then saw
+
+This, repeatedly, in the Postgres logs:
+
+```
+schema "pg_pgrst_no_exposed_schemas" does not exist
+```
+
+That schema does not exist in `pg_namespace`, which we take to be deliberate — disabling
+the Data API appears to point PostgREST at a sentinel name chosen so that nothing can be
+exposed. But PostgREST is not stopped. It stays up, connects, fails to build its schema
+cache, drops the connection and retries.
+
+From `pg_stat_activity`, sampled every 20s:
+
+```
+07:40:52  n=2  ages: 30445, 25
+07:41:12  n=2  ages: 30465, 13
+07:41:32  n=2  ages: 30485, 1     <- new connection
+07:41:52  n=2  ages: 30505, 21
+```
+
+One stable listener connection, and one recycling on roughly a 32-second cycle — about
+**2,700 connection opens per day**, plus that log line each time, for a service that has
+been switched off.
+
+For scale: we previously measured a timer on this database causing 1,800 connection
+opens/day and removed it, because at ~3.6ms per open it was spending several times more
+database time than every application query on the site combined.
+
+## Our workaround
+
+We created an empty schema `api` (no objects, `USAGE` only) and exposed that instead of
+disabling the API. PostgREST then loads a valid, empty cache: no error, no reconnect
+loop, and nothing served, because there is nothing in the schema.
+
+## What we are asking
+
+5. Is the reconnect loop behind a disabled Data API intended? From the outside it looks
+   like the toggle sets `db-schemas` to an unusable value without stopping or quietening
+   the service, so the supported way to switch the API off costs a connection every ~32
+   seconds and a log line to match.
+6. If it is not intended, is exposing an empty schema the right workaround in the
+   meantime, or is there a supported way to stop PostgREST entirely?
