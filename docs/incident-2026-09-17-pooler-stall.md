@@ -136,9 +136,21 @@ This, repeatedly, in the Postgres logs:
 schema "pg_pgrst_no_exposed_schemas" does not exist
 ```
 
-That schema does not exist in `pg_namespace`, which we take to be deliberate — disabling
-the Data API appears to point PostgREST at a sentinel name chosen so that nothing can be
-exposed. But PostgREST is not stopped. It stays up, connects, fails to build its schema
+Your troubleshooting article covers this and confirms the cause — "we don't really
+shutdown PostgREST when the Data API is disabled":
+
+https://supabase.com/docs/guides/troubleshooting/schema-pg_pgrst_no_exposed_schemas-does-not-exist
+
+The sentinel name is well chosen: Postgres reserves the `pg_` prefix for system schemas,
+so it can never be created, even deliberately —
+
+```
+create schema pg_pgrst_no_exposed_schemas;
+ERROR 42939: unacceptable schema name "pg_pgrst_no_exposed_schemas"
+```
+
+which is worth knowing, because creating the missing schema is the first thing anyone
+tries. But PostgREST is not stopped. It stays up, connects, fails to build its schema
 cache, drops the connection and retries.
 
 From `pg_stat_activity`, sampled every 20s:
@@ -160,15 +172,27 @@ database time than every application query on the site combined.
 
 ## Our workaround
 
-We created an empty schema `api` (no objects, `USAGE` only) and exposed that instead of
-disabling the API. PostgREST then loads a valid, empty cache: no error, no reconnect
-loop, and nothing served, because there is nothing in the schema.
+The one from the article: an empty schema (no objects, `USAGE` only), exposed in place of
+disabling the API. PostgREST then loads a valid, empty cache — no error, no reconnect
+loop — and serves nothing, because there is nothing in the schema. Applied here as
+`pgrst_no_exposed_schemas`, using the article's name so it is recognisable.
 
 ## What we are asking
 
-5. Is the reconnect loop behind a disabled Data API intended? From the outside it looks
-   like the toggle sets `db-schemas` to an unusable value without stopping or quietening
-   the service, so the supported way to switch the API off costs a connection every ~32
-   seconds and a log line to match.
-6. If it is not intended, is exposing an empty schema the right workaround in the
-   meantime, or is there a supported way to stop PostgREST entirely?
+5. **The article describes the impact as "additional entries in your logs". We also
+   measure a reconnect roughly every 32 seconds** — about 2,700 connection opens a day
+   on a project whose Data API is switched off. Is that expected, or is the retry
+   interval a separate bug? It seems worth adding to the article either way, since the
+   connection cost is the part that would matter to anyone near a connection limit.
+
+6. **The documented workaround cannot be applied while the Data API is disabled.**
+   Exposed schemas is inside the Data API section of the dashboard, so it is unavailable
+   when that section is off — to follow the article you have to re-enable the API,
+   change the schema, and leave it enabled. That is fine once you realise it, and we
+   only realised it because we had already closed the underlying exposure with RLS and
+   could re-enable safely. Someone who disabled the API *because* their tables were
+   exposed would be asked to turn it back on with `public` still exposed in order to fix
+   a log message. A note in the article would help.
+
+7. Is there a supported way to stop PostgREST outright, for a project that will never
+   use the Data API?
