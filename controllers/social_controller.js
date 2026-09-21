@@ -58,6 +58,32 @@ const SOCIAL_IMAGE_CACHE_CONTROL = 'public, max-age=600';
 // reasoning as `utils/render404.js`.
 const SOCIAL_IMAGE_MISS_CACHE_CONTROL = 'no-store';
 
+// Decoded backgrounds, cached and cloned per use.
+//
+// **This is what buys the video its headroom.** Every card re-read and re-decoded a
+// 1080x1350 PNG: 72ms of a 199ms card locally, 36% of the work, and the video draws one
+// card per result. Cloud Run is several times slower than a laptop here — measured
+// 21 Sep 2026, two slides took 10.1s there against ~1.5s locally — and the generate
+// endpoint has to finish inside a 60-second request timeout. The busiest results week in
+// the database is 9 fixtures, which was close enough to that ceiling to be worth removing
+// rather than hoping about.
+//
+// **Clone, never hand the cached image out.** Jimp's `print`, `resize`, `cover` and
+// `composite` all mutate in place, so a shared instance would accumulate every card ever
+// drawn on it — the second result card would carry the first one's text. A clone is a
+// bitmap memcpy: 1ms against 72ms.
+//
+// Cached for the life of the process, so replacing a background PNG needs a restart. They
+// are three static files that change about once a year.
+const backgroundCache = new Map();
+
+async function loadBackground(file) {
+  if (!backgroundCache.has(file)) backgroundCache.set(file, await Jimp.read(file));
+  return backgroundCache.get(file).clone();
+}
+
+exports._resetBackgroundCache = () => backgroundCache.clear();
+
 function toBuffer(image, format) {
   return format === 'jpeg'
     ? image.quality(90).getBufferAsync(Jimp.MIME_JPEG)
@@ -67,7 +93,7 @@ function toBuffer(image, format) {
 // ── The result card ──────────────────────────────────────────────────────────
 
 async function buildResultCard({ homeTeam, awayTeam, homeScore, awayScore, division }, format = 'jpeg') {
-  const background = await Jimp.read(
+  const background = await loadBackground(
     './static/images/bg/social-' + String(division).replace(/\s+/g, '-') + '.png');
 
   const lines = [
@@ -355,9 +381,9 @@ async function buildFixturesCard(divisionName, fixtures, format = 'jpeg') {
 async function fixturesBackground(divisionName) {
   const named = './static/images/bg/social-' + String(divisionName).replace(/\s+/g, '-') + '.png';
   try {
-    return await Jimp.read(named);
+    return await loadBackground(named);
   } catch {
-    return await Jimp.read('./static/images/bg/social.png');
+    return await loadBackground('./static/images/bg/social.png');
   }
 }
 
@@ -426,7 +452,7 @@ function tableRowValues(row) {
 exports.tableRowValues = tableRowValues;
 
 async function buildDivisionTable(divisionName, rows, format = 'jpeg') {
-  const background = (await Jimp.read('./static/images/bg/social.png')).resize(1080, 1080);
+  const background = (await loadBackground('./static/images/bg/social.png')).resize(1080, 1080);
   const { width } = background.bitmap;
 
   const bigFont = await Jimp.loadFont('./fonts/ArialBold_Black_65.fnt');

@@ -815,8 +815,17 @@ exports.getUpcomingWeek = async function () {
 /**
  * The week just gone, for the results video.
  *
- * Seven days back from the start of today and up to now, so a result
- * published this morning is in the video that goes out this afternoon.
+ * The seven days ENDING today, so a result published this morning is in
+ * the video that goes out this afternoon.
+ *
+ * **`- 6 days`, not `- 7`.** Today counts as one of the seven, so seven
+ * days back from the start of today spans eight calendar days and
+ * consecutive weekly runs overlap by one. Checked against the real
+ * schedule: a run on Mon 21 Sep covered 14-21 Sep and a run on Mon 28
+ * covered 21-28, so a Monday result entered before the 18:00 post
+ * appeared in two consecutive videos. Most of this league's fixtures
+ * are played Monday to Wednesday, so the overlapping day is not a
+ * quiet one.
  *
  * `homeScore IS NOT NULL` rather than a status test. A conceded match has a
  * score and belongs in the video; a match sitting at 'complete' with no score
@@ -840,7 +849,7 @@ exports.getWeekResults = async function () {
     WHERE fixture."homeScore" IS NOT NULL
       AND fixture."awayScore" IS NOT NULL
       AND fixture.status NOT IN ('rearranged', 'rearranging', 'void')
-      AND fixture.date >= date_trunc('day', NOW() AT TIME ZONE 'Europe/London') - INTERVAL '7 days'
+      AND fixture.date >= date_trunc('day', NOW() AT TIME ZONE 'Europe/London') - INTERVAL '6 days'
       AND fixture.date <  date_trunc('day', NOW() AT TIME ZONE 'Europe/London') + INTERVAL '1 day'
     ORDER BY fixture.date, "homeTeam".name`;
 };

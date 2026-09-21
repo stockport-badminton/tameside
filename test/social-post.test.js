@@ -307,3 +307,38 @@ describe('nothing builds a social url by hand any more', () => {
     }
   });
 });
+
+describe('the cached backgrounds', () => {
+  const social = require('../controllers/social_controller');
+  const crypto = require('crypto');
+  const hash = b => crypto.createHash('md5').update(b).digest('hex');
+
+  const A = { homeTeam: 'Hyde A', awayTeam: 'Shell B', homeScore: 13, awayScore: 5, division: 'Division 1' };
+  const B = { homeTeam: 'Manor A', awayTeam: 'Medlock A', homeScore: 2, awayScore: 16, division: 'Division 1' };
+
+  // **The bug this exists to catch, and it would be silent.** The backgrounds are decoded
+  // once and kept, because re-decoding a 1080x1350 PNG per card is 36% of the work and the
+  // video draws one card per result inside a 60-second request timeout. But Jimp's
+  // `print`, `resize`, `cover` and `composite` all mutate in place — so handing the cached
+  // instance out instead of a clone means the second card carries the first card's text
+  // baked into it, then the third carries both. Nothing throws; the pictures are simply
+  // wrong, and only in production where one process draws many cards in a row.
+  it('draw the same card identically however many were drawn in between', async () => {
+    const first = await social.buildResultCard(A, 'jpeg');
+    const other = await social.buildResultCard(B, 'jpeg');
+    const again = await social.buildResultCard(A, 'jpeg');
+
+    assert.notStrictEqual(hash(first), hash(other), 'two different results drew the same picture');
+    assert.strictEqual(hash(first), hash(again),
+      'the cached background accumulated the other card — it is being mutated, not cloned');
+  });
+
+  // Same property for the other two drawings, which share the cache.
+  it('do not leak between a fixtures card and a result card', async () => {
+    const rows = [{ dayLabel: 'Mon 21 Sep', homeTeam: 'GHAP B', awayTeam: 'Syddal Park A' }];
+    const before = await social.buildFixturesCard('Division 1', rows, 'jpeg');
+    await social.buildResultCard(A, 'jpeg');
+    const after = await social.buildFixturesCard('Division 1', rows, 'jpeg');
+    assert.strictEqual(hash(before), hash(after));
+  });
+});
