@@ -173,6 +173,29 @@ describe('waitForContainer', () => {
   it('gives up inside the request timeout rather than being cut off by it', () => {
     assert.ok(meta.VIDEO_TIMEOUT_MS < 60000,
       `poll ceiling ${meta.VIDEO_TIMEOUT_MS}ms must leave room inside the 60s request timeout`);
+    // Measured 21 Sep 2026: a 5.4-second video took 27.6s to reach FINISHED. The ceiling
+    // has to clear that with room for a longer week, or the weekly Instagram half fails
+    // routinely while Facebook succeeds.
+    assert.ok(meta.VIDEO_TIMEOUT_MS >= 45000,
+      `poll ceiling ${meta.VIDEO_TIMEOUT_MS}ms is below the 27.6s a short video actually took`);
+  });
+
+  // **Facebook first, Instagram second, and that order is load-bearing.** The Facebook
+  // video is one unpolled call; Instagram has to be polled through a transcode that has
+  // been measured at 27.6s. Reversed, a slow transcode would eat the request budget and
+  // Cloud Run would cut the whole thing off before Facebook was ever attempted.
+  it('posts to Facebook before the target that has to be polled', () => {
+    const saved = { ...process.env };
+    process.env.META_TAMESIDE_PAGE_ID = 'p';
+    process.env.META_TAMESIDE_PAGE_TOKEN = 't';
+    process.env.META_IG_USER_ID = 'i';
+    try {
+      assert.deepStrictEqual(meta.configuredTargets().map(t => t.kind), ['page', 'instagram']);
+    } finally {
+      for (const k of ['META_TAMESIDE_PAGE_ID', 'META_TAMESIDE_PAGE_TOKEN', 'META_IG_USER_ID']) {
+        if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k];
+      }
+    }
   });
 
   it('says nothing was published when it gives up', async () => {

@@ -303,11 +303,23 @@ async function validateImages(igUserId, token, imageUrls) {
 
 // The poll is tuned to THIS service's 60-second Cloud Run request timeout, which is the
 // one place Tameside's constraints differ from Stockport's (they run the 600s default).
-// A 40s ceiling leaves room for the container create, the publish and the Facebook target
-// inside one request; their 180s would be cut off mid-publish by the platform, which is
-// the one failure that could double-post on a retry.
+// Their 180s would be cut off mid-publish by the platform, which is the one failure that
+// could double-post on a retry.
+//
+// **45s, raised from 40s on the first real measurement.** The Stockport handover says a
+// ~13s 1080-wide mp4 reaches FINISHED "within a few seconds", and 40s was set from that.
+// Measured here 21 Sep 2026 against Tameside's own account: a **5.4-second** video took
+// **27.6s** end to end to reach FINISHED — a third of the way to the old ceiling for a
+// video a quarter the length. Meta's transcode queue is evidently variable, and a
+// nine-fixture week is several times longer than this one.
+//
+// 45s is what fits: `configuredTargets()` puts the **Facebook page first and Instagram
+// second**, and the Facebook video is a single unpolled call, so the budget is roughly
+// 60s minus a few seconds of Facebook and overhead. That ordering is also why a transcode
+// timeout is survivable — Facebook has already posted, `publishVideoEverywhere` collects
+// per-target outcomes, and the route answers 207 rather than losing the half that worked.
 const VIDEO_POLL_MS = 2500;
-const VIDEO_TIMEOUT_MS = 40000;
+const VIDEO_TIMEOUT_MS = 45000;
 
 /**
  * The video URL rule, which is weaker than the image one and deliberately so.
