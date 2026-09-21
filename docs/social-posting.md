@@ -323,28 +323,51 @@ not go out.
 So the jobs want ordering, not precision: generate at 12:25, post at 12:30. If the first
 fails, the second answers 409 loudly instead of posting the wrong thing.
 
-### Creating the jobs
+### The schedule, as actually set (21 Sep 2026)
+
+| Job | Cron (Europe/London) |
+|---|---|
+| `tbl-weekly-tables-post` | `0 12 * * 6` — Sat 12:00 |
+| `tbl-weekly-fixtures-post` | `0 18 * * 0` — Sun 18:00, the week ahead |
+| `tbl-weekly-video-generate` | `50 17 * * 1` — Mon 17:50 |
+| `tbl-weekly-video-post` | `0 18 * * 1` — Mon 18:00, the week just gone |
+
+### Creating the jobs, and three ways it lies to you
 
 `gcloud scheduler jobs create http` **has no `--pause` flag** — the job is created ENABLED
 and counting down, so create and pause are two commands with a live job in between. That is
 recorded above for the tables job and is just as true here.
 
+**A create can fail with `LOCATION_POLICY_VIOLATED` and succeed on an identical retry.**
+Seen twice on 21 Sep 2026, for two different jobs, with no change between attempts. It
+appears to be transient, which means a create must never be *assumed* to have worked.
+
+**Do not pipe the create through `grep`.** Doing exactly that to tidy the output swallowed
+the error above, so two jobs silently did not exist while the command looked clean — the
+same shape as the `secured` endpoint that 404s for a year while the scheduler records
+success. **Verify by listing the jobs afterwards**, not by the create's own output.
+
+**The `SCHEDULE_TIME` column in that listing is UTC**, even though `TIME_ZONE` beside it
+says `Europe/London`. A job set for 17:50 London prints `16:50` under BST. The cron is
+authoritative; the column is not wrong, it is just not answering the question it looks
+like it is answering.
+
 ```bash
 P="--location=europe-west2 --project=avid-compound-429108-g9"
 
 gcloud scheduler jobs create http tbl-weekly-video-generate $P \
-  --schedule="25 12 * * 6" --time-zone="Europe/London" --http-method=GET \
+  --schedule="50 17 * * 1" --time-zone="Europe/London" --http-method=GET \
   --uri="https://tameside-badminton.co.uk/api/social/generate-weekly-video?t=<SOCIAL_WEEKLY_VIDEO_TOKEN>"
 
 gcloud scheduler jobs create http tbl-weekly-video-post $P \
-  --schedule="30 12 * * 6" --time-zone="Europe/London" --http-method=POST \
+  --schedule="0 18 * * 1" --time-zone="Europe/London" --http-method=POST \
   --uri="https://tameside-badminton.co.uk/admin/social/weekly-video?t=<SOCIAL_WEEKLY_VIDEO_TOKEN>"
 
 gcloud scheduler jobs create http tbl-weekly-fixtures-post $P \
   --schedule="0 18 * * 0" --time-zone="Europe/London" --http-method=POST \
   --uri="https://tameside-badminton.co.uk/admin/social/weekly-fixtures?t=<SOCIAL_WEEKLY_FIXTURES_TOKEN>"
 
-# and confirm — never assume
+# and confirm — never assume, and never read this off the create's own output
 gcloud scheduler jobs list $P --format="table(name.basename(),schedule,state)"
 ```
 
@@ -429,6 +452,14 @@ ten minutes rather than re-encoding, so a retry or a double-clicked admin button
   build produces.
 - **A dry run's `ok: true` means "Meta could fetch and transcode this", not "this is a good
   post".** Same caveat as `validateImages`.
+- **Meta's transcode is slower than the handover suggests, and it is what sizes the poll
+  ceiling.** Measured 21 Sep 2026 on the first real dry run: a **5.4-second** video took
+  **27.6s** to reach `FINISHED`. The Stockport handover describes a ~13s video getting
+  there "within a few seconds", and `VIDEO_TIMEOUT_MS` was 40s on the strength of that —
+  two thirds of it spent by a video a quarter the length. It is 45s now, which is what
+  fits inside the 60s Cloud Run request timeout given Facebook goes first and is not
+  polled. If a nine-fixture week ever does time out, the symptom is a **207** with
+  Facebook posted and Instagram failed, not a lost post.
 - **The fixtures card changes layout rather than font size** when a division has a lot of
   matches — Jimp cannot scale a bitmap font, and in white `fonts/` has only 30 and 60.
   Measured against the real database 21 Sep 2026: every one of the 18 team names fits on
