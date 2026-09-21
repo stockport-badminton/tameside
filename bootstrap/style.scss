@@ -116,9 +116,22 @@ $container-max-widths: (
       border-style: dashed !important;
     }
     
-    .alert {
-      height: 100%;
-    }
+    /* `.alert { height: 100% }` used to live here, unscoped, since the first commit.
+    
+       It made every Bootstrap alert on the site as tall as the page. `nav.ejs` opens
+       `<div class="starter-template row">`, so a `.row` is display:flex and every page's
+       `col-*` is a flex item stretched to the full content height — which gives it a
+       DEFINITE height, which is what `height: 100%` on a child then resolves against.
+    
+       That is why it looked harmless for so long: on a page whose alert sits inside some
+       nested auto-height div, `height: 100%` computes to `auto` and does nothing. It only
+       bites when the alert is a direct child of the stretched column, and then it is
+       brutal — measured 21 Sep 2026, a 1730px alert on /admin/social/weekly-fixtures and
+       1039px on /admin/social/weekly-tables, pushing every useful thing off the screen.
+    
+       All 20 views using `.alert` use it as a message banner (several are
+       `alert-dismissible`, `py-2`, or `small`). Nothing wanted a full-height panel. If you
+       ever DO want one, scope it to that page rather than putting this back. */
     
     .nav-link {
       cursor: pointer;
