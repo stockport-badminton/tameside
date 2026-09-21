@@ -188,16 +188,103 @@ describe('the drawing', () => {
     assert.ok(buf.length > 10000);
   });
 
-  // Jimp cannot scale a bitmap font, so a long list has to drop to the smaller face rather
-  // than overlap. Six fixtures on six separate nights is twelve lines — beyond what the
-  // large face fits, and the card must still be legible.
+  // Jimp cannot scale a bitmap font, so a long list has to change LAYOUT rather than
+  // shrink. Six fixtures on six separate nights is beyond what the stacked form fits, and
+  // the card must still be legible rather than overlapping.
   it('still fits the worst week this league can produce', async () => {
     const nights = ['Mon 21 Sep', 'Tue 22 Sep', 'Wed 23 Sep', 'Thu 24 Sep', 'Fri 25 Sep', 'Sat 26 Sep'];
     const rows = nights.map(dayLabel => ({
-      dayLabel, homeTeam: 'Manchester Edgeley B', awayTeam: 'Alderley Park TS', divisionName: 'Division 1',
+      dayLabel, homeTeam: 'Manchester Edgeley A', awayTeam: 'Manchester Edgeley B', divisionName: 'Division 1',
     }));
     const buf = await social.buildFixturesCard('Division 1', rows, 'jpeg');
     const img = await require('jimp').read(buf);
     assert.strictEqual(img.bitmap.height, 1350);
+  });
+});
+
+describe('the panel sizes itself to its contents', () => {
+  const Jimp = require('jimp');
+  const nights = ['Mon 21 Sep', 'Tue 22 Sep', 'Wed 23 Sep', 'Thu 24 Sep', 'Fri 25 Sep', 'Sat 26 Sep'];
+  const rowsFor = n => nights.slice(0, n).map(dayLabel => ({
+    dayLabel, homeTeam: 'Manchester Edgeley A', awayTeam: 'Manchester Edgeley B',
+  }));
+
+  // Find the top of the dark panel by scanning down the left gutter for the first row
+  // darker than the artwork above it. Reading the pixels rather than the constants,
+  // because a test that restates the layout arithmetic passes against the bug just as
+  // happily — the same reason `tableRowValues` is exported.
+  // The BIGGEST drop, not the first one over a threshold. A threshold finds whatever edge
+  // the artwork happens to contain above the panel — the first version of this returned
+  // 351 for both a one-fixture and a five-fixture card, which read as "the panel never
+  // collapses" when the real edges were 705 and 351. The panel is the strongest step down
+  // the column by some margin, so taking the maximum needs no magic number.
+  async function panelTop(buf) {
+    const img = await Jimp.read(buf);
+    const x = 60;   // inside the panel's left edge (PANEL_X 40), clear of the text
+    let best = { drop: 0, y: null }, prev = null;
+    for (let y = 200; y < 1300; y++) {
+      const { r, g, b } = Jimp.intToRGBA(img.getPixelColor(x, y));
+      const lum = r + g + b;
+      if (prev !== null && prev - lum > best.drop) best = { drop: prev - lum, y };
+      prev = lum;
+    }
+    return best.y;
+  }
+
+  // **The fault this replaced.** The panel was a fixed 880px box with the list centred
+  // inside it, so a one-fixture week — 20% of them — put two lines of copy in the middle
+  // of a large empty rectangle and read as a rendering fault rather than a quiet week.
+  it('leaves more artwork showing for a short week than a long one', async () => {
+    const short = await panelTop(await social.buildFixturesCard('Division 1', rowsFor(1), 'jpeg'));
+    const long = await panelTop(await social.buildFixturesCard('Division 1', rowsFor(5), 'jpeg'));
+    assert.ok(short !== null && long !== null, `panel edge not found: ${short}, ${long}`);
+    assert.ok(short > long + 100,
+      `a 1-fixture panel should start well below a 5-fixture one, got ${short} vs ${long}`);
+  });
+
+  // Bottom-anchored, so the card's proportions stay consistent whatever the week holds.
+  it('keeps the panel bottom in the same place at every length', async () => {
+    const heights = [];
+    for (const n of [1, 3, 5]) {
+      const img = await Jimp.read(await social.buildFixturesCard('Division 1', rowsFor(n), 'jpeg'));
+      // The last row that is still panel-dark, scanning up from the very bottom margin.
+      let bottom = null;
+      for (let y = 1349; y > 300; y--) {
+        const { r, g, b } = Jimp.intToRGBA(img.getPixelColor(60, y));
+        if (r + g + b < 240) { bottom = y; break; }
+      }
+      heights.push(bottom);
+    }
+    const spread = Math.max(...heights) - Math.min(...heights);
+    assert.ok(spread <= 2, `panel bottom moved by ${spread}px across lengths: ${heights}`);
+  });
+
+  // White text on a dark panel, not the reverse. A light panel has to be near-opaque to be
+  // legible, and at that point the division artwork underneath may as well not be there —
+  // which defeats the only reason for using it.
+  it('draws a dark panel that still lets the artwork through', async () => {
+    const img = await Jimp.read(await social.buildFixturesCard('Division 1', rowsFor(3), 'jpeg'));
+    const plain = await Jimp.read('./static/images/bg/social-Division-1.png');
+    // y=1200, not 1250. The footer text baseline sits at ~1230-1265, so the first version
+    // of this sampled straight through white lettering and failed on "panel pixel is not
+    // dark" — a fault in the probe, not the picture.
+    const Y = 1200;
+    let sameAsBackground = 0;
+    for (let x = 50; x < 1030; x += 40) {
+      const a = Jimp.intToRGBA(img.getPixelColor(x, Y));
+      const b = Jimp.intToRGBA(plain.getPixelColor(x, Y));
+      assert.ok(a.r + a.g + a.b < 330, `panel pixel at ${x} is not dark`);
+      if (Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b) < 12) sameAsBackground++;
+    }
+    // Translucent, not opaque: the panel must differ from the raw artwork everywhere.
+    assert.strictEqual(sameAsBackground, 0);
+    // ...but the artwork must still modulate it, so the panel is not one flat colour.
+    const strip = [];
+    for (let x = 50; x < 1030; x += 40) {
+      const c = Jimp.intToRGBA(img.getPixelColor(x, Y));
+      strip.push(c.r + c.g + c.b);
+    }
+    assert.ok(Math.max(...strip) - Math.min(...strip) > 10,
+      'the panel is flat, so the artwork is not showing through at all');
   });
 });

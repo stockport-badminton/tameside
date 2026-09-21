@@ -856,13 +856,23 @@ that post is inert.
   **playing that week** (a mention is a notification, and notifying a club about a week it
   isn't playing is how an account gets muted); the video post names **nobody**, because a
   results video names every club that played and mentioning all of them reads as spam.
-- **The fixtures card is Jimp, like everything else here**, and it is a light panel with
-  black text where Stockport's is a dark panel with white text. Not taste: `fonts/` holds
-  black faces at 30/55/60/65 and white ones at only 30 and 60, and **Jimp cannot scale a
-  bitmap font** — the sizes that exist are the sizes there are. The layout therefore
-  *chooses* a row face and drops to the small one when the large one wouldn't clear the
-  line. Six fixtures over three nights is the worst week in four seasons and sits in the
-  large face; six over six nights doesn't and gets the small one.
+- **The fixtures card is Jimp, like everything else here** — dark panel, white text,
+  everything centred, matching what Stockport found works. A light panel was tried first
+  and shipped for an hour: to be legible it has to be near-opaque, and then the division
+  artwork under it may as well not be there, which defeats the only reason for using it.
+- **The panel is sized to its contents and anchored to the bottom.** It was a fixed 880px
+  box with the list centred in it, which laid out correctly and looked wrong: a
+  one-fixture week — 20% of them — put two lines of copy in the middle of a large empty
+  rectangle and read as a rendering fault rather than a quiet week.
+- **Jimp cannot scale a bitmap font, so the card picks a LAYOUT rather than a size.**
+  In white, `fonts/` has 30 and 60 and nothing else. Measured against the real database:
+  every one of the 18 team names fits on its own line at 60 (widest 636px of 940), but
+  58 of 249 pairings — 23% — overflow at 60 on ONE line. So `stacked` (home / v / away,
+  three centred lines) is always width-safe and is what 1-3 fixtures get; `inline60` is a
+  third the height but has to check its own width per card; `inline30` is the fallback.
+  86% of division-weeks have 1-3 fixtures, so the compact form is a genuine edge case.
+  `PANEL_MAX_H` is 1160 because at 1100 a three-fixture week overflowed the stacked
+  layout by **seven pixels** and 29% of weeks silently landed in the fallback.
 
 ##### The video is two scheduler jobs, and that is forced by our request timeout
 

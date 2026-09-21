@@ -429,7 +429,13 @@ ten minutes rather than re-encoding, so a retry or a double-clicked admin button
   build produces.
 - **A dry run's `ok: true` means "Meta could fetch and transcode this", not "this is a good
   post".** Same caveat as `validateImages`.
-- **The fixtures card drops to a smaller font rather than overlapping** when a division has
-  a lot of matches on a lot of separate nights — Jimp cannot scale a bitmap font, so the
-  sizes in `fonts/` are the sizes there are. Six fixtures over three nights is the worst
-  week in four seasons of data and sits comfortably in the large face.
+- **The fixtures card changes layout rather than font size** when a division has a lot of
+  matches — Jimp cannot scale a bitmap font, and in white `fonts/` has only 30 and 60.
+  Measured against the real database 21 Sep 2026: every one of the 18 team names fits on
+  its own line at 60 (widest 636px of 940 usable), but 23% of pairings overflow at 60 on
+  one line. Hence three layouts, most to least generous, and the card takes the first that
+  fits in both height and width. 86% of division-weeks have 1-3 fixtures and get the
+  stacked form.
+- **The panel is dark at 0.80 with white centred text, and sized to its contents.** A light
+  panel has to be near-opaque to be legible, at which point the artwork under it may as
+  well not be there. A fixed-height panel makes a quiet week look like a rendering fault.

@@ -182,34 +182,79 @@ function fixtureDateRange(fixtures) {
     : `${first} - ${last}`;
 }
 
-// A translucent light panel behind the list.
+// A translucent panel behind the copy.
 //
-// The division artwork is busy and dark across its top two thirds — see it on any result
-// card — and this league's bitmap fonts are black. Printing a nine-line fixture list
-// straight onto the art gives black text on a red-and-navy photograph, which is
-// unreadable, and there is no room for the list in the pale strip at the bottom that the
-// result card uses.
+// **Dark at 0.80, with white text.** A light panel was tried first and shipped briefly;
+// the dark one is better and the reason is opacity. To be legible a light panel has to be
+// near-opaque, and at that point the division artwork underneath may as well not be there
+// — which defeats the only reason for using the artwork. Dark lets the colour read
+// through while white text sits on it comfortably, so the card keeps its division
+// identity and the fixtures stay readable. Confirmed on real Stockport posts before being
+// adopted here.
 //
-// **Light panel and black text, where Stockport uses a dark panel and white text.** Not a
-// style preference: `fonts/` holds black faces at 30, 55, 60 and 65 and white ones at only
-// 30 and 60, so a dark panel would cost the type hierarchy this card is built on. Jimp
-// cannot scale a bitmap font — the sizes that exist are the sizes there are.
-function panel(image, x, y, w, h, opacity) {
-  const fill = new Jimp(w, h, 0xffffffff);
+// Jimp has no rounded-rect or alpha-fill primitive, so this is a solid image composited
+// at an opacity. The same call draws the hairline rule under the header.
+function panel(image, x, y, w, h, opacity, colour = 0x0d0d0fff) {
+  const fill = new Jimp(w, h, colour);
   fill.opacity(opacity);
   image.composite(fill, x, y);
 }
+
+// ── Choosing a layout, because Jimp cannot scale a bitmap font ───────────────
+//
+// This is the whole awkwardness of the card. Stockport sizes its type to fit by rendering
+// SVG text, which scales to any pixel size. Here the sizes that exist in `fonts/` are the
+// sizes there are, and **in white there are only two: 30 and 60.** So the card cannot
+// shrink the type to fit — it picks a LAYOUT that fits, and the three below are ordered
+// most to least generous.
+//
+// Measured against the real database, 21 Sep 2026:
+//
+//   - Every one of the 18 team names fits on its own line at 60 (widest is
+//     "Manchester Edgeley B" at 636px of 940 usable). **Zero overflow**, which is what
+//     makes the stacked layout safe rather than a gamble.
+//   - 58 of 249 distinct pairings — 23% — overflow at 60 when put on ONE line
+//     ("Manchester Edgeley A  v  Manchester Edgeley B" is 1373px). That is why `inline60`
+//     has to check its own width and cannot simply be preferred for being shorter.
+//   - 86% of division-weeks have 1-3 fixtures; 4% have five and 1% have six. So `stacked`
+//     carries almost every real week and `inline30` is a genuine edge case, not the
+//     common path.
+const ROW_LAYOUTS = [
+  // Home / v / away on three centred lines. The "v" column lines up down the card and the
+  // eye runs down it, and no pairing can overflow because no single name can.
+  { name: 'stacked', rowSize: 60, parts: f => [
+      { text: f.homeTeam, size: 60, gap: 62 },
+      { text: 'v', size: 30, gap: 36 },
+      // 104, not the ~78 the line height wants. At the tighter value a two-fixture night
+      // read as one four-line list — "Mellor B" and "Manor A" sat as close together as
+      // "Aerospace B" and its own opponent, so the grouping the stack exists to create was
+      // undone by the gap between stacks. The separation between fixtures has to beat the
+      // separation inside one.
+      { text: f.awayTeam, size: 60, gap: 96 },
+    ] },
+  // One line at 60, a third of the height — but only when every line in THIS week clears
+  // the panel. Checked per card, not per league.
+  { name: 'inline60', rowSize: 60, parts: f => [
+      { text: `${f.homeTeam}  v  ${f.awayTeam}`, size: 60, gap: 84 },
+    ] },
+  // The compact fallback. Small, but a legible list beats an overlapping one, and it only
+  // appears in a week that is both long and full of long names.
+  { name: 'inline30', rowSize: 30, parts: f => [
+      { text: `${f.homeTeam}  v  ${f.awayTeam}`, size: 30, gap: 52 },
+    ] },
+];
 
 // One division's coming week, at 1080x1350 — the artwork's own size, and the same 4:5
 // portrait as the result card, so a fixtures post and a result post look like the same
 // league.
 //
-// The row font is CHOSEN, not scaled, because Jimp draws pre-baked bitmaps: the layout
-// works out how much vertical room each line gets and drops to the smaller face when the
-// larger one would not clear it. Six fixtures on three nights is the worst week this
-// league has had (measured over four seasons) and sits comfortably in the large face; six
-// fixtures on six separate nights would not, and gets the small one rather than an
-// overlapping list.
+// **The panel is sized to its contents and anchored to the bottom.** It used to be a fixed
+// 880px box with the list centred inside it, which laid out correctly and looked wrong:
+// a one-fixture week — 20% of them, and the week this shipped in — put two lines of copy
+// in the middle of a large empty rectangle, reading as a rendering fault rather than a
+// quiet week. Growing upward from a fixed bottom margin keeps the card's proportions
+// consistent whatever the week holds, and leaves more of the artwork visible when there
+// is less to say.
 async function buildFixturesCard(divisionName, fixtures, format = 'jpeg') {
   const W = 1080, H = 1350;
   const background = await fixturesBackground(divisionName);
@@ -217,71 +262,85 @@ async function buildFixturesCard(divisionName, fixtures, format = 'jpeg') {
     ? background
     : background.cover(W, H);
 
-  const PANEL_X = 40, PANEL_Y = 430, PANEL_W = W - 80, PANEL_H = 880;
-  panel(image, PANEL_X, PANEL_Y, PANEL_W, PANEL_H, 0.82);
+  const titleFont = await Jimp.loadFont('./fonts/ArialBold_White_60.fnt');
+  const smallFont = await Jimp.loadFont('./fonts/ArialBold_White_30.fnt');
+  const fontFor = size => (size >= 60 ? titleFont : smallFont);
 
-  const titleFont = await Jimp.loadFont('./fonts/ArialBold_Black_65.fnt');
-  const rowFontBig = await Jimp.loadFont('./fonts/Arial_Black_55.fnt');
-  const smallFont = await Jimp.loadFont('./fonts/ArialBold_Black_30.fnt');
-
-  const lines = fixtureCardLines(fixtures);
-  const range = fixtureDateRange(fixtures);
-  const textX = PANEL_X + 30;
-  const textW = PANEL_W - 60;
-
-  let y = PANEL_Y + 30;
-  image.print(titleFont, textX, y, { text: String(divisionName), alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, textW, 75);
-  y += 90;
-  image.print(smallFont, textX, y, { text: 'Fixtures this week', alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, textW, 35);
-  y += 40;
-  if (range) {
-    image.print(smallFont, textX, y, { text: range, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, textW, 35);
-    y += 40;
-  }
-
-  // A rule under the heading, drawn as a one-pixel-tall opaque panel: Jimp has no line
-  // primitive and this is the same composite the panel above uses.
-  y += 15;
-  panel(image, textX, y, textW, 3, 0.35);
-  y += 25;
-
-  const FOOTER_TOP = PANEL_Y + PANEL_H - 55;
-  const HEADING_STEP = 42;
-  const MAX_ROW_STEP = 88;
-  const headings = lines.filter(l => l.kind === 'date').length;
-  const rows = lines.length - headings;
-  const roomForRows = FOOTER_TOP - y - 20 - headings * HEADING_STEP;
-
-  // Capped, then the whole block is centred in what is left.
+  const PANEL_X = 40;
+  const PANEL_W = W - PANEL_X * 2;
+  const PAD = 36;
+  const INNER_X = PANEL_X + PAD;
+  const INNER_W = PANEL_W - PAD * 2;
+  const PANEL_BOTTOM = H - 50;
+  // Leaves the top of the artwork — the player, and the big division numeral — visible at
+  // every length. A panel taller than this would cover the thing it is sitting on.
   //
-  // Without the cap, dividing all the remaining room between the rows means a two-fixture
-  // week prints two lines 300px apart — technically laid out, and it reads as a rendering
-  // fault rather than a quiet week. The cap is what makes a short list look deliberate,
-  // and the division of the remainder is what stops a long one overlapping.
-  const rowStep = rows ? Math.min(MAX_ROW_STEP, Math.floor(roomForRows / rows)) : 0;
+  // **1160 is tuned to a measured boundary, not picked round.** At 1100 a three-fixture
+  // week overflowed the stacked layout by seven pixels and dropped to the compact list —
+  // and three fixtures is 29% of division-weeks, so the common case was landing in the
+  // fallback over a rounding margin. With this, 1-3 fixtures all stack, which is 86% of
+  // weeks; four or more move to the inline form, which is what that form is for.
+  const PANEL_MAX_H = 1160;
 
-  // 66 is the 55px face's own line height (63) plus breathing room. Below it the large
-  // face would overlap the next line, so the small one is used and the list stays legible
-  // rather than staying large.
-  const rowFont = rowStep >= 66 ? rowFontBig : smallFont;
-  const rowSize = rowStep >= 66 ? 63 : 35;
+  const range = fixtureDateRange(fixtures);
 
-  const blockHeight = headings * HEADING_STEP + rows * rowStep;
-  y += Math.max(0, Math.round((FOOTER_TOP - 20 - y - blockHeight) / 2));
+  // The header, as draw items. Everything is centred now, header and list alike.
+  const header = [
+    { text: String(divisionName), size: 60, gap: 74 },
+    { text: 'Fixtures this week', size: 30, gap: 40 },
+  ];
+  if (range) header.push({ text: range, size: 30, gap: 40 });
 
-  for (const line of lines) {
-    if (line.kind === 'date') {
-      image.print(smallFont, textX, y, { text: line.text, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, textW, 35);
-      y += HEADING_STEP;
-    } else {
-      image.print(rowFont, textX, y, { text: line.text, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, textW, rowSize);
-      y += rowStep;
+  const RULE_GAP_ABOVE = 14, RULE_GAP_BELOW = 30;
+  const footer = { text: 'tameside-badminton.co.uk  #tameside #badminton #tbl', size: 30 };
+  const FOOTER_GAP_ABOVE = 26;
+
+  const headerH = header.reduce((n, i) => n + i.gap, 0);
+  const chromeH = PAD + headerH + RULE_GAP_ABOVE + 3 + RULE_GAP_BELOW
+                + FOOTER_GAP_ABOVE + 40 + PAD;
+  const roomForList = PANEL_MAX_H - chromeH;
+
+  // Build the list under each layout and take the first that fits — in height, and in
+  // width, because a bitmap font cannot be narrowed either.
+  let items = null;
+  for (const layout of ROW_LAYOUTS) {
+    const candidate = [];
+    let night = null;
+    for (const f of fixtures) {
+      const label = String(f.dayLabel || '').trim();
+      if (label !== night) {
+        night = label;
+        candidate.push({ text: label, size: 30, gap: 46 });
+      }
+      for (const part of layout.parts(f)) candidate.push(part);
     }
+    const height = candidate.reduce((n, i) => n + i.gap, 0);
+    const widest = candidate.reduce((n, i) => Math.max(n, Jimp.measureText(fontFor(i.size), i.text)), 0);
+    if (height <= roomForList && widest <= INNER_W) { items = candidate; break; }
+    items = candidate;   // keep the last, so an impossible week still draws something
   }
 
-  image.print(smallFont, textX, FOOTER_TOP,
-    { text: 'tameside-badminton.co.uk  #tameside #badminton #tbl', alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT },
-    textW, 35);
+  const listH = items.reduce((n, i) => n + i.gap, 0);
+  const panelH = Math.min(PANEL_MAX_H, chromeH + listH);
+  const panelY = PANEL_BOTTOM - panelH;
+
+  panel(image, PANEL_X, panelY, PANEL_W, panelH, 0.80);
+
+  const centre = (item, y) => image.print(
+    fontFor(item.size), INNER_X, y,
+    { text: String(item.text), alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER },
+    INNER_W, item.size + 8);
+
+  let y = panelY + PAD;
+  for (const item of header) { centre(item, y); y += item.gap; }
+
+  y += RULE_GAP_ABOVE;
+  panel(image, INNER_X + 120, y, INNER_W - 240, 3, 0.35, 0xffffffff);
+  y += 3 + RULE_GAP_BELOW;
+
+  for (const item of items) { centre(item, y); y += item.gap; }
+
+  centre(footer, PANEL_BOTTOM - PAD - 34);
 
   return toBuffer(image, format);
 }
