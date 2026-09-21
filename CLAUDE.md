@@ -709,7 +709,23 @@ via sharp, you'll need to reinstate `fontconfig` + a font in the Dockerfile.
 > Jimp result cards and the fit-and-pad is Jimp too. **There is deliberately no
 > ImageMagick** — see *The other two weekly posts* under Posting to Facebook and Instagram.
 
-**This is the one part of the Stockport social stack that does NOT port.** That site draws
+> ⚠️ **The "no fonts in the image" premise below became FALSE on 21 Sep 2026.** Adding
+> ffmpeg pulled in 200 packages including `fontconfig`, `libfreetype6`, `librsvg2-2`,
+> `libpango`, `libcairo2` and `fonts-dejavu-core` — everything sharp's SVG text needs,
+> font included. **The rule and the image now disagree.** Until that is resolved, keep
+> drawing with Jimp: those packages are ffmpeg's *transitive* dependencies, so relying on
+> them means text starts rendering blank the day ffmpeg moves, and blank is exactly the
+> failure that shows up in production and nowhere else. Resolving it properly — fonts
+> declared in the Dockerfile, all three cards moved together, and a test that fails on a
+> blank card — is `docs/plans/sharp-text-rendering.md`, agreed and not started.
+>
+> **Parity with `~/league-site` is a goal**, not a nice-to-have: the two sites share an
+> Auth0 tenant, an S3 bucket, a Meta app and a steady traffic of ported features, and two
+> rendering stacks means every future port of anything that draws gets rewritten rather
+> than copied.
+
+**This is the one part of the Stockport social stack that does NOT port** *(for now — see
+the note above)*. That site draws
 the same pictures with sharp and an SVG overlay. Copying its drawing code across renders
 every label blank in production and nowhere else, because the Dockerfile here has no fonts
 by design. The route *shape* is what ports.
