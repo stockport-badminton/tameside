@@ -262,3 +262,174 @@ that retiring them was a disable rather than surgery. Each step is safe to stop 
   and an SVG overlay, which needs fontconfig and a system font — neither is in this image,
   deliberately. See *Social Image Generation* in `CLAUDE.md`. Porting its drawing code across
   renders every label blank in production and nowhere else.
+
+---
+
+# The other two weekly posts: fixtures, and the results video
+
+Added 21 Sep 2026, ported from the Stockport league site's `weeklyFixturesController`,
+`weeklyVideoController` and `socialVideoController`. There are now **three** scheduled
+social posts, and they share one shape — `configuredTargets()`, `?dry=1`, per-target
+reporting, `requireCronCaller`, 200/207/502 — so everything in the sections above applies
+to all three.
+
+| Post | Route | When | Content |
+|---|---|---|---|
+| Tables | `POST /admin/social/weekly-tables` | Sat 12:00 | 2 division tables, album + carousel |
+| Fixtures | `POST /admin/social/weekly-fixtures` | Sun 18:00 (proposed) | 1 card per division playing |
+| Results video | `POST /admin/social/weekly-video` | Sat 12:30 (proposed) | mp4 slideshow of the week's results |
+
+## What is genuinely new here versus Tameside's tables post
+
+- **Neither post replaces anything.** Make.com never posted fixtures on either league's
+  account, and its video route was never live. So unlike the tables cutover there is no
+  scenario to disable, no atomic-day constraint, and no double-post risk.
+- **The fixtures post can legitimately have nothing to say**, and then it must not post.
+  The league plays September to April. A job firing all year would spend the summer
+  publishing cards reading "Fixtures this week" with nothing under the heading. An empty
+  week answers **200 with `skipped` set and `posted` empty** — a 200 because nothing went
+  wrong and a scheduler retrying a 4xx every Sunday for four months is noise, and `skipped`
+  because it must never be readable as "the post went out".
+- **The video post mentions nobody, deliberately** — the opposite call from the tables
+  post. A results video names every club that played; mentioning all of them reads as spam
+  rather than courtesy. The fixtures post mentions **only the clubs playing that week**, for
+  the same reason: a mention is a notification, and notifying a club about a week it is not
+  playing in is how an account gets muted.
+
+## The video is two scheduler jobs, and that is forced
+
+```
+GET  /api/social/generate-weekly-video   renders the mp4 and puts it in S3
+POST /admin/social/weekly-video          hands Meta the URL
+```
+
+Stockport left "two jobs, or fold generation into the post?" explicitly undecided (their
+HARD-21, *Still to do: orchestration*). **Here it is decided by a constraint they do not
+have: this service's Cloud Run request timeout is 60 seconds**, lowered from 600 after the
+2026-09-17 pooler stall, where a wedged instance held every request it had for ten minutes.
+One request cannot both encode the video and then wait on Meta's transcode of it, and being
+cut off by the platform *mid-publish* is the one failure mode that could double-post on a
+retry.
+
+**What makes the split safe is the staleness guard, not the wall clock.** The post reads
+the stored object's `LastModified` and refuses anything older than two days with a **409**
+naming the step that was missed. Without it, a generation that did not happen — the
+endpoint refused, the encode crashed, the scheduler misfired — means last week's results go
+out under a caption saying they are this week's. That is worse than posting nothing, and it
+is the class of silent wrongness this feature produced twice on the other site. The dry run
+is refused too: validating a stale video against Meta reports `ok` for something that must
+not go out.
+
+So the jobs want ordering, not precision: generate at 12:25, post at 12:30. If the first
+fails, the second answers 409 loudly instead of posting the wrong thing.
+
+### Creating the jobs
+
+`gcloud scheduler jobs create http` **has no `--pause` flag** — the job is created ENABLED
+and counting down, so create and pause are two commands with a live job in between. That is
+recorded above for the tables job and is just as true here.
+
+```bash
+P="--location=europe-west2 --project=avid-compound-429108-g9"
+
+gcloud scheduler jobs create http tbl-weekly-video-generate $P \
+  --schedule="25 12 * * 6" --time-zone="Europe/London" --http-method=GET \
+  --uri="https://tameside-badminton.co.uk/api/social/generate-weekly-video?t=<SOCIAL_WEEKLY_VIDEO_TOKEN>"
+
+gcloud scheduler jobs create http tbl-weekly-video-post $P \
+  --schedule="30 12 * * 6" --time-zone="Europe/London" --http-method=POST \
+  --uri="https://tameside-badminton.co.uk/admin/social/weekly-video?t=<SOCIAL_WEEKLY_VIDEO_TOKEN>"
+
+gcloud scheduler jobs create http tbl-weekly-fixtures-post $P \
+  --schedule="0 18 * * 0" --time-zone="Europe/London" --http-method=POST \
+  --uri="https://tameside-badminton.co.uk/admin/social/weekly-fixtures?t=<SOCIAL_WEEKLY_FIXTURES_TOKEN>"
+
+# and confirm — never assume
+gcloud scheduler jobs list $P --format="table(name.basename(),schedule,state)"
+```
+
+Use the custom domain, not the `run.app` hostname — see **Absolute URLs** in `CLAUDE.md`.
+
+### New environment variables
+
+```
+SOCIAL_WEEKLY_FIXTURES_TOKEN   # shared secret for the fixtures job; unset = route 404s, i.e. inert
+SOCIAL_WEEKLY_VIDEO_TOKEN      # shared secret for BOTH video routes; unset = both inert
+```
+
+Separate tokens per post rather than one `SOCIAL_CRON_TOKEN` (which is what Stockport uses),
+so a post can be turned off by removing one variable without taking the other two with it.
+
+## ffmpeg is now in the image
+
+`utils/socialVideo.js` shells out to `ffmpeg`, and the Dockerfile installs it. It is the
+only system package in the image and the largest thing in it.
+
+**There is no ImageMagick, and adding it would be a regression.** Stockport builds the video
+by writing every frame to disk — 25 frames a second, one `convert` per transition frame,
+~36s of encode. This does the same crossfade in one `xfade` pass, and does the fit-and-pad
+in Jimp. Measured 21 Sep 2026: five slides render and encode in **3.8s** locally, well
+inside the 60s budget.
+
+Three things in the encode that fail quietly if changed:
+
+- **The crossfade offsets accumulate at `slide - transition`**, because a crossfade consumes
+  that much of the running total rather than adding to it. Get it wrong and the video does
+  not fail — it freezes on one slide and skips another, visible only by watching it. Note
+  Stockport's total is `n*slide + (n-1)*transition` and this one's is
+  `n*slide - (n-1)*transition`: different transitions, and the reported duration has to
+  match whichever is built.
+- **A JPEG decodes as full-range YUV**, so `-pix_fmt yuv420p` alone produces a stream tagged
+  `yuvj420p` — 4:2:0 as asked, but full range, which renders washed out in any player that
+  ignores the tag. Measured here before the `scale=in_range=full:out_range=tv` filter
+  existed. The filter is what does the conversion; the `-pix_fmt` flag is belt and braces.
+- **`+faststart`.** Meta fetches the file by URL and starts reading immediately; with the
+  index at the end it has to pull the whole thing first.
+
+## The video object is private, and the read route is why
+
+`GET /social-video/:aspect` streams it from S3 through our own domain. **The object sets no
+ACL and must not get one.** That is the whole of Stockport's HARD-21: their generate
+endpoint returned a `https://<bucket>.s3.…` URL that answered 403 to everyone, including
+Meta, for four months. The route is the third instance of this pattern here, after
+`/scorecard-photo/:id`.
+
+- **`aspect` is looked up in a fixed map and never used to build a key.** This bucket is
+  shared with the Stockport league and holds its scorecards at the root; a route that
+  streams any object a caller can name would serve another league's private documents out of
+  our origin. `test/integration/social-video.test.js` asserts **the key that reached S3**,
+  not merely that a traversal 404s — a handler that interpolated the parameter would 404 in
+  a test too, because the mocked bucket holds nothing. That exact test passed against the
+  vulnerable version on the Stockport side.
+- **The object key carries the `tameside-` prefix**, because that prefix *is* the ownership
+  test in `utils/scorecardPhoto.js`.
+- **The content type comes from the route, never from what S3 reports.** Legacy objects in
+  this bucket were uploaded through an unauthenticated `/sign-s3` that stored the caller's
+  content type, so one can claim `text/html`.
+
+## No S3 lock file, on purpose
+
+Stockport guards concurrent generation with a lock object. Theirs **recognised a stale lock
+without deleting it**, and the atomic create that followed used `IfNoneMatch: '*'` — so one
+interrupted encode wedged the feature permanently and reported it as a concurrent run that
+did not exist. It answered `202` for **115 days**.
+
+The concurrency actually at risk here is two Cloud Run instances encoding at once, which
+costs CPU and nothing else: both write the same key and the bytes are identical. So this
+uses an in-process `singleFlight` instead — it cannot leave anything behind, cannot go
+stale, and cannot wedge anything. A generate call also reuses a video written in the last
+ten minutes rather than re-encoding, so a retry or a double-clicked admin button is free.
+
+## Things to check the first time each one runs
+
+- **Look at the pictures, not the status codes.** The Avg. column read `NaN` on every table
+  for weeks because a broken link was hiding a broken picture. Both preview pages
+  (`/admin/social/weekly-fixtures`, `/admin/social/weekly-video`) render from **this**
+  server rather than production, precisely so that what you are looking at is what this
+  build produces.
+- **A dry run's `ok: true` means "Meta could fetch and transcode this", not "this is a good
+  post".** Same caveat as `validateImages`.
+- **The fixtures card drops to a smaller font rather than overlapping** when a division has
+  a lot of matches on a lot of separate nights — Jimp cannot scale a bitmap font, so the
+  sizes in `fonts/` are the sizes there are. Six fixtures over three nights is the worst
+  week in four seasons of data and sits comfortably in the large face.

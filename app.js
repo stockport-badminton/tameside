@@ -432,6 +432,9 @@ let contactus_controller = require(__dirname + '/controllers/contactusController
 let spam_admin_controller = require(__dirname + '/controllers/spamAdminController');
 let registration_reminder_controller = require(__dirname + '/controllers/registrationReminderController');
 let weekly_tables_controller = require(__dirname + '/controllers/weeklyTablesController');
+let weekly_fixtures_controller = require(__dirname + '/controllers/weeklyFixturesController');
+let weekly_video_controller = require(__dirname + '/controllers/weeklyVideoController');
+let social_video_controller = require(__dirname + '/controllers/socialVideoController');
 const requireCronCaller = require(__dirname + '/middleware/requireCronCaller');
 let auth_link_controller = require(__dirname + '/controllers/authLinkController');
 const spamGate = require(__dirname + '/middleware/spamGate');
@@ -528,7 +531,17 @@ app.use(filterState.middleware)
 // `secured` can never work. See controllers/social_controller.js.
 app.get('/resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division',social_controller.social_get_result)
 app.get('/league-table-image/:division', social_controller.league_table_image)
+app.get('/fixtures-image/:division', social_controller.fixtures_image)
 app.get('/tables-social',social_controller.social_get_tables)
+
+/* The weekly results video, streamed from S3 through our own domain.
+
+   Unauthenticated for the same reason as the images above — Meta fetches it from Meta's
+   servers — and the object itself stays PRIVATE in the bucket. `:aspect` is looked up in a
+   fixed map and never used to build an S3 key: this bucket is shared with the Stockport
+   league and holds its scorecards, so a route that streams any object anyone can name
+   would have moved the problem rather than solved it. */
+app.get('/social-video/:aspect', social_video_controller.serve)
 
 app.get('/', fixture_controller.fixture_get_summary)
 app.get('/contact-us', contactus_controller.contactus_get)
@@ -690,6 +703,30 @@ app.get('/admin/social/weekly-tables', secured, weekly_tables_controller.preview
 app.post('/admin/social/weekly-tables',
   requireCronCaller({ envVar: 'SOCIAL_WEEKLY_TABLES_TOKEN', callerProp: 'socialCaller' }),
   weekly_tables_controller.run);
+
+/* The weekly fixtures post — the coming week, one card per division. Same gating rules as
+   the tables post above, on its own token so either half can be turned off alone. */
+app.get('/admin/social/weekly-fixtures', secured, weekly_fixtures_controller.preview);
+app.post('/admin/social/weekly-fixtures',
+  requireCronCaller({ envVar: 'SOCIAL_WEEKLY_FIXTURES_TOKEN', callerProp: 'socialCaller' }),
+  weekly_fixtures_controller.run);
+
+/* The weekly results video. TWO scheduled steps, not one: generate writes the mp4 to S3,
+   post hands Meta the URL. They are separate because this service's request timeout is 60s
+   and one request cannot both encode the video and then wait on Meta's transcode of it.
+   `videoFreshness` in the post handler is what makes the split safe — it refuses anything
+   older than two days rather than publishing last week's results as this week's.
+
+   The generate route is a GET because Cloud Scheduler and a browser both drive it, and it
+   is gated for the same reason the posts are: ungated it lets anyone on the internet start
+   an ffmpeg encode on Cloud Run, repeatedly. */
+app.get('/api/social/generate-weekly-video',
+  requireCronCaller({ envVar: 'SOCIAL_WEEKLY_VIDEO_TOKEN', callerProp: 'socialCaller' }),
+  social_video_controller.generate);
+app.get('/admin/social/weekly-video', secured, weekly_video_controller.preview);
+app.post('/admin/social/weekly-video',
+  requireCronCaller({ envVar: 'SOCIAL_WEEKLY_VIDEO_TOKEN', callerProp: 'socialCaller' }),
+  weekly_video_controller.run);
 
 app.get('/admin/spam', secured, spam_admin_controller.form);
 app.post('/admin/spam', secured, spam_admin_controller.add);

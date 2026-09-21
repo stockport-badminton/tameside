@@ -703,6 +703,12 @@ only for pixel ops in `utils/scorecardVision.js` (greyscale/normalize/sharpen) �
 for rendering text — so it doesn't need them either. If you ever add SVG text rendering
 via sharp, you'll need to reinstate `fontconfig` + a font in the Dockerfile.
 
+> **ffmpeg is in the image, and it is the one exception to "nothing external renders".**
+> `utils/socialVideo.js` shells out to it to encode the weekly results video, because h264
+> is the one thing that genuinely cannot be done in JS. It draws nothing: the slides are
+> Jimp result cards and the fit-and-pad is Jimp too. **There is deliberately no
+> ImageMagick** — see *The other two weekly posts* under Posting to Facebook and Instagram.
+
 **This is the one part of the Stockport social stack that does NOT port.** That site draws
 the same pictures with sharp and an SVG overlay. Copying its drawing code across renders
 every label blank in production and nowhere else, because the Dockerfile here has no fonts
@@ -820,6 +826,91 @@ that bite:
   they need the Pages API, and plain `@Club Name` text does nothing at all.
 - Tournament posters are **not** ported. Stockport's five are its own content down to the
   venue address, and Tameside has neither the posters nor the background art.
+
+#### The other two weekly posts: fixtures, and the results video
+
+Added 21 Sep 2026. Three scheduled social posts now, all the same shape
+(`configuredTargets()`, `?dry=1`, `requireCronCaller`, per-target reporting, 200/207/502).
+Full setup and the scheduler commands are in `docs/social-posting.md`.
+
+| Post | Route | Token |
+|---|---|---|
+| Tables | `POST /admin/social/weekly-tables` | `SOCIAL_WEEKLY_TABLES_TOKEN` |
+| Fixtures | `POST /admin/social/weekly-fixtures` | `SOCIAL_WEEKLY_FIXTURES_TOKEN` |
+| Results video | `GET /api/social/generate-weekly-video` then `POST /admin/social/weekly-video` | `SOCIAL_WEEKLY_VIDEO_TOKEN` |
+
+A token per post rather than Stockport's single `SOCIAL_CRON_TOKEN`, so one post can be
+turned off without taking the other two with it. Unset still means the route 404s, i.e.
+that post is inert.
+
+- **Neither is a replacement.** Make.com never posted fixtures on either account and its
+  video route was never live, so unlike the tables cutover there is no scenario to disable
+  and no atomic-day constraint.
+- **The fixtures post's content can legitimately be empty, and then it must not post.**
+  The league plays September to April. An empty week answers **200 with `skipped` set and
+  `posted` empty** — 200 because nothing went wrong and a scheduler retrying a 4xx all
+  summer is noise, `skipped` because it must never read as "the post went out". The
+  division list is built from the fixtures that exist, filtered through
+  `weeklyTablesController.DIVISIONS` so an unexpected division name can't add a third card.
+- **Mentions go the opposite way in the two posts.** The fixtures post names only the clubs
+  **playing that week** (a mention is a notification, and notifying a club about a week it
+  isn't playing is how an account gets muted); the video post names **nobody**, because a
+  results video names every club that played and mentioning all of them reads as spam.
+- **The fixtures card is Jimp, like everything else here**, and it is a light panel with
+  black text where Stockport's is a dark panel with white text. Not taste: `fonts/` holds
+  black faces at 30/55/60/65 and white ones at only 30 and 60, and **Jimp cannot scale a
+  bitmap font** — the sizes that exist are the sizes there are. The layout therefore
+  *chooses* a row face and drops to the small one when the large one wouldn't clear the
+  line. Six fixtures over three nights is the worst week in four seasons and sits in the
+  large face; six over six nights doesn't and gets the small one.
+
+##### The video is two scheduler jobs, and that is forced by our request timeout
+
+Stockport left "two jobs or fold generation into the post?" explicitly undecided (HARD-21).
+**Here it's decided by a constraint they don't have: `_REQUEST_TIMEOUT` is 60s**, lowered
+from 600 after the 2026-09-17 pooler stall. One request can't both encode the video and
+then wait on Meta's transcode of it, and being cut off by the platform *mid-publish* is the
+one failure that could double-post on a retry. Generate at 12:25, post at 12:30.
+
+**What makes the split safe is `videoFreshness`, not the wall clock.** The post reads the
+stored object's `LastModified` and refuses anything older than two days with a **409**
+naming the step that was missed — otherwise a generation that didn't happen publishes last
+week's results under a caption saying they're this week's. The dry run is refused too.
+
+- **ffmpeg is now in the Dockerfile**, its only system package. **There is no ImageMagick
+  and adding it would be a regression**: Stockport writes every frame to disk (25/sec, one
+  `convert` per transition frame, ~36s), this crossfades in one `xfade` pass and pads in
+  Jimp. Measured 21 Sep 2026: five slides in **3.8s**.
+- **The crossfade offsets accumulate at `slide - transition`**, because a crossfade
+  consumes that much of the running total rather than adding to it. Wrong offsets don't
+  fail — the video freezes on one slide and skips another, visible only by watching it.
+  Note the totals differ between the sites for that reason: ours is
+  `n*slide - (n-1)*transition`, theirs `n*slide + (n-1)*transition`.
+- **A JPEG decodes as FULL-range YUV**, so `-pix_fmt yuv420p` alone yields a stream tagged
+  `yuvj420p` — 4:2:0 as asked, but full range, which renders washed out in any player that
+  ignores the tag. The `scale=in_range=full:out_range=tv` filter is what converts it; the
+  flag is belt and braces. Measured here before the filter existed.
+- **4:5 only.** The cards are 1080x1350, so 4:5 is zero letterboxing. Stockport's 1:1
+  survives only because it predates the question being answerable; nothing posts it.
+- **`GET /social-video/:aspect` streams a PRIVATE object** — `uploadVideo` sets no ACL and
+  must not get one. That is all of HARD-21: their generate endpoint handed out a bucket URL
+  that 403'd for four months, Meta included. `aspect` is looked up in a fixed map and
+  **never used to build a key**, because this bucket holds another league's scorecards, and
+  the key carries the `tameside-` prefix that *is* the ownership test in
+  `utils/scorecardPhoto.js`.
+  - `test/integration/social-video.test.js` asserts **the key that reached S3**, not merely
+    that a traversal 404s. A handler interpolating the parameter would 404 in a test too,
+    because the mocked bucket holds nothing — that exact test passed against the vulnerable
+    version on the Stockport side.
+- **No S3 lock file.** Theirs recognised a stale lock without deleting it, and the
+  `IfNoneMatch: '*'` create that followed then failed — so one interrupted encode wedged
+  the feature permanently and reported a concurrent run that didn't exist. It answered 202
+  for **115 days**. The real risk here is two instances encoding at once, which costs CPU
+  and nothing else (identical bytes, same key), so it's an in-process `singleFlight` plus a
+  ten-minute reuse window. Nothing to go stale, nothing to wedge.
+- **A quiet week writes nothing.** Generating with no results is a 404 and leaves the
+  stored object alone — overwriting it loses last week's, and merely *touching* it would
+  tell the freshness check something was generated this cycle when nothing was.
 
 ### Team Registration Forms
 
@@ -1089,6 +1180,10 @@ REGISTRATION_DIGEST_TO     # Who the digest goes to. Defaults to the results mai
 MAILJET_WEBHOOK_TOKEN  # Shared secret in the Mailjet event-callback URL
                    # (/webhooks/mailjet?t=...). Unset means the route 404s, i.e. inert.
                    # See docs/email-deliverability.md.
+SOCIAL_WEEKLY_FIXTURES_TOKEN  # Shared secret for the weekly fixtures post's scheduler job.
+SOCIAL_WEEKLY_VIDEO_TOKEN     # Shared secret for BOTH weekly-video routes (generate and
+                   # post). Unset means that post is inert. One token per post rather than
+                   # a shared one, so a post can be turned off on its own.
 ```
 
 ## Scorecard Validation

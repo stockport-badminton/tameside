@@ -758,3 +758,89 @@ where
     })
     done(null,result);
 }
+
+/* ------------------------------------------------------------------ *
+ * The two weekly social posts.
+ *
+ * Both return a promise rather than taking a `done` callback, because both
+ * callers are `async` controllers. The callback style in the rest of this
+ * file exists for the older render paths; there is nothing to be gained by
+ * wrapping a promise in a callback and then promisifying it again at the
+ * other end.
+ *
+ * **Both windows are computed in SQL, in Europe/London, and neither goes
+ * anywhere near a JS Date.** `fixture.date` is a timestamp at local midnight,
+ * so a JS-side window built with `new Date()` slips a day under BST — the
+ * same trap the registration digest's hand-rolled date formatting exists to
+ * avoid. `date_trunc('day', NOW() AT TIME ZONE 'Europe/London')` gives the
+ * calendar day the league is actually on.
+ * ------------------------------------------------------------------ */
+
+/**
+ * The coming week's fixtures, for the Sunday fixtures post.
+ *
+ * `dayLabel` is formatted in SQL for the same reason the window is: the card
+ * groups its rows under a night heading and prints a date range in the
+ * header, and both have to agree with the rows underneath them. Formatting
+ * in Postgres means one answer, in one timezone, with no ICU version of
+ * Node able to change its shape underneath the picture.
+ *
+ * Unplayed only (`homeScore IS NULL`) and never a fixture that is being
+ * moved: announcing a match that has already been rearranged away is worse
+ * than announcing nothing.
+ */
+exports.getUpcomingWeek = async function () {
+  return await sql`SELECT
+      fixture.id,
+      fixture.date,
+      to_char(fixture.date, 'Dy FMDD Mon') AS "dayLabel",
+      "homeTeam".name AS "homeTeam",
+      "awayTeam".name AS "awayTeam",
+      "homeClub".name AS "homeClub",
+      "awayClub".name AS "awayClub",
+      division.name AS "divisionName"
+    FROM fixture
+      JOIN team "homeTeam" ON fixture."homeTeam" = "homeTeam".id
+      JOIN team "awayTeam" ON fixture."awayTeam" = "awayTeam".id
+      LEFT JOIN club "homeClub" ON "homeTeam".club = "homeClub".id
+      LEFT JOIN club "awayClub" ON "awayTeam".club = "awayClub".id
+      LEFT JOIN division ON "homeTeam".division = division.id
+    WHERE fixture."homeScore" IS NULL
+      AND fixture.status NOT IN ('rearranged', 'rearranging')
+      AND fixture.date >= date_trunc('day', NOW() AT TIME ZONE 'Europe/London')
+      AND fixture.date <  date_trunc('day', NOW() AT TIME ZONE 'Europe/London') + INTERVAL '7 days'
+    ORDER BY fixture.date, "homeTeam".name`;
+};
+
+/**
+ * The week just gone, for the results video.
+ *
+ * Seven days back from the start of today and up to now, so a result
+ * published this morning is in the video that goes out this afternoon.
+ *
+ * `homeScore IS NOT NULL` rather than a status test. A conceded match has a
+ * score and belongs in the video; a match sitting at 'complete' with no score
+ * entered is a card reading "null - null", which is precisely the class of
+ * silent wrongness that produced the `NaN` column on the league tables.
+ */
+exports.getWeekResults = async function () {
+  return await sql`SELECT
+      fixture.id,
+      fixture.date,
+      to_char(fixture.date, 'Dy FMDD Mon') AS "dayLabel",
+      "homeTeam".name AS "homeTeam",
+      "awayTeam".name AS "awayTeam",
+      fixture."homeScore",
+      fixture."awayScore",
+      division.name AS "divisionName"
+    FROM fixture
+      JOIN team "homeTeam" ON fixture."homeTeam" = "homeTeam".id
+      JOIN team "awayTeam" ON fixture."awayTeam" = "awayTeam".id
+      LEFT JOIN division ON "homeTeam".division = division.id
+    WHERE fixture."homeScore" IS NOT NULL
+      AND fixture."awayScore" IS NOT NULL
+      AND fixture.status NOT IN ('rearranged', 'rearranging', 'void')
+      AND fixture.date >= date_trunc('day', NOW() AT TIME ZONE 'Europe/London') - INTERVAL '7 days'
+      AND fixture.date <  date_trunc('day', NOW() AT TIME ZONE 'Europe/London') + INTERVAL '1 day'
+    ORDER BY fixture.date, "homeTeam".name`;
+};

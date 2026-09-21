@@ -1,0 +1,113 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<div class="col-12">
+  <h1>Weekly video post</h1>
+  <p class="text-muted">
+    Exactly what the weekly results video post will contain. Nothing on this page sends
+    anything to Facebook or Instagram, but <strong>Regenerate does re-encode the video</strong>.
+  </p>
+
+  <div class="alert <%= facebookConfigured ? 'alert-success' : 'alert-danger' %>">
+    <strong>Facebook:</strong>
+    <%= facebookConfigured
+      ? 'configured — the video goes up as a page video.'
+      : 'NOT configured. Set META_TAMESIDE_PAGE_ID and META_TAMESIDE_PAGE_TOKEN on the service.' %>
+  </div>
+
+  <div class="alert <%= instagramConfigured ? 'alert-success' : 'alert-warning' %>">
+    <strong>Instagram:</strong>
+    <% if (instagramConfigured) { %>
+      configured — the video goes up as a Reel. Video on Instagram is Reels; the old feed
+      video type is gone.
+    <% } else { %>
+      not configured (<code>META_IG_USER_ID</code> is unset), so this posts to Facebook only.
+    <% } %>
+  </div>
+
+  <div class="alert <%= freshness.ok ? 'alert-success' : 'alert-danger' %>">
+    <strong>Stored video:</strong>
+    <% if (freshness.ok) { %>
+      generated <%= Math.round(freshness.ageMs / 60000) %> minutes ago, so it counts as
+      this week's.
+    <% } else { %>
+      <%= freshness.reason %> <strong>The post will refuse with a 409 until it is
+      regenerated.</strong> That guard is what makes the two scheduler jobs safe: without
+      it, a generation that did not happen means last week's results go out under a caption
+      saying they are this week's.
+    <% } %>
+    Anything older than <%= maxAgeDays %> days is refused.
+  </div>
+
+  <h2 class="h4 mt-4">The video</h2>
+  <p class="text-muted">
+    Served by <em>this</em> server, so what plays below is what this build has stored. The
+    absolute URL underneath is what Meta will fetch — from Meta's own servers, minutes
+    later, so it has to be public and still working then.
+  </p>
+  <video src="<%= videoPath %>" controls playsinline class="border"
+         style="max-width: 360px; width: 100%;"></video>
+  <p class="small text-break mt-1"><a href="<%= videoUrl %>"><%= videoUrl %></a></p>
+  <p class="text-muted small">
+    Aspect <code><%= aspect %></code>. The result cards are 1080&times;1350, so a 4:5 frame
+    carries them with no letterboxing at all — every pixel is content.
+  </p>
+
+  <h2 class="h4 mt-4">Results in it</h2>
+  <% if (!results.length) { %>
+    <p class="text-muted">
+      <strong>No results in the last seven days</strong>, so regenerating would refuse and
+      leave the stored video alone rather than overwrite it with an empty one.
+    </p>
+  <% } else { %>
+    <p class="text-muted"><%= results.length %> <%= results.length === 1 ? 'result' : 'results' %>, one slide each, in the order played.</p>
+    <table class="table table-sm w-auto">
+      <thead><tr><th>Night</th><th>Division</th><th>Match</th><th>Score</th></tr></thead>
+      <tbody>
+        <% results.forEach(function (r) { %>
+          <tr>
+            <td><%= r.dayLabel %></td>
+            <td><%= r.divisionName %></td>
+            <td><%= r.homeTeam %> v <%= r.awayTeam %></td>
+            <td><%= r.homeScore %>&ndash;<%= r.awayScore %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <h2 class="h4 mt-4">Captions</h2>
+  <div class="row">
+    <div class="col-12 col-lg-6 mb-3">
+      <h3 class="h6">Facebook</h3>
+      <pre class="border p-2 bg-light"><%= captions.facebook %></pre>
+    </div>
+    <div class="col-12 col-lg-6 mb-3">
+      <h3 class="h6">Instagram</h3>
+      <pre class="border p-2 bg-light"><%= captions.instagram %></pre>
+    </div>
+  </div>
+  <p class="text-muted">
+    <strong>No clubs are mentioned, on purpose.</strong> A results video names every club
+    that played, and mentioning all of them reads as spam rather than courtesy — the
+    opposite call from the weekly tables post, where the mentions are most of the point.
+  </p>
+
+  <h2 class="h4 mt-4">Send it</h2>
+  <p class="text-muted">
+    Regenerate rebuilds the video from the results above and replaces the stored one; it
+    posts nothing. A dry run asks Meta to fetch and transcode it and publishes nothing —
+    the container expires in 24 hours. Both are refused if the video is stale, because
+    validating last week's video would report "ok" for something that must not go out.
+  </p>
+  <a class="btn btn-secondary" href="/api/social/generate-weekly-video?force=1">Regenerate (posts nothing)</a>
+  <form method="post" action="/admin/social/weekly-video?dry=1" class="d-inline ms-2">
+    <button type="submit" class="btn btn-secondary">Dry run (posts nothing)</button>
+  </form>
+  <form method="post" action="/admin/social/weekly-video" class="d-inline ms-2"
+        onsubmit="return confirm('This posts publicly to Facebook and Instagram now. Continue?');">
+    <button type="submit" class="btn btn-danger" <%= freshness.ok ? '' : 'disabled' %>>Post now</button>
+  </form>
+</div>
+
+<%- include('../footer.ejs') %>

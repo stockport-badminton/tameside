@@ -12,6 +12,26 @@ FROM node:22-slim
 # middleware/devMode.js regardless of how the service env is configured.
 ENV NODE_ENV=production
 
+# ffmpeg, for the weekly results video (utils/socialVideo.js) and nothing else.
+#
+# **This is the only system package in the image, and it is the largest thing in it** —
+# ffmpeg and its codec dependencies are a substantial fraction of the image (not measured
+# here; Docker was not available when this was written, so check `docker images` after the
+# first build if it matters). It buys the one thing that genuinely cannot be done in JS:
+# encoding h264. Everything else about the video is Jimp, which is why there is no
+# ImageMagick here even though the Stockport site's equivalent needs both — it builds
+# every frame with `convert`, where this crossfades in one `xfade` pass.
+#
+# Own layer, above `COPY package*.json`, so it is cached and a source-only deploy never
+# pays for it. Keep it above the npm layer for that reason — moving it below would make
+# every dependency change reinstall it.
+#
+# `--no-install-recommends` matters: without it apt pulls in x11, alsa and a documentation
+# tree that nothing on a headless server will ever open.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /usr/src/app
 
 # Dependencies in their own layer, ahead of the source, so `npm ci` is reused from

@@ -1,0 +1,105 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<div class="col-12">
+  <h1>Weekly fixtures post</h1>
+  <p class="text-muted">
+    Exactly what the Sunday post will contain. Nothing on this page sends anything.
+  </p>
+
+  <div class="alert <%= facebookConfigured ? 'alert-success' : 'alert-danger' %>">
+    <strong>Facebook:</strong>
+    <%= facebookConfigured
+      ? 'configured — the division cards go up as one album.'
+      : 'NOT configured. Set META_TAMESIDE_PAGE_ID and META_TAMESIDE_PAGE_TOKEN on the service.' %>
+  </div>
+
+  <div class="alert <%= instagramConfigured ? 'alert-success' : 'alert-warning' %>">
+    <strong>Instagram:</strong>
+    <% if (instagramConfigured) { %>
+      configured — the division cards go up as one carousel.
+    <% } else { %>
+      not configured (<code>META_IG_USER_ID</code> is unset), so this posts to Facebook only.
+      That is a supported setup, not a fault.
+    <% } %>
+  </div>
+
+  <div class="alert alert-info">
+    <strong>This post is new, not a replacement.</strong> Make.com never posted fixtures on
+    either league's account, so there is nothing to disable and no double-post risk on the
+    cutover — unlike the weekly tables post.
+  </div>
+
+  <% if (!fixtureCount) { %>
+    <div class="alert alert-secondary">
+      <strong>Nothing to post.</strong> There are no fixtures in the coming seven days, so
+      the scheduled run would skip and send nothing. That is the normal state through the
+      summer and over Christmas — an empty card reading "Fixtures this week" is worse than
+      no post at all.
+    </div>
+  <% } else { %>
+    <h2 class="h4 mt-4">Images</h2>
+    <p class="text-muted">
+      <%= fixtureCount %> <%= fixtureCount === 1 ? 'match' : 'matches' %> across
+      <%= divisions.length %> <%= divisions.length === 1 ? 'division' : 'divisions' %>.
+      Rendered on demand as JPEG. <strong>Meta fetches these URLs itself, later, from its
+      own servers</strong> — so they have to be public, and they have to still work minutes
+      after the post is made. A division with no fixtures this week is left out rather than
+      posted blank.
+    </p>
+    <p class="text-muted small">
+      The pictures below are served by <em>this</em> server, so what you are looking at is
+      what this build renders. The link under each one is the absolute URL Meta will fetch.
+    </p>
+    <div class="row">
+      <% imagePaths.forEach(function (src, i) { %>
+        <div class="col-12 col-md-6 mb-3">
+          <img src="<%= src %>" class="img-fluid border" alt="Fixtures card">
+          <p class="small text-break mt-1"><a href="<%= images[i] %>"><%= images[i] %></a></p>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+
+  <h2 class="h4 mt-4">Captions</h2>
+  <div class="row">
+    <div class="col-12 col-lg-6 mb-3">
+      <h3 class="h6">Facebook</h3>
+      <pre class="border p-2 bg-light"><%= captions.facebook %></pre>
+    </div>
+    <div class="col-12 col-lg-6 mb-3">
+      <h3 class="h6">Instagram</h3>
+      <pre class="border p-2 bg-light"><%= captions.instagram %></pre>
+    </div>
+  </div>
+
+  <p class="text-muted">
+    <% if (captions.mentioned.length) { %>
+      Clubs mentioned on Instagram: <%= captions.mentioned.join(', ') %>. Only the clubs
+      actually playing this week are named — a mention is a notification, and notifying a
+      club about a week it is not playing in is how an account gets muted.
+    <% } else { %>
+      <strong>No clubs are mentioned</strong>, because no club has an Instagram handle
+      stored against it. Add them on the club admin pages and the clubs playing each week
+      appear here automatically. Facebook page mentions are omitted on purpose: they need
+      the Pages API, and plain <code>@Club Name</code> text does nothing at all.
+    <% } %>
+  </p>
+
+  <h2 class="h4 mt-4">Send it</h2>
+  <p class="text-muted">
+    A dry run creates unpublished Instagram containers to ask Meta whether it would accept
+    each image, then abandons them. Nothing becomes visible, and they expire in 24 hours.
+    It proves Meta can <em>fetch</em> these URLs — which is the fault that actually recurs
+    — not that the pictures read well. Look at them above for that.
+  </p>
+  <form method="post" action="/admin/social/weekly-fixtures?dry=1" class="d-inline">
+    <button type="submit" class="btn btn-secondary">Dry run (posts nothing)</button>
+  </form>
+  <form method="post" action="/admin/social/weekly-fixtures" class="d-inline ms-2"
+        onsubmit="return confirm('This posts publicly to Facebook and Instagram now. Continue?');">
+    <button type="submit" class="btn btn-danger" <%= fixtureCount ? '' : 'disabled' %>>Post now</button>
+  </form>
+</div>
+
+<%- include('../footer.ejs') %>
