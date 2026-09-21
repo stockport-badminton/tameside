@@ -890,7 +890,7 @@ that post is inert.
   `PANEL_MAX_H` is 1160 because at 1100 a three-fixture week overflowed the stacked
   layout by **seven pixels** and 29% of weeks silently landed in the fallback.
 
-##### The video is two scheduler jobs, and that is forced by our request timeout
+##### The video is two scheduler jobs, and the split runs deeper than it looks
 
 Stockport left "two jobs or fold generation into the post?" explicitly undecided (HARD-21).
 **Here it's decided by a constraint they don't have: `_REQUEST_TIMEOUT` is 60s**, lowered
@@ -902,6 +902,23 @@ one failure that could double-post on a retry. Generate at 12:25, post at 12:30.
 stored object's `LastModified` and refuses anything older than two days with a **409**
 naming the step that was missed — otherwise a generation that didn't happen publishes last
 week's results under a caption saying they're this week's. The dry run is refused too.
+
+**The Instagram transcode is also split out, and the obvious version of that is wrong.**
+Measured 21 Sep 2026 on the first real post: a two-slide, 5.4-second video took **45.2s of
+the 60s budget**, and the same video's transcode had taken 27.4s an hour earlier — Meta's
+queue swings ~18s on identical input, so length isn't the main variable. Over the ceiling
+the post answers **207 with Facebook posted and Instagram missing, and 207 is a 2xx, so
+Cloud Scheduler records success.** Moving the wait into the generate job **just relocates
+the timeout** (render ~24s + transcode 27-45s ≈ 69s). So generate **creates** the container
+and returns; the ten-minute gap does the waiting; the post confirms `FINISHED` and
+publishes, in ~5s.
+- **The container must be NEWER than the video.** Meta fetches `video_url` at container
+  *create* time, so it holds a snapshot — regenerate without re-preparing and the record
+  still resolves, still looks fresh, and publishes the previous render.
+- **No prepared container is a fallback, not a failure** — Instagram posts inline as
+  before, so the worst case is unchanged. A fallback every week means prepare is broken.
+- **The caption lives in `utils/socialVideo.js`** because `media_publish` takes only
+  `creation_id`: the caption is fixed when the container is created, so both halves need it.
 
 - **ffmpeg is now in the Dockerfile**, its only system package. **There is no ImageMagick
   and adding it would be a regression**: Stockport writes every frame to disk (25/sec, one

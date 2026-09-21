@@ -39,6 +39,19 @@
     Anything older than <%= maxAgeDays %> days is refused.
   </div>
 
+  <div class="alert <%= container.ok ? 'alert-success' : 'alert-warning' %>">
+    <strong>Instagram container:</strong>
+    <% if (container.ok) { %>
+      prepared <%= Math.round(container.ageMs / 60000) %> minutes ago
+      (<code><%= container.containerId %></code>), so the post is a single fast call.
+    <% } else { %>
+      <%= container.reason %> Instagram will fall back to creating one during the post,
+      which is what it did before the split &mdash; slower, and at risk of the 60-second
+      request timeout. <strong>If this says the same thing every week, the 17:50 generate
+      job's preparation step is failing silently.</strong>
+    <% } %>
+  </div>
+
   <h2 class="h4 mt-4">The video</h2>
   <p class="text-muted">
     Served by <em>this</em> server, so what plays below is what this build has stored. The

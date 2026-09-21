@@ -296,7 +296,7 @@ to all three.
   the same reason: a mention is a notification, and notifying a club about a week it is not
   playing in is how an account gets muted.
 
-## The video is two scheduler jobs, and that is forced
+## The video is two scheduler jobs, and the split runs deeper than it looks
 
 ```
 GET  /api/social/generate-weekly-video   renders the mp4 and puts it in S3
@@ -322,6 +322,52 @@ not go out.
 
 So the jobs want ordering, not precision: generate at 12:25, post at 12:30. If the first
 fails, the second answers 409 loudly instead of posting the wrong thing.
+
+### What each of the two video jobs actually does
+
+Measured on the first real post, 21 Sep 2026: publishing a **two-slide, 5.4-second** video
+took **45.2 seconds of the 60-second request budget**, and the same video's transcode had
+taken 27.4s an hour earlier. **Meta's transcode queue swings by ~18s on identical input**,
+so video length is not even the main variable. The busiest results week here is nine
+fixtures.
+
+The failure that was heading for is a quiet one: over the poll ceiling the post answers
+**207** with Facebook posted and Instagram missing — and **207 is a 2xx, so Cloud Scheduler
+records the run as a success.**
+
+So the transcode wait came out of the post. **The obvious fix — move the wait into the
+generate job — does not work, and getting that wrong just relocates the timeout:**
+rendering nine slides is ~24s and the transcode is 27-45s, so together they are ~69s
+against the same 60s ceiling.
+
+What works is finer:
+
+| | does | measured / estimated |
+|---|---|---|
+| **17:50 generate** | render, upload, **create** the Reels container and return | ~10-25s |
+| *the ten-minute gap* | Meta transcodes, on its own time | free |
+| **18:00 post** | Facebook, confirm `FINISHED`, publish the container | ~5s |
+
+Ten minutes is fifteen to twenty times any transcode measured here. Nothing is published
+unverified — the post still checks `status_code`, it is just one fast call rather than a
+poll.
+
+Three things hold it together:
+
+- **The container must be NEWER than the video.** Meta fetches `video_url` when the
+  container is created, so the container holds a *snapshot*. Regenerate the video without
+  re-preparing and the record still resolves, still looks fresh, and publishes the previous
+  render under this week's caption — the same class of silent wrongness `videoFreshness`
+  exists to prevent, one level down. `readContainerRecord` refuses it.
+- **`waitForContainer` checks before sleeping.** It slept first, which cost a whole poll
+  interval for a container that finished ten minutes ago — now the normal case.
+- **No prepared container is a fallback, not a failure.** Instagram is posted inline,
+  exactly as before the split, so the worst case is unchanged rather than made worse. The
+  preview page flags it: a fallback *every* week means the prepare step is failing silently.
+
+**The caption had to move to `utils/socialVideo.js`.** `media_publish` takes only
+`creation_id`, so the Instagram caption is fixed when the container is created. Both halves
+need it, and leaving it in either controller would have made one require the other.
 
 ### The schedule, as actually set (21 Sep 2026)
 

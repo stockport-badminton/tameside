@@ -253,8 +253,33 @@ function singleFlight() {
   };
 }
 
+const SITE = 'https://tameside-badminton.co.uk';
+const HASHTAGS = '#badmintonresults #tameside #badminton #tbl #bulutangkis';
+
+/**
+ * The captions for the weekly results post.
+ *
+ * **This lives here rather than in weeklyVideoController because the Instagram caption is
+ * fixed when the CONTAINER is created, not when it is published** — `media_publish` takes
+ * only `creation_id`. Since the container is now prepared by the generate job at 17:50
+ * and published by the post job at 18:00, both halves need the same caption, and putting
+ * it in either controller would have made one require the other.
+ *
+ * **No @-mentions on either, and that is the opposite call from the tables post.** A
+ * results video names every club that played, and mentioning all of them reads as spam
+ * rather than courtesy — where the tables post's mentions are most of its point. Facebook
+ * page mentions are not `@`-syntax at all and need the Pages API; see
+ * `docs/social-posting.md` before adding any.
+ */
+function captions(weekLabel) {
+  const week = weekLabel ? ` — ${weekLabel}` : '';
+  const line = `This week's results${week}. Full tables at ${SITE}`;
+  return { facebook: `${line}\n\n${HASHTAGS}`, instagram: `${line}\n\n${HASHTAGS}` };
+}
+
 module.exports = {
   VIDEO_SIZES, VIDEO_KEYS, S3_PREFIX,
   DEFAULT_SLIDE_SECONDS, DEFAULT_TRANSITION_SECONDS, FRAMERATE,
   letterboxGeometry, letterbox, encodeArgs, totalDuration, renderVideo, singleFlight,
+  captions,
 };

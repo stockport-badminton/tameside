@@ -321,6 +321,11 @@ async function validateImages(igUserId, token, imageUrls) {
 const VIDEO_POLL_MS = 2500;
 const VIDEO_TIMEOUT_MS = 45000;
 
+// How long the POST will wait on a container an earlier job already created. Short,
+// because ten minutes have already passed: if it is not ready by now, another 45 seconds
+// inside a request that has a Facebook post riding on it will not help.
+const PREPARED_READY_TIMEOUT_MS = 20000;
+
 /**
  * The video URL rule, which is weaker than the image one and deliberately so.
  *
@@ -348,9 +353,15 @@ function assertPublishableVideo(url) {
 async function waitForContainer(containerId, token, { pollMs = VIDEO_POLL_MS, timeoutMs = VIDEO_TIMEOUT_MS } = {}) {
   const deadline = Date.now() + timeoutMs;
   let last = 'IN_PROGRESS';
+  let first = true;
 
   while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, pollMs));
+    // **Check before sleeping.** The original slept first, which cost a full poll interval
+    // even for a container that finished transcoding ten minutes ago — and that is now the
+    // normal case, because the container is created by an earlier job. A ready container
+    // should cost one fast call.
+    if (!first) await new Promise(r => setTimeout(r, pollMs));
+    first = false;
     const r = await graph(containerId, { fields: 'status_code,status', access_token: token },
       { method: 'GET', step: 'checking a video container' });
     last = r.status_code;
@@ -365,13 +376,46 @@ async function waitForContainer(containerId, token, { pollMs = VIDEO_POLL_MS, ti
     `Nothing was published.`, { step: 'transcoding a video' });
 }
 
-/** Instagram. Video on Instagram is REELS — the old feed VIDEO type is gone. */
-async function publishInstagramReel(igUserId, token, { videoUrl, caption }) {
+/**
+ * Create a Reels container and wait for Meta to finish transcoding it, WITHOUT publishing.
+ *
+ * This is the expensive half of posting a video, and separating it is the whole point:
+ * measured 21 Sep 2026 on the first real run, a post of a 5.4-second video took **45.2s
+ * of a 60s Cloud Run request budget**, and the same video's transcode had taken 27.4s an
+ * hour earlier. Meta's queue swings by ~18s on identical input, so the length of the video
+ * is not even the main variable.
+ *
+ * A container stays publishable for **24 hours**, so the wait can be paid in an earlier
+ * scheduled job and the actual post reduced to one fast call. Same trick as splitting
+ * generate from post.
+ *
+ * **The caption is fixed here, not at publish time.** `media_publish` takes only
+ * `creation_id` — there is nowhere to put a caption later. That is why `captions()` had to
+ * move somewhere both halves can reach.
+ */
+async function prepareInstagramReel(igUserId, token, { videoUrl, caption, wait = true } = {}) {
   assertPublishableVideo(videoUrl);
   const containerId = await createContainer(igUserId, token, {
     media_type: 'REELS', video_url: videoUrl, caption: caption || '',
   });
-  await waitForContainer(containerId, token);
+  // **`wait: false` is what the generate job uses, and it is not an optimisation — it is
+  // the difference between fitting in the request budget and not.** Rendering nine slides
+  // is ~24s and the transcode is 27-45s; waiting for both in one request is ~69s against a
+  // 60s ceiling. Creating the container is one fast call, and the ten minutes before the
+  // post job runs is fifteen to twenty times longer than any transcode measured here. The
+  // post checks the status before publishing, so nothing is published unverified.
+  if (wait) await waitForContainer(containerId, token);
+  return { containerId };
+}
+
+/**
+ * Instagram, in one call. Video on Instagram is REELS — the old feed VIDEO type is gone.
+ *
+ * Kept as the fallback path for when no container was prepared, so a failure in the
+ * preparation step costs Instagram a slow post rather than no post at all.
+ */
+async function publishInstagramReel(igUserId, token, { videoUrl, caption }) {
+  const { containerId } = await prepareInstagramReel(igUserId, token, { videoUrl, caption });
   return { mediaId: await publishContainer(igUserId, token, containerId), containerId };
 }
 
@@ -408,8 +452,19 @@ async function validateVideo(igUserId, token, videoUrl) {
   }
 }
 
-/** Same contract as publishEverywhere — per-target outcomes, never a bare throw. */
-async function publishVideoEverywhere(targetList, { videoUrl, message, caption }) {
+/**
+ * Same contract as publishEverywhere — per-target outcomes, never a bare throw.
+ *
+ * `preparedContainerId`, when given, is a Reels container that an earlier job already had
+ * Meta fetch and transcode, so Instagram costs one fast call instead of a poll. Without
+ * one it falls back to doing the whole thing inline, which is what it did before and is
+ * strictly better than skipping Instagram.
+ *
+ * **Facebook is first in `configuredTargets()` and that ordering is load-bearing.** It is
+ * a single unpolled call, so even in the fallback case a slow transcode degrades to a 207
+ * with Facebook posted rather than losing everything to the request timeout.
+ */
+async function publishVideoEverywhere(targetList, { videoUrl, message, caption, preparedContainerId } = {}) {
   const posted = [];
   const failed = [];
 
@@ -419,8 +474,22 @@ async function publishVideoEverywhere(targetList, { videoUrl, message, caption }
         const r = await publishPageVideo(t.id, t.token, { videoUrl, description: message });
         posted.push({ target: t.name, kind: t.kind, id: r.postId });
       } else if (t.kind === 'instagram') {
-        const r = await publishInstagramReel(t.id, t.token, { videoUrl, caption: caption ?? message });
-        posted.push({ target: t.name, kind: t.kind, id: r.mediaId });
+        let mediaId;
+        if (preparedContainerId) {
+          // Confirm FINISHED before publishing. Normally one fast call, because the
+          // container was created minutes ago — but publishing a container that is still
+          // transcoding fails with a not-ready error, and this turns that into a short
+          // wait instead. The budget is small on purpose: if it is not ready after ten
+          // minutes, waiting another 45s in the request will not save it.
+          await waitForContainer(preparedContainerId, t.token, { timeoutMs: PREPARED_READY_TIMEOUT_MS });
+          mediaId = await publishContainer(t.id, t.token, preparedContainerId);
+        } else {
+          mediaId = (await publishInstagramReel(t.id, t.token, { videoUrl, caption: caption ?? message })).mediaId;
+        }
+        posted.push({
+          target: t.name, kind: t.kind, id: mediaId,
+          prepared: Boolean(preparedContainerId),
+        });
       } else {
         failed.push({ target: t.name, error: new MetaError(`Unknown target kind ${t.kind}`, { step: 'validate' }) });
       }
@@ -528,11 +597,11 @@ module.exports = {
   assertPublishableImage, assertPublishableVideo, ratioOk,
   uploadPagePhoto, publishPageAlbum,
   publishInstagramPhoto, publishInstagramCarousel,
-  publishInstagramReel, publishPageVideo, waitForContainer,
+  publishInstagramReel, prepareInstagramReel, publishPageVideo, waitForContainer,
   createContainer, publishContainer,
   validateImages, validateVideo, publishingQuota,
   publishEverywhere, publishVideoEverywhere,
   targets, configuredTargets,
   IG_MAX_CAROUSEL, IG_MIN_RATIO, IG_MAX_RATIO,
-  VIDEO_POLL_MS, VIDEO_TIMEOUT_MS,
+  VIDEO_POLL_MS, VIDEO_TIMEOUT_MS, PREPARED_READY_TIMEOUT_MS,
 };

@@ -20,9 +20,24 @@
 //
 // **What makes that safe is `videoFreshness`, not the wall clock.** Two coupled jobs are
 // fragile on their own; a post that refuses anything older than two days is not.
+//
+// ── The generate job also prepares the Instagram container ───────────────────
+//
+// Measured on the first real run, 21 Sep 2026: this post took **45.2s of the 60s budget**
+// for the smallest video the system can make — two slides, 5.4 seconds — and the same
+// video's transcode had taken 27.4s an hour earlier. Meta's queue swings by ~18s on
+// identical input, and the busiest results week here is nine fixtures.
+//
+// So the transcode wait moved into the 17:50 job, where nothing is racing a deadline, and
+// this handler publishes a container that is already `FINISHED`. **The failure it avoids
+// is a quiet one**: over the poll ceiling this answers 207 with Facebook posted and
+// Instagram missing, and 207 is a 2xx, so Cloud Scheduler records the run as a success.
+//
+// Falling back to the inline path when no container is available is deliberate — it is
+// what this did before, so the worst case is unchanged rather than made worse.
 
 const video = require('../utils/socialVideo');
-const { storedVideoAge } = require('./socialVideoController');
+const { storedVideoAge, readContainerRecord } = require('./socialVideoController');
 const meta = require('../utils/metaPublisher');
 const { absoluteUrl, canonicalFor } = require('../utils/siteUrl');
 const { socialVideoPath } = require('../utils/socialPaths');
@@ -43,30 +58,17 @@ const MAX_VIDEO_AGE_MS = 2 * 24 * 60 * 60 * 1000;
 // The aspect posted. An enum key, never a path fragment.
 const POST_ASPECT = Object.keys(video.VIDEO_SIZES)[0];
 
-const SITE = 'https://tameside-badminton.co.uk';
-const HASHTAGS = '#badmintonresults #tameside #badminton #tbl #bulutangkis';
-
 function videoUrl() {
   return absoluteUrl(socialVideoPath(POST_ASPECT));
 }
 
-/**
- * Captions.
- *
- * **No @-mentions on either, and that is the opposite call from the tables post.** A
- * results video names every club that played, and mentioning all of them reads as spam
- * rather than courtesy — where the tables post's mentions are most of its point. Facebook
- * page mentions are not `@`-syntax at all and need the Pages API; see
- * `docs/social-posting.md` before adding any.
- */
-function captions(weekLabel) {
-  const week = weekLabel ? ` — ${weekLabel}` : '';
-  const line = `This week's results${week}. Full tables at ${SITE}`;
-  return {
-    facebook: `${line}\n\n${HASHTAGS}`,
-    instagram: `${line}\n\n${HASHTAGS}`,
-  };
-}
+// Captions live in `utils/socialVideo.js` now, not here.
+//
+// **The Instagram caption is fixed when the CONTAINER is created, not when it is
+// published** — `media_publish` takes only `creation_id`. The container is prepared by
+// the 17:50 generate job and published by this one at 18:00, so both halves need the same
+// caption, and keeping it in either controller would have made one require the other.
+const captions = video.captions;
 
 /**
  * Is the stored video recent enough to be this week's?
@@ -139,9 +141,27 @@ exports.run = async function (req, res, next) {
       return res.json({ ok: check.ok, dry: true, video: url, aspect: POST_ASPECT, refused: check.refused });
     }
 
+    // The container the generate job prepared, if it is still usable.
+    //
+    // `videoLastModified` is derived from the freshness check above rather than fetched
+    // again — one HeadObject answers both questions. It is what catches a video
+    // regenerated after its container was prepared, where the container would still
+    // resolve, still look fresh, and publish the previous render.
+    const record = await readContainerRecord(POST_ASPECT, {
+      videoLastModified: Date.now() - freshness.ageMs,
+    });
+    if (!record.ok) {
+      // Not an error. Instagram falls back to doing the whole thing inline, which is what
+      // it did before the split — slower, and at risk of the request timeout, but a slow
+      // post beats no post. Logged because a fallback every week means the generate job's
+      // preparation step is quietly failing.
+      console.log('[weekly video] no prepared container, posting Instagram inline:', record.reason);
+    }
+
     const text = captions(req.query.week || (req.body && req.body.week));
     const out = await meta.publishVideoEverywhere(configured, {
       videoUrl: url, message: text.facebook, caption: text.instagram,
+      preparedContainerId: record.ok ? record.containerId : null,
     });
 
     for (const f of out.failed) console.error(`weekly video -> ${f.target} failed:`, f.error.message);
@@ -154,6 +174,8 @@ exports.run = async function (req, res, next) {
       video: url,
       aspect: POST_ASPECT,
       videoAgeSeconds: Math.round(freshness.ageMs / 1000),
+      preparedContainer: record.ok ? record.containerId : null,
+      containerFallbackReason: record.ok ? undefined : record.reason,
       posted: out.posted,
       failed: out.failed.map(f => ({ target: f.target, error: f.error.message })),
       caller: req.socialCaller,
@@ -168,6 +190,9 @@ exports.preview = async function (req, res, next) {
   if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
   try {
     const freshness = await videoFreshness();
+    const record = freshness.ok
+      ? await readContainerRecord(POST_ASPECT, { videoLastModified: Date.now() - freshness.ageMs })
+      : { ok: false, reason: 'No usable video, so no container was checked.' };
     const results = await Fixture.getWeekResults();
     const t = meta.targets();
     res.render('admin/weekly-video-preview', {
@@ -184,6 +209,7 @@ exports.preview = async function (req, res, next) {
       videoUrl: videoUrl(),
       aspect: POST_ASPECT,
       freshness,
+      container: record,
       maxAgeDays: Math.round(MAX_VIDEO_AGE_MS / 86400000),
       results,
       captions: captions(),

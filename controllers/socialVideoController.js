@@ -28,6 +28,7 @@
 
 const { GetObjectCommand, HeadObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
 const s3util = require('../utils/s3');
+const meta = require('../utils/metaPublisher');
 const video = require('../utils/socialVideo');
 const Fixture = require('../models/fixture');
 const { absoluteUrl } = require('../utils/siteUrl');
@@ -56,6 +57,81 @@ const VIDEO_MISS_CACHE = 'no-store';
 // answered "generation in progress by another instance" for 115 days after one
 // interrupted run.
 const runExclusively = video.singleFlight();
+
+// ── The prepared Instagram container ─────────────────────────────────────────
+//
+// **Why the container is created here and published an hour later.**
+//
+// Measured 21 Sep 2026 on the first real run: posting a 5.4-second, two-slide video took
+// **45.2 seconds of a 60-second Cloud Run request budget**, and the same video's transcode
+// had taken 27.4s an hour earlier — Meta's queue swings by ~18s on identical input. The
+// busiest results week in this database is nine fixtures, several times longer. That is
+// not a margin, and the failure it was heading for is a quiet one: over 45s the post
+// answers **207** with Facebook posted and Instagram missing, and a 207 is a 2xx, so
+// Cloud Scheduler records the run as a success.
+//
+// A Reels container stays publishable for 24 hours, so the wait is paid by the generate
+// job and the post is reduced to one fast call. Exactly the same split, for the same
+// reason, as generate-vs-post itself.
+const CONTAINER_KEYS = Object.fromEntries(
+  Object.keys(VIDEO_KEYS).map(a => [a, VIDEO_KEYS[a].replace(/\.mp4$/, '.container.json')]));
+
+// Containers expire at 24 hours. Twelve is the refusal point, so a post can never publish
+// something within sight of expiry and get an error that reads like a code fault.
+const CONTAINER_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+async function writeContainerRecord(aspect, record) {
+  await s3util.s3Client().send(new PutObjectCommand({
+    Bucket: process.env.S3_BUCKET_NAME,
+    Key: CONTAINER_KEYS[aspect],
+    Body: Buffer.from(JSON.stringify(record)),
+    ContentType: 'application/json',
+  }));
+}
+
+/**
+ * The stored container, or a reason it cannot be used.
+ *
+ * **The container must be at least as new as the video**, which is the check that matters
+ * and is not obvious. Meta fetches `video_url` when the container is created, so the
+ * container holds a *snapshot* of whatever the URL served at that moment. Regenerate the
+ * video without re-preparing and the record still resolves, still looks fresh, and
+ * publishes last render's content under this week's caption — the same class of silent
+ * wrongness `videoFreshness` exists to prevent, one level down.
+ */
+async function readContainerRecord(aspect, { videoLastModified = null, now = Date.now() } = {}) {
+  let body;
+  try {
+    const obj = await s3util.s3Client().send(new GetObjectCommand({
+      Bucket: process.env.S3_BUCKET_NAME, Key: CONTAINER_KEYS[aspect],
+    }));
+    body = JSON.parse(await obj.Body.transformToString());
+  } catch (err) {
+    return { ok: false, reason: 'No Instagram container has been prepared.' };
+  }
+
+  const createdAt = Date.parse(body && body.createdAt);
+  if (!body || !body.containerId || Number.isNaN(createdAt)) {
+    return { ok: false, reason: 'The stored container record is unreadable.' };
+  }
+
+  const ageMs = now - createdAt;
+  if (ageMs > CONTAINER_MAX_AGE_MS) {
+    return { ok: false, ageMs, reason: `The prepared container is ${Math.round(ageMs / 3600000)}h old and close to expiring.` };
+  }
+  if (videoLastModified && createdAt < videoLastModified) {
+    return {
+      ok: false, ageMs,
+      reason: 'The video was regenerated after the container was prepared, so the ' +
+              'container holds the previous render.',
+    };
+  }
+  return { ok: true, ageMs, containerId: body.containerId, caption: body.caption };
+}
+
+exports.readContainerRecord = readContainerRecord;
+exports.CONTAINER_KEYS = CONTAINER_KEYS;
+exports.CONTAINER_MAX_AGE_MS = CONTAINER_MAX_AGE_MS;
 
 /** The card each result becomes. One slide per fixture, in the order they were played. */
 function slidesFor(results) {
@@ -146,6 +222,35 @@ exports.generate = async function (req, res, next) {
 
     console.log(`[social-video] ${out.slides} slides, ${out.seconds}s, ${out.buffer.length} bytes, took ${took}ms`);
 
+    // Pay Meta's transcode here rather than in the post. See the note above CONTAINER_KEYS.
+    //
+    // **A failure here does not fail the generate.** The video is uploaded and Facebook can
+    // still post it; the post handler falls back to preparing a container inline, which is
+    // simply what it used to do. Failing the whole run would turn a slow Instagram post
+    // into no post at all.
+    const ig = meta.targets().instagram;
+    let container = null;
+    if (ig) {
+      const prepStarted = Date.now();
+      try {
+        const caption = video.captions().instagram;
+        // `wait: false` — see prepareInstagramReel. Waiting for the transcode here would
+        // put render (~24s for a busy week) and transcode (27-45s) in one request, which
+        // is ~69s against a 60s ceiling. The post job checks the status before publishing.
+        const { containerId } = await meta.prepareInstagramReel(ig.id, ig.token, {
+          videoUrl: url, caption, wait: false,
+        });
+        await writeContainerRecord(aspect, {
+          containerId, caption, aspect, createdAt: new Date().toISOString(),
+        });
+        container = { containerId, tookMs: Date.now() - prepStarted };
+        console.log(`[social-video] instagram container ${containerId} ready in ${container.tookMs}ms`);
+      } catch (err) {
+        container = { error: err.message };
+        console.error('[social-video] could not prepare the Instagram container:', err.message);
+      }
+    }
+
     res.json({
       ok: true, aspect, video: url,
       results: results.length,
@@ -153,6 +258,7 @@ exports.generate = async function (req, res, next) {
       seconds: out.seconds,
       bytes: out.buffer.length,
       tookMs: took,
+      container,
       caller: req.socialCaller,
     });
   } catch (err) {

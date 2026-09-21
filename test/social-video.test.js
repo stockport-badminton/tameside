@@ -284,6 +284,186 @@ describe('the staleness guard on the post', () => {
   });
 });
 
+describe('the prepared Instagram container', () => {
+  const svcPath = require.resolve('../controllers/socialVideoController');
+
+  function loadSvc() {
+    delete require.cache[svcPath];
+    return require('../controllers/socialVideoController');
+  }
+
+  // A record is only usable if it is newer than the video it was made from.
+  //
+  // **This is the check that matters and it is not obvious.** Meta fetches `video_url`
+  // when the container is created, so the container holds a SNAPSHOT of whatever the URL
+  // served at that moment. Regenerate the video without re-preparing and the record still
+  // resolves, still looks fresh, and publishes the previous render under this week's
+  // caption. Same class of silent wrongness as posting last week's video, one level down.
+  it('refuses a container older than the video it claims to represent', async () => {
+    const svc = loadSvc();
+    const s3util = require('../utils/s3');
+    const containerMade = Date.parse('2026-09-21T17:50:00Z');
+    const videoMade = containerMade + 60_000;   // regenerated a minute later
+
+    const orig = s3util.s3Client;
+    s3util.s3Client = () => ({
+      send: async () => ({
+        Body: { transformToString: async () => JSON.stringify({ containerId: 'c1', createdAt: new Date(containerMade).toISOString() }) },
+      }),
+    });
+    try {
+      const stale = await svc.readContainerRecord('4-5', { videoLastModified: videoMade, now: videoMade + 1000 });
+      assert.strictEqual(stale.ok, false);
+      assert.match(stale.reason, /regenerated after the container/);
+
+      const fine = await svc.readContainerRecord('4-5', { videoLastModified: containerMade - 1000, now: containerMade + 1000 });
+      assert.strictEqual(fine.ok, true);
+      assert.strictEqual(fine.containerId, 'c1');
+    } finally { s3util.s3Client = orig; }
+  });
+
+  // Containers expire at 24h; refusing at 12 keeps the post away from an expiry error that
+  // would read like a code fault.
+  it('refuses a container close to expiry', async () => {
+    const svc = loadSvc();
+    const s3util = require('../utils/s3');
+    const made = Date.parse('2026-09-21T06:00:00Z');
+    const orig = s3util.s3Client;
+    s3util.s3Client = () => ({
+      send: async () => ({
+        Body: { transformToString: async () => JSON.stringify({ containerId: 'c1', createdAt: new Date(made).toISOString() }) },
+      }),
+    });
+    try {
+      const r = await svc.readContainerRecord('4-5', { now: made + 13 * 3600 * 1000 });
+      assert.strictEqual(r.ok, false);
+      assert.match(r.reason, /close to expiring/);
+      assert.ok(svc.CONTAINER_MAX_AGE_MS < 24 * 3600 * 1000);
+    } finally { s3util.s3Client = orig; }
+  });
+
+  // A missing record is not an error — Instagram falls back to the inline path, which is
+  // what it did before the split.
+  it('treats a missing record as a fallback, not a failure', async () => {
+    const svc = loadSvc();
+    const s3util = require('../utils/s3');
+    const orig = s3util.s3Client;
+    s3util.s3Client = () => ({ send: async () => { throw new Error('NoSuchKey'); } });
+    try {
+      const r = await svc.readContainerRecord('4-5', {});
+      assert.strictEqual(r.ok, false);
+      assert.match(r.reason, /No Instagram container has been prepared/);
+    } finally { s3util.s3Client = orig; }
+  });
+
+  // The record lives beside the video and carries the same ownership prefix — that prefix
+  // IS the ownership test in utils/scorecardPhoto.js, in a bucket holding another league's
+  // scorecards.
+  it('stores the record beside the video, under the tameside- prefix', () => {
+    const svc = loadSvc();
+    for (const [aspect, key] of Object.entries(svc.CONTAINER_KEYS)) {
+      assert.ok(key.startsWith('tameside-'), key);
+      assert.strictEqual(key, video.VIDEO_KEYS[aspect].replace(/\.mp4$/, '.container.json'));
+    }
+  });
+});
+
+describe('the generate job does not wait for the transcode', () => {
+  // **This is the arithmetic that forced the design, and getting it wrong just moves the
+  // timeout.** Rendering nine slides is ~24s and Meta's transcode was measured at 27-45s;
+  // doing both in one request is ~69s against a 60s Cloud Run ceiling. So generate creates
+  // the container and returns, and the ten minutes before the post job runs — fifteen to
+  // twenty times any transcode measured here — is what does the waiting.
+  it('creates the container and returns without polling', async () => {
+    const seen = [];
+    const origin = await stubGraph((url) => {
+      seen.push(url.split('?')[0]);
+      if (url.includes('/media')) return { id: 'container-1' };
+      return { status_code: 'FINISHED' };
+    });
+    try {
+      const t0 = Date.now();
+      const { containerId } = await meta.prepareInstagramReel('i', 't', {
+        videoUrl: 'https://tameside-badminton.co.uk/social-video/4-5', caption: 'c', wait: false,
+      });
+      assert.strictEqual(containerId, 'container-1');
+      assert.strictEqual(seen.length, 1, `it polled: ${seen}`);
+      assert.ok(Date.now() - t0 < 1000, 'it waited');
+    } finally { await origin.close(); }
+  });
+
+  // A container that finished transcoding ten minutes ago must not cost a poll interval.
+  // The original slept before its first check, which is now the wrong way round.
+  it('checks status before sleeping, so a ready container is fast', async () => {
+    const origin = await stubGraph(() => ({ status_code: 'FINISHED' }));
+    try {
+      const t0 = Date.now();
+      await meta.waitForContainer('c1', 't', { pollMs: 5000, timeoutMs: 20000 });
+      assert.ok(Date.now() - t0 < 1000, `a ready container took ${Date.now() - t0}ms`);
+    } finally { await origin.close(); }
+  });
+
+  // The post's wait is deliberately short — ten minutes have already passed, and it has a
+  // Facebook post riding in the same request.
+  it('gives the post only a short wait on an already-created container', () => {
+    assert.ok(meta.PREPARED_READY_TIMEOUT_MS <= 20000);
+    assert.ok(meta.PREPARED_READY_TIMEOUT_MS < meta.VIDEO_TIMEOUT_MS);
+  });
+});
+
+describe('publishing a prepared container', () => {
+  // The whole point of the split: with a container ready, Instagram is ONE call and no
+  // poll. Measured before it: 45.2s of a 60s budget for the smallest possible video.
+  it('publishes it directly, without creating a new one', async () => {
+    const seen = [];
+    const origin = await stubGraph((url) => {
+      seen.push(url.split('?')[0]);
+      if (url.includes('/videos')) return { id: 'fb-1' };
+      if (url.includes('/media_publish')) return { id: 'ig-1' };
+      if (url.includes('/media')) return { id: 'should-not-happen' };
+      return { status_code: 'FINISHED' };
+    });
+    try {
+      const out = await meta.publishVideoEverywhere([
+        { id: 'p', token: 't', name: 'Tameside page', kind: 'page' },
+        { id: 'i', token: 't', name: 'Instagram', kind: 'instagram' },
+      ], {
+        videoUrl: 'https://tameside-badminton.co.uk/social-video/4-5',
+        message: 'm', caption: 'c', preparedContainerId: 'prepared-1',
+      });
+
+      assert.strictEqual(out.ok, true);
+      assert.deepStrictEqual(out.posted.map(p => p.target), ['Tameside page', 'Instagram']);
+      assert.strictEqual(out.posted.find(p => p.kind === 'instagram').prepared, true);
+      // No NEW container was created. The status IS checked once — publishing a container
+      // that is still transcoding fails, and the generate job no longer waits for it.
+      assert.ok(!seen.some(u => /\/media$/.test(u)), `a container was created: ${seen}`);
+    } finally { await origin.close(); }
+  });
+
+  // Without one it does the whole thing inline — slower, but a slow post beats no post,
+  // and it is exactly what the handler did before the split.
+  it('falls back to creating one inline when none was prepared', async () => {
+    const seen = [];
+    const origin = await stubGraph((url) => {
+      seen.push(url.split('?')[0]);
+      if (url.includes('/videos')) return { id: 'fb-1' };
+      if (url.includes('/media_publish')) return { id: 'ig-1' };
+      if (url.includes('/media')) return { id: 'container-1' };
+      return { status_code: 'FINISHED' };
+    });
+    try {
+      const out = await meta.publishVideoEverywhere([
+        { id: 'i', token: 't', name: 'Instagram', kind: 'instagram' },
+      ], { videoUrl: 'https://tameside-badminton.co.uk/social-video/4-5', caption: 'c' });
+
+      assert.strictEqual(out.ok, true);
+      assert.strictEqual(out.posted[0].prepared, false);
+      assert.ok(seen.some(u => /\/media$/.test(u)), 'it should have created a container');
+    } finally { await origin.close(); }
+  });
+});
+
 /**
  * A stand-in Graph API, so the partial-failure and polling behaviour can be exercised
  * without publishing anything. `META_GRAPH_ORIGIN` exists for exactly this.
