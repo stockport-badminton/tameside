@@ -1,0 +1,47 @@
+-- Drop club."matchNightText". It has no reader, and what it says is wrong.
+--
+-- ── What it was ─────────────────────────────────────────────────────────────
+--
+-- A free-text summary of when a club's teams play, written by hand, one string per club.
+-- The real data is per TEAM — `team.matchDay`, alongside each team's own `team.venue` —
+-- and the clubs page card has always been built from that. `matchNightText` was selected
+-- by two queries in models/club.js and copied onto the card model by club_controller,
+-- and `views/club.ejs` never printed it.
+--
+-- Its only actual reader was the venue map's popup, which is what made the problem
+-- visible: G.H.A.P's read "A: Tuesday, B: Monday 7.30pm 2 courts" and was shown in full
+-- on BOTH of that club's pins, so each one advertised what happens at the other. The map
+-- now reads team.matchDay like the card does.
+--
+-- ── Why dropping it loses nothing ───────────────────────────────────────────
+--
+-- Checked against production, 22 Sep 2026, every club. The per-team data is strictly
+-- richer in all thirteen cases, and the summary had drifted:
+--
+--   Disley              summary "A team: Tuesday 1 court 7pm"  -> team says "Wed 7pm one
+--                       court." The column was simply WRONG, and had been for long enough
+--                       that nobody noticed, because nothing displayed it.
+--   Alderley Park       "Tues or Wednesday 8pm 2 courts"       -> team says "Wednesday 8pm"
+--   Manchester Edgeley  "Monday or Wednesday 8pm 2 courts"     -> A is Wed, B is Mon
+--
+-- The rest are a shorter paraphrase of what the teams already record ("Thursday 7.15pm"
+-- against "Thu, 7.15pm prompt, finish at 9.45pm. 2 courts").
+--
+-- ── What this does NOT touch ────────────────────────────────────────────────
+--
+-- * `club.matchVenue` stays. It is equally not the answer to "where does this club play"
+--   — it can only name one venue, and G.H.A.P plays at two — but removing it was not
+--   asked for and it is still selected by models/club.js.
+-- * `team."matchNight"` stays, and is a DIFFERENT column on a different table: an enum
+--   read by models/fixtureGenModel.js for the fixture generator. Do not confuse the two
+--   because of the name.
+-- * The season snapshots `club20232024`, `club20242025` and `club20252026` keep their own
+--   copies. They are immutable records of past seasons and nothing here reads them.
+--
+-- Idempotent, so it is safe to re-run.
+--
+-- ⚠️ This DROPS a column and the text in it is not recoverable afterwards. If you want
+-- the old summaries kept, take them first:
+--     SELECT id, name, "matchNightText" FROM club WHERE "matchNightText" IS NOT NULL;
+
+ALTER TABLE club DROP COLUMN IF EXISTS "matchNightText";

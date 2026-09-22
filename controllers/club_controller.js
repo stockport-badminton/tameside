@@ -51,7 +51,6 @@ exports.club_list_detail = function(req, res, next) {
                 newClubElem.venue = row.clubvenue
                 newClubElem.gMapUrl = row.clubgmap
                 newClubElem.address = row.clubaddress
-                newClubElem.matchNightText = row.matchNightText
                 newClubElem.clubNightText = row.clubNightText
                 newClubElem.clubWebsite = row.clubWebsite
                 newClubElem.teams = []

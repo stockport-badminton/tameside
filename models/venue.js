@@ -18,13 +18,16 @@ exports.getAll = async function(done){
  *
  * ── The red herring, which cost two attempts at this ─────────────────────────
  *
- * `club.matchNightText` and `club.matchVenue` look like the answer to "where and when does
- * this club play". **They are not, and nothing else on the page reads them.**
- * `matchNightText` is a hand-written summary — G.H.A.P's says *"A: Tuesday, B: Monday
- * 7.30pm 2 courts"* — that lumps every team into one string, and `matchVenue` can only
- * name one place. `club_controller` copies `matchNightText` onto the card model and
- * `views/club.ejs` never prints it; the card's "Match Details" panel is built from
+ * `club.matchNightText` looked like the answer to "where and when does this club play".
+ * It was not. It was a hand-written summary — G.H.A.P's read *"A: Tuesday, B: Monday
+ * 7.30pm 2 courts"* — that lumped every team into one string, and `club.matchVenue` can
+ * only name one place. `club_controller` copied it onto the card model and
+ * `views/club.ejs` never printed it; the card's "Match Details" panel is built from
  * `team.matchDay` and each team's OWN venue.
+ *
+ * **`matchNightText` has since been dropped** (`migrations/drop-club-match-night-text.sql`)
+ * because this map was its only reader and it had drifted: Disley's said Tuesday while its
+ * team plays Wednesday. `club.matchVenue` is still there and is still not the answer.
  *
  * **The truth is per team.** G.H.A.P proves it: GHAP **A** plays at Old Trafford Sports
  * Barn on a Tuesday, GHAP **B** at Manchester Communication Academy on a Monday, and the

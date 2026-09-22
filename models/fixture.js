@@ -595,7 +595,10 @@ FROM (SELECT "fixturePlayers".*, club.name
     // by hand here and, separately, in views/fixtures-results.ejs, which is exactly why it
     // is a function now.
     const imgGen = absoluteUrl(resultImagePath(zapObject));
-    const message = `Result: ${zapObject.homeTeam} vs ${zapObject.awayTeam} : ${zapObject.homeScore}-${zapObject.awayScore} #tameside #badminton #tdbl #result #bulutangkis #badminton🏸 #badmintonclub https://tameside-badminton.co.uk`;
+    // `#tbl`, not `#tdbl`. Two spellings were live: the result CARD draws `#tbl`
+    // (controllers/social_controller.js) and this message posted `#tdbl`, so the same
+    // result went out hashtagged two different ways. `#tbl` is the one the league uses.
+    const message = `Result: ${zapObject.homeTeam} vs ${zapObject.awayTeam} : ${zapObject.homeScore}-${zapObject.awayScore} #tameside #badminton #tbl #result #bulutangkis #badminton🏸 #badmintonclub https://tameside-badminton.co.uk`;
 
     try {
       // ── Direct, or through Make.com ──────────────────────────────────────────

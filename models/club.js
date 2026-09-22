@@ -49,7 +49,6 @@ exports.clubDetail = async function(done){
   venue."name" as clubvenue,
   venue."gMapUrl" as clubgmap,
   venue."address" as clubaddress,
-  club."matchNightText",
   club."clubNightText",
   club."clubWebsite",
   club."matchVenue",
@@ -130,7 +129,6 @@ exports.getContactDetailsById = async function(clubId,done){
     "matchVenue"."id" AS "matchVenueId",
     "matchVenue"."name" AS "matchVenueName",
     "matchVenue"."address" AS "matchVenueAddress",
-    club."matchNightText" AS "matchNight",
     CASE WHEN "matchSec"."id" IS NOT NULL
         THEN CONCAT("matchSec"."first_name", ' ', "matchSec"."family_name") END AS "matchSecretary",
     pgp_sym_decrypt("matchSec"."playerTel", ${ key }) AS "matchSecTel",

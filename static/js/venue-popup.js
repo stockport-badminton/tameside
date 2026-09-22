@@ -7,14 +7,17 @@
 //   matchTeams  one entry per TEAM that plays there, from `team.venue` + `team.matchDay`
 //   clubNights  one entry per CLUB that trains there, from `club.venue` + `clubNightText`
 //
-// **`club.matchNightText` and `club.matchVenue` look like the answer and are not.** They
-// are a hand-written summary and a single venue id, so they cannot describe a club whose
-// teams play in different places on different nights. G.H.A.P is exactly that: GHAP **A**
-// at Old Trafford Sports Barn on a Tuesday, GHAP **B** at Manchester Communication Academy
-// on a Monday, and a `matchNightText` reading *"A: Tuesday, B: Monday 7.30pm 2 courts"*
-// that gets shown in full wherever it appears. That string on both pins is what a visitor
-// reported as confusing, and `views/club.ejs` never prints it on the card at all — the
-// card's "Match Details" panel has always been built from `team.matchDay`.
+// **`club.matchNightText` and `club.matchVenue` looked like the answer and were not.** A
+// hand-written summary and a single venue id cannot describe a club whose teams play in
+// different places on different nights — and G.H.A.P does exactly that: GHAP **A** at Old
+// Trafford Sports Barn on a Tuesday, GHAP **B** at Manchester Communication Academy on a
+// Monday. Its `matchNightText` read *"A: Tuesday, B: Monday 7.30pm 2 courts"*, which was
+// shown in full on both pins, and that is what a visitor reported as confusing.
+// `views/club.ejs` never printed it on the card at all — the card's "Match Details" panel
+// has always been built from `team.matchDay`.
+//
+// `matchNightText` has since been dropped from the database: this map was its only reader,
+// and it had drifted out of date (Disley's said Tuesday while its team plays Wednesday).
 //
 // The first attempt at this fix kept using the club columns and merely split them by role,
 // which moved the wrong information around instead of dropping it. It also hid a true fact:
