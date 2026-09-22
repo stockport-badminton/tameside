@@ -53,6 +53,35 @@ The `Dockerfile` is deliberately single-stage: nothing is compiled at image-buil
 deps to strip and a builder stage would only add slow `COPY --from` passes. It also has
 no font/fontconfig packages — see Social Image Generation below.
 
+## Subagents
+
+**Use the globally-defined subagents by default for routine work**, rather than doing it by
+hand in the main thread:
+
+| Agent | For |
+|---|---|
+| `Explore` | read-only codebase search — finding files, symbols, call sites |
+| `log-trawler` | logs, Sentry triage, Cloud Run queries |
+| `test-runner` | running suites |
+| `code-cartographer` | tracing an unfamiliar subsystem end to end |
+
+This is written here on purpose. It was agreed 2026-09-15 and recorded only in the
+assistant's memory, which is delivered as background context rather than as an
+instruction — and the default is *not* to use the Agent tool unless the user, a CLAUDE.md
+file, or a skill asks for it. So for months it had no effect and every search was done by
+hand. A preference about how to work belongs in the repo.
+
+Two caveats, both learned here:
+
+- **Never run `test-runner` while another test run is in flight.** `npm test` contends on
+  the real DB and two concurrent runs produce spurious failures in the integration tests —
+  see *Connection pooling and its two ceilings*. Serial runs are green.
+- **`test-runner` reports only failures and summarises hard, which hides the pass/fail
+  counts** — exactly what you need when a failure might be intermittent. This suite
+  genuinely does flake ~2 tests under connection pressure, so when a result surprises you,
+  run the suite directly and keep the whole output. (Piping it through `tail` discards the
+  failure detail; that cost a re-run on 2026-09-22.)
+
 ## Architecture
 
 **Entry points**: `server.js` → `app.js` (Express setup, all route registration, middleware).
