@@ -24,7 +24,6 @@
     "express-validator": "^7.1.0",
     "fastest-levenshtein": "^1.0.16",
     "ical.js": "^2.0.1",
-    "jimp": "^0.22.12",
     "js-levenshtein": "^1.1.6",
     "jsonpath": "^1.1.1",
     "jszip": "^3.10.1",

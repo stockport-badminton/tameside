@@ -28,9 +28,31 @@ ENV NODE_ENV=production
 #
 # `--no-install-recommends` matters: without it apt pulls in x11, alsa and a documentation
 # tree that nothing on a headless server will ever open.
+#
+# **fontconfig is named explicitly even though ffmpeg already pulls it in.** That is the
+# whole point: the fonts below are resolved through it, and an inherited dependency would
+# disappear the day ffmpeg is removed or Debian re-packages — taking the social images with
+# it, silently. A MISSING FONT DOES NOT RENDER BLANK. It falls back to a default face and
+# renders perfectly legible text in the wrong typeface, with no error anywhere. Measured
+# 22 Sep 2026.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg fontconfig \
     && rm -rf /var/lib/apt/lists/*
+
+# Poppins and Inter, the site's own typefaces — views/header.ejs loads both from Google
+# Fonts and modern-styles.css uses Poppins for headings. Vendored in the repo under the
+# SIL OFL, which permits redistribution; the licence files travel with them, as the OFL
+# requires.
+#
+# Its own layer, above `COPY . .`, so a source-only deploy does not re-run fc-cache.
+#
+# `fc-cache -f` is not optional: without the cache fontconfig will not find fonts dropped
+# into the tree at build time, and you get the silent fallback described above.
+COPY fonts/vendor/ /usr/share/fonts/truetype/tameside/
+RUN fc-cache -f \
+    && fc-list : family | grep -qx Poppins \
+    && fc-list : family | grep -qx Inter \
+    && echo "fonts OK: Poppins and Inter resolvable"
 
 WORKDIR /usr/src/app
 

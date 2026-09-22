@@ -723,80 +723,77 @@ URL shapes; `test/integration/scorecard-photo.test.js` pins the route's gating a
 
 ### Social Image Generation
 
-`social_controller.js` generates images of league tables and results (for social media)
-with **Jimp** — see `GET /resultImage/*`, `GET /league-table-image/:division` and
-`GET /tables-social`. Text is drawn from pre-baked bitmap fonts (`fonts/*.fnt` + their
-`.png` sheets), loaded via `Jimp.loadFont`. That is pure JS: no fontconfig, freetype or
-system font packages are involved, which is why the image installs none. `sharp` is used
-only for pixel ops in `utils/scorecardVision.js` (greyscale/normalize/sharpen) — never
-for rendering text — so it doesn't need them either. If you ever add SVG text rendering
-via sharp, you'll need to reinstate `fontconfig` + a font in the Dockerfile.
+`social_controller.js` draws three cards — the result card (`GET /resultImage/*`), the
+per-division league table (`GET /league-table-image/:division`) and the coming week's
+fixtures (`GET /fixtures-image/:division`) — with **sharp and SVG text**, in **Poppins**
+(headings) and **Inter** (body), the site's own typefaces. `utils/cardRender.js` holds the
+primitives. `utils/socialVideo.js` letterboxes video slides with sharp too; **`jimp` is
+gone from the dependency list.**
 
-> **ffmpeg is in the image, and it is the one exception to "nothing external renders".**
-> `utils/socialVideo.js` shells out to it to encode the weekly results video, because h264
-> is the one thing that genuinely cannot be done in JS. It draws nothing: the slides are
-> Jimp result cards and the fit-and-pad is Jimp too. **There is deliberately no
-> ImageMagick** — see *The other two weekly posts* under Posting to Facebook and Instagram.
+This was Jimp and pre-baked bitmap fonts until 22 Sep 2026. The old rule here — "porting
+Stockport's sharp+SVG drawing renders every label blank, because this image has no
+fontconfig and no font" — stopped being true when ffmpeg was added (it pulled in fontconfig,
+freetype, pango and DejaVu). The Dockerfile now installs the fonts **explicitly** rather
+than relying on that accident.
 
-> ⚠️ **The "no fonts in the image" premise below became FALSE on 21 Sep 2026.** Adding
-> ffmpeg pulled in 200 packages including `fontconfig`, `libfreetype6`, `librsvg2-2`,
-> `libpango`, `libcairo2` and `fonts-dejavu-core` — everything sharp's SVG text needs,
-> font included. **The rule and the image now disagree.** Until that is resolved, keep
-> drawing with Jimp: those packages are ffmpeg's *transitive* dependencies, so relying on
-> them means text starts rendering blank the day ffmpeg moves, and blank is exactly the
-> failure that shows up in production and nowhere else. Resolving it properly — fonts
-> declared in the Dockerfile, all three cards moved together, and a test that fails on a
-> blank card — is `docs/plans/sharp-text-rendering.md`, agreed and not started.
->
-> **Parity with `~/league-site` is a goal**, not a nice-to-have: the two sites share an
-> Auth0 tenant, an S3 bucket, a Meta app and a steady traffic of ported features, and two
-> rendering stacks means every future port of anything that draws gets rewritten rather
-> than copied.
+> **A MISSING FONT DOES NOT RENDER BLANK.** fontconfig falls back to a default face and
+> draws perfectly legible text in the wrong typeface, reporting nothing at all. Measured:
+> `font-family="Poppins"` and `font-family="NoSuchFontXYZ"` produce byte-identical output
+> where Poppins is absent. Every check in this area follows from that.
 
-**This is the one part of the Stockport social stack that does NOT port** *(for now — see
-the note above)*. That site draws
-the same pictures with sharp and an SVG overlay. Copying its drawing code across renders
-every label blank in production and nowhere else, because the Dockerfile here has no fonts
-by design. The route *shape* is what ports.
+- **The guarantee is in the Dockerfile.** `fc-list : family | grep -qx Poppins` runs at
+  BUILD time, so a missing or misnamed font fails the build and cannot ship. `fontconfig`
+  is named explicitly alongside `ffmpeg`. `test/card-fonts.test.js` pins that, and
+  deliberately does **not** assert the fonts resolve — that would fail on every dev machine,
+  which is worse than no test.
+- **`cardRender.fontsResolve()` is the runtime check**, and it compares against a nonsense
+  family **at the same weight**. An early version compared bold against normal and read
+  synthetic bolding as a resolved font.
+- **Cards rendered outside the container are in the wrong typeface.** sharp's bundled
+  libvips ignores `FONTCONFIG_PATH` and `FONTCONFIG_FILE` on macOS, and librsvg ignores
+  `@font-face` with a data URI — both tried, both dead ends. **Build and run the image to
+  look at a card**; `docker build --platform linux/amd64` matches production.
+- **librsvg ignores `textLength`.** Do not reach for it to stop a long name overflowing:
+  measured in the image, a string renders identically with and without it. `maxWidth` in
+  `cardRender.text()` shrinks the type via `fitSize` instead, and `widthOf` deliberately
+  over-estimates so it errs towards shrinking rather than colliding.
+- **Fonts are Regular and Bold only.** A static SemiBold reports its family as "Poppins
+  SemiBold", not weight 600 of "Poppins", so `font-weight="600"` synthesises a fake bold.
+  Read a font's name table before adding a weight — `fonts/vendor/README.md`.
+- `fonts/Arial.ttf` was **proprietary Monotype Arial** and has been removed along with the
+  `.fnt` bitmap sheets. Do not put it back.
+
+**What only shows up by looking at the picture** — none of these failed a test:
+
+- The result card's score was right-aligned on the away team's baseline, which works for
+  "Hyde C" and collides for "Manchester Edgeley B". It is a vertical flow now, and the panel
+  height is derived from that flow rather than estimated beside it.
+- The league table stepped a fixed 115px per number column, so digits went ragged the moment
+  a value reached two — and the games-won column reaches three. Right-aligned now.
+- The Avg. column read **`NaN`** for every team with no result yet — `(0 / 0).toFixed(1)`.
+  `tableRowValues` is exported so the test checks what the image draws rather than a copy of
+  the arithmetic.
 
 **The images are served on demand, as JPEG, and both halves are load-bearing:**
 
 - **On demand** because `static/images/generated/` is a *container's own disk*. On Cloud Run
   it belongs to one instance, does not outlive it, and is invisible to every other one — so
   "generate, then fetch" only works when the same instance answers both requests. It never
-  does when **Meta** is the one fetching, because that request arrives later, from Meta's
-  servers. The results email linked one of those PNGs to captains for years.
-- **JPEG** because Meta *documents* Instagram publishing as JPEG-only, and serving JPEG
-  costs nothing. **The stronger version of that claim did not reproduce**: measured against
-  v21.0 on 15 Sep 2026, a PNG child container, a PNG carousel parent and a WebP control were
-  all accepted and all reached `status_code: FINISHED`. The Stockport handover names the
-  format as a proven cause of its carousel never working; the *other* cause it names — those
-  URLs 404'd — is measured, independent and sufficient on its own. See `docs/social-posting.md` §2.
+  does when **Meta** is the one fetching.
+- **JPEG** because Meta documents Instagram publishing as JPEG-only. **The stronger version
+  of that claim did not reproduce**: measured against v21.0 on 15 Sep 2026, PNG and WebP
+  containers all reached `FINISHED`. See `docs/social-posting.md` §2.
 
-`utils/socialPaths.js` builds the URLs, and **every segment is percent-encoded**. Almost
-every team name in this league contains a space; interpolated raw, Facebook answers
-`Missing or invalid image file (324, OAuthException)` for a route that is fine the whole
-time. That expression was hand-built in `models/fixture.js` and `views/fixtures-results.ejs`
-in two different spellings, which is why it is a function now and why
-`test/social-post.test.js` fails if an interpolated one reappears.
-
-The **`.jpg` on the end is not decoration.** Instagram inspects the bytes rather than the
-extension, so an extensionless URL works — but then nothing upstream can tell a JPEG URL
-from the PNG one that broke the carousel, and `metaPublisher`'s guard has to choose between
-crying wolf and being useless. The routes strip it, so old links still resolve.
+`utils/socialPaths.js` builds the URLs, and **every segment is percent-encoded** — almost
+every team name in this league contains a space, and interpolated raw Facebook answers
+`Missing or invalid image file (324, OAuthException)` for a route that is fine throughout.
+The **`.jpg` on the end is not decoration**: it is what lets `metaPublisher`'s format guard
+stay strict. The routes strip it, so old links still resolve.
 
 Cache headers matter here more than usual: **Firebase Hosting applies its own
 `max-age=600` to any response that sets none, 404s included.** Meta fetches these URLs and
 retries, so a transient 404 during a deploy gets cached and the retry never sees the fix.
-The miss path sets `no-store`. The hit path sets `max-age=600` rather than Stockport's
-24 hours, because these tables change whenever a result is published.
-
-> **Look at the picture, not just the status code.** The Avg. column read **`NaN`** for
-> every team with no result yet — `(0 / 0).toFixed(1)` — and four of the nine Division 1
-> teams were in that state on 15 Sep 2026. Nobody had seen it because the URL serving the
-> picture 404'd from anywhere but the container that drew it. **A broken link was hiding a
-> broken picture**, and fixing the link is what exposed it. `tableRowValues` is exported so
-> the test checks what the image draws rather than a copy of the arithmetic.
+The miss path sets `no-store`.
 
 ### Posting to Facebook and Instagram
 

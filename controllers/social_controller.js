@@ -1,13 +1,24 @@
-// The league's social images: the result card and the per-division league table.
+// The league's social images: the result card, the per-division league table, and the
+// coming week's fixtures.
 //
-// ── Drawn with Jimp, and that is not an accident ──────────────────────────────
+// ── Drawn with sharp and SVG text ────────────────────────────────────────────
 //
-// Text comes from pre-baked bitmap fonts in `fonts/` (`.fnt` + its `.png` sheet), loaded
-// with `Jimp.loadFont`. That is pure JS. The Stockport league site draws the same pictures
-// with sharp and an SVG overlay, which needs fontconfig and a system font — neither of
-// which is in this image, deliberately (see CLAUDE.md, *Social Image Generation*). Porting
-// its drawing code across would render every label blank in production and nowhere else.
-// The route SHAPE is what ports; the drawing stays here.
+// This was Jimp and pre-baked bitmap fonts (`fonts/*.fnt` plus a `.png` atlas) until
+// 22 Sep 2026. Jimp cannot scale a bitmap font, so the sizes that existed were the sizes
+// there were — in white, 30 and 60 and nothing between — and the fixtures card chose
+// between three whole LAYOUTS to make its text fit. All of that is gone: text is any size
+// now, and `utils/cardRender.js` holds the primitives.
+//
+// The old note here said porting the Stockport site's sharp+SVG drawing would "render
+// every label blank in production and nowhere else", because this image carried no
+// fontconfig and no font. **That stopped being true when ffmpeg was added** — it pulled in
+// fontconfig, freetype, pango and DejaVu — and the Dockerfile now installs Poppins and
+// Inter explicitly rather than relying on that accident.
+//
+// **A MISSING FONT DOES NOT RENDER BLANK.** It falls back to a default face and draws
+// legible text in the wrong typeface with no error. The Dockerfile asserts the fonts
+// resolve at build time; `cardRender.fontsResolve()` is the runtime check. Cards rendered
+// outside the container are in the wrong face — build the image to look at them properly.
 //
 // ── Why these are served on demand ───────────────────────────────────────────
 //
@@ -15,23 +26,12 @@
 // them back by URL. That directory is the *container's* own disk: on Cloud Run it belongs
 // to one instance, does not outlive it, and is invisible to every other instance. So
 // "generate, then fetch" only works when the same instance answers both requests — and
-// when Meta is the one fetching, the request arrives later still, from Meta's servers,
-// after the container that could have served it has gone.
+// when Meta is the one fetching, the request arrives later still, from Meta's servers.
 //
-// `GET /league-table-image/:division` renders per request and returns the bytes. There is
-// no file to go missing and no instance to hit.
-//
-// **JPEG, not PNG.** Instagram's publishing API accepts JPEG and nothing else. That single
-// fact is why the Stockport league's weekly Instagram carousel never worked in its whole
-// existence: the Facebook half of the same automation uploads *bytes* and so never meets
-// the format check, so one platform posted and the other silently did not. If you ever see
-// that asymmetry again, suspect the fetch rather than the code.
-//
-// The file-writing routes are left alone on purpose. The live Make.com scenario still
-// calls them, and removing them before it is repointed would break the weekly post on the
-// Facebook side, which does currently work.
+// **JPEG, not PNG.** Instagram's publishing API documents JPEG only. Serving JPEG costs
+// nothing; see utils/metaPublisher.js for what was and was not measured about that.
 
-const Jimp = require('jimp');
+const card = require('../utils/cardRender');
 const fs = require('fs').promises;
 const { getAllLeagueTables } = require('../models/league');
 const Fixture = require('../models/fixture');
@@ -58,70 +58,76 @@ const SOCIAL_IMAGE_CACHE_CONTROL = 'public, max-age=600';
 // reasoning as `utils/render404.js`.
 const SOCIAL_IMAGE_MISS_CACHE_CONTROL = 'no-store';
 
-// Decoded backgrounds, cached and cloned per use.
-//
-// **This is what buys the video its headroom.** Every card re-read and re-decoded a
-// 1080x1350 PNG: 72ms of a 199ms card locally, 36% of the work, and the video draws one
-// card per result. Cloud Run is several times slower than a laptop here — measured
-// 21 Sep 2026, two slides took 10.1s there against ~1.5s locally — and the generate
-// endpoint has to finish inside a 60-second request timeout. The busiest results week in
-// the database is 9 fixtures, which was close enough to that ceiling to be worth removing
-// rather than hoping about.
-//
-// **Clone, never hand the cached image out.** Jimp's `print`, `resize`, `cover` and
-// `composite` all mutate in place, so a shared instance would accumulate every card ever
-// drawn on it — the second result card would carry the first one's text. A clone is a
-// bitmap memcpy: 1ms against 72ms.
-//
-// Cached for the life of the process, so replacing a background PNG needs a restart. They
-// are three static files that change about once a year.
-const backgroundCache = new Map();
-
-async function loadBackground(file) {
-  if (!backgroundCache.has(file)) backgroundCache.set(file, await Jimp.read(file));
-  return backgroundCache.get(file).clone();
-}
-
-exports._resetBackgroundCache = () => backgroundCache.clear();
-
-function toBuffer(image, format) {
-  return format === 'jpeg'
-    ? image.quality(90).getBufferAsync(Jimp.MIME_JPEG)
-    : image.getBufferAsync(Jimp.MIME_PNG);
-}
+// The background cache lives in utils/cardRender.js now. sharp pipelines are immutable,
+// so unlike Jimp there is no clone-per-use rule: the cache holds finished pixels and
+// handing the same buffer to two cards cannot leak one into the other.
+exports._resetBackgroundCache = card.resetBackgroundCache;
 
 // ── The result card ──────────────────────────────────────────────────────────
 
+// ── Laid out as a vertical flow, after the first attempt collided ────────────
+//
+// The first sharp version put the score right-aligned on the same baseline as the away
+// team, which works for "Hyde C" and fails completely for "Manchester Edgeley B": the name
+// ran straight through the score, and the home name's ascenders ran through the RESULT
+// label above it. Rendered inside the container and looked at, which is the only way that
+// shows up — every test still passed, because the bytes were a valid JPEG of the right size.
+//
+// So nothing shares a baseline with anything now. A cursor walks down the card and each
+// element claims its own band, which means a long name can only ever make the card taller
+// (and it cannot, because `fitSize` shrinks it first), never overlap a neighbour.
 async function buildResultCard({ homeTeam, awayTeam, homeScore, awayScore, division }, format = 'jpeg') {
-  const background = await loadBackground(
-    './static/images/bg/social-' + String(division).replace(/\s+/g, '-') + '.png');
+  const W = 1080, H = 1350;
+  const file = './static/images/bg/social-' + String(division).replace(/\s+/g, '-') + '.png';
 
-  const lines = [
-    'Result: ' + homeTeam + ' vs ',
-    String(awayTeam),
-    homeScore + '-' + awayScore,
-    '#tameside #badminton #tbl #result',
-    'https://tameside-badminton.co.uk',
-  ];
+  const PAD = 56;
+  const inner = W - PAD * 2;
 
-  const bigFont = await Jimp.loadFont('./fonts/ArialBold_Black_60.fnt');
-  const littleFont = await Jimp.loadFont('./fonts/ArialBold_Black_30.fnt');
-  const { width, height } = background.bitmap;
+  // One size for both names, from the longer, so a short home team does not tower over a
+  // long away one. The artwork fades pale across its lower third, so the text is dark.
+  const longest = String(homeTeam).length >= String(awayTeam).length ? homeTeam : awayTeam;
+  const nameSize = card.fitSize(longest, inner, { family: card.HEAD, weight: 'bold', max: 76, min: 34 });
 
-  const lineHeight = 1.5;
-  let currentY = 500 + ((height / 2) - ((lines.length * 60 * lineHeight) / 2));
+  // **The panel height is derived from the flow, not estimated alongside it.** The first
+  // version kept a separate `blockH` guess and pinned the footer to the card bottom; the
+  // two disagreed, and the score ended up 14px from the footer. Every gap below is named
+  // once and summed once, so they cannot drift apart again.
+  const TOP_PAD = 46, LABEL_H = 34, LABEL_GAP = 18;
+  const VEE_GAP = 12, VEE_H = 32, SCORE_GAP = 30, SCORE = 104;
+  const FOOT_GAP = 46, FOOT_H = 27, BOTTOM_PAD = 40;
 
-  lines.forEach((text, index) => {
-    const textSize = index > 2 ? 30 : 60;
-    background.print(
-      index > 2 ? littleFont : bigFont,
-      10, currentY,
-      { text, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT },
-      width, textSize);
-    currentY += textSize * lineHeight;
-  });
+  const blockH = TOP_PAD + LABEL_H + LABEL_GAP + nameSize + VEE_GAP + VEE_H + nameSize
+               + SCORE_GAP + SCORE + FOOT_GAP + FOOT_H + BOTTOM_PAD;
+  const panelTop = H - blockH;
 
-  return toBuffer(background, format);
+  let y = panelTop + TOP_PAD;
+  const body = [card.rect(0, panelTop, W, H - panelTop, { fill: '#ffffff', opacity: 0.55 })];
+
+  y += LABEL_H;
+  body.push(card.text('RESULT', { x: PAD, y, size: 26, family: card.BODY, weight: 'bold',
+                                  fill: '#1b1b1f', opacity: 0.65, letterSpacing: 4 }));
+
+  y += LABEL_GAP + nameSize;
+  body.push(card.text(homeTeam, { x: PAD, y, size: nameSize, family: card.HEAD, weight: 'bold',
+                                  fill: '#111114', maxWidth: inner }));
+
+  y += VEE_GAP + VEE_H;
+  body.push(card.text('v', { x: PAD, y, size: 30, family: card.BODY, fill: '#111114', opacity: 0.5 }));
+
+  y += nameSize;
+  body.push(card.text(awayTeam, { x: PAD, y, size: nameSize, family: card.HEAD, weight: 'bold',
+                                  fill: '#111114', maxWidth: inner }));
+
+  y += SCORE_GAP + SCORE;
+  body.push(card.text(`${homeScore} - ${awayScore}`, { x: PAD, y, size: SCORE, family: card.HEAD,
+                                                       weight: 'bold', fill: '#111114' }));
+
+  y += FOOT_GAP + FOOT_H;
+  body.push(card.text('tameside-badminton.co.uk  #tameside #badminton #tbl', {
+    x: PAD, y, size: FOOT_H, family: card.BODY, weight: 'bold',
+    fill: '#1b1b1f', opacity: 0.7, maxWidth: inner }));
+
+  return card.render({ file, width: W, height: H, body: body.join(''), format });
 }
 
 // GET /resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division
@@ -208,182 +214,120 @@ function fixtureDateRange(fixtures) {
     : `${first} - ${last}`;
 }
 
-// A translucent panel behind the copy.
-//
-// **Dark at 0.80, with white text.** A light panel was tried first and shipped briefly;
-// the dark one is better and the reason is opacity. To be legible a light panel has to be
-// near-opaque, and at that point the division artwork underneath may as well not be there
-// — which defeats the only reason for using the artwork. Dark lets the colour read
-// through while white text sits on it comfortably, so the card keeps its division
-// identity and the fixtures stay readable. Confirmed on real Stockport posts before being
-// adopted here.
-//
-// Jimp has no rounded-rect or alpha-fill primitive, so this is a solid image composited
-// at an opacity. The same call draws the hairline rule under the header.
-function panel(image, x, y, w, h, opacity, colour = 0x0d0d0fff) {
-  const fill = new Jimp(w, h, colour);
-  fill.opacity(opacity);
-  image.composite(fill, x, y);
-}
-
-// ── Choosing a layout, because Jimp cannot scale a bitmap font ───────────────
-//
-// This is the whole awkwardness of the card. Stockport sizes its type to fit by rendering
-// SVG text, which scales to any pixel size. Here the sizes that exist in `fonts/` are the
-// sizes there are, and **in white there are only two: 30 and 60.** So the card cannot
-// shrink the type to fit — it picks a LAYOUT that fits, and the three below are ordered
-// most to least generous.
-//
-// Measured against the real database, 21 Sep 2026:
-//
-//   - Every one of the 18 team names fits on its own line at 60 (widest is
-//     "Manchester Edgeley B" at 636px of 940 usable). **Zero overflow**, which is what
-//     makes the stacked layout safe rather than a gamble.
-//   - 58 of 249 distinct pairings — 23% — overflow at 60 when put on ONE line
-//     ("Manchester Edgeley A  v  Manchester Edgeley B" is 1373px). That is why `inline60`
-//     has to check its own width and cannot simply be preferred for being shorter.
-//   - 86% of division-weeks have 1-3 fixtures; 4% have five and 1% have six. So `stacked`
-//     carries almost every real week and `inline30` is a genuine edge case, not the
-//     common path.
-const ROW_LAYOUTS = [
-  // Home / v / away on three centred lines. The "v" column lines up down the card and the
-  // eye runs down it, and no pairing can overflow because no single name can.
-  { name: 'stacked', rowSize: 60, parts: f => [
-      { text: f.homeTeam, size: 60, gap: 62 },
-      { text: 'v', size: 30, gap: 36 },
-      // 104, not the ~78 the line height wants. At the tighter value a two-fixture night
-      // read as one four-line list — "Mellor B" and "Manor A" sat as close together as
-      // "Aerospace B" and its own opponent, so the grouping the stack exists to create was
-      // undone by the gap between stacks. The separation between fixtures has to beat the
-      // separation inside one.
-      { text: f.awayTeam, size: 60, gap: 96 },
-    ] },
-  // One line at 60, a third of the height — but only when every line in THIS week clears
-  // the panel. Checked per card, not per league.
-  { name: 'inline60', rowSize: 60, parts: f => [
-      { text: `${f.homeTeam}  v  ${f.awayTeam}`, size: 60, gap: 84 },
-    ] },
-  // The compact fallback. Small, but a legible list beats an overlapping one, and it only
-  // appears in a week that is both long and full of long names.
-  { name: 'inline30', rowSize: 30, parts: f => [
-      { text: `${f.homeTeam}  v  ${f.awayTeam}`, size: 30, gap: 52 },
-    ] },
-];
-
 // One division's coming week, at 1080x1350 — the artwork's own size, and the same 4:5
-// portrait as the result card, so a fixtures post and a result post look like the same
-// league.
+// portrait as the result card so the two posts look like the same league.
 //
-// **The panel is sized to its contents and anchored to the bottom.** It used to be a fixed
-// 880px box with the list centred inside it, which laid out correctly and looked wrong:
-// a one-fixture week — 20% of them, and the week this shipped in — put two lines of copy
-// in the middle of a large empty rectangle, reading as a rendering fault rather than a
-// quiet week. Growing upward from a fixed bottom margin keeps the card's proportions
-// consistent whatever the week holds, and leaves more of the artwork visible when there
-// is less to say.
+// ── The three-layout mechanism is gone, and that is the point ────────────────
+//
+// Jimp cannot scale a bitmap font, and in white `fonts/` held 30 and 60 and nothing else.
+// So this card used to pick between three whole LAYOUTS — stacked, inline-60, inline-30 —
+// measuring each against the available height and width and taking the first that fitted,
+// because it could not simply make the text smaller. Now it can: `fitSize` picks a size
+// per line and `textLength` guarantees the fit, so one layout serves every week.
+//
+// **Dark panel, white text, everything centred.** A light panel has to be near-opaque to be
+// legible, and at that point the division artwork underneath may as well not be there —
+// which defeats the only reason for using it.
+//
+// **The panel is sized to its contents and anchored to the bottom.** It was a fixed 880px
+// box with the list centred inside, which laid out correctly and looked wrong: a
+// one-fixture week — 20% of them — put two lines of copy in the middle of a large empty
+// rectangle and read as a rendering fault rather than a quiet week.
 async function buildFixturesCard(divisionName, fixtures, format = 'jpeg') {
   const W = 1080, H = 1350;
-  const background = await fixturesBackground(divisionName);
-  const image = background.bitmap.width === W && background.bitmap.height === H
-    ? background
-    : background.cover(W, H);
-
-  const titleFont = await Jimp.loadFont('./fonts/ArialBold_White_60.fnt');
-  const smallFont = await Jimp.loadFont('./fonts/ArialBold_White_30.fnt');
-  const fontFor = size => (size >= 60 ? titleFont : smallFont);
-
-  const PANEL_X = 40;
-  const PANEL_W = W - PANEL_X * 2;
-  const PAD = 36;
-  const INNER_X = PANEL_X + PAD;
-  const INNER_W = PANEL_W - PAD * 2;
+  const PANEL_X = 40, PAD = 40;
+  const panelW = W - PANEL_X * 2;
+  const innerX = PANEL_X + PAD;
+  const innerW = panelW - PAD * 2;
+  const centre = PANEL_X + panelW / 2;
   const PANEL_BOTTOM = H - 50;
-  // Leaves the top of the artwork — the player, and the big division numeral — visible at
-  // every length. A panel taller than this would cover the thing it is sitting on.
-  //
-  // **1160 is tuned to a measured boundary, not picked round.** At 1100 a three-fixture
-  // week overflowed the stacked layout by seven pixels and dropped to the compact list —
-  // and three fixtures is 29% of division-weeks, so the common case was landing in the
-  // fallback over a rounding margin. With this, 1-3 fixtures all stack, which is 86% of
-  // weeks; four or more move to the inline form, which is what that form is for.
-  const PANEL_MAX_H = 1160;
+  // Leaves the player and the big division numeral visible at every length.
+  const PANEL_MAX_H = 1180;
 
+  const lines = fixtureCardLines(fixtures);
   const range = fixtureDateRange(fixtures);
 
-  // The header, as draw items. Everything is centred now, header and list alike.
-  const header = [
-    { text: String(divisionName), size: 60, gap: 74 },
-    { text: 'Fixtures this week', size: 30, gap: 40 },
-  ];
-  if (range) header.push({ text: range, size: 30, gap: 40 });
+  // Heights are known up front because the sizes are chosen up front, so the panel can be
+  // sized to the content instead of the content squeezed into the panel.
+  const HEAD_H = 86 + 40 + (range ? 40 : 0) + 18 + 2 + 26;
+  const FOOT_H = 30 + 24;
+  const DATE_H = 58;
 
-  const RULE_GAP_ABOVE = 14, RULE_GAP_BELOW = 30;
-  const footer = { text: 'tameside-badminton.co.uk  #tameside #badminton #tbl', size: 30 };
-  const FOOTER_GAP_ABOVE = 26;
+  // One size for every fixture line, taken from the longest, so the list reads as a column
+  // rather than a ransom note. `fitSize` walks down from 58 only as far as it must.
+  const longest = lines.filter(l => l.kind === 'fixture')
+    .reduce((a, l) => (l.text.length > a.length ? l.text : a), '');
+  const fixtureCount = lines.length - lines.filter(l => l.kind === 'date').length;
+  const roomForList = PANEL_MAX_H - PAD * 2 - HEAD_H - FOOT_H
+                    - lines.filter(l => l.kind === 'date').length * DATE_H;
+  const perFixture = fixtureCount ? Math.floor(roomForList / fixtureCount) : 0;
+  const fixtureSize = Math.min(
+    card.fitSize(longest, innerW, { family: card.HEAD, weight: 'bold', max: 58, min: 26 }),
+    Math.max(26, Math.round(perFixture * 0.62)));
+  const fixtureStep = Math.round(fixtureSize * 1.42);
 
-  const headerH = header.reduce((n, i) => n + i.gap, 0);
-  const chromeH = PAD + headerH + RULE_GAP_ABOVE + 3 + RULE_GAP_BELOW
-                + FOOTER_GAP_ABOVE + 40 + PAD;
-  const roomForList = PANEL_MAX_H - chromeH;
-
-  // Build the list under each layout and take the first that fits — in height, and in
-  // width, because a bitmap font cannot be narrowed either.
-  let items = null;
-  for (const layout of ROW_LAYOUTS) {
-    const candidate = [];
-    let night = null;
-    for (const f of fixtures) {
-      const label = String(f.dayLabel || '').trim();
-      if (label !== night) {
-        night = label;
-        candidate.push({ text: label, size: 30, gap: 46 });
-      }
-      for (const part of layout.parts(f)) candidate.push(part);
-    }
-    const height = candidate.reduce((n, i) => n + i.gap, 0);
-    const widest = candidate.reduce((n, i) => Math.max(n, Jimp.measureText(fontFor(i.size), i.text)), 0);
-    if (height <= roomForList && widest <= INNER_W) { items = candidate; break; }
-    items = candidate;   // keep the last, so an impossible week still draws something
-  }
-
-  const listH = items.reduce((n, i) => n + i.gap, 0);
-  const panelH = Math.min(PANEL_MAX_H, chromeH + listH);
+  const listH = lines.reduce((n, l) => n + (l.kind === 'date' ? DATE_H : fixtureStep), 0);
+  const panelH = Math.min(PANEL_MAX_H, PAD * 2 + HEAD_H + listH + FOOT_H);
   const panelY = PANEL_BOTTOM - panelH;
 
-  panel(image, PANEL_X, panelY, PANEL_W, panelH, 0.80);
+  const body = [
+    // Dark at 0.80, so the division's artwork still reads through it.
+    card.rect(PANEL_X, panelY, panelW, panelH, { fill: '#0d0d0f', opacity: 0.80, rx: 10 }),
+  ];
 
-  const centre = (item, y) => image.print(
-    fontFor(item.size), INNER_X, y,
-    { text: String(item.text), alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER },
-    INNER_W, item.size + 8);
+  let y = panelY + PAD + 64;
+  body.push(card.text(divisionName, { x: centre, y, size: 68, family: card.HEAD, weight: 'bold',
+                                      anchor: 'middle', maxWidth: innerW }));
+  y += 40;
+  body.push(card.text('Fixtures this week', { x: centre, y, size: 30, family: card.BODY,
+                                              anchor: 'middle', opacity: 0.85 }));
+  if (range) {
+    y += 40;
+    body.push(card.text(range, { x: centre, y, size: 30, family: card.BODY,
+                                 anchor: 'middle', opacity: 0.6 }));
+  }
+  y += 18;
+  body.push(card.rect(centre - 140, y, 280, 2, { fill: '#ffffff', opacity: 0.3 }));
+  y += 2 + 26;
 
-  let y = panelY + PAD;
-  for (const item of header) { centre(item, y); y += item.gap; }
+  for (const line of lines) {
+    if (line.kind === 'date') {
+      // More space above a night heading than below it, so it groups with the fixtures it
+      // introduces rather than floating between two of them.
+      y += Math.round(DATE_H * 0.95);
+      body.push(card.text(line.text, { x: centre, y, size: 28, family: card.BODY, weight: 'bold',
+                                       anchor: 'middle', opacity: 0.8 }));
+      y += Math.round(DATE_H * 0.35);
+    } else {
+      y += Math.round(fixtureStep * 0.78);
+      body.push(card.text(line.text, { x: centre, y, size: fixtureSize, family: card.HEAD,
+                                       weight: 'bold', anchor: 'middle', maxWidth: innerW }));
+      y += fixtureStep - Math.round(fixtureStep * 0.78);
+    }
+  }
 
-  y += RULE_GAP_ABOVE;
-  panel(image, INNER_X + 120, y, INNER_W - 240, 3, 0.35, 0xffffffff);
-  y += 3 + RULE_GAP_BELOW;
+  body.push(card.text('tameside-badminton.co.uk  #tameside #badminton #tbl', {
+    x: centre, y: PANEL_BOTTOM - PAD + 4, size: 26, family: card.BODY, weight: 'bold',
+    anchor: 'middle', opacity: 0.75, maxWidth: innerW }));
 
-  for (const item of items) { centre(item, y); y += item.gap; }
-
-  centre(footer, PANEL_BOTTOM - PAD - 34);
-
-  return toBuffer(image, format);
+  return card.render({ file: await fixturesBackground(divisionName),
+                       width: W, height: H, body: body.join(''), format });
 }
 
-// Each division's own artwork — the same file the result card uses, so the two posts look
-// like one league. A division whose name has no matching file falls back to the plain
-// background rather than throwing: a rename or a new division should produce a duller
-// card, not a 500 on a route Meta is fetching.
+// Each division's own artwork — the same file the result card uses, so a fixtures post and
+// a result post for the same division look like the same league. A division whose name has
+// no matching file falls back to the plain background rather than throwing: a rename or a
+// new division should produce a duller card, not a 500 on a route Meta is fetching.
 //
-// Returns a Jimp image rather than a path because every caller composites onto it, and
-// because `Jimp.read` is the thing that can fail.
+// Returns a PATH now rather than a decoded image. sharp opens the file itself and
+// `cardRender` caches the decoded result, so there is nothing to hand around.
 async function fixturesBackground(divisionName) {
   const named = './static/images/bg/social-' + String(divisionName).replace(/\s+/g, '-') + '.png';
   try {
-    return await loadBackground(named);
+    await fs.access(named);
+    return named;
   } catch {
-    return await loadBackground('./static/images/bg/social.png');
+    return './static/images/bg/social.png';
   }
 }
 
@@ -452,41 +396,55 @@ function tableRowValues(row) {
 exports.tableRowValues = tableRowValues;
 
 async function buildDivisionTable(divisionName, rows, format = 'jpeg') {
-  const background = (await loadBackground('./static/images/bg/social.png')).resize(1080, 1080);
-  const { width } = background.bitmap;
+  const W = 1080, H = 1080;
+  const PAD = 48;
 
-  const bigFont = await Jimp.loadFont('./fonts/ArialBold_Black_65.fnt');
-  const littleFont = await Jimp.loadFont('./fonts/Arial_Black_55.fnt');
+  // Right-aligned number columns, so the digits line up down the card. The Jimp version
+  // stepped a fixed 115px from the left for each, which left ragged columns the moment a
+  // number went from one digit to two — and this league's games-won column reaches three.
+  const COLS = [W - PAD - 420, W - PAD - 290, W - PAD - 160, W - PAD];
+  const HEADS = ['P', 'W', 'L', 'Avg.'];
+  // A 52px gutter, not 30. The name is clamped to this, so the widest team in the league
+  // cannot touch the P column — which it did at 30, because the width estimate was
+  // optimistic and `textLength` never fired.
+  const nameWidth = COLS[0] - PAD - 52;
 
-  const TEAM_SPACE = 600;
-  const NUMBER_SPACE = 115;
-  const lineHeight = 1.6;
+  // Fit the rows to the space rather than assuming nine of them: a division can gain a
+  // team, and the old fixed 1.6 line-height simply ran off the bottom when it did.
+  // Capped, then the block is centred in what is left. Without the cap a five-team
+  // division spreads five rows over the whole card; without the centring it huddles at the
+  // top with a void beneath. Division 1 has nine teams, but a division can lose one.
+  const listBottom = H - 92;
+  const step = rows.length ? Math.min(78, Math.floor((listBottom - 250) / rows.length)) : 0;
+  const listTop = 250 + Math.max(0, Math.round((listBottom - 250 - step * rows.length) / 2));
+  const rowSize = Math.max(26, Math.min(52, Math.round(step * 0.62)));
 
-  let posY = 10;
-  let posX = 10;
-  let textSize = 65;
+  const body = [
+    card.rect(0, 0, W, H, { fill: '#ffffff', opacity: 0.35 }),
+    card.text(divisionName, { x: PAD, y: 110, size: 72, family: card.HEAD, weight: 'bold',
+                              fill: '#111114', maxWidth: W - PAD * 2 }),
+    card.text('League table', { x: PAD, y: 156, size: 30, family: card.BODY,
+                                fill: '#1b1b1f', opacity: 0.7 }),
+    ...HEADS.map((h, i) => card.text(h, { x: COLS[i], y: 214, size: 30, family: card.BODY,
+                                          weight: 'bold', fill: '#1b1b1f', opacity: 0.75, anchor: 'end' })),
+    card.rect(PAD, 232, W - PAD * 2, 2, { fill: '#111114', opacity: 0.25 }),
+  ];
 
-  [divisionName, 'P', 'W', 'L', 'Avg.'].forEach((text, i) => {
-    background.print(i > 0 ? littleFont : bigFont, posX, posY,
-      { text: String(text), alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, width, textSize);
-    posX += i > 0 ? NUMBER_SPACE : TEAM_SPACE;
+  rows.forEach((row, i) => {
+    const y = listTop + step * i + Math.round(step * 0.7);
+    const { played, won, lost, avg } = tableRowValues(row);
+    body.push(card.text(row.name, { x: PAD, y, size: rowSize, family: card.BODY,
+                                    weight: 'bold', fill: '#111114', maxWidth: nameWidth }));
+    [played, won, lost, avg].forEach((v, j) =>
+      body.push(card.text(v, { x: COLS[j], y, size: rowSize, family: card.BODY,
+                               fill: '#111114', anchor: 'end' })));
   });
 
-  posY += textSize * lineHeight;
-  textSize = 55;
+  body.push(card.text('tameside-badminton.co.uk', { x: PAD, y: H - 40, size: 26,
+    family: card.BODY, weight: 'bold', fill: '#1b1b1f', opacity: 0.7 }));
 
-  for (const row of rows) {
-    const { played, won, lost, avg } = tableRowValues(row);
-    posX = 10;
-    [row.name, played, won, lost, avg].forEach((text, j) => {
-      background.print(littleFont, posX, posY,
-        { text: String(text), alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT }, width, textSize);
-      posX += j > 0 ? NUMBER_SPACE : TEAM_SPACE;
-    });
-    posY += (textSize + 5) * lineHeight;
-  }
-
-  return toBuffer(background, format);
+  return card.render({ file: './static/images/bg/social.png', width: W, height: H,
+                       body: body.join(''), format });
 }
 
 // GET /league-table-image/:division — one division's table, as a JPEG, built now.

@@ -1,10 +1,67 @@
 # Move the social images from Jimp to sharp
 
-**Status:** open, agreed 21 Sep 2026. Not started.
-**Owns:** `controllers/social_controller.js`, `Dockerfile`, `fonts/`
-**Do it after:** this week's fixtures and video posts have gone out cleanly.
+**Status: DONE, 22 Sep 2026.** Kept because it records what was measured, and because two
+of its own original instructions were wrong — see *What this package got wrong* below.
 
-Self-contained: pick this up cold, without the conversation that produced it.
+All three cards (result, division table, fixtures) draw with sharp + SVG text in Poppins
+and Inter, the site's own typefaces. `jimp` is off the dependency list. `utils/cardRender.js`
+holds the primitives; `utils/socialVideo.js`'s letterbox is a sharp `resize({fit:'contain'})`.
+
+## What this package got wrong, and what replaced it
+
+**1. "Add a test that renders a card, renders the same card with every label blanked, and
+asserts the two differ."** That catches BLANK text. It does not catch the failure that
+happens: **a missing font does not render blank.** fontconfig falls back to a default face
+and draws perfectly legible text in the wrong typeface, reporting nothing. Measured:
+`font-family="Poppins"` and `font-family="NoSuchFontXYZ"` produced byte-identical output on
+a machine without Poppins. The blank-text test would have passed against every one of those
+cards. The real check compares against a deliberately nonsense family **at the same
+weight** — an early probe compared bold against normal and read synthetic bolding as
+success. It lives in `cardRender.fontsResolve()`.
+
+**2. "Verify inside the built image."** Right instruction, and it was the only thing that
+worked — but it was written assuming Docker was unavailable. It was available, and building
+locally is what caught everything below. Nothing in `npm test` would have.
+
+## What only showed up by looking at the rendered picture
+
+- **librsvg ignores `textLength`.** The first version used it to guarantee a line could
+  never overflow, and said so in a comment. Measured in the image: "Manchester Edgeley A" at
+  48px renders 526px wide with or without `textLength="512"`, byte for byte. The league
+  table's longest team name ran straight into the P column. `maxWidth` now shrinks the type
+  via `fitSize`, which is the only thing that works here.
+- **librsvg ignores `@font-face` with a base64 data URI.** Embedding the font in the SVG
+  would have removed the system-font dependency entirely. It renders the fallback instead.
+- **sharp's bundled libvips ignores `FONTCONFIG_PATH` and `FONTCONFIG_FILE` on macOS**, so
+  the vendored fonts cannot be made resolvable outside the container. Cards rendered on a
+  laptop are in the wrong face and look fine.
+- **The result card collided for long names.** The score was right-aligned on the away
+  team's baseline, which works for "Hyde C" and fails for "Manchester Edgeley B". Every test
+  passed — the bytes were a valid JPEG of the right size. It is a vertical flow now, and the
+  panel height is derived from that flow rather than estimated alongside it.
+- **The league table stepped a fixed 115px per number column**, so the digits went ragged as
+  soon as a value went from one digit to two, and this league's games-won column reaches
+  three. Right-aligned now.
+
+## Where the guarantee actually lives
+
+**In the Dockerfile.** `fc-list : family | grep -qx Poppins` runs at build time, so a
+missing or misnamed font fails the build and cannot ship. `fontconfig` is named explicitly
+rather than inherited from ffmpeg. `test/card-fonts.test.js` pins that assertion, and
+deliberately does not assert the fonts resolve — that would fail on every developer machine,
+which is worse than no test.
+
+## The fonts
+
+`fonts/vendor/`, SIL OFL, licences alongside as the OFL requires. **Regular and Bold only:**
+a static SemiBold reports its family as "Poppins SemiBold" rather than weight 600 of
+"Poppins", so `font-weight="600"` silently synthesises a fake bold instead of selecting it.
+Read a font's name table before adding a weight. `fonts/Arial.ttf` was proprietary Monotype
+Arial and has been removed.
+
+---
+
+## Original package, for the record
 
 ## Why this is now possible, when CLAUDE.md says it is not
 

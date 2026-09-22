@@ -6,18 +6,16 @@
 //
 // ── What does not port, and why ──────────────────────────────────────────────
 //
-// **The slides are drawn with Jimp, because everything on this site is.** Stockport draws
-// them with sharp and an SVG overlay, which needs fontconfig and a system font; this image
-// has neither, on purpose (CLAUDE.md, *Social Image Generation*). Copying that code across
-// renders every label blank in production and nowhere else. So the slides here come from
-// `social_controller.buildResultCard` — the same function that draws the card posted after
-// a single result, which means the video and the individual posts cannot drift apart.
+// **The slides come from `social_controller.buildResultCard`** — the same function that
+// draws the card posted after a single result, so the video and the individual posts cannot
+// drift apart. That function moved from Jimp to sharp on 22 Sep 2026; this file followed it
+// so the whole pipeline is one imaging library.
 //
 // **No ImageMagick.** Stockport builds the video by writing every frame to disk: 25 frames
 // a second, one `convert` invocation per transition frame, ~36 seconds of encode for a
 // handful of slides. ffmpeg's `xfade` filter does the same crossfade in one pass, so the
 // only external binary this needs is ffmpeg — and `letterbox()` below does the fit-and-pad
-// in Jimp, which is where the two `convert` geometry bugs in their `letterboxArgs` lived
+// in sharp, which is where the two `convert` geometry bugs in their `letterboxArgs` lived
 // (`-resize WxH` vs `W:H`, and `-extent` written before the `-gravity`/`-background` it
 // depends on).
 //
@@ -43,7 +41,7 @@ const { promisify } = require('util');
 const fs = require('fs').promises;
 const os = require('os');
 const path = require('path');
-const Jimp = require('jimp');
+const sharp = require('sharp');
 
 const execFileAsync = promisify(execFile);
 
@@ -96,13 +94,20 @@ function letterboxGeometry(srcW, srcH, frameW, frameH) {
 }
 
 async function letterbox(buffer, frameW, frameH) {
-  const image = await Jimp.read(buffer);
-  if (image.bitmap.width === frameW && image.bitmap.height === frameH) return buffer;
+  const meta = await sharp(buffer).metadata();
+  if (meta.width === frameW && meta.height === frameH) return buffer;
 
-  const g = letterboxGeometry(image.bitmap.width, image.bitmap.height, frameW, frameH);
-  const frame = new Jimp(frameW, frameH, 0x000000ff);
-  frame.composite(image.resize(g.width, g.height), g.left, g.top);
-  return frame.quality(90).getBufferAsync(Jimp.MIME_JPEG);
+  // `fit: 'contain'` IS the letterbox — it scales to fit inside and pads the remainder,
+  // which is what `letterboxGeometry` computes by hand for the test. sharp does it in one
+  // pass, where the Jimp version composited a resized copy onto a black canvas.
+  //
+  // Black, not the default white: a pale bar round a card reads as a rendering fault, and
+  // ImageMagick's white default is what made Stockport's output look broken once their
+  // other geometry bug was fixed.
+  return sharp(buffer)
+    .resize(frameW, frameH, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 1 } })
+    .jpeg({ quality: 90 })
+    .toBuffer();
 }
 
 /**
