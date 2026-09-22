@@ -81,7 +81,10 @@ exports.club_list_detail = function(req, res, next) {
                  error: false,
                  recaptcha : process.env.RECAPTCHA,
                  mapsApiKey: process.env.GMAPSAPIKEY,
-                 venues:JSON.stringify(venueRows)
+                 // Raw rows, not a JSON string: the view embeds them with
+                 // `jsonForScript()`, which escapes the characters that would let a free-text
+                 // address close the <script> block early.
+                 venues: venueRows
              });
           }
 

@@ -196,47 +196,57 @@
 
 <%- include('footer.ejs') %>
 
+<!-- The popup builder is a file, not an inline block, so it can be unit-tested.
+     See static/js/venue-popup.js and test/venue-popup.test.js. -->
+<script src="<%= assetUrl('/static/js/venue-popup.js') %>"></script>
 <script>
-// Initialize and add the map
+// The venue map.
+//
+// The pin content comes from VenuePopup (static/js/venue-popup.js), which is where the
+// escaping lives and where the decision about WHICH of a club's two venues is being shown
+// is made. This block is now only about Google Maps.
 function initMap() {
-  var StockportTownHall = {lat:53.4060787, lng:-2.1606755};
+  var StockportTownHall = {lat: 53.4060787, lng: -2.1606755};
   var map = new google.maps.Map(
-    document.getElementById('map'), 
+    document.getElementById('map'),
     {
-      zoom: 10, 
-      center: StockportTownHall, 
+      zoom: 10,
+      center: StockportTownHall,
       mapId: '28eeb908f19e8aab'
     }
   );
-  
-  var data = <%- venues %>
-  
-  data.forEach(function(i){
-    if (i.Lat != null){
-      var point = {lat: i.Lat, lng: i.Lng}
-      
-      var contentString = '<div id="content">' +
-        '<div id="siteNotice"></div>' + 
-        i.venueInfoBox + 
-        '</div>';
 
-      var infowindow = new google.maps.InfoWindow({
-        content: contentString
-      });
-      
-      var clubMarker = new google.maps.marker.AdvancedMarkerElement({
-        position: point,
-        map: map,
-        gmpClickable: true
-      });
+  // `jsonForScript`, not `JSON.stringify`: a venue address is free text, and one
+  // containing a closing script tag would otherwise end this block early — the browser
+  // finds the end of a script element before any JS is parsed. See utils/jsonForScript.js.
+  //
+  // (Writing that tag literally here, even inside a comment, does exactly the same thing.
+  // It did, on the first attempt at this file: the block ended mid-comment, initMap was
+  // never defined, and the Maps callback reported `initMap is not a function`.)
+  var data = <%- jsonForScript(venues) %>;
 
-      // AdvancedMarkerElement emits 'gmp-click', not 'click' — using 'click'
-      // logs a deprecation warning (gmpClickable must be true for it to fire).
-      clubMarker.addListener('gmp-click', function() {
-        infowindow.open(map, clubMarker);
-      });
-    }
-  })
+  // ONE InfoWindow, reused. Google's own guidance, and the previous code created a new one
+  // per marker — so clicking three pins left three popups open on top of each other.
+  var infowindow = new google.maps.InfoWindow();
+
+  data.forEach(function (venue) {
+    // A venue with no coordinates cannot be placed. "No Venue" is a real row in this
+    // table, which is why this guard exists.
+    if (venue.Lat == null || venue.Lng == null) return;
+
+    var clubMarker = new google.maps.marker.AdvancedMarkerElement({
+      position: {lat: venue.Lat, lng: venue.Lng},
+      map: map,
+      gmpClickable: true
+    });
+
+    // AdvancedMarkerElement emits 'gmp-click', not 'click' — using 'click'
+    // logs a deprecation warning (gmpClickable must be true for it to fire).
+    clubMarker.addListener('gmp-click', function () {
+      infowindow.setContent(VenuePopup.popupHtml(venue));
+      infowindow.open(map, clubMarker);
+    });
+  });
 }
 </script>
 

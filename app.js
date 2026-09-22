@@ -316,6 +316,10 @@ const spamChecks = require('./utils/spamChecks');
 // produces a link Facebook rejects outright — see utils/socialPaths.js.
 app.locals.resultImagePath = require(__dirname + '/utils/socialPaths').resultImagePath;
 
+// Embedding a JSON value inside an inline <script>. `JSON.stringify` alone is not safe
+// there — a string containing `</script>` closes the block early. See utils/jsonForScript.js.
+app.locals.jsonForScript = require(__dirname + '/utils/jsonForScript');
+
 app.locals.spamHoneypotField = spamChecks.HONEYPOT_FIELD;
 app.use(function (req, res, next) {
   res.locals.spamFormStamp = spamChecks.formStamp();
