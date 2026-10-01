@@ -150,8 +150,27 @@ exports.new_user = function(req,res,next){
     .then(() => res.sendStatus(200))
     .catch(error => {
       console.log(error.toString());
-      return next("Sorry something went wrong sending your email.");
+      return next(error);
     });
+}
+
+// A submission that names nobody to send to: a missing or unrecognised contactType, no
+// club chosen, or no committee member chosen. That is a person missing a dropdown (the
+// placeholders are `disabled`, so an untouched select posts no field at all) or a bot
+// posting bare fields — a 400 with a message saying what to fix, never a 500.
+//
+// Until 2026-10-01 a League enquiry with no leagueSelect reached sendContactMessage, whose
+// 400 was then passed to next() as a bare STRING. A string has no .status, so the central
+// handler rendered the 500 page and filed Sentry TAMESIDE-NODE-7.
+function refuseNoRecipient(req, res, message) {
+  spamGate.logOutcome(req, { verdict: 'rejected', reason: 'validation' });
+  return res.status(400).render('contact-us-form-delivered', {
+    static_path: '/static',
+    title: 'Contact Us - Error',
+    pageDescription: 'Sorry we weren\'t able sent your email - something went wrong',
+    message: 'Sorry something went wrong',
+    content: [{ msg: message }]
+  });
 }
 
 exports.contactus = function(req, res,next){
@@ -202,17 +221,15 @@ exports.contactus = function(req, res,next){
     // reachable by anyone posting to this endpoint without the field, which is precisely
     // what a bot does, so it matters more now the form is being hardened.
     if (req.body.contactType !== 'Clubs' && req.body.contactType !== 'League') {
-      spamGate.logOutcome(req, { verdict: 'rejected', reason: 'validation' });
-      return res.status(400).render('contact-us-form-delivered', {
-        static_path: '/static',
-        title: 'Contact Us - Error',
-        pageDescription: 'Sorry we weren\'t able sent your email - something went wrong',
-        message: 'Sorry something went wrong',
-        content: [{ msg: 'Please choose who you want to contact.' }]
-      });
+      return refuseNoRecipient(req, res, 'Please choose who you want to contact.');
     }
 
     if(req.body.contactType == 'Clubs'){
+      // Checked before the lookup: an absent clubSelect would otherwise go to a bigint
+      // column as `undefined`.
+      if (!/^\d+$/.test(String(req.body.clubSelect || ''))) {
+        return refuseNoRecipient(req, res, 'Please choose which club you want to contact.');
+      }
       Club.getContactDetailsById(req.body.clubSelect, function(err,rows){
         if (err){
           console.log(err);
@@ -234,7 +251,7 @@ exports.contactus = function(req, res,next){
             })
             .catch(error => {
               console.log(error.toString());
-              return next("Sorry something went wrong sending your email.");
+              return next(error);
             })
         }
       })
@@ -268,8 +285,11 @@ exports.contactus = function(req, res,next){
             msg.To = [{"Email":"gillian.indexer@gmail.com"}]
             break;
         default:
-          // Deliberately leaves To empty — sendContactMessage rejects rather than
-          // falling back to the old example.com placeholder.
+          // Deliberately leaves To empty — refused just below, rather than falling back
+          // to the old example.com placeholder.
+      }
+      if (!msg.To.length) {
+        return refuseNoRecipient(req, res, 'Please choose which committee member you want to contact.');
       }
       sendContactMessage(msg, contactMessage)
       .then(()=>{
@@ -283,7 +303,7 @@ exports.contactus = function(req, res,next){
       })
       .catch(error => {
         console.log(error.toString());
-        return next("Sorry something went wrong sending your email.");
+        return next(error);
       })
     }
   }

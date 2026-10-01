@@ -378,6 +378,48 @@ describe('POST /contact-us always answers', () => {
     });
   }
 
+  // Sentry TAMESIDE-NODE-7: a League enquiry with no committee member chosen. The
+  // placeholder <option> is disabled, so an untouched select posts NO leagueSelect field,
+  // and the handler's catch passed a bare string to next() — no .status, so a 500 page and
+  // a Sentry event for what is a person missing a dropdown.
+  for (const [label, body, expected] of [
+    ['League with no leagueSelect', { contactType: 'League' }, /committee member/],
+    ['League with an unknown leagueSelect', { contactType: 'League', leagueSelect: 'wibble' }, /committee member/],
+    ['Clubs with no clubSelect', { contactType: 'Clubs' }, /which club/],
+    ['Clubs with a non-numeric clubSelect', { contactType: 'Clubs', clubSelect: 'Choose a Club' }, /which club/],
+  ]) {
+    it(`answers 400 saying what to choose, not 500: ${label}`, async () => {
+      const postStub = stubMailjet();
+      const logged = captureLog();
+      const lookup = mock.fn((id, cb) => cb(null, []));
+      setModel('Club', 'getContactDetailsById', lookup);
+
+      const res = await request(app).post('/contact-us').type('form').send({
+        contactEmail: 'real.person@example.com',
+        contactQuery: 'Hello there, this is a genuine enquiry about joining.',
+        formTs: goodStamp(),
+        ...body,
+      });
+
+      assert.strictEqual(res.status, 400);
+      assert.match(res.text, expected);
+      assert.strictEqual(postStub.mock.callCount(), 0);
+      assert.strictEqual(lookup.mock.callCount(), 0, 'no DB lookup without a club id');
+      assert.strictEqual(logged[0].reason, 'validation');
+    });
+  }
+
+  it('passes a send failure on as the error itself, not a string', async () => {
+    // A bare string reaches the central handler with no status and no stack.
+    mock.method(contactusController._mailjetClientForTesting, 'post',
+      () => ({ request: () => Promise.reject(new Error('mailjet down')) }));
+
+    const res = await request(app).post('/contact-us').type('form')
+      .send({ ...GOOD_BODY, formTs: goodStamp() });
+
+    assert.strictEqual(res.status, 500);
+  });
+
   it('still sends when contactType is League with a known recipient', async () => {
     const postStub = stubMailjet();
 
