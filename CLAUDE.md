@@ -1214,7 +1214,7 @@ inside a PDF 1.5 `/ObjStm`, where a byte-level walk cannot see it.
 `/admin/scorecard-ocr` reads an uploaded scorecard photo from S3 and prefills the
 normal entry flow. Pipeline: `sharp` pre-enhance → **Google Vision REST**
 (`images:annotate`, `DOCUMENT_TEXT_DETECTION`, authenticated with the plain
-`GMAPSAPIKEY` — no service account) → `utils/scorecardExtraction.js` (pure:
+`VISION_API_KEY` — no service account) → `utils/scorecardExtraction.js` (pure:
 orientation auto-correct on text-block coordinates, printed-label anchors, merged
 digit-token splitting disambiguated by the scoring rules) →
 `utils/scorecardMatch.js` (fuzzy-match names against each team's eligible roster,
@@ -1225,6 +1225,28 @@ matching are unit-tested against cached Vision responses in `test/fixtures/` (no
 API calls). The 9 card events map 1:1 onto `Game1..Game18`
 (`GAME_MAP` in scorecardExtraction).
 
+**The key.** `VISION_API_KEY` is a server-only key in Tameside's own project
+(`avid-compound-429108-g9`), restricted to the Vision API, created 1 Oct 2026. Before
+that this borrowed `GMAPSAPIKEY`, which belongs to **Stockport's** project
+`stockport-badminton-map`, carries **no restrictions at all**, and is printed into the club
+and event pages for Maps, so anyone reading page source could spend Vision on it. That is
+also why Tameside's own Vision quota page showed no traffic. `GMAPSAPIKEY` is the fallback
+only until `VISION_API_KEY` is set everywhere. An API key is always billed to the project
+that created it; there is no "quota project" to point elsewhere, unlike Stockport's
+`@google-cloud/vision` client on service-account credentials.
+
+**`RESOURCE_EXHAUSTED` (code 8) is usually Google, not us.** On 1 Oct 2026 Vision refused
+7-10 of every 10 calls with "Resource has been exhausted (e.g. check quota)" while the
+quotas were untouched. It did the same from both projects and both billing accounts, with
+an API key and with OAuth, on the global, `eu-` and `us-` endpoints, and for every feature,
+and the status page showed no incident. Stockport's "fixed it by changing the billing
+project" was almost certainly timing. Successes came interleaved with refusals, so
+`annotateScorecard` retries code 8 / 429 / 503 three times (1s, 2s, 4s, sized for the 60s
+request timeout) and then tells the captain Google is busy, not quoting the quota message.
+Before blaming config, call the API from a second project: if both fail, it's Google.
+Finding which project owns a key needs no credentials: call an API it hasn't enabled, and
+the error names `consumer: projects/<number>`.
+
 ## Required Environment Variables
 
 ```
@@ -1232,7 +1254,8 @@ DATABASE_URL / PGHOST / PGPORT / PGDATABASE / PGUSERNAME / PGPASSWORD
 AUTH0_DOMAIN / AUTH0_CLIENTID / AUTH0_CLIENT_SECRET / AUTH0_CALLBACK_URL / AUTH0_AUDIENCE
 S3_BUCKET_NAME / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
 MAILJET_KEY / MAILJET_SECRET
-GMAPSAPIKEY / RECAPTCHA / RECAPTCHA_SECRET
+GMAPSAPIKEY / RECAPTCHA / RECAPTCHA_SECRET   # GMAPSAPIKEY is rendered into pages (Maps)
+VISION_API_KEY     # Server-only, Vision-restricted key for scorecard OCR. Never render it.
 CONTENTFUL_KEY / CONTENTFUL_SPACE
 DB_ENCODE          # PgP key for decrypting player contact data
 SENTRY_DSN         # Server-side error reporting (instrument.js). Dormant unless set;
