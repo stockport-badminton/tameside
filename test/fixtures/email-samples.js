@@ -83,4 +83,13 @@ module.exports = {
     whyReceiving: 'You are receiving this because you are listed as a club or match secretary '
       + 'for Hyde in the league&rsquo;s records.',
   },
+  // The shape utils/missedThreeEmail.buildMissedThreeNotice returns as `data`;
+  // test/missed-three.test.js asserts the builder produces exactly these keys.
+  'missed-three': {
+    playerName: 'Leon Example', firstName: 'Leon', teamName: 'College Green A',
+    nextTeamName: 'College Green B', pronoun: 'he', possessive: 'his', rule: '18',
+    senderName: 'Neil',
+    whyReceiving: 'You are receiving this because you are listed as a club or match secretary '
+      + 'for College Green in the league&rsquo;s records.',
+  },
 };

@@ -1,0 +1,49 @@
+<mjml>
+  <mj-head>
+    <mj-include path="./_theme.mjml" />
+    <mj-title><%= playerName %>, <%= teamName %></mj-title>
+    <mj-preview><%= firstName %> has missed 3 consecutive matches for <%= teamName %></mj-preview>
+  </mj-head>
+  <mj-body background-color="#eef0f4" width="600px">
+    <mj-include path="./_header.mjml" />
+
+    <mj-section padding="28px 0 0">
+      <mj-column>
+        <mj-text mj-class="label" text-transform="uppercase">Nominated players</mj-text>
+        <mj-text mj-class="h1" padding="6px 24px 0"><%= playerName %></mj-text>
+        <mj-text mj-class="muted" padding="4px 24px 0"><%= teamName %></mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="16px 0 0">
+      <mj-column>
+        <mj-text>Hi,</mj-text>
+        <mj-text padding="12px 24px 0">
+          Noticed that <%= firstName %> has missed 3 consecutive games for the
+          <%= teamName %> team now.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="16px 24px 0">
+      <mj-column background-color="#f4f6f9" padding="18px 20px" border-radius="6px">
+        <mj-text padding="0">
+          In order to remain a nominated player <%= pronoun %> should play the next match,
+          or a member of the <%= nextTeamName %> team needs to be nominated in
+          <%= possessive %> place to remain in line with rule <%= rule %>.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="16px 0 26px">
+      <mj-column>
+        <mj-text>Thanks</mj-text>
+        <mj-raw><% if (senderName) { %></mj-raw>
+        <mj-text padding="12px 24px 0"><%= senderName %></mj-text>
+        <mj-raw><% } %></mj-raw>
+      </mj-column>
+    </mj-section>
+
+    <mj-include path="./_footer.mjml" />
+  </mj-body>
+</mjml>

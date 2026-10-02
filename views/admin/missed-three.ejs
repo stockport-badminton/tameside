@@ -1,0 +1,53 @@
+<%#
+  Missed three (rule 18): nominated players with no appearance in their team's last three
+  completed matches this season. See models/missedThree.js for exactly who is listed.
+%>
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<div class="col-12">
+  <h1>Missed three</h1>
+  <p class="text-muted">
+    Nominated players who have not played in any of their team&rsquo;s last three completed
+    matches in <%= seasonLabel %> &mdash; rule 18. Teams that fielded a full side of their own
+    players (<%= side.men %> men and <%= side.ladies %> ladies) across those matches are left
+    out, as are each club&rsquo;s lowest team, which has nobody below it to promote.
+    Previewing a notice shows exactly what the club&rsquo;s secretaries will receive.
+  </p>
+
+  <% if (sent) { %>
+    <div class="alert alert-success" role="status">Sent: <%= sent %>. A copy went to the results mailbox.</div>
+  <% } %>
+
+  <% if (!rows.length) { %>
+    <p>Nobody has missed three matches.</p>
+  <% } else { %>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr><th>Player</th><th>Team</th><th>Would be replaced from</th><th></th></tr>
+      </thead>
+      <tbody>
+      <% rows.forEach(function (row) { %>
+        <tr>
+          <td><%= row.firstName %> <%= row.familyName %></td>
+          <td><%= row.teamName %></td>
+          <td><%= row.nextTeamName %></td>
+          <td>
+            <% if (row.canNotify) { %>
+              <a class="btn btn-sm btn-outline-primary" href="/admin/missed-three/<%= row.playerId %>/notice">Preview notice</a>
+            <% } else { %>
+              <span class="text-muted">No secretary email on file</span>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+
+<%- include('../footer.ejs') %>
+</body>
+</html>

@@ -137,7 +137,7 @@ Manager, by choice); change it with `--update-env-vars`, never `--set-env-vars`.
 
 ### Emails
 
-Eleven emails, one pipeline. `emails/*.mjml` → `npm run build:email` → committed
+Twelve emails, one pipeline. `emails/*.mjml` → `npm run build:email` → committed
 `views/emails/*.ejs` → sent by `utils/mailer.js`.
 
 Before this there were nine send sites across three files: seven inline HTML string
@@ -1152,6 +1152,26 @@ callers use (`id`, `team`, `rank`, `club`), integer-and-shape validation, and cl
 resolved **from the database, not the payload**, for the whole batch before any write. A
 player id that doesn't exist is a refusal, not a pass: a missing row has no club to compare
 and would otherwise fall past the scope check.
+
+### Missed three (rule 18)
+
+`/admin/missed-three` (superadmin, Admin nav) lists nominated players — `rank` NULL or not
+99 — with no appearance in their team's last three completed matches this season, and sends
+the club's secretaries a notice after a preview. Ported from Stockport (league-site
+`30df345`, `15a3e88`, `3fde4a5`); same rule, which is **rule 18 here and 19(b) there** —
+`RULE` in `utils/missedThreeEmail.js`.
+
+- **Sized for a Tameside side: 4 men + 2 ladies.** Both the slots read and the exemption —
+  a team that fielded a full side of its *own* players across those matches had no gap, so
+  it is not listed — use `SIDE` in `models/missedThree.js`. Stockport's is 3 + 3.
+- **Not listed:** a club's lowest team (nobody below to promote, so the notice could not
+  name one), single-team clubs, No Club, and any team with fewer than three results.
+- **Officers resolve pointer first, flag second**, like the club contact page, and are
+  merged by address — most clubs have one person in both roles.
+- **The notice is derived from the player id alone.** The POST reads nothing from its body;
+  a player who has dropped off the list since the page loaded is a 404, a club with no
+  address on file a 422. The preview's iframe is rendered by `mailer.renderTemplate` from
+  the same object the send uses.
 
 ### Fuzzy Player Matching
 

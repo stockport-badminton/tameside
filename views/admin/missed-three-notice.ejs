@@ -1,0 +1,47 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<div class="col-12">
+  <p class="mb-1"><a href="/admin/missed-three">&larr; Missed three</a></p>
+  <h1 class="h3"><%= notice.subject %></h1>
+
+  <div class="row">
+    <div class="col-lg-4 mb-3">
+      <div class="card">
+        <div class="card-body">
+          <dl class="mb-3 small">
+            <dt>To</dt>
+            <dd>
+              <% if (notice.recipients.length) { %>
+                <% notice.recipients.forEach(function (r) { %>
+                  <%= r.name %> &lt;<%= r.email %>&gt; <span class="text-muted">(<%= r.role %>)</span><br>
+                <% }) %>
+              <% } else { %>
+                <span class="text-danger">Nobody at this club has a contact email on file.</span>
+              <% } %>
+            </dd>
+            <dt>Bcc</dt><dd><%= resultsMailbox %></dd>
+            <dt>Replies go to</dt><dd><%= notice.replyTo %></dd>
+            <dt>Subject</dt><dd><%= notice.subject %></dd>
+          </dl>
+          <% if (notice.recipients.length) { %>
+            <form method="post" action="/admin/missed-three/<%= playerId %>/notice">
+              <button class="btn btn-primary" type="submit">Send</button>
+              <a class="btn btn-link" href="/admin/missed-three">Cancel</a>
+            </form>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <%# The rendered email, from the same template and data the send uses. %>
+      <iframe src="/admin/missed-three/<%= playerId %>/notice/email" title="Email preview"
+              style="width:100%; height:720px; border:1px solid #dee2e6; background:#fff"></iframe>
+    </div>
+  </div>
+</div>
+
+<%- include('../footer.ejs') %>
+</body>
+</html>

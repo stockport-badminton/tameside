@@ -702,6 +702,14 @@ app.get('/admin/registration-reminders', secured, registration_reminder_controll
 app.post('/admin/registration-reminders/:club(\\d+)/received', secured, registration_reminder_controller.setReceived);
 app.post('/admin/registration-reminders/:club(\\d+)/chase', secured, registration_reminder_controller.chase);
 
+/* Missed three (rule 18) — superadmin. The notice is derived server-side from the player id
+   alone; nothing in the POST body is read. See models/missedThree.js. */
+const missed_three_controller = require(__dirname + '/controllers/missedThreeController');
+app.get('/admin/missed-three', secured, requireSuperAdmin, missed_three_controller.list);
+app.get('/admin/missed-three/:playerId(\\d+)/notice', secured, requireSuperAdmin, missed_three_controller.preview);
+app.get('/admin/missed-three/:playerId(\\d+)/notice/email', secured, requireSuperAdmin, missed_three_controller.previewEmail);
+app.post('/admin/missed-three/:playerId(\\d+)/notice', secured, requireSuperAdmin, missed_three_controller.send);
+
 /* The weekly league-tables post to Facebook and Instagram.
 
    The GET is `secured` like every other /admin page. **The POST deliberately is NOT**:
