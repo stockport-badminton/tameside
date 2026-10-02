@@ -30,7 +30,7 @@ create or replace function clone_season(
 language plpgsql
 as $fn$
 declare
-  src text; tgt text; pol record; oldpol record;
+  src text; tgt text; pol record; oldpol record; col record;
   v_roles text; v_using text; v_check text;
 begin
   foreach src in array p_tables loop
@@ -40,6 +40,19 @@ begin
     if to_regclass(format('public.%I', tgt)) is null then
       execute format('create table public.%I as table public.%I', tgt, src);
       raise notice 'created table %', tgt;
+      -- An archive of `player` is for history (who played for whom), not contacts. Copying
+      -- the pgp-encrypted contact columns meant every season kept another copy of every
+      -- address and phone number under the live key — 465 of them by 2026, all cleared in
+      -- the DB_ENCODE rotation (tools/rotate-db-encode.js). Nothing decrypts from an archive.
+      if src = 'player' then
+        for col in
+          select column_name from information_schema.columns
+           where table_schema = 'public' and table_name = tgt
+             and column_name in ('playerEmail', 'playerTel', 'authEmail')
+        loop
+          execute format('update public.%I set %I = null', tgt, col.column_name);
+        end loop;
+      end if;
     else
       raise notice 'table % exists, syncing RLS only', tgt;
     end if;
