@@ -36,6 +36,12 @@ function resultImagePath(result) {
   ]) + '.jpg';
 }
 
+// The same result as a 9:16 Instagram Story card:
+// /resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division/story.jpg
+function resultStoryImagePath(result) {
+  return resultImagePath(result).replace(/\.jpg$/, '') + '/story.jpg';
+}
+
 // /league-table-image/:division.jpg
 function leagueTableImagePath(divisionName) {
   return '/league-table-image/' + encodeSegments([divisionName]) + '.jpg';
@@ -66,5 +72,6 @@ function socialVideoPath(aspect) {
 }
 
 module.exports = {
+  resultStoryImagePath,
   resultImagePath, leagueTableImagePath, fixturesImagePath, socialVideoPath, stripImageExt,
 };

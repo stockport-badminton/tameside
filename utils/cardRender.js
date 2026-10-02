@@ -120,19 +120,31 @@ function rect(x, y, w, h, { fill = '#000000', opacity = 1, rx = 0 } = {}) {
 // finished PIXELS and there is no clone-per-use rule to remember.
 const backgrounds = new Map();
 
-async function background(file, width, height) {
-  const key = `${file}@${width}x${height}`;
+// `inset` places the artwork at full WIDTH with its top at `inset.top`, over a blurred,
+// darkened copy of itself that fills the frame — for a 9:16 story built from 4:5 artwork.
+// Covering instead would crop a fifth off each side: the division numeral in the corner and
+// the second player went with it.
+async function background(file, width, height, inset) {
+  const key = `${file}@${width}x${height}${inset ? `+inset${inset.top}` : ''}`;
   if (!backgrounds.has(key)) {
-    backgrounds.set(key, sharp(file).resize(width, height, { fit: 'cover' }).png().toBuffer());
+    backgrounds.set(key, inset ? insetBackground(file, width, height, inset) :
+      sharp(file).resize(width, height, { fit: 'cover' }).png().toBuffer());
   }
   return backgrounds.get(key);
+}
+
+async function insetBackground(file, width, height, { top }) {
+  const backdrop = await sharp(file).resize(width, height, { fit: 'cover' })
+    .blur(40).modulate({ brightness: 0.55 }).png().toBuffer();
+  const art = await sharp(file).resize({ width }).png().toBuffer();
+  return sharp(backdrop).composite([{ input: art, top, left: 0 }]).png().toBuffer();
 }
 
 function resetBackgroundCache() { backgrounds.clear(); }
 
 /** Compose an SVG body over a background and encode. */
-async function render({ file, width, height, body, format = 'jpeg' }) {
-  const base = await background(file, width, height);
+async function render({ file, width, height, body, format = 'jpeg', inset }) {
+  const base = await background(file, width, height, inset);
   const svg = Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${body}</svg>`);
   const pipeline = sharp(base).composite([{ input: svg, top: 0, left: 0 }]);

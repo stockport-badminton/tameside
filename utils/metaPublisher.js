@@ -226,6 +226,24 @@ async function publishInstagramPhoto(igUserId, token, { imageUrl, caption }) {
 }
 
 /**
+ * One image as an Instagram Story: the same container flow, with `media_type=STORIES`.
+ * Ported from Stockport (league-site ed74712), whose container dry-run on their Page token
+ * needed no new permission or use case.
+ *
+ * No caption, because a story does not show one — everything it says is in the pixels,
+ * which is why it has its own card layout (social_controller's STORY). A published story
+ * reads back as `media_type` IMAGE; only `media_product_type` says STORY, which matters to
+ * anything that de-duplicates against our own history.
+ */
+async function publishInstagramStory(igUserId, token, { imageUrl }) {
+  assertPublishableImage(imageUrl, { forInstagram: true });
+  const creationId = await createContainer(igUserId, token, {
+    media_type: 'STORIES', image_url: imageUrl,
+  });
+  return { mediaId: await publishContainer(igUserId, token, creationId), creationId };
+}
+
+/**
  * Up to ten images as one carousel, which counts as ONE post against the publishing quota.
  *
  * Each child is its own container with `is_carousel_item`, then a parent container names
@@ -566,7 +584,7 @@ function configuredTargets() {
  * A null entry is skipped rather than being an error: that is how an unset credential means
  * "this league does not post there" instead of "crash".
  */
-async function publishEverywhere(targetList, { imageUrls, message, caption }) {
+async function publishEverywhere(targetList, { imageUrls, message, caption, storyImageUrl }) {
   const posted = [];
   const failed = [];
 
@@ -580,6 +598,12 @@ async function publishEverywhere(targetList, { imageUrls, message, caption }) {
         const r = urls.length > 1
           ? await publishInstagramCarousel(t.id, t.token, { imageUrls: urls, caption: caption ?? message })
           : await publishInstagramPhoto(t.id, t.token, { imageUrl: urls[0], caption: caption ?? message });
+        posted.push({ target: t.name, kind: t.kind, id: r.mediaId });
+      } else if (t.kind === 'instagram-story') {
+        // Its own target, so a story that fails beside a feed post that worked is reported
+        // as exactly that, rather than folded into "Instagram: ok".
+        if (!storyImageUrl) throw new MetaError('No story image supplied for the story target', { step: 'validate' });
+        const r = await publishInstagramStory(t.id, t.token, { imageUrl: storyImageUrl });
         posted.push({ target: t.name, kind: t.kind, id: r.mediaId });
       } else {
         failed.push({ target: t.name, error: new MetaError(`Unknown target kind ${t.kind}`, { step: 'validate' }) });
@@ -596,7 +620,7 @@ module.exports = {
   MetaError,
   assertPublishableImage, assertPublishableVideo, ratioOk,
   uploadPagePhoto, publishPageAlbum,
-  publishInstagramPhoto, publishInstagramCarousel,
+  publishInstagramPhoto, publishInstagramCarousel, publishInstagramStory,
   publishInstagramReel, prepareInstagramReel, publishPageVideo, waitForContainer,
   createContainer, publishContainer,
   validateImages, validateVideo, publishingQuota,

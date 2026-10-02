@@ -76,8 +76,25 @@ exports._resetBackgroundCache = card.resetBackgroundCache;
 // So nothing shares a baseline with anything now. A cursor walks down the card and each
 // element claims its own band, which means a long name can only ever make the card taller
 // (and it cannot, because `fitSize` shrinks it first), never overlap a neighbour.
-async function buildResultCard({ homeTeam, awayTeam, homeScore, awayScore, division }, format = 'jpeg') {
-  const W = 1080, H = 1350;
+// ── The story layout ─────────────────────────────────────────────────────────
+//
+// `layout: 'story'` draws the same card at 9:16 for an Instagram Story, with the panel
+// LIFTED so it ends at 80% of the height. Instagram lays its reply box and send button over
+// roughly the bottom fifth of a story and the account header over the top tenth; the feed
+// layout's panel runs to the bottom edge, which would put the away team and the score under
+// the reply box. Stockport chose the same "lifted" layout from three renders (league-site
+// ed74712).
+//
+// The artwork is 4:5, so it is NOT scaled to cover — that cropped the division numeral and
+// the second player out of the frame. It sits at full width with its bottom edge where the
+// panel ends (so the panel overlaps it exactly as on the feed card), over a blurred copy of
+// itself; its top then lands just below Instagram's header.
+const STORY = { W: 1080, H: 1920, panelEnd: 0.80, artH: 1350 };
+
+async function buildResultCard({ homeTeam, awayTeam, homeScore, awayScore, division }, format = 'jpeg', { layout = 'feed' } = {}) {
+  const story = layout === 'story';
+  const W = 1080, H = story ? STORY.H : 1350;
+  const panelBottom = story ? Math.round(STORY.H * STORY.panelEnd) : H;
   const file = './static/images/bg/social-' + String(division).replace(/\s+/g, '-') + '.png';
 
   const PAD = 56;
@@ -98,10 +115,10 @@ async function buildResultCard({ homeTeam, awayTeam, homeScore, awayScore, divis
 
   const blockH = TOP_PAD + LABEL_H + LABEL_GAP + nameSize + VEE_GAP + VEE_H + nameSize
                + SCORE_GAP + SCORE + FOOT_GAP + FOOT_H + BOTTOM_PAD;
-  const panelTop = H - blockH;
+  const panelTop = panelBottom - blockH;
 
   let y = panelTop + TOP_PAD;
-  const body = [card.rect(0, panelTop, W, H - panelTop, { fill: '#ffffff', opacity: 0.55 })];
+  const body = [card.rect(0, panelTop, W, panelBottom - panelTop, { fill: '#ffffff', opacity: 0.55 })];
 
   y += LABEL_H;
   body.push(card.text('RESULT', { x: PAD, y, size: 26, family: card.BODY, weight: 'bold',
@@ -127,7 +144,8 @@ async function buildResultCard({ homeTeam, awayTeam, homeScore, awayScore, divis
     x: PAD, y, size: FOOT_H, family: card.BODY, weight: 'bold',
     fill: '#1b1b1f', opacity: 0.7, maxWidth: inner }));
 
-  return card.render({ file, width: W, height: H, body: body.join(''), format });
+  return card.render({ file, width: W, height: H, body: body.join(''), format,
+                      inset: story ? { top: panelBottom - STORY.artH } : undefined });
 }
 
 // GET /resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division
@@ -154,6 +172,25 @@ exports.social_get_result = async function (req, res, next) {
     writeLegacyResultCard(card).catch(err =>
       console.log('legacy result card not written:', err.message));
 
+    res.type('image/jpeg').set('Cache-Control', SOCIAL_IMAGE_CACHE_CONTROL).send(buffer);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division/story.jpg
+//
+// The 9:16 story card (see STORY above). Drawn per request and written nowhere — a file on
+// a Cloud Run instance's disk is invisible to every other instance, Meta included.
+exports.social_get_result_story = async function (req, res, next) {
+  try {
+    const buffer = await buildResultCard({
+      homeTeam: req.params.homeTeam,
+      awayTeam: req.params.awayTeam,
+      homeScore: req.params.homeScore,
+      awayScore: req.params.awayScore,
+      division: stripImageExt(req.params.division),
+    }, 'jpeg', { layout: 'story' });
     res.type('image/jpeg').set('Cache-Control', SOCIAL_IMAGE_CACHE_CONTROL).send(buffer);
   } catch (err) {
     next(err);
@@ -361,6 +398,7 @@ exports.fixtures_image = async function (req, res, next) {
   }
 };
 
+exports.STORY = STORY;
 exports.fixtureCardLines = fixtureCardLines;
 exports.fixtureDateRange = fixtureDateRange;
 exports.buildFixturesCard = buildFixturesCard;

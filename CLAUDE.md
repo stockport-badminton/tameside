@@ -909,6 +909,22 @@ that bite:
 - Tournament posters are **not** ported. Stockport's five are its own content down to the
   venue address, and Tameside has neither the posters nor the background art.
 
+#### Result Stories (9:16), behind `SOCIAL_POST_STORY`
+
+Ported from Stockport `ed74712`. With `SOCIAL_POST_STORY=true` (and `SOCIAL_POST_DIRECT`), a
+published result also goes to Instagram as a Story — a third target, `instagram-story`,
+reported apart from the feed post. Unset posts no story.
+
+- **The card is the result card at 1080x1920 with the panel lifted to end at 80%**, clear of
+  Instagram's reply box; `GET /resultImage/.../:division/story.jpg`
+  (`socialPaths.resultStoryImagePath`), drawn per request, written nowhere.
+- **The 4:5 artwork is INSET, not scaled to cover** (`cardRender` `inset`): covering cropped
+  a fifth off each side, which took the division numeral and the second player out of frame.
+  It sits at full width ending where the panel ends, over a blurred copy of itself.
+- `publishInstagramStory` is the ordinary container flow with `media_type=STORIES` and no
+  caption — a story shows none, so everything it says is in the pixels. A published story
+  reads back as `media_type` IMAGE; only `media_product_type` says STORY.
+
 #### The other two weekly posts: fixtures, and the results video
 
 Added 21 Sep 2026. Three scheduled social posts now, all the same shape

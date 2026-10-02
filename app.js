@@ -539,6 +539,8 @@ app.use(filterState.middleware)
 // itself, from its own servers, minutes after we hand them over**, so anything behind
 // `secured` can never work. See controllers/social_controller.js.
 app.get('/resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division',social_controller.social_get_result)
+// The 9:16 Instagram Story card. Six segments, so it can never match the five-segment route above.
+app.get('/resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division/story.jpg', social_controller.social_get_result_story)
 app.get('/league-table-image/:division', social_controller.league_table_image)
 app.get('/fixtures-image/:division', social_controller.fixtures_image)
 app.get('/tables-social',social_controller.social_get_tables)

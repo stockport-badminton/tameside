@@ -8,7 +8,7 @@ replace: "$1$2"
 */
 const seasonModel = require('./season');
 const { absoluteUrl } = require('../utils/siteUrl');
-const { resultImagePath } = require('../utils/socialPaths');
+const { resultImagePath, resultStoryImagePath } = require('../utils/socialPaths');
 
  exports.createBatch = async function(BatchObj,done){
   if(db.isObject(BatchObj)){
@@ -533,9 +533,16 @@ FROM (SELECT "fixturePlayers".*, club.name
    *
    * Throws only when EVERY target failed, or when none is configured at all.
    */
-  async function publishResultToMeta({ imgGen, message }) {
+  async function publishResultToMeta({ imgGen, message, storyImageUrl }) {
     const meta = require('../utils/metaPublisher');
-    const configured = meta.configuredTargets();
+    // The Instagram Story is a THIRD target, not part of the Instagram one, so a story that
+    // fails beside a feed post that worked is reported as exactly that. Off unless
+    // SOCIAL_POST_STORY is 'true': a story goes out on every published result, and the first
+    // real one is the only check of where Instagram's overlays fall on the 9:16 card.
+    const ig = meta.targets().instagram;
+    const story = process.env.SOCIAL_POST_STORY === 'true' && ig
+      ? { ...ig, name: 'Instagram story', kind: 'instagram-story' } : null;
+    const configured = [...meta.configuredTargets(), story].filter(Boolean);
 
     // **No targets is a failure, not a quiet success.** `SOCIAL_POST_DIRECT` lives in the
     // Cloud Run service config and the credentials live in `.env`, which is gitignored and
@@ -555,7 +562,9 @@ FROM (SELECT "fixturePlayers".*, club.name
         'through Make.com.');
     }
 
-    const out = await meta.publishEverywhere(configured, { imageUrls: imgGen, message });
+    const out = await meta.publishEverywhere(configured, {
+      imageUrls: imgGen, message, storyImageUrl: story ? storyImageUrl : undefined,
+    });
 
     for (const f of out.failed) console.error(`result post to ${f.target} failed:`, f.error.message);
     if (out.posted.length) console.log('result posted to', out.posted.map(p => p.target).join(', '));
@@ -613,7 +622,9 @@ FROM (SELECT "fixturePlayers".*, club.name
       // deploy — which matters because this runs when a captain publishes a result, and a
       // bad week is a week of missing posts nobody notices.
       if (process.env.SOCIAL_POST_DIRECT === 'true') {
-        const out = await publishResultToMeta({ imgGen, message });
+        const out = await publishResultToMeta({
+          imgGen, message, storyImageUrl: absoluteUrl(resultStoryImagePath(zapObject)),
+        });
         return done(null, { sent: true, via: 'meta', posted: out.posted.map(p => p.target) });
       }
 
