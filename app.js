@@ -577,7 +577,11 @@ app.post('/fixture/rearrangement', secured, fixture_controller.fixture_rearrange
 // in any order.
 app.get('/fixture-players', fixture_controller.get_fixture_players_details);
 app.get('/fixture-players/*', fixture_controller.get_fixture_players_details);
-app.post('/fixture/reminder', fixture_controller.fixture_reminder_post);
+// Sends to addresses taken from the request body, so it was an open mail relay until
+// 2026-10-02: no session, no token, caller-chosen recipients and subject text, sent as the
+// league. The only UI is the superadmin Send Reminder button on the results grid, so the
+// handler also checks the role — see fixture_reminder_post.
+app.post('/fixture/reminder', secured, fixture_controller.fixture_reminder_post);
 
 
 app.get('/fixtures/*', fixture_controller.fixture_detail_byDivision);
@@ -774,12 +778,25 @@ app.get('/admin/distribution', secured, contactus_controller.admin_distribution_
 app.post('/admin/distribution/preview', secured, contactus_controller.admin_distribution_preview);
 app.post('/admin/distribution/send', secured, contactus_controller.admin_distribution_send);
 
-app.post('/scorecard-beta', secured, fixture_controller.validateScorecard, fixture_controller.full_fixture_post);
+// Publishing a result, and the draft confirmation page that leads to it, are the results
+// secretary's job. Both were `secured` only — i.e. any of ~160 logged-in members could
+// publish an invented result for any outstanding fixture (which then blocks the genuine
+// one, because the fixture is no longer outstanding), or read any draft by walking the
+// sequential ids. Both links are only ever handed out in the results-secretary email.
+// Ported from Stockport's HARD-24, minus their per-draft token, which Tameside decided
+// against on 2026-09-02. Mounted before validation so a refusal costs no lookups.
+app.post('/scorecard-beta', secured, requireSuperAdmin, fixture_controller.validateScorecard, fixture_controller.full_fixture_post);
 
-app.get('/populated-scorecard-beta/:id(\\d+)', secured, (req,res,next) => {
-  console.log(req.body);
-  fixture_controller.fixture_populate_scorecard_fromId(req,res,next)
-})
+app.get('/populated-scorecard-beta/:id(\\d+)', secured, requireSuperAdmin, fixture_controller.fixture_populate_scorecard_fromId)
+
+// A logged-in user without the role gets a 403 through the central handler, which answers
+// an err.status 4xx without spending a Sentry event.
+function requireSuperAdmin(req, res, next) {
+  if (authz.isSuperAdmin(req)) return next();
+  const err = new Error('Forbidden');
+  err.status = 403;
+  next(err);
+}
 
 function secured(req, res, next) {
     if (req.isAuthenticated()) {

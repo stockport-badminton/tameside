@@ -180,6 +180,17 @@ Other things worth not rediscovering:
   unauthenticated endpoint that sent a hardcoded message to the league results mailbox, so
   a curl loop was a mail bomb. (An HTTP **HEAD** probe fires it too — Express routes HEAD to
   the GET handler.) Same shape as the `/SESemail` endpoint Stockport deleted.
+- **Two more endpoints of that shape were closed 2026-10-02.** `POST /fixture/reminder`
+  had no gate and took its recipients and subject from the body — an open relay sending
+  as the league; it is now `secured` + superadmin, capped at ten validated addresses.
+  `POST /new-users-v2` cannot be `secured` (the shared tenant's *Preapproval* post-login
+  Action calls it on every unapproved login attempt), so it believes only what the
+  Management API confirms: a real account, exact `user_id` match (the lookup is a Lucene
+  search, so `*` matches somebody), no `betaAccess` yet, Auth0's address not the body's,
+  throttled per id. Fixed without editing the Action, which Stockport shares. In the same
+  pass `POST /scorecard-beta`, `GET /populated-scorecard-beta/:id` and `GET /club-api/:id`
+  (decrypted officer emails) went from `secured` to superadmin-only.
+  `test/integration/abuse-gating.test.js` asserts what reached Mailjet, not just status.
 - **`describeFixtureFromBody` never rejects.** An email naming the match beats the old one;
   an email that fails to send because a team-name lookup timed out is worse than both, so a
   failed lookup degrades to the team id.

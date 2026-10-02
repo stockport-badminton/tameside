@@ -1865,10 +1865,26 @@ exports.fixture_event_detail = function(req, res,next) {
   })
 };
 
+// The recipients stay editable — the modal prefills the match secretary and captains from
+// /club-api, and the results secretary may correct them — so what makes this safe is who
+// may call it, not where the addresses come from. Until 2026-10-02 the route had no gate at
+// all and was an open relay: anyone could have the league's Mailjet account send to any
+// addresses, and a junk click in Mailjet permanently suppresses that address.
+const REMINDER_MAX_RECIPIENTS = 10;
+const REMINDER_EMAIL_RE = /^[^\s@,<>]+@[^\s@,<>]+\.[^\s@,<>]+$/;
+
 exports.fixture_reminder_post = function(req,res,next){
-  let toField = (req.body.email.indexOf(',') > 0 ? req.body.email.split(',') : [req.body.email])
-  toField = toField.map(row => { return { "Email": row } } )
-  console.log(toField)
+  if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
+  // A missing email field used to throw a TypeError here and answer 500.
+  const addresses = String(req.body.email || '').split(',').map(a => a.trim()).filter(Boolean);
+  const teamOk = t => typeof t === 'string' && t.trim().length > 0 && t.length <= 100;
+  if (addresses.length === 0 || addresses.length > REMINDER_MAX_RECIPIENTS
+      || !addresses.every(a => REMINDER_EMAIL_RE.test(a))
+      || !teamOk(req.body.hometeam) || !teamOk(req.body.awayteam)) {
+    return res.status(400).send('Give one to ' + REMINDER_MAX_RECIPIENTS
+      + ' valid email addresses, comma separated, and both team names.');
+  }
+  const toField = addresses.map(a => ({ "Email": a }));
   // The old template was scorecardReminder.ejs, which took NO variables at all — it
   // could not name the match it was chasing, even though the subject line did, and it
   // signed off "Thanks / Jonny" in the plain-text part only.

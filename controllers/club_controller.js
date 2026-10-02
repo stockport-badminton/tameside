@@ -94,7 +94,11 @@ exports.club_list_detail = function(req, res, next) {
     })
 };
 
+// Returns the club officers' DECRYPTED email addresses. Its only caller is the superadmin
+// Send Reminder modal on the results grid, but until 2026-10-02 it was `secured` only, so
+// any logged-in member could list every club's contact details by walking the ids.
 exports.club_detail_api = function(req, res,next) {
+  if (!isSuperAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
   Club.getContactDetailsById(req.params.id,function(err,clubrow){
     if (err) return next(err);
     // A club id that isn't in the table is a 404, not a 500. Lumping the two together

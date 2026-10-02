@@ -4,6 +4,7 @@ const { absoluteUrl } = require('../utils/siteUrl');
 var Club = require('../models/club.js');
 var Player = require('../models/players.js');
 var Division = require('../models/division.js');
+const Auth = require('../models/auth');
 require('dotenv').config()
 const { body,validationResult } = require("express-validator");
 const { sanitizeBody } = require("express-validator");
@@ -130,25 +131,55 @@ exports.validateContactUs = [
   body('g-recaptcha-response').not().custom(validCaptcha).withMessage('your not a human')
 ]
 
-exports.new_user = function(req,res,next){
-  if (typeof req.body.id === 'undefined' || String(req.body.id).length <= 3 || req.body.id === 'undefined') {
-    return res.sendStatus(200);
+// Called by the shared tenant's "Preapproval" post-login Action every time a not-yet-
+// approved user tries to log in — so the account always exists already, but is not
+// necessarily new. The route cannot be `secured` (Auth0 is the caller), and editing the
+// Action is a change to a tenant Stockport shares, so the request is believed only as far
+// as Auth0 confirms it: the id must be a real account that does not yet have betaAccess,
+// and the address in the email is Auth0's, never the body's. Before 2026-10-02 anyone could
+// post any `user`/`id` and have the results mailbox told about them, as often as they liked.
+//
+// The Action ignores the response, so every outcome answers 200.
+const SIGNUP_NOTIFY_INTERVAL_MS = 10 * 60 * 1000;
+const _signupNotifiedAt = new Map();
+exports._clearSignupThrottleForTesting = () => _signupNotifiedAt.clear();
+
+exports.new_user = async function(req,res,next){
+  const id = typeof req.body.id === 'string' ? req.body.id : '';
+  if (id.length <= 3 || id.length > 128 || id === 'undefined') return res.sendStatus(200);
+
+  // Per instance, so up to one email per id per instance per interval. A user retrying a
+  // login they have been told needs approval would otherwise mail the inbox every attempt.
+  const last = _signupNotifiedAt.get(id);
+  if (last && Date.now() - last < SIGNUP_NOTIFY_INTERVAL_MS) return res.sendStatus(200);
+
+  let user;
+  try {
+    user = await Auth.getUserByAuthId(id, 'user_id,email,app_metadata');
+  } catch (err) {
+    return next(err);
   }
+  // Exact match, because the lookup is a search: an id of `*` returns somebody.
+  if (!user || user.user_id !== id || !user.email) return res.sendStatus(200);
+  if (user.app_metadata && user.app_metadata.betaAccess === true) return res.sendStatus(200);
+  _signupNotifiedAt.set(id, Date.now());
+
   // Auth0 ids contain a `|` ("auth0|abc123"), which has to be encoded or the emailed
   // link neither survives the mail client nor matches the route.
-  const approveUrl = absoluteUrl('/approve-user/' + encodeURIComponent(req.body.id));
+  const approveUrl = absoluteUrl('/approve-user/' + encodeURIComponent(id));
   mailer.send({
     template: 'signup-received',
     subject: 'New signup waiting for approval',
-    text: 'A new user has signed up: ' + req.body.user
+    text: 'A new user has signed up: ' + user.email
         + '\n\nReview and approve: ' + approveUrl,
     to: 'results@tameside-badminton.co.uk',
     replyTo: 'results@tameside-badminton.co.uk',
-    data: { userEmail: req.body.user, approveUrl },
+    data: { userEmail: user.email, approveUrl },
     customId: 'UserSignUp',
   })
     .then(() => res.sendStatus(200))
     .catch(error => {
+      _signupNotifiedAt.delete(id);
       console.log(error.toString());
       return next(error);
     });

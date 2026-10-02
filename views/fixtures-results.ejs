@@ -424,6 +424,10 @@
     }, function (data) {
       $('#reminderModalBody').html('<div class="alert alert-success"><i class="fas fa-check-circle"></i> Reminder sent!</div>');
       $('#remindFixture').remove();
+    }).fail(function (xhr) {
+      // A 400 names what to fix (a mistyped address, or more than ten of them).
+      $('#reminderModalBody .alert').remove();
+      $('#reminderModalBody').append($('<div class="alert alert-danger mt-2">').text(xhr.responseText || 'Reminder not sent.'));
     });
   })
 </script>

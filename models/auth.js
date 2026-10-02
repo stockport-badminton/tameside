@@ -34,10 +34,14 @@ exports.getManagementAPIKey = async function(){
 // Uses the `?q=user_id:` *query* form rather than /users/:id as a path segment,
 // because Auth0 ids contain a `|` ("auth0|abc123", "google-oauth2|123") and putting
 // one in a path means getting the encoding exactly right at every call site.
-exports.getUserByAuthId = async function(userId){
+//
+// The `q` form is a Lucene search, so a caller-supplied id like `*` matches SOME account.
+// Callers taking the id from a request must check the returned user_id equals what they
+// asked for.
+exports.getUserByAuthId = async function(userId, fields = 'user_id,email,nickname,name'){
   const apiKey = await module.exports.getManagementAPIKey();
   const res = await fetch(
-    `https://${process.env.AUTH0_DOMAIN}/api/v2/users?q=user_id:${encodeURIComponent(userId)}&fields=user_id,email,nickname,name`,
+    `https://${process.env.AUTH0_DOMAIN}/api/v2/users?q=user_id:${encodeURIComponent(userId)}&fields=${fields}`,
     { headers: { Authorization: 'Bearer ' + apiKey } }
   );
   const body = await res.json();
