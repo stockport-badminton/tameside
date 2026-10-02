@@ -187,9 +187,10 @@ for (const { width, height } of TALL_MENU_VIEWPORTS) {
       };
     });
 
-    // Sanity: this must be the full superadmin menu, or we're not testing the
-    // tall case at all.
-    expect(result.itemCount).toBeGreaterThanOrEqual(15);
+    // Sanity: this must be the superadmin menu, or we're not testing the tallest case.
+    // Since 2026-10-02 that is a shortlist plus "All admin tools…" (utils/adminTools.js),
+    // not every tool — the scroll rules are kept because the next long menu needs them.
+    expect(result.itemCount).toBeGreaterThanOrEqual(8);
     expect(result.label).toBe('Logout');
 
     // Scrolled to the end of whichever container scrolls, the final item must be

@@ -532,6 +532,15 @@ homepage content, site settings, and league structure — **clubs** and **teams*
 (moves `team.division` to the adjacent-rank division in the same league). Superadmins
 can also edit a fixture's date inline on the admin results grid.
 
+**The superadmin Admin menu is a shortlist; `/admin` is the full list.** `utils/adminTools.js`
+holds every tool, grouped — add a new one THERE, not in `views/nav.ejs`. The dropdown shows
+`NAV_SHORTLIST` (picked from 30 days of request logs, 2 Oct 2026 — re-measure mid-season;
+registration pages were high because it was the start of one) and "All admin tools…".
+`test/admin-tools.test.js` checks every href against Express's real router and that nothing
+the old 23-item menu linked to was dropped. The hub's counts fail soft (a null shows
+nothing). Ported from Stockport `566234b`, minus its registration-requests badge — we have
+no such queue.
+
 ### Spam and abuse controls
 
 Four layers on `/contact-us`, deliberately independent, because each covers what the

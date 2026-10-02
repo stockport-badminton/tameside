@@ -1,0 +1,41 @@
+<%# Every superadmin tool, grouped. The list is utils/adminTools.js — add a tool there,
+    not here. %>
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<%
+  // null means the count failed to load: show nothing rather than a wrong number.
+  function countLabel(key) {
+    var n = counts[key];
+    if (n === null || n === undefined) return null;
+    if (key === 'formsOutstanding') return n ? { text: n + ' outstanding', warn: true } : { text: 'all in', warn: false };
+    if (key === 'missedThree') return n ? { text: n + ' to review', warn: true } : null;
+    return null;
+  }
+%>
+
+<div class="col-12">
+  <h1>Admin</h1>
+  <div class="row g-4 mt-1">
+    <% groups.forEach(function (group) { %>
+      <section class="col-md-6 col-xl-4">
+        <h2 class="h5"><%= group.title %></h2>
+        <ul class="list-unstyled mb-0">
+          <% group.tools.forEach(function (tool) { var label = tool.count && countLabel(tool.count); %>
+            <li class="mb-2">
+              <a href="<%= tool.href %>"<% if (tool.newTab) { %> target="_blank" rel="noopener"<% } %>><%= tool.label %></a>
+              <% if (label) { %>
+                <span class="badge <%= label.warn ? 'text-bg-warning' : 'text-bg-success' %>"><%= label.text %></span>
+              <% } %>
+              <div class="text-muted small"><%= tool.blurb %></div>
+            </li>
+          <% }); %>
+        </ul>
+      </section>
+    <% }); %>
+  </div>
+</div>
+
+<%- include('../footer.ejs') %>
+</body>
+</html>

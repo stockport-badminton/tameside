@@ -319,6 +319,8 @@ app.locals.resultImagePath = require(__dirname + '/utils/socialPaths').resultIma
 // Embedding a JSON value inside an inline <script>. `JSON.stringify` alone is not safe
 // there — a string containing `</script>` closes the block early. See utils/jsonForScript.js.
 app.locals.jsonForScript = require(__dirname + '/utils/jsonForScript');
+// The superadmin Admin dropdown's shortlist (views/nav.ejs); the full list is /admin.
+app.locals.adminNavShortlist = require(__dirname + '/utils/adminTools').shortlist;
 // The site's own hostname, for the browser-Sentry runtime check in views/header.ejs —
 // from SITE_URL, so it is not hardcoded a second time.
 app.locals.siteHostname = new URL(require(__dirname + '/utils/siteUrl').siteUrl()).hostname;
@@ -704,6 +706,9 @@ app.post('/admin/registration-reminders/:club(\\d+)/chase', secured, registratio
 
 /* Missed three (rule 18) — superadmin. The notice is derived server-side from the player id
    alone; nothing in the POST body is read. See models/missedThree.js. */
+/* The admin hub — every superadmin tool, grouped (utils/adminTools.js). */
+app.get('/admin', secured, requireSuperAdmin, require(__dirname + '/controllers/adminHubController').hub);
+
 const missed_three_controller = require(__dirname + '/controllers/missedThreeController');
 app.get('/admin/missed-three', secured, requireSuperAdmin, missed_three_controller.list);
 app.get('/admin/missed-three/:playerId(\\d+)/notice', secured, requireSuperAdmin, missed_three_controller.preview);
