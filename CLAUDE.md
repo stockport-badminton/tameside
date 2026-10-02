@@ -1184,7 +1184,25 @@ the club's secretaries a notice after a preview. Ported from Stockport (league-s
 
 ### Fuzzy Player Matching
 
-`GET /players/matching/:name/:gender` uses `fastest-levenshtein` to find the closest player name. Used when entering match results to handle name variations.
+**`utils/nameMatch.js` is "is this person already registered?"** — order-, typo-, accent- and
+nickname-tolerant, with a per-word edit allowance (none for 3 letters or fewer, one up to 6,
+two from 7). Ported verbatim from Stockport (`90cb07f`), where it was tuned on their table;
+checked on ours 2026-10-02: across 1,162 players it pairs **11** names, every one plausibly
+the same person entered twice (Ed/Edward Higton, Wahab Siddiqi/Siddiqui, Lilly/Lily Tai…),
+plus **25** exact same-name pairs. Those existing duplicates are not cleaned up — a separate
+decision.
+
+- `GET /players/matching/:name/:gender` (the team-admin add-player search) ranks every
+  player of that gender with it. It used to keep only names starting with the query's first
+  LETTER and accept 10 edits over the whole name.
+- `GET /api/players/search` ranks with it too; still limited to players on a team in a
+  division, which is what the ELO chart wants.
+- **`POST /manage-players/create` answers 409 with the likely matches** unless `confirmNew`
+  is sent; the modal asks first. It also checks club scope now (it was `secured` only, so
+  any member could create players at any club), trims names, and returns the `insertId`
+  the modal reads.
+- `utils/scorecardMatch.js` (OCR and the registration import) is a different matcher for a
+  different problem — noisy OCR text — and is untouched.
 
 ### Document scorecards (pdf / docx)
 

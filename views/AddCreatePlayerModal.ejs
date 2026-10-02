@@ -140,7 +140,25 @@
                 }
                 console.log(playerObject);
                 
-                $.post('/manage-players/create',playerObject, function (data) {
+                // A 409 means the name looks like someone already on file (utils/nameMatch.js):
+                // say who, and only create if the captain says they are a different person.
+                var createPlayer = function (confirmNew) {
+                  var body = Object.assign({}, playerObject, confirmNew ? { confirmNew: 'true' } : {});
+                  return $.post('/manage-players/create', body, onCreated, "json").fail(function (xhr) {
+                    var reply = xhr.responseJSON || {};
+                    if (xhr.status === 409 && reply.possibleDuplicates) {
+                      var names = reply.possibleDuplicates.map(function (p) { return '  - ' + p.name + ' (' + p.clubName + ')'; }).join('\n');
+                      if (confirm('This may be someone already registered:\n\n' + names
+                          + '\n\nSearch again and pick them from the list if so. '
+                          + 'Create "' + playerObject.first_name + ' ' + playerObject.family_name.trim() + '" as a NEW player anyway?')) {
+                        createPlayer(true);
+                      }
+                    } else {
+                      alert(reply.error || 'The player could not be created.');
+                    }
+                  });
+                };
+                var onCreated = function (data) {
                   //console.log(data);
                   var newPlayerElem = document.createElement("div")
                   newPlayerElem.className = "player-box row border rounded p-3"
@@ -156,7 +174,8 @@
                   var targetTeamContainer = document.querySelectorAll("[data-teamid='"+teamId+"']")[0].parentElement.querySelectorAll("div."+nominatedOrReserves.toLowerCase()+"-container div."+maleOrFemale.toLowerCase())[0]
                   targetTeamContainer.insertBefore(newPlayerElem,targetTeamContainer.querySelectorAll("div.add-player-box")[0]);
                   targetPlayers = [...targetTeamContainer.children].filter(n => n.classList.contains('player-box'))
-                },"json")
+                };
+                createPlayer(false);
               }
               
               var rank = 1;

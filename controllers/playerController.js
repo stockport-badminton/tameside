@@ -9,7 +9,7 @@ var Game = require('../models/game');
 var Division = require('../models/division');
 var seasonModel = require('../models/season');
 var async = require('async');
-const {distance, closest} = require('fastest-levenshtein');
+const { rankByName, matchName } = require('../utils/nameMatch');
 const authz = require('../utils/authz');
 const { validationResult } = require('express-validator');
 const registrationDocx = require('../utils/registrationDocx');
@@ -83,46 +83,31 @@ exports.player_list_clubs_teams = function(req, res) {
     })
 };
 
-exports.find_closest_matched_player = function(req, res,next) {
-// console.log("received request")
-  var searchTerms = {
-    "name":req.params.name,
-    "gender":req.params.gender
+// The team-admin "add player" search (views/AddCreatePlayerModal.ejs).
+//
+// This used to keep only players whose first OR family name began with the query's first
+// letter, then accept anything within 10 edits of the whole name: a typo in the first letter
+// found nobody, and a short name found strangers. Both are how a captain ends up choosing
+// "(New Player)" for someone already on file. Ranked by utils/nameMatch.js now, over every
+// player of that gender. `distance` is kept in the response shape for the modal; it is the
+// match score now, lower is better.
+exports.find_closest_matched_player = async function(req, res, next) {
+  try {
+    const gender = req.params.gender === 'Female' ? 'Female' : 'Male';
+    const rows = await Player.allForMatching({ gender });
+    const ranked = rankByName(rows, req.params.name, r => r.name, 8);
+    res.send(ranked.map(r => ({
+      name: r.name,
+      distance: matchName(req.params.name, r.name).score,
+      match: r.match,
+      playerID: r.playerId,
+      clubId: r.clubId,
+      clubName: r.clubName,
+    })));
+  } catch (err) {
+    next(err);
   }
-  Player.getNamesClubsTeams(searchTerms, function(err,rows){
-    if (err){
-      // console.log("all_player_stats controller error")
-      return next(err)
-    }
-    else {
-      // console.log(rows);
-      var names = rows.map(r => r.name)
-      var playerID = rows.map(r => r.playerId)
-      var clubId = rows.map(r => r.clubId)
-      var clubName = rows.map(r => r.clubName)
-      //console.log(names);
-      var distanceArray = [];
-      var nameDistance = []
-      for (const [i,name] of names.entries()) {
-        distanceArray.push(distance(req.params.name,name))
-        //console.log(name + ": " +distance(req.params.name,name))
-        var nameDistanceElement = {
-          "name":name,
-          "distance":distance(req.params.name,name),
-          "playerID":playerID[i],
-          "clubId":clubId[i],
-          "clubName":clubName[i]
-        }
-        if (nameDistanceElement.distance <= 10){
-          nameDistance.push(nameDistanceElement);
-        }
-      }
-      nameDistance.sort((a, b) => a.distance - b.distance);
-      // console.log(nameDistance)
-      res.send(nameDistance.slice(0,8))
-    }
-  })
-}
+};
 
 
 exports.manage_player_list_clubs_teams = function(req, res,next) {
@@ -407,17 +392,54 @@ exports.player_create_get = function(req, res, next) {
 
 };
 
-exports.player_create_from_team = function(req,res){
-  Player.create(req.body.first_name, req.body.family_name, req.body.team, req.body.club, req.body.gender, function(err,row){
-    if (err){
-      res.send(err);
+// POST /manage-players/create — the "(New Player)" choice in the add-player modal.
+//
+// Three things it did not do until 2026-10-02:
+//  - check the caller may touch that club. It was `secured` only, so any logged-in member
+//    could create players at any club. Same scope rule as /player/batch-update.
+//  - ask whether this person already exists. The search above it is advisory and easy to
+//    skip, and nothing compared the new name with the table — 25 exact same-name pairs and
+//    11 near-misses (Ed/Edward Higton, Wahab Siddiqi/Siddiqui) are the result. A likely
+//    match answers 409 with the candidates; the modal asks, and resends with confirmNew.
+//    A question, not a block: two people really can share a name.
+//  - trim. The modal splits "First Last" at the first space and sent " Last".
+// It also answered with the INSERT's row array, while the modal reads `insertId`, so a
+// freshly created player's box had no id until the page was reloaded.
+exports.player_create_from_team = async function(req, res, next) {
+  try {
+    const firstName = String(req.body.first_name || '').trim();
+    const familyName = String(req.body.family_name || '').trim();
+    const gender = req.body.gender === 'Female' ? 'Female' : req.body.gender === 'Male' ? 'Male' : null;
+    if (!firstName || !familyName || !gender) {
+      return res.status(400).json({ error: 'A first name, a family name and a gender are all needed.' });
     }
-    else {
-// console.log(row.insertId)
-      res.send(row)
+    const clubName = await Club.nameById(req.body.club);
+    if (!clubName) return res.status(400).json({ error: 'No such club.' });
+    if (!authz.isSuperAdmin(req) && !(authz.isAdmin(req) && authz.hasClubAccess(req, clubName))) {
+      return res.status(403).json({ error: 'You can only add players to your own club.' });
     }
-  })
-}
+
+    const confirmed = req.body.confirmNew === true || req.body.confirmNew === 'true';
+    if (!confirmed) {
+      const possible = rankByName(await Player.allForMatching({ gender }), firstName + ' ' + familyName, r => r.name)
+        .filter(p => p.match === 'exact' || p.match === 'close')
+        .slice(0, 8);
+      if (possible.length) {
+        return res.status(409).json({
+          error: 'This player may already be registered.',
+          possibleDuplicates: possible.map(p => ({ playerId: p.playerId, name: p.name, clubName: p.clubName || 'no club' })),
+        });
+      }
+    }
+
+    Player.create(firstName, familyName, req.body.team, req.body.club, gender, function(err, rows) {
+      if (err) return next(err);
+      res.json({ insertId: rows && rows[0] && rows[0].id });
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 /* retrospectively populating game ranking scores. 
 * for each fixture (ordered by date)
 * for each game of that fixture

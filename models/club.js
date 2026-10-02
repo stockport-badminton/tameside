@@ -173,6 +173,15 @@ ORDER BY team."name"`;
 }
 
 // GET
+// A club's name, or undefined. For authorization checks, which compare names
+// (authz.hasClubAccess) and must not fall into getById's done-twice error path.
+exports.nameById = async function(clubId) {
+  const id = parseInt(clubId, 10);
+  if (!Number.isInteger(id)) return undefined;
+  const rows = await sql`SELECT name FROM club WHERE id = ${id}`;
+  return rows[0] && rows[0].name;
+}
+
 exports.getById = async function(clubId,done){
   let result = await sql`SELECT * FROM club WHERE id = ${clubId}`.catch(err => {
     return done(err) ;

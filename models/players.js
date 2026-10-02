@@ -1,6 +1,7 @@
 const { sql } = require('../utils/db_connect');
 const levenshtein = require('js-levenshtein');
 const seasonModel = require('./season');
+const { rankByName } = require('../utils/nameMatch');
 
 // The archived player<season> snapshots predate the ELO work by varying amounts:
 // player20242025 and player20252026 carry a rating column, player20232024 does not
@@ -1627,27 +1628,50 @@ exports.getPlayerEloTimeSeries = async function(playerIds) {
   }))
 }
 
-// Name-fragment search, optionally narrowed by division/club/team/gender —
-// used by the ELO comparison page. Note: player.club is the club FK on
-// tameside (not team.club).
+// Name search, optionally narrowed by division/club/team/gender — used by the ELO
+// comparison page, signup approval and the auth-link screen. Note: player.club is the club
+// FK on tameside (not team.club).
+//
+// The name is matched by utils/nameMatch.js, not LIKE: a LIKE finds someone only if what was
+// typed is a literal slice of what is stored, so "Ed Higton" could not find "Edward Higton",
+// and on the signup-approval page a player who cannot be found gets a second record. The SQL
+// applies only the filters; ~1,200 rows are ranked in JavaScript. With no name, the filtered
+// list comes back as it always did, alphabetically and capped.
 exports.searchPlayers = async function(query, filters = {}) {
+  const term = String(query || '').trim()
   // player.id is bigint — cast to int so the JSON carries a number, not a
   // string (the chart page compares ids with strict equality).
   const result = await sql`
     SELECT player.id::int AS id,
-           CONCAT(player.first_name, ' ', player.family_name) AS name,
+           CONCAT(TRIM(player.first_name), ' ', TRIM(player.family_name)) AS name,
            team.name AS "teamName"
     FROM player
     JOIN team ON team.id = player.team
     JOIN club ON club.id = player.club
     JOIN division ON division.id = team.division
-    WHERE LOWER(CONCAT(player.first_name, ' ', player.family_name)) LIKE LOWER(${'%' + (query || '') + '%'})
+    WHERE player.id <> 0
     ${filters.division ? sql`AND division.name = ${filters.division}` : sql``}
     ${filters.club ? sql`AND club.name = ${filters.club}` : sql``}
     ${filters.team ? sql`AND team.name = ${filters.team}` : sql``}
     ${filters.gender ? sql`AND player.gender = ${filters.gender}` : sql``}
-    ORDER BY player.family_name, player.first_name
-    LIMIT 20
+    ORDER BY TRIM(player.family_name), TRIM(player.first_name)
+    ${term ? sql`` : sql`LIMIT 20`}
   `
-  return result
+  return term ? rankByName(result, term, r => r.name, 20).map(({ match, ...r }) => r) : result
+}
+
+// Every player, for ranking by name in JavaScript (utils/nameMatch.js): the add-player
+// search and the duplicate check before creating one. LEFT JOIN, because 196 players have
+// no club row at all and they are exactly the dormant ones a search should turn up.
+exports.allForMatching = async function({ gender } = {}) {
+  return sql`
+    SELECT player.id::int AS "playerId",
+           CONCAT(TRIM(player.first_name), ' ', TRIM(player.family_name)) AS name,
+           player.gender, player.club::int AS "clubId", club.name AS "clubName"
+    FROM player
+    LEFT JOIN club ON club.id = player.club
+    WHERE player.id <> 0
+    ${gender ? sql`AND player.gender = ${gender}` : sql``}
+    ORDER BY TRIM(player.family_name), TRIM(player.first_name)
+  `
 }
