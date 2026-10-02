@@ -9,7 +9,6 @@ var Game = require('../models/game');
 var Division = require('../models/division');
 var seasonModel = require('../models/season');
 var async = require('async');
-var jp = require('jsonpath');
 const {distance, closest} = require('fastest-levenshtein');
 const authz = require('../utils/authz');
 const { validationResult } = require('express-validator');
@@ -97,10 +96,10 @@ exports.find_closest_matched_player = function(req, res,next) {
     }
     else {
       // console.log(rows);
-      var names = jp.query(rows,"$..name")
-      var playerID = jp.query(rows,"$..playerId")
-      var clubId = jp.query(rows,"$..clubId")
-      var clubName = jp.query(rows,"$..clubName")
+      var names = rows.map(r => r.name)
+      var playerID = rows.map(r => r.playerId)
+      var clubId = rows.map(r => r.clubId)
+      var clubName = rows.map(r => r.clubName)
       //console.log(names);
       var distanceArray = [];
       var nameDistance = []

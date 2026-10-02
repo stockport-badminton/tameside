@@ -22,7 +22,12 @@
 // So a change to the table shape here is a change to what the import screen reads.
 
 const docx = require('docx');
-const jp = require('jsonpath');
+// Field `key` from every row that has it — what `jsonpath`'s `$..key` did over these flat
+// query rows. jsonpath is gone: it has an unfixable advisory (via underscore), and the
+// filter below used to be a JSONPath expression with the team name INTERPOLATED into it,
+// which jsonpath then evaluates — so an apostrophe in a team name broke the query.
+const pluck = (rows, key) => rows.filter(r => r && Object.prototype.hasOwnProperty.call(r, key)).map(r => r[key]);
+const unique = (v, i, a) => a.indexOf(v) === i;
 
 const CELL_MARGINS = {
   top: docx.convertInchesToTwip(0.05),
@@ -60,20 +65,23 @@ function docBaseName(teamNames, clubName) {
 // Split a team's players into the four buckets the form lays out. rank 99 is a reserve;
 // everything else is nominated, and the row order the query returned is the rank order.
 function bucketsFor(rows, teamName) {
-  const q = (predicate) => jp.query(rows, `$..[?(@.teamName=='${teamName}' && ${predicate})]`);
+  // Loose `!=`/`==` on rank, exactly as the JSONPath filter compared it: rank can arrive as
+  // a number or a string.
+  const q = (reserve, gender) => rows.filter(r => r && r.teamName == teamName
+    && (reserve ? r.rank == 99 : r.rank != 99) && r.gender == gender);
   return {
-    nomMen: q("@.rank != 99 && @.gender == 'Male'"),
-    nomLadies: q("@.rank != 99 && @.gender == 'Female'"),
-    resMen: q("@.rank == 99 && @.gender == 'Male'"),
-    resLadies: q("@.rank == 99 && @.gender == 'Female'"),
+    nomMen: q(false, 'Male'),
+    nomLadies: q(false, 'Female'),
+    resMen: q(true, 'Male'),
+    resLadies: q(true, 'Female'),
   };
 }
 
 // The structure the team-admin page renders, built from the same buckets as the document
 // so the screen and the form a club receives cannot drift apart.
 function teamBlocks(rows, teamNames, teamIds) {
-  teamNames = teamNames || jp.query(rows, '$..teamName').filter((v, i, a) => a.indexOf(v) === i);
-  teamIds = teamIds || jp.query(rows, '$..teamId').filter((v, i, a) => a.indexOf(v) === i);
+  teamNames = teamNames || pluck(rows, 'teamName').filter(unique);
+  teamIds = teamIds || pluck(rows, 'teamId').filter(unique);
   return {
     teams: teamNames.map((name, i) => {
       const b = bucketsFor(rows, name);
@@ -161,8 +169,8 @@ function buildTable(rows, teamNames, title) {
  *                    teamIds: any[], teamBlocks: object}>}
  */
 exports.build = async function (rows, clubName) {
-  const teamNames = jp.query(rows, '$..teamName').filter((v, i, a) => a.indexOf(v) === i);
-  const teamIds = jp.query(rows, '$..teamId').filter((v, i, a) => a.indexOf(v) === i);
+  const teamNames = pluck(rows, 'teamName').filter(unique);
+  const teamIds = pluck(rows, 'teamId').filter(unique);
   if (!teamNames.length) throw new Error('registrationDocx: no teams in those rows');
 
   const baseName = docBaseName(teamNames, clubName);
