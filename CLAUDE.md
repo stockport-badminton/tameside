@@ -913,7 +913,9 @@ that bite:
 
 Ported from Stockport `ed74712`. With `SOCIAL_POST_STORY=true` (and `SOCIAL_POST_DIRECT`), a
 published result also goes to Instagram as a Story — a third target, `instagram-story`,
-reported apart from the feed post. Unset posts no story.
+reported apart from the feed post. Unset posts no story. **Switched on 2 Oct 2026**
+(revision `tameside-site-00296-pzp`), after a `media_type=STORIES` container of the live
+story card was accepted on our Page token with no new permission.
 
 - **The card is the result card at 1080x1920 with the panel lifted to end at 80%**, clear of
   Instagram's reply box; `GET /resultImage/.../:division/story.jpg`
