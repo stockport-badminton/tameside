@@ -348,8 +348,15 @@ player oppo2 on oppo2.id = "allGames".oppo2
   done(null,result);
 }
 
+// Players who have played up more than twice this season.
+//
+// The season was hardcoded as '20252026' until 2026-10-02, so from the July rollover the
+// page silently reported last season. It also used the `.catch(err => done(err))` idiom,
+// which calls done(err) and then falls through to done(null, undefined).
 exports.getPlayedUpCounts = async function(done){
-  let result = await sql`with
+  let result;
+  try {
+  result = await sql`with
   "seasonFixture" as (
     SELECT
       "fixture".id,
@@ -371,7 +378,7 @@ exports.getPlayedUpCounts = async function(done){
       "awayTeam".rank as "awayRank"
     FROM
       "fixture"
-      JOIN "season" ON "season".name like '20252026'
+      JOIN "season" ON "season".name = ${seasonModel.current()}
       AND "fixture".date > "season"."startDate"
       AND "fixture".date < "season"."endDate"
       JOIN team "homeTeam" on "homeTeam".id = fixture."homeTeam"
@@ -467,14 +474,10 @@ exports.getPlayedUpCounts = async function(done){
     "playerSummary".id = "fixtureSummary"."playerId"
     group by "playerId"
     order by "teamName", "playedUp" DESC) as a where a."playedUp" > 2
-    `.catch(err => {
-  console.log(err.query)
-  return done(err)
-  
-   ;
-  })
-  // console.log(result)
-  // console.log(result.statement.string)
+    `;
+  } catch (err) {
+    return done(err);
+  }
   done(null,result);
 }
 
@@ -1484,6 +1487,37 @@ limit 1`.catch(err => {
     return result
   }
 
+}
+
+// Set each player's `rating` to the End rating of their LATEST rated game, read back from
+// the games themselves.
+//
+// The publish path used to write the rating it had just computed in memory. That is only
+// the latest rating if this fixture is the latest one the player has played — publish a
+// scorecard late, after the player's next match is already in, and their rating went
+// BACKWARDS to the value after the older match. Reading it back from the games makes the
+// write order irrelevant. (Stockport 18d1067.) A player with no rated game keeps theirs.
+exports.refreshRatings = async function(playerIds) {
+  const ids = [...new Set((playerIds || []).map(n => parseInt(n, 10)).filter(n => n > 0))]
+  if (ids.length === 0) return
+  await sql`
+    UPDATE player SET rating = COALESCE((
+      SELECT CASE WHEN g."homePlayer1" = player.id THEN g."homePlayer1End"
+                  WHEN g."homePlayer2" = player.id THEN g."homePlayer2End"
+                  WHEN g."awayPlayer1" = player.id THEN g."awayPlayer1End"
+                  WHEN g."awayPlayer2" = player.id THEN g."awayPlayer2End" END AS r
+      FROM game g JOIN fixture f ON f.id = g.fixture
+      WHERE player.id IN (g."homePlayer1", g."homePlayer2", g."awayPlayer1", g."awayPlayer2")
+        AND f.status = 'complete'
+        AND CASE WHEN g."homePlayer1" = player.id THEN g."homePlayer1End"
+                 WHEN g."homePlayer2" = player.id THEN g."homePlayer2End"
+                 WHEN g."awayPlayer1" = player.id THEN g."awayPlayer1End"
+                 WHEN g."awayPlayer2" = player.id THEN g."awayPlayer2End" END > 0
+      ORDER BY f.date DESC, g.id DESC
+      LIMIT 1
+    ), rating)
+    WHERE id = ANY(${ids}::int[])
+  `
 }
 
 // Batched previous-rating lookup for the ELO backfill: one query for all

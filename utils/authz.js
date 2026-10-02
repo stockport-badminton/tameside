@@ -96,8 +96,20 @@ function scopeToAdminClub(req, searchObj) {
   return searchObj;
 }
 
+// The logged-in user's email address, for "who did this" fields.
+//
+// A passport-auth0 profile has NO `email` property — the address is in `emails[0].value`
+// (and `_json.email`). `req.user.email` was read in three places and was always undefined,
+// so the spam admin's `createdBy` recorded a nickname for every entry (Stockport 4188bb8).
+function userEmail(req) {
+  const u = req && req.user;
+  if (!u) return undefined;
+  return (u.emails && u.emails[0] && u.emails[0].value) || (u._json && u._json.email) || undefined;
+}
+
 module.exports = {
   applyRoleClaims,
+  userEmail,
   isSuperAdmin,
   isAdmin,
   role,

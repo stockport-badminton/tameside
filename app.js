@@ -319,6 +319,9 @@ app.locals.resultImagePath = require(__dirname + '/utils/socialPaths').resultIma
 // Embedding a JSON value inside an inline <script>. `JSON.stringify` alone is not safe
 // there — a string containing `</script>` closes the block early. See utils/jsonForScript.js.
 app.locals.jsonForScript = require(__dirname + '/utils/jsonForScript');
+// The site's own hostname, for the browser-Sentry runtime check in views/header.ejs —
+// from SITE_URL, so it is not hardcoded a second time.
+app.locals.siteHostname = new URL(require(__dirname + '/utils/siteUrl').siteUrl()).hostname;
 
 app.locals.spamHoneypotField = spamChecks.HONEYPOT_FIELD;
 app.use(function (req, res, next) {

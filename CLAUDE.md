@@ -501,7 +501,17 @@ ship events). The central 500 handler in `app.js` **must** be a 4-arg function
 (`err, req, res, next`) — Express only registers error middleware by arity.
 Read-only triage: `tools/sentry/sentry-issues.js` (uses `SENTRY_AUTH_TOKEN`).
 Browser Sentry lives in `views/header.ejs` (logged-in users only) and scopes
-`captureConsoleIntegration` to `levels: ['error']`.
+`captureConsoleIntegration` to `levels: ['error']`. It is gated twice: `sentryEnabled` at
+render time, and a runtime host check that inserts the loader only on https and our own
+hostname / `www.` / this service's run.app host — so a *saved copy* of a page (Stockport's
+JAVASCRIPT-1VF, a `file://` share) does not report as production. Exact host matches, never
+a suffix. `test/browser-sentry-gate.test.js` runs the emitted script in a vm. The browser
+DSN is still Stockport's `javascript` project (TODO in the header).
+
+**`player.rating` is read back from the games** (`Player.refreshRatings`) after a result is
+published, never written from the in-memory Elo calculation — a late scorecard is not the
+player's latest match, so writing its value moved their rating backwards. Verified
+2026-10-02: the read-back query matches all 375 stored ratings exactly.
 
 ### Superadmin Admin UI
 

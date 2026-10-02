@@ -1,5 +1,6 @@
 const Spam = require('../models/spamControls');
-const { isSuperAdmin } = require('../utils/authz');
+const authz = require('../utils/authz');
+const { isSuperAdmin } = authz;
 
 // /admin/spam — the blocklist and the submission log.
 //
@@ -70,7 +71,7 @@ exports.add = async function (req, res, next) {
       kind,
       value,
       note,
-      createdBy: (req.user && (req.user.email || req.user.nickname)) || 'admin',
+      createdBy: authz.userEmail(req) || (req.user && req.user.nickname) || 'admin',
     });
     res.redirect('/admin/spam?msg=' + encodeURIComponent('Added ' + kind + ' ' + value));
   } catch (err) {

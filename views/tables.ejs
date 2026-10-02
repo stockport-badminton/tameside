@@ -57,7 +57,10 @@
   </table>
 </div>
 <% } %>
-<% if (division == 'Division 3' && (typeof season === 'undefined' || season == '20192020')){ %>
+<%# 2019-20 only. This used to fire for an undefined season too — i.e. the CURRENT table,
+    which carries no :season param — so Division 3 showed Disley B's 2019-20 penalty every
+    season since. %>
+<% if (division == 'Division 3' && typeof season !== 'undefined' && season == '20192020'){ %>
   <div class="col-12">
   <p><strong class="font-weight-bold">Penalties: </strong>Disley B: fielding ineligible players: 36pts<br />Disley C: fielding ineligible players: 1pt</p>
 </div>

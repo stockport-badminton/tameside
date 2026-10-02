@@ -27,7 +27,8 @@ const Player = require('../models/players');
 const seasonModel = require('../models/season');
 const mailer = require('../utils/mailer');
 const registrationDocx = require('../utils/registrationDocx');
-const { isSuperAdmin } = require('../utils/authz');
+const authz = require('../utils/authz');
+const { isSuperAdmin } = authz;
 const { absoluteUrl, canonicalFor } = require('../utils/siteUrl');
 
 const WORKLIST_PATH = '/admin/registration-reminders';
@@ -94,9 +95,7 @@ const seasonLabel = (name) => `${String(name).slice(0, 4)}/${String(name).slice(
 
 function forbidden(res) { return res.status(403).send('Forbidden'); }
 
-const actor = (req) => (req.user && (req.user.emails && req.user.emails[0] && req.user.emails[0].value))
-  || (req.user && (req.user.email || req.user.nickname))
-  || 'admin';
+const actor = (req) => authz.userEmail(req) || (req.user && req.user.nickname) || 'admin';
 
 const backTo = (msg, err) => WORKLIST_PATH
   + (err ? '?err=' + encodeURIComponent(err) : msg ? '?msg=' + encodeURIComponent(msg) : '');

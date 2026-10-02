@@ -25,7 +25,9 @@ exports.player_list = function(req, res) {
 };
 
 // Display list of all Players
-exports.player_played_up_counts = function(req, res) {
+// `next` was missing from the signature, so the error branch below threw a ReferenceError
+// inside a model callback, outside the request chain — which kills the process.
+exports.player_played_up_counts = function(req, res, next) {
     Player.getPlayedUpCounts(function(err,rows){
       if (err) return next(err)
       res.render('played-up-counts', {

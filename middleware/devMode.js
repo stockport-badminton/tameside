@@ -44,8 +44,11 @@ module.exports = function devMode(req, res, next) {
       id: 'dev|local',
       displayName: 'Dev User',
       user_id: 'dev|local',
-      email: 'dev@local.test',
-      _json: authz.applyRoleClaims({}, authRow),
+      // The shape passport-auth0 really produces. This mock used to set a bare `email`,
+      // which no real profile has — so code reading req.user.email worked locally and
+      // read undefined in production. Read the address through authz.userEmail().
+      emails: [{ value: 'dev@local.test' }],
+      _json: authz.applyRoleClaims({ email: 'dev@local.test' }, authRow),
     };
   }
   next();

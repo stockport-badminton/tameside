@@ -35,10 +35,10 @@
                 <span class="badge bg-secondary">awaiting teams</span>
               <% } else { %>
                 <form method="POST" action="/admin/lewis/<%= m.drawPos %>/result" class="d-flex align-items-center gap-2 mb-0">
-                  <input type="number" min="0" name="homeScore" class="form-control form-control-sm" style="width:5rem"
+                  <input type="number" inputmode="numeric" min="0" name="homeScore" class="form-control form-control-sm" style="width:5rem"
                          value="<%= m.homeScore != null ? m.homeScore : '' %>" required aria-label="Home score">
                   <span class="text-muted">–</span>
-                  <input type="number" min="0" name="awayScore" class="form-control form-control-sm" style="width:5rem"
+                  <input type="number" inputmode="numeric" min="0" name="awayScore" class="form-control form-control-sm" style="width:5rem"
                          value="<%= m.awayScore != null ? m.awayScore : '' %>" required aria-label="Away score">
                   <button type="submit" class="btn btn-sm btn-primary"><%= m.played ? 'Update' : 'Save' %></button>
                   <% if (m.played) { %><span class="badge bg-success">played</span><% } %>

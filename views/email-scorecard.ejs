@@ -32,7 +32,11 @@
             <% }) %></p>
         <% } %>
         <% if (hasScorecard && !hasErrors) { %>
+            <% if (typeof notified !== 'undefined' && notified === false) { %>
+            <p>Thanks for entering your result - it has been saved, so there is no need to send it again. We couldn't email the Results Secretary just now, but they will see it on the site.</p>
+            <% } else { %>
             <p>Thanks for entering your result - the Results Secretary has been emailed and will verify your result soon! Thanks!</p>
+            <% } %>
             <%# The photo comes from /scorecard-photo/:id, never from the bucket. The
                 objects are going private (the bucket is shared with the Stockport league
                 site, which is stripping the public ACLs), so a direct S3 <img> here would
@@ -538,8 +542,8 @@
               <div class="form-row">
                 <% ev.games.forEach(function(g) { %><div class="form-group step-<%= ev.step %> <%= ev.key %> col-6">
                   <label for="game<%= g %>Score">Game <%= g %></label>
-                  <div class="form-row"><div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game<%= g %> home" id="Game<%= g %>homeScore" name="Game<%= g %>homeScore" <% if (hasErrors) { %>value="<%= data['Game' + g + 'homeScore'] %>"<% } else { %>placeholder=""<% } %>></div>
-                  <div class="col-6"><input type="number" min="0" max="30" class="form-control scoreInput Game<%= g %> away" id="Game<%= g %>awayScore" name="Game<%= g %>awayScore" <% if (hasErrors) { %>value="<%= data['Game' + g + 'awayScore'] %>"<% } else { %>placeholder=""<% } %>></div></div>
+                  <div class="form-row"><div class="col-6"><input type="number" inputmode="numeric" min="0" max="30" class="form-control scoreInput Game<%= g %> home" id="Game<%= g %>homeScore" name="Game<%= g %>homeScore" <% if (hasErrors) { %>value="<%= data['Game' + g + 'homeScore'] %>"<% } else { %>placeholder=""<% } %>></div>
+                  <div class="col-6"><input type="number" inputmode="numeric" min="0" max="30" class="form-control scoreInput Game<%= g %> away" id="Game<%= g %>awayScore" name="Game<%= g %>awayScore" <% if (hasErrors) { %>value="<%= data['Game' + g + 'awayScore'] %>"<% } else { %>placeholder=""<% } %>></div></div>
                 </div>
                 <% }) %>
               </div>

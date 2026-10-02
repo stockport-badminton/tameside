@@ -13,6 +13,7 @@ const { body, validationResult } = require("express-validator");
 const { sanitizeBody } = require("express-validator");
 const { hasWinner, hasValidMargin } = require("../utils/scorecardValidation");
 // Shared with every other admin-gated controller — utils/authz.js owns the claim key.
+const Sentry = require('@sentry/node');
 const authz = require("../utils/authz");
 const { isSuperAdmin } = authz;
 
@@ -730,11 +731,8 @@ exports.email_scorecard = function (req, res, next) {
     // DEV_MODE branch that existed purely to skip those calls when there are no real
     // Auth0 credentials to make them with. Both are gone.
     //
-    // Three shapes because passport-auth0 fills them inconsistently across identity
-    // providers, and middleware/devMode.js's mock sets only the last one.
-    const email = (req.user && req.user.emails && req.user.emails[0] && req.user.emails[0].value)
-      || (req.user && req.user._json && req.user._json.email)
-      || (req.user && req.user.email);
+    // Through authz.userEmail, which knows the shapes passport-auth0 actually fills.
+    const email = authz.userEmail(req);
 
     if (!email) {
       // getMissingScorecardPhotos filters on it, so without an email this page would
@@ -1070,8 +1068,17 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
             }),
             customId: 'ScorecardReceived',
           }))
-          .then(() => {
- // console.log(msg);
+          // The draft is ALREADY saved by this point, so a failed email is not a failed
+          // submission. It used to call next() with a bare string — a 500 page telling the
+          // captain something went wrong — and the natural response, filing again, left a
+          // duplicate draft. Now the captain sees the thank-you page with an honest note,
+          // and the failure goes to the logs and Sentry for the results secretary instead.
+          .then(() => true, (error) => {
+            console.log('[scorecard] saved draft ' + rows[0].id + ' but the notification failed: ' + error);
+            Sentry.captureException(error);
+            return false;
+          })
+          .then((notified) => {
             res.render("email-scorecard", {
               static_path: "/static",
               theme: process.env.THEME || "flatly",
@@ -1080,18 +1087,14 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
                 "Tameside Badminton League Scorecard Upload",
               pageDescription: "Upload your scorecard and send to the website",
               scorecard: req.body,
+              notified,
               // The row id, so the view can point at /scorecard-photo/:id instead of
               // the public bucket URL in req.body. `scorecard` is req.body and has no id.
               // Null when no photo was uploaded, so the page does not show a broken image.
               scorecardId: emailContext.photoUrl ? rows[0].id : null,
             });
           })
-          .catch((error) => {
-            console.log(error.toString());
-            next(
-              "Sorry something went wrong sending your scoresheet to the admin - drop him an email."
-            );
-          });
+          .catch(next);
       })
     };
   }
@@ -1653,22 +1656,17 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                 }
                 else {
  // console.log("createBatch sucess")
-                  // Persist the updated player ratings (fire-and-forget so a
-                  // failure never blocks the scorecard flow). updateBulk
-                  // mutates its inputs, so build fresh arrays here.
+                  // Refresh the players' ratings from their games, now those games are
+                  // written. Fire-and-forget so a failure never blocks the scorecard flow.
+                  // Read back rather than written from prevScores: if this fixture is not
+                  // the player's latest (a late scorecard), the in-memory value is OLDER
+                  // than the rating they already have — see Player.refreshRatings.
                   if (!isLewisFixture){
-                    const playerUpdate = {
-                      tablename: 'player',
-                      fields: ['id', 'rating'],
-                      data: Object.entries(prevScores)
-                        .filter(([id, p]) => parseInt(id, 10) > 0 && p && typeof p.rating !== 'undefined')
-                        .map(([id, p]) => [parseInt(id, 10), 1 * p.rating])
-                    }
-                    if (playerUpdate.data.length > 0){
-                      Player.updateBulk(playerUpdate, function(rateErr){
-                        if (rateErr) console.error(`elo rating persist err: ${JSON.stringify(rateErr)}`)
-                      })
-                    }
+                    const ratedIds = Object.entries(prevScores)
+                      .filter(([id, p]) => parseInt(id, 10) > 0 && p && typeof p.rating !== 'undefined')
+                      .map(([id]) => parseInt(id, 10));
+                    Player.refreshRatings(ratedIds)
+                      .catch(rateErr => console.error(`elo rating refresh err: ${rateErr.message}`));
                   }
                   Fixture.getFixtureDetailsById(FixtureIdResult[0].id,function(err,getFixtureDetailsResult){
                     if(err) res.send(err)

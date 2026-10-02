@@ -108,7 +108,27 @@ var sentryEnabled = process.env.NODE_ENV === 'production' || !!process.env.K_SER
     <% } %>
   </script>
   <% if (sentryEnabled) { %>
-   <script type="text/javascript" src="https://js-de.sentry-cdn.com/41a5442332daa78ebc9dba9dfe8da392.min.js" crossorigin="anonymous"></script>
+  <%# `sentryEnabled` is decided when the page is RENDERED, which keeps localhost and the
+      test suites out of production's project. But a rendered page keeps its snippet, DSN
+      and Sentry.setUser id for as long as someone keeps a copy — Stockport's
+      JAVASCRIPT-1VF was a saved /email-scorecard opened from a file:// network share,
+      reporting "$ is not defined" as production. So the loader is only inserted when the
+      page is really being served by us: https, and our own hostname, www, or this
+      service's run.app host (old emails still carry those links). Exact matches, never a
+      suffix test, so a lookalike domain does not pass. %>
+  <script>
+    (function (l) {
+      var site = <%- JSON.stringify(typeof siteHostname !== 'undefined' ? siteHostname : 'tameside-badminton.co.uk') %>;
+      var h = l.hostname;
+      var ours = l.protocol === 'https:' && (h === site || h === 'www.' + site
+        || /^tameside-site-[a-z0-9]+-nw\.a\.run\.app$/.test(h));
+      if (!ours) return;
+      var s = document.createElement('script');
+      s.src = 'https://js-de.sentry-cdn.com/41a5442332daa78ebc9dba9dfe8da392.min.js';
+      s.crossOrigin = 'anonymous';
+      document.head.appendChild(s);
+    })(window.location);
+  </script>
   <% } %>
     <% } else{ %>
   <script>

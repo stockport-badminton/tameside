@@ -162,3 +162,26 @@ describe('scopeToAdminClub', () => {
     assert.deepStrictEqual(searchObj, {});
   });
 });
+
+// passport-auth0 profiles carry the address in emails[0].value / _json.email and have no
+// `email` property. Reading req.user.email was always undefined in production (Stockport
+// 4188bb8); the dev-mode mock used to set it, which is why nobody noticed locally.
+const { describe: describeUE, it: itUE } = require('node:test');
+const assertUE = require('node:assert');
+describeUE('userEmail', () => {
+  const { userEmail } = require('../utils/authz');
+  itUE('reads the passport-auth0 shapes', () => {
+    assertUE.strictEqual(userEmail({ user: { emails: [{ value: 'a@x.test' }] } }), 'a@x.test');
+    assertUE.strictEqual(userEmail({ user: { _json: { email: 'b@x.test' } } }), 'b@x.test');
+    assertUE.strictEqual(userEmail({}), undefined);
+  });
+  itUE('nothing in the app reads req.user.email', () => {
+    const fs = require('fs'), path = require('path');
+    const root = path.join(__dirname, '..');
+    const files = ['app.js', ...['controllers', 'utils', 'middleware', 'models']
+      .flatMap(d => fs.readdirSync(path.join(root, d)).filter(f => f.endsWith('.js')).map(f => d + '/' + f))];
+    const hits = files.filter(f => /req\.user\.email\b|req\.user && req\.user\.email\b/.test(
+      fs.readFileSync(path.join(root, f), 'utf8').replace(/^\s*\/\/.*$/gm, '')));
+    assertUE.deepStrictEqual(hits, []);
+  });
+});
