@@ -102,6 +102,16 @@ const result = await sql`SELECT * FROM player WHERE id = ${playerId}`;
 
 Sensitive columns (player phone, email) are PgP-encrypted in the DB; decrypted with the `DB_ENCODE` env var using `pgp_sym_decrypt`.
 
+**`DB_ENCODE` was rotated on 2026-10-02.** It had been the same value as Stockport's original
+`DB_PI_KEY`, which was written into Stockport's Cloud Logging and rotated there (league-site
+HARD-31). `tools/rotate-db-encode.js` re-encrypts in-database — `player."playerEmail"`,
+`"playerTel"`, `"authEmail"` and `player_auth_email.email`, 275 values — and has a
+`--rehearse` mode that runs everything against production and rolls back, because there is
+no local database to rehearse on. The `player<season>` archives' contact columns were
+**cleared**, not re-encrypted: nothing decrypts from an archive, and `clone_season()` now
+nulls them when it creates one. `DB_ENCODE` is a plain Cloud Run env var (not Secret
+Manager, by choice); change it with `--update-env-vars`, never `--set-env-vars`.
+
 ### Authentication
 
 - **Auth0** (`stockport-badminton.eu.auth0.com`) via `passport-auth0`. Login at `/login`, callback at `/callback`, logout at `/logout`.
