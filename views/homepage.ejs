@@ -16,7 +16,7 @@
 </section>
 
 <!-- News Section -->
-<section class="section">
+<section class="section" data-ga-section="news">
     <div class="container">
         <h2 class="section-title">
             <i class="fas fa-newspaper"></i> News
@@ -36,7 +36,7 @@
 
 <!-- Outstanding Scorecards (if any) -->
 <% if (typeof scorecards !== 'undefined' && scorecards.length > 0) { %>
-<section class="section" style="background: #fff3cd; padding: 3rem 0;">
+<section class="section" data-ga-section="outstanding" style="background: #fff3cd; padding: 3rem 0;">
     <div class="container">
         <h2 class="section-title" style="color: #856404;">
             <i class="fas fa-triangle-exclamation"></i> Outstanding Scorecards
@@ -74,7 +74,7 @@
 <% } %>
 
 <!-- Recent Results -->
-<section class="section" style="background: white; padding: 4rem 0;">
+<section class="section" data-ga-section="recent" style="background: white; padding: 4rem 0;">
     <div class="container">
         <h2 class="section-title">
             <i class="fas fa-list-check"></i> Recent Results
@@ -113,7 +113,7 @@
 </section>
 
 <!-- Upcoming Fixtures -->
-<section class="section">
+<section class="section" data-ga-section="upcoming">
     <div class="container">
         <h2 class="section-title">
             <i class="fas fa-calendar-days"></i> Upcoming Fixtures
@@ -150,4 +150,24 @@
 <% (typeof announcements !== 'undefined' ? announcements : []).forEach(function(a){ if (a.modal_body_html) { %>
 <%- include('announcementModal.ejs', {a: a}) %>
 <% } }) %>
+
+<script>
+  // How far down the homepage do people get? GA4's built-in scroll event only fires at
+  // 90%, so this reports each section once per page view, the first time its heading is
+  // fully on screen. Sections visible on load count too — that's the above-the-fold
+  // baseline. Report on it via the event-scoped custom dimension `section` in GA admin.
+  (function () {
+    if (typeof gtag !== 'function' || !('IntersectionObserver' in window)) return;
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        observer.unobserve(entry.target);
+        gtag('event', 'section_view', { section: entry.target.closest('[data-ga-section]').dataset.gaSection });
+      });
+    }, { threshold: 1.0 });
+    document.querySelectorAll('[data-ga-section] .section-title').forEach(function (h) {
+      observer.observe(h);
+    });
+  })();
+</script>
 <%- include('footer.ejs') %>
