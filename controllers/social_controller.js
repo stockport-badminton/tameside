@@ -91,11 +91,42 @@ exports._resetBackgroundCache = card.resetBackgroundCache;
 // itself; its top then lands just below Instagram's header.
 const STORY = { W: 1080, H: 1920, panelEnd: 0.80, artH: 1350 };
 
+function resultBackgroundPath(division) {
+  return './static/images/bg/social-' + String(division).replace(/\s+/g, '-') + '.png';
+}
+
+// Does this division have result-card artwork? The division comes straight from the URL, so
+// an unknown one used to reach sharp and come back as a 500 and a Sentry event
+// (TAMESIDE-NODE-8: `/resultImage/a/b/1/2/D/story.jpg`). It is a 404 now, uncached.
+//
+// Keyed on the FILE rather than a list of division names, because the file is what the card
+// actually needs: adding a division's artwork is all it takes to make its cards work. Unlike
+// the fixtures card there is deliberately no fallback to the plain background — every result
+// post asks for a real division, so a miss here means a bad URL, and a real post that missed
+// should fail loudly in its report rather than go out on the wrong artwork. The character
+// check keeps anything path-like away from the filesystem altogether.
+async function hasResultBackground(division) {
+  if (!/^[A-Za-z0-9 ]+$/.test(String(division))) return false;
+  try {
+    await fs.access(resultBackgroundPath(division));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sendResultMiss(res) {
+  return res.status(404)
+    .set('Cache-Control', SOCIAL_IMAGE_MISS_CACHE_CONTROL)
+    .type('text/plain')
+    .send('No result card for that division');
+}
+
 async function buildResultCard({ homeTeam, awayTeam, homeScore, awayScore, division }, format = 'jpeg', { layout = 'feed' } = {}) {
   const story = layout === 'story';
   const W = 1080, H = story ? STORY.H : 1350;
   const panelBottom = story ? Math.round(STORY.H * STORY.panelEnd) : H;
-  const file = './static/images/bg/social-' + String(division).replace(/\s+/g, '-') + '.png';
+  const file = resultBackgroundPath(division);
 
   const PAD = 56;
   const inner = W - PAD * 2;
@@ -162,6 +193,7 @@ exports.social_get_result = async function (req, res, next) {
       awayScore: req.params.awayScore,
       division: stripImageExt(req.params.division),
     };
+    if (!(await hasResultBackground(card.division))) return sendResultMiss(res);
 
     const buffer = await buildResultCard(card, 'jpeg');
 
@@ -184,12 +216,15 @@ exports.social_get_result = async function (req, res, next) {
 // a Cloud Run instance's disk is invisible to every other instance, Meta included.
 exports.social_get_result_story = async function (req, res, next) {
   try {
+    const division = stripImageExt(req.params.division);
+    if (!(await hasResultBackground(division))) return sendResultMiss(res);
+
     const buffer = await buildResultCard({
       homeTeam: req.params.homeTeam,
       awayTeam: req.params.awayTeam,
       homeScore: req.params.homeScore,
       awayScore: req.params.awayScore,
-      division: stripImageExt(req.params.division),
+      division,
     }, 'jpeg', { layout: 'story' });
     res.type('image/jpeg').set('Cache-Control', SOCIAL_IMAGE_CACHE_CONTROL).send(buffer);
   } catch (err) {

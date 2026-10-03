@@ -127,8 +127,13 @@ const backgrounds = new Map();
 async function background(file, width, height, inset) {
   const key = `${file}@${width}x${height}${inset ? `+inset${inset.top}` : ''}`;
   if (!backgrounds.has(key)) {
-    backgrounds.set(key, inset ? insetBackground(file, width, height, inset) :
-      sharp(file).resize(width, height, { fit: 'cover' }).png().toBuffer());
+    const pending = inset ? insetBackground(file, width, height, inset) :
+      sharp(file).resize(width, height, { fit: 'cover' }).png().toBuffer();
+    // The PROMISE is cached, so concurrent cards share one decode — which also means a
+    // failure would be cached, and one bad read would break that card until the instance
+    // restarted. Evict on failure so the next request tries again.
+    pending.catch(() => { if (backgrounds.get(key) === pending) backgrounds.delete(key); });
+    backgrounds.set(key, pending);
   }
   return backgrounds.get(key);
 }

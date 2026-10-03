@@ -64,6 +64,42 @@ describe('the story card', () => {
   });
 });
 
+// TAMESIDE-NODE-8: `/resultImage/a/b/1/2/D/story.jpg` reached sharp with a background file
+// that does not exist and went out as a 500 and a Sentry event.
+describe('a result card for a division with no artwork', () => {
+  const BAD = { ...RESULT, division: 'D' };
+
+  for (const [name, path] of [['story', paths.resultStoryImagePath(BAD)], ['feed', paths.resultImagePath(BAD)]]) {
+    it(`is an uncached 404 on the ${name} route, not a 500`, async () => {
+      const res = await request(app).get(path);
+      assert.strictEqual(res.status, 404);
+      assert.strictEqual(res.headers['cache-control'], 'no-store');
+    });
+  }
+
+  it('never lets a path-like division near the filesystem', async () => {
+    const res = await request(app).get('/resultImage/a/b/1/2/..%2Fsocial/story.jpg');
+    assert.strictEqual(res.status, 404);
+  });
+});
+
+describe('the background cache', () => {
+  afterEach(() => card.resetBackgroundCache());
+
+  // The cache holds the promise, so a failed load used to stay cached until the instance
+  // restarted, breaking every card drawn on that background.
+  it('forgets a failed load, so the next request tries again', async () => {
+    const file = './static/images/bg/does-not-exist.png';
+    const attempt = () => card.background(file, 10, 10).then(() => null, err => err);
+    const first = await attempt();
+    await new Promise(setImmediate);
+    const second = await attempt();
+    assert.ok(first && second, 'both fail, since the file is still missing');
+    // A cached rejection would hand back the identical Error object.
+    assert.notStrictEqual(second, first);
+  });
+});
+
 describe('posting a story', () => {
   let server, origin, calls;
   before(async () => {
