@@ -59,6 +59,8 @@ describe('POST /scorecard-ocr/analyse — a card that cannot be read', () => {
     ['busy', 503, 'Resource has been exhausted (e.g. check quota).'],
     ['unavailable', 503, 'Vision request failed: TimeoutError: aborted'],
     ['photo-missing', 422, `No object at ${KEY}`],
+    ['hand-drawn', 422, 'Scorecard anchors missing: could not find "events"'],
+    ['blank-card', 422, 'Card layout found but no score cells read.'],
   ];
   for (const [kind, status, detail] of expected) {
     it(`${kind}: answers ${status} in plain words, logs the key, and spares Sentry`, asCaptain(async () => {

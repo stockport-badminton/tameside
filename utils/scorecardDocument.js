@@ -22,6 +22,8 @@
 const { GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { s3Client } = require('./s3');
 const { extractEmbeddedImage, isRefusedArchive } = require('./documentImage');
+// The module, so a test can stub the conversion.
+const heicImage = require('./heicImage');
 
 const BUCKET = process.env.S3_BUCKET_NAME;
 
@@ -29,6 +31,10 @@ const BUCKET = process.env.S3_BUCKET_NAME;
 // apart from a photo and refused with a useful message rather than silently ignored;
 // extractEmbeddedImage declines it, because it is not a zip.
 const DOCUMENT_EXTENSIONS = ['pdf', 'docx', 'doc'];
+// Not documents, but they take the same road for the same reason: the bucket holds a file
+// that neither Vision nor a browser other than Safari can read, so a jpeg is made beside
+// it and the row points at that. See utils/heicImage.js.
+const HEIC_EXTENSIONS = ['heic', 'heif'];
 
 // Nothing larger is read into memory. `/sign-s3` presigns a PUT with no size limit of its
 // own, so this is the only cap on what a logged-in captain can make the server hold — and
@@ -41,6 +47,15 @@ const extensionOf = (key) => String(key || '').split('.').pop().toLowerCase();
 
 function isDocumentKey(key) {
   return DOCUMENT_EXTENSIONS.includes(extensionOf(key));
+}
+
+function isHeicKey(key) {
+  return HEIC_EXTENSIONS.includes(extensionOf(key));
+}
+
+// Anything convertStoredDocument should be given rather than read as it stands.
+function isConvertibleKey(key) {
+  return isDocumentKey(key) || isHeicKey(key);
 }
 
 // The key the extracted photo is stored under.
@@ -76,7 +91,8 @@ function photoUrlFor(key) {
 }
 
 /**
- * Read a document out of the bucket, pull the photo out of it, and store that photo.
+ * Read a document (or a HEIC photo) out of the bucket, pull a jpeg out of it, and store
+ * that beside it.
  *
  * @param {string} key  an S3 key that has already passed the caller's ownership check
  * @returns {Promise<{key, url, contentType, bytes} | null>} null when the document is not
@@ -100,7 +116,7 @@ async function convertStoredDocument(key, deps = {}) {
   }
 
   const buffer = Buffer.from(await obj.Body.transformToByteArray());
-  const extracted = extractEmbeddedImage(buffer, key);
+  const extracted = isHeicKey(key) ? await heicImage.toJpeg(buffer) : extractEmbeddedImage(buffer, key);
   if (!extracted) return null;
 
   const photoKey = photoKeyFor(key, extracted.extension);
@@ -129,9 +145,12 @@ async function convertStoredDocument(key, deps = {}) {
 module.exports = {
   convertStoredDocument,
   isDocumentKey,
+  isHeicKey,
+  isConvertibleKey,
   isRefusedArchive,
   photoKeyFor,
   photoUrlFor,
   DOCUMENT_EXTENSIONS,
+  HEIC_EXTENSIONS,
   MAX_DOCUMENT_BYTES,
 };

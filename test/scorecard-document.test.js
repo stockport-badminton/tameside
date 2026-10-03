@@ -141,3 +141,59 @@ describe('converting a stored document', () => {
     assert.strictEqual(bodyRead, false, 'the body must not be buffered');
   });
 });
+
+// iPhone photos. The prebuilt sharp cannot decode HEVC and Vision refuses HEIC, so all 11
+// HEIC scorecards in the bucket failed to read (scanned 3 Oct 2026). The fixture is a
+// 64x48 image, left half red, made with macOS `sips -s format heic` — node cannot encode
+// HEIC, and a real card would carry twelve players' names. (libheif refuses images much
+// smaller than this with a spurious "security limit" error, so don't shrink it.)
+describe('HEIC photos', () => {
+  const { isHeicKey, isConvertibleKey } = require('../utils/scorecardDocument');
+  const heicImage = require('../utils/heicImage');
+  const sharp = require('sharp');
+
+  it('are converted, but are not documents', () => {
+    for (const k of ['a.heic', 'a.HEIC', 'a.heif']) {
+      assert.strictEqual(isHeicKey(k), true, k);
+      assert.strictEqual(isConvertibleKey(k), true, k);
+      assert.strictEqual(isDocumentKey(k), false, k);
+    }
+    for (const k of ['a.jpg', 'a.png']) assert.strictEqual(isConvertibleKey(k), false, k);
+    assert.strictEqual(isConvertibleKey('a.pdf'), true);
+  });
+
+  it('decodes to an upright jpeg of the same size', async () => {
+    const bytes = load('scorecard-photo.heic');
+    assert.ok(heicImage.isHeif(bytes));
+    const out = await heicImage.toJpeg(bytes);
+    assert.strictEqual(out.contentType, 'image/jpeg');
+    const { data, info } = await sharp(out.buffer).raw().toBuffer({ resolveWithObject: true });
+    assert.deepStrictEqual([info.width, info.height], [64, 48]);
+    assert.ok(data[0] > 150 && data[1] < 60, 'the red half is still on the left');
+  });
+
+  it('is stored beside the original as -photo.jpg, typed from the bytes', async () => {
+    const s3 = stubS3(load('scorecard-photo.heic'));
+    const r = await convertStoredDocument('tameside-20242025-Manor A-GHAP A.heic', { s3: s3.client });
+    assert.strictEqual(r.key, 'tameside-20242025-Manor A-GHAP A-photo.jpg');
+    assert.strictEqual(s3.puts.length, 1);
+    assert.strictEqual(s3.puts[0].ContentType, 'image/jpeg');
+    assert.strictEqual(s3.puts[0].ACL, undefined);
+  });
+
+  it('a jpeg saved under .heic is re-encoded rather than refused', async () => {
+    const jpeg = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#fff' } }).jpeg().toBuffer();
+    assert.ok(!heicImage.isHeif(jpeg));
+    const out = await heicImage.toJpeg(jpeg);
+    assert.strictEqual(out.contentType, 'image/jpeg');
+  });
+
+  it('rubbish under .heic is null, never a throw, and nothing is stored', async () => {
+    const s3 = stubS3(Buffer.from('not an image at all'));
+    const quiet = console.log; console.log = () => {};
+    try {
+      assert.strictEqual(await convertStoredDocument('tameside-x.heic', { s3: s3.client }), null);
+    } finally { console.log = quiet; }
+    assert.strictEqual(s3.puts.length, 0);
+  });
+});

@@ -38,6 +38,18 @@ const KINDS = {
     userMessage: 'The printed layout of a Tameside scorecard couldn\'t be found in that photo. '
       + 'Make sure the whole card is in the shot, in focus and not at a steep angle',
   },
+  // None of the card's printed words at all: a home-made sheet. A clearer photo won't help.
+  'hand-drawn': {
+    status: 422,
+    userMessage: 'This looks like a hand-drawn scoresheet, and the card reader only works with the '
+      + 'printed league scorecard — a clearer photo won\'t help. You can still attach this photo',
+  },
+  // The printed card, but not a single score on it.
+  'blank-card': {
+    status: 422,
+    userMessage: 'No scores could be read from that card — if it\'s the blank template, choose the '
+      + 'photo of the filled-in card instead',
+  },
   // The key the wizard sent names no object: its upload did not land.
   'photo-missing': {
     status: 422,

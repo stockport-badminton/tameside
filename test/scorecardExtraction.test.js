@@ -153,3 +153,35 @@ describe('extractScorecard — fixture hydeshell (current card revision)', () =>
     assert.doesNotMatch(d.meta.homeTeam + d.meta.awayTeam, /HYDE.*HYDE/);
   });
 });
+
+// Which failure a card that cannot be read is reported as. Built by deleting words from a
+// real read (fixture 108) — the token list is all the extractor looks at. The rules were
+// measured against the bucket on 3 Oct 2026: the four hand-drawn sheets, the blank
+// template and the "Paints" read below are the real cases, and no card that read fine
+// changed classification.
+describe('extractScorecard — naming a card it cannot read', () => {
+  const { isOcrFailure } = require('../utils/ocrFailure');
+  const without = (re) => {
+    const v = fixture('108');
+    v.textAnnotations = [v.textAnnotations[0]].concat(v.textAnnotations.slice(1).filter((w) => !re.test(w.description)));
+    return v;
+  };
+  const kindOf = (v) => {
+    try { extractScorecard(v); return 'ok'; } catch (e) { assert.ok(isOcrFailure(e), e.stack); return e.kind; }
+  };
+
+  it('a printed card whose layout was missed is not-a-card (a better photo may help)', () =>
+    assert.strictEqual(kindOf(without(/^Events$/i)), 'not-a-card'));
+
+  it('a sheet with none of the printed words is hand-drawn (a better photo will not)', () =>
+    assert.strictEqual(kindOf(without(/^(Events|played|register|captain.*|players)$/i)), 'hand-drawn'));
+
+  it('the printed card with no scores on it is blank-card', () =>
+    assert.strictEqual(kindOf(without(/\d/)), 'blank-card'));
+
+  it('reads "Paints" as the Points header (row 1979, small in frame)', () => {
+    const v = fixture('108');
+    for (const w of v.textAnnotations.slice(1)) if (/^Points$/i.test(w.description)) w.description = 'Paints';
+    assert.strictEqual(kindOf(v), 'ok');
+  });
+});

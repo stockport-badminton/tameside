@@ -258,8 +258,10 @@
                        if (!f) { status('Choose a photo first.'); return; }
                        go.disabled = true;
                        try {
-                         var isDoc = /\.(pdf|docx|doc)$/i.test(f.name);
-                         status(isDoc ? 'Uploading document…' : 'Uploading photo…');
+                         // HEIC goes with the documents: converted to a jpeg on the server, and
+                         // no local preview, because only Safari can draw one.
+                         var isDoc = /\.(pdf|docx|doc|heic|heif)$/i.test(f.name);
+                         status(/\.(pdf|docx|doc)$/i.test(f.name) ? 'Uploading document…' : 'Uploading photo…');
                          var ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
                          var key = 'tameside-ocr-' + Date.now() + '.' + ext;
                          var sign = await fetch('/sign-s3?file-name=' + encodeURIComponent(key) + '&file-type=' + encodeURIComponent(f.type)).then(function (r) { return r.json(); });
@@ -286,7 +288,7 @@
                            var localPreview = URL.createObjectURL(f);
                            document.querySelectorAll('#scoresheet-img').forEach(function (el) { el.src = localPreview; el.hidden = false; });
                          }
-                         status(isDoc
+                         status(/\.(pdf|docx|doc)$/i.test(f.name)
                            ? 'Pulling the photo out of the document and reading the card… (takes a few seconds)'
                            : 'Reading the card… (takes a few seconds)');
                          var resp = await fetch('/scorecard-ocr/analyse', {
@@ -799,7 +801,7 @@
         // Returns the url to record. A document that cannot be read keeps its own url:
         // the file is still uploaded and still attached, so this is never a failure.
         async function photoUrlAfterConversion(key, uploadedUrl) {
-          if (!/\.(pdf|docx|doc)$/i.test(key)) return uploadedUrl;
+          if (!/\.(pdf|docx|doc|heic|heif)$/i.test(key)) return uploadedUrl;
           const resp = await fetch('/scorecard-document/convert', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -851,7 +853,7 @@
                 }
                 // No `.replaceAll('%20','+')` — see the note on the other upload handler.
                 let uploadedUrl = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz"))
-                const wasDocument = /\.(pdf|docx|doc)$/i.test(filename)
+                const wasDocument = /\.(pdf|docx|doc|heic|heif)$/i.test(filename)
                 uploadedUrl = await photoUrlAfterConversion(filename, uploadedUrl)
                 let scoresheetUrls = await document.querySelectorAll('#scoresheet-url')
                 for (const ssUrl of scoresheetUrls){

@@ -50,7 +50,7 @@ const { contentTypeFor, downloadTypeFor, downloadNameFor } = require('../utils/s
 // The module, not its members — see the note on `ocrSource` above. `convertStoredDocument`
 // is the one the tests replace; the two predicates are pure and destructured freely.
 const scorecardDocument = require('../utils/scorecardDocument');
-const { isDocumentKey, isRefusedArchive } = scorecardDocument;
+const { isConvertibleKey, isRefusedArchive } = scorecardDocument;
 
 // "tameside-20252026-Mellor B-Syddal Park A.jpg" -> { home, away }
 // (older keys omit the season: "tameside-GHAP B-GHAP A.jpeg")
@@ -94,7 +94,7 @@ function renderOpts(title, extra) {
 // Returns the key to actually read pixels from, plus the photo url when one was made.
 // For a photo upload this is a no-op, which is the common case.
 async function resolveToImageKey(key) {
-  if (!isDocumentKey(key)) return { imageKey: key, photoUrl: null, converted: false };
+  if (!isConvertibleKey(key)) return { imageKey: key, photoUrl: null, converted: false };
   const stored = await scorecardDocument.convertStoredDocument(key);
   if (!stored) return { imageKey: null, photoUrl: null, converted: false };
   return { imageKey: stored.key, photoUrl: stored.url, converted: true };
@@ -382,10 +382,10 @@ exports.convert_document = async function (req, res) {
   if (isRefusedArchive(key)) {
     return res.status(400).json({ ok: false, error: 'Archives are not accepted. Send the photo or the document itself.' });
   }
-  if (!isDocumentKey(key)) {
+  if (!isConvertibleKey(key)) {
     return res.status(400).json({
       ok: false,
-      error: 'That is not a PDF or Word file. A photo does not need converting.',
+      error: 'That is not a PDF, Word or HEIC file. A photo does not need converting.',
     });
   }
   try {

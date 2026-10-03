@@ -106,8 +106,17 @@ describe('POST /scorecard-document/convert — gating', () => {
     const calls = stubConversion(STORED);
     const res = await post({ key: 'tameside-Hyde B-Shell A.jpg' });
     assert.strictEqual(res.status, 400);
-    assert.match(res.body.error, /not a PDF or Word file/);
+    assert.match(res.body.error, /not a PDF, Word or HEIC file/);
     assert.strictEqual(calls.length, 0);
+  }));
+
+  // An iPhone photo is the exception: neither Vision nor most browsers can read HEIC.
+  it('converts a HEIC photo', asUser({ role: 'none' }, async () => {
+    const calls = stubConversion(STORED);
+    const res = await post({ key: 'tameside-Manor A-GHAP A.heic' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.converted, true);
+    assert.deepStrictEqual(calls, ['tameside-Manor A-GHAP A.heic']);
   }));
 });
 

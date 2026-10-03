@@ -159,13 +159,29 @@ function divisionDigit(t) {
   return m ? m[1] : null;
 }
 
+// Words printed on every real card (old and current revision) and on none of the
+// home-made sheets. Measured 3 Oct 2026 over 313 readable uploads: all four hand-drawn
+// sheets have none of them; every printed card that failed the anchors (cropped, small in
+// frame) still has some. Only consulted once the anchors have already failed, so a card
+// that reads is never affected.
+const PRINTED_WORDS = [/^played$/i, /^register$/i, /^captain/i, /^players$/i];
+
+// Which failure to report when the card's layout can't be found. Naming a hand-drawn
+// sheet matters for the same reason it did at Stockport: the generic message blames the
+// photo, and a captain retakes a perfectly good one.
+function notOurCard(toks, detail) {
+  const printed = PRINTED_WORDS.some((re) => toks.some((w) => re.test(w.t)));
+  return new OcrFailure(printed ? 'not-a-card' : 'hand-drawn', detail);
+}
+
 function extractScorecard(resp) {
   const warnings = [];
   const { tokens: toks, rotationDegrees } = normaliseOrientation(resp);
 
   const A = {
     events: findToken(toks, /^Events$/i),
-    points: findToken(toks, /^Points$/i),
+    // "Paints": Vision's reading of a small-in-frame card (row 1979), which otherwise read fine.
+    points: findToken(toks, /^P[oa]ints$/i),
     games: findToken(toks, /^Games$/i),
     played: findToken(toks, /^Played$/i),
     date: findToken(toks, /^Date/i),
@@ -174,7 +190,7 @@ function extractScorecard(resp) {
     away: null,
   };
   for (const [name, tok] of Object.entries({ events: A.events, points: A.points, games: A.games })) {
-    if (!tok) throw new OcrFailure('not-a-card', `Scorecard anchors missing: could not find "${name}" — is this a Tameside scorecard photo?`);
+    if (!tok) throw notOurCard(toks, `Scorecard anchors missing: could not find "${name}" — is this a Tameside scorecard photo?`);
   }
   // "Home"/"Away" sub-headers under Players (between Events and Points, above the rows).
   const headerY = A.points.cy;
@@ -194,7 +210,7 @@ function extractScorecard(resp) {
   if (rowAnchors.length !== 9) {
     warnings.push(`Expected 9 event-row anchors, found ${rowAnchors.length} — extraction may be incomplete.`);
   }
-  if (rowAnchors.length < 2) throw new OcrFailure('not-a-card', 'Could not locate the event rows on the scorecard.');
+  if (rowAnchors.length < 2) throw notOurCard(toks, 'Could not locate the event rows on the scorecard.');
 
   /* ---- metadata ---- */
   const sameLine = (w, anchor, tol) => Math.abs(w.cy - anchor.cy) < tol;
@@ -343,6 +359,14 @@ function extractScorecard(resp) {
     if (g1) { games[`Game${g1}homeScore`] = e.home.g1; games[`Game${g1}awayScore`] = e.away.g1; }
     if (g2) { games[`Game${g2}homeScore`] = e.home.g2; games[`Game${g2}awayScore`] = e.away.g2; }
   });
+  // The printed card, found, with not one score on it: the blank template (row 1891 is
+  // one). Reporting it as a successful read would leave a captain wondering why nothing
+  // filled in. No card that read in the Oct 2026 scan read zero cells, so a real card
+  // whose scores were all unreadable is not expected to land here — but the message
+  // allows for it.
+  if (Object.values(games).every((v) => v == null)) {
+    throw new OcrFailure('blank-card', 'Card layout found but no score cells read.');
+  }
 
   return {
     rotationDegrees,

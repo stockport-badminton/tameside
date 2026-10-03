@@ -23,6 +23,7 @@
     "express-session": "^1.18.0",
     "express-validator": "^7.1.0",
     "fastest-levenshtein": "^1.0.16",
+    "heic-decode": "^2.1.0",
     "ical.js": "^2.0.1",
     "js-levenshtein": "^1.1.6",
     "jszip": "^3.10.1",

@@ -1343,8 +1343,9 @@ Before blaming config, call the API from a second project: if both fail, it's Go
 
 **Failures are typed, logged, and kept away from captains and Sentry** (ported from
 Stockport's HARD-36 thinking, 3 Oct 2026). Every expected failure is an `OcrFailure`
-(`utils/ocrFailure.js`) whose `kind` — `not-a-card`, `no-text`, `unreadable-image`,
-`busy`, `unavailable`, `photo-missing` — picks the status and the captain's message;
+(`utils/ocrFailure.js`) whose `kind` — `not-a-card`, `hand-drawn`, `blank-card`, `no-text`,
+`unreadable-image`, `busy`, `unavailable`, `photo-missing` — picks the status and the
+captain's message;
 `message` keeps the technical detail. Before this, `analyse` answered every failure 422
 with `err.message`, so captains read `Vision API HTTP 400: {...}` or sharp's own errors,
 and nothing was logged.
@@ -1362,6 +1363,25 @@ and nothing was logged.
   couldn't parse. A timeout or network failure is not retried.
 - S3/cache access lives in `utils/scorecardOcrSource.js`, held as a module so route tests
   stub it. Cache read/write failures are logged, never thrown.
+
+**What actually fails, measured 3 Oct 2026** over all 340 `tameside-` uploads (Sep 2024 on):
+307 read; 15 PDFs declined by extraction; **11 HEIC**; 4 hand-drawn sheets; 2 poor photos;
+1 blank template. **No captain has ever uploaded a Stockport, Monkhouse or spreadsheet
+card** — Stockport's `recogniseCard` rules were not ported for that reason.
+
+- **HEIC is converted like a document** (`utils/heicImage.js`, `heic-decode` = libheif in
+  wasm): the prebuilt sharp has no HEVC decoder and **Vision refuses HEIC too** (`Bad image
+  data`), so the sharp fallback above does not rescue it. `-photo.jpg` is stored beside the
+  original and the row points at it, which also lets non-Safari browsers show it. ~1.2s and
+  ~400MB peak for 12MP (the service has 2GB). libheif refuses tiny images with a spurious
+  "security limit" error — the test fixture is 64x48 for that reason.
+- **`hand-drawn` vs `not-a-card`** is decided only after the anchors fail, by whether any
+  printed word (`Played`, `Register`, `Captain…`, `Players`) was read. Every printed card
+  that failed still had one; no hand-drawn sheet did.
+- **`blank-card`**: layout found, zero score cells. No real card in the corpus read zero.
+- **Stockport has never rendered PDFs** — same byte extraction as ours plus a CCITT→TIFF
+  rewrap. Rendered by macOS, 13 of our 14 declined real-card PDFs read 30-36 cells, so
+  rendering would be new work on both sides, not a port.
 Finding which project owns a key needs no credentials: call an API it hasn't enabled, and
 the error names `consumer: projects/<number>`.
 
