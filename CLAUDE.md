@@ -1340,6 +1340,28 @@ project" was almost certainly timing. Successes came interleaved with refusals, 
 `annotateScorecard` retries code 8 / 429 / 503 three times (1s, 2s, 4s, sized for the 60s
 request timeout) and then tells the captain Google is busy, not quoting the quota message.
 Before blaming config, call the API from a second project: if both fail, it's Google.
+
+**Failures are typed, logged, and kept away from captains and Sentry** (ported from
+Stockport's HARD-36 thinking, 3 Oct 2026). Every expected failure is an `OcrFailure`
+(`utils/ocrFailure.js`) whose `kind` — `not-a-card`, `no-text`, `unreadable-image`,
+`busy`, `unavailable`, `photo-missing` — picks the status and the captain's message;
+`message` keeps the technical detail. Before this, `analyse` answered every failure 422
+with `err.message`, so captains read `Vision API HTTP 400: {...}` or sharp's own errors,
+and nothing was logged.
+
+- **Anything that is not an `OcrFailure` is a bug**: 500, generic message, Sentry. A 401/403
+  from Vision is deliberately a plain Error — that's our key, not their card.
+- **`[ocr] read failed {key, kind, detail}` / `[ocr] read ok {...}`** — one line per read.
+  The photo stays in the bucket under that key (and Vision's answer in
+  `scorecard-ocr-cache/`), so a failure is reproducible from the exact file. Grep the ok
+  and failed lines for a success rate.
+- **If sharp can't decode the upload, the original bytes go to Vision** rather than failing
+  the read; Vision's own refusal then becomes `unreadable-image`.
+- **The Vision call has a 40s budget** (`VISION_BUDGET_MS`) covering every attempt and wait,
+  so a hung call answers before the 60s platform timeout — whose HTML 504 the wizard
+  couldn't parse. A timeout or network failure is not retried.
+- S3/cache access lives in `utils/scorecardOcrSource.js`, held as a module so route tests
+  stub it. Cache read/write failures are logged, never thrown.
 Finding which project owns a key needs no credentials: call an API it hasn't enabled, and
 the error names `consumer: projects/<number>`.
 

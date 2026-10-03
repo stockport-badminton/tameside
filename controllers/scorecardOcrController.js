@@ -5,14 +5,16 @@
 // (/populated-scorecard/...), so submission goes through the same validated
 // entry path as manual entry — this feature never writes results directly.
 require('dotenv').config();
-const { GetObjectCommand, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
+const { GetObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
+const Sentry = require('@sentry/node');
 
-// Held as a MODULE, and called as `vision.annotateScorecard(...)`, not destructured.
-// Destructuring captures the function at require time, so a test stub installed on the
-// module object never intercepts — and the test that asserts the convert endpoint does
-// NOT read the card would then pass whether that were true or not, which is worse than
-// no test at all.
-const vision = require('../utils/scorecardVision');
+// Held as a MODULE, and called as `ocrSource.getVisionForKey(...)`, not destructured
+// (and it holds utils/scorecardVision the same way). Destructuring captures the function
+// at require time, so a test stub installed on the module object never intercepts — and
+// the test that asserts the convert endpoint does NOT read the card would then pass
+// whether that were true or not, which is worse than no test at all.
+const ocrSource = require('../utils/scorecardOcrSource');
+const { isOcrFailure } = require('../utils/ocrFailure');
 const { extractScorecard, parseCardDate } = require('../utils/scorecardExtraction');
 const { matchScorecard, matchTeamName } = require('../utils/scorecardMatch');
 const Team = require('../models/teams');
@@ -45,7 +47,7 @@ const { contentTypeFor, downloadTypeFor, downloadNameFor } = require('../utils/s
 // Turning an uploaded pdf/docx into a stored photo. See utils/scorecardDocument.js for
 // why this takes a KEY rather than bytes, and utils/documentImage.js for what it can and
 // deliberately cannot read.
-// The module, not its members — see the note on `vision` above. `convertStoredDocument`
+// The module, not its members — see the note on `ocrSource` above. `convertStoredDocument`
 // is the one the tests replace; the two predicates are pure and destructured freely.
 const scorecardDocument = require('../utils/scorecardDocument');
 const { isDocumentKey, isRefusedArchive } = scorecardDocument;
@@ -72,14 +74,6 @@ function renderOpts(title, extra) {
  * header against all team names — that's how wizard uploads (generic keys)
  * are handled.
  * ------------------------------------------------------------------ */
-/* ------------------------------------------------------------------ *
- * Vision-response cache: one Vision call per uploaded photo, ever. The raw
- * response is stored beside the upload so re-analysis (e.g. after the user
- * picks the teams the header couldn't identify) re-maps the SAME detection
- * against new inputs instead of re-OCRing.
- * ------------------------------------------------------------------ */
-const visionCacheKey = (key) => `scorecard-ocr-cache/${key}.vision.json`;
-
 /* ------------------------------------------------------------------ *
  * Documents
  *
@@ -114,24 +108,6 @@ const CANNOT_EXTRACT =
   'That file could not be read as a scorecard photo. It has still been attached to the '
   + 'scorecard, so nothing is lost — but to have the card read automatically, send a '
   + 'photo of it instead (JPEG, PNG or HEIC).';
-
-
-
-async function getVisionForKey(key) {
-  try {
-    const cached = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: visionCacheKey(key) }));
-    return JSON.parse(Buffer.from(await cached.Body.transformToByteArray()).toString());
-  } catch (e) { /* cache miss */ }
-  const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
-  const buffer = Buffer.from(await obj.Body.transformToByteArray());
-  const annotated = await vision.annotateScorecard(buffer);
-  // Fire-and-forget cache write — analysis shouldn't fail if this does.
-  s3.send(new PutObjectCommand({
-    Bucket: BUCKET, Key: visionCacheKey(key),
-    Body: JSON.stringify(annotated), ContentType: 'application/json',
-  })).catch(() => {});
-  return annotated;
-}
 
 async function analyseVision(vision, names, overrides) {
   const extraction = extractScorecard(vision);
@@ -264,7 +240,7 @@ exports.review = async function (req, res, next) {
   try {
     // Team-named keys resolve directly; generic keys (wizard uploads) fall
     // back to fuzzy-matching the handwritten header inside analyseVision.
-    const vision = await getVisionForKey(key);
+    const vision = await ocrSource.getVisionForKey(key);
     const r = await analyseVision(vision, teamsFromKey(key));
     if (!r.homeTeam || !r.awayTeam) {
       throw new Error(`Could not identify the ${!r.homeTeam ? 'home' : 'away'} team ` +
@@ -295,8 +271,35 @@ exports.review = async function (req, res, next) {
  * key here. Responds with JSON: the prefilled-form URL plus what was read,
  * so the wizard can confirm and navigate. Nothing is written to the DB.
  * ------------------------------------------------------------------ */
+// What a captain sees when the failure is ours rather than the card's. Says nothing about
+// what broke: the detail is in the log and in Sentry, and is no use to them.
+const READ_FAILED = 'Something went wrong reading the card';
+
+// One line per read, failed or not, keyed by the object name. The photo stays in the
+// bucket under that key (and, when Vision answered, so does its response in the OCR
+// cache), so any failure can be reproduced from the exact file the captain sent — which is
+// what made Stockport's failures diagnosable (their HARD-36). Before this a failed read
+// left no trace at all: it answered 422 and logged nothing. `kind` names the check that
+// fired; the ok lines are the denominator for a success rate.
+function logRead(outcome, fields) {
+  console.log(`[ocr] read ${outcome} ${JSON.stringify(fields)}`);
+}
+
+function respondToFailure(res, err, fields) {
+  const kind = isOcrFailure(err) ? err.kind : err.status === 413 ? 'too-large' : 'error';
+  logRead('failed', Object.assign({}, fields, { kind, detail: err.message }));
+  if (isOcrFailure(err)) return res.status(err.status).json({ ok: false, kind, error: err.userMessage });
+  // scorecardDocument's size refusal is already written for a captain.
+  if (err.status === 413) return res.status(413).json({ ok: false, kind, error: err.message });
+  // Everything else is a bug or an outage on our side: the only failures Sentry hears
+  // about, so that it is still read.
+  Sentry.captureException(err, { tags: { stage: 'scorecard-ocr' }, extra: fields });
+  return res.status(500).json({ ok: false, kind, error: READ_FAILED });
+}
+
 exports.analyse = async function (req, res) {
   const key = req.body && req.body.key;
+  const fields = { key, rematch: !!(req.body && (req.body.homeTeamId || req.body.awayTeamId)) || undefined };
   if (!key || !/^tameside-/.test(key)) return res.status(400).json({ ok: false, error: 'Bad or missing key' });
   if (isRefusedArchive(key)) {
     return res.status(400).json({ ok: false, error: 'Archives are not accepted. Send the photo or the document itself.' });
@@ -314,9 +317,13 @@ exports.analyse = async function (req, res) {
     // one. On a re-analyse the document has already been converted, so this reruns on the
     // photo key the client sent back and is a no-op.
     const { imageKey, photoUrl } = await resolveToImageKey(key);
-    if (!imageKey) return res.status(422).json({ ok: false, error: CANNOT_EXTRACT });
+    if (!imageKey) {
+      logRead('failed', Object.assign({}, fields, { kind: 'document-declined' }));
+      return res.status(422).json({ ok: false, kind: 'document-declined', error: CANNOT_EXTRACT });
+    }
+    if (imageKey !== key) fields.imageKey = imageKey;
 
-    const vision = await getVisionForKey(imageKey);
+    const vision = await ocrSource.getVisionForKey(imageKey);
     const r = await analyseVision(vision, teamsFromKey(imageKey), overrides);
     // Partial results are fine: unresolved teams come back null and the
     // wizard still prefills division/date/scores, leaving team/player picks
@@ -325,6 +332,12 @@ exports.analyse = async function (req, res) {
       men: r.matched.slots[side].men.map((p) => (p ? p.id : null)),
       ladies: r.matched.slots[side].ladies.map((p) => (p ? p.id : null)),
     });
+    const filled = (side) => slotIds(side).men.concat(slotIds(side).ladies).filter((id) => id != null).length;
+    logRead('ok', Object.assign({}, fields, {
+      teamResolution: r.teamResolution,
+      warnings: r.extraction.warnings.length,
+      slots: filled('home') + filled('away'),
+    }));
     res.json({
       ok: true,
       // Present only when a document was converted. The page swaps scoresheet-url onto
@@ -346,7 +359,7 @@ exports.analyse = async function (req, res) {
       warnings: r.extraction.warnings,
     });
   } catch (err) {
-    res.status(422).json({ ok: false, error: err.message });
+    respondToFailure(res, err, fields);
   }
 };
 

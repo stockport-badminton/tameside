@@ -21,6 +21,8 @@ const path = require('path');
 const { app, clearModels } = require('../helpers/app');
 const scorecardDocument = require('../../utils/scorecardDocument');
 const vision = require('../../utils/scorecardVision');
+const ocrSource = require('../../utils/scorecardOcrSource');
+const { OcrFailure } = require('../../utils/ocrFailure');
 
 afterEach(() => { clearModels(); mock.restoreAll(); });
 
@@ -176,13 +178,14 @@ describe('POST /scorecard-ocr/analyse — documents', () => {
   // keeps pointing scoresheet-url at the pdf and the extracted jpeg is orphaned.
   it('converts a document and returns the photo url for the row', asUser({ role: 'none' }, async () => {
     stubConversion(STORED);
-    // Vision is stubbed to throw, so analysis fails after the conversion — which is
-    // enough to prove the conversion ran on the document and not on the pdf key.
-    const calls = [];
-    mock.method(vision, 'annotateScorecard', async () => { calls.push(true); throw new Error('stubbed'); });
+    // The read is stubbed to fail, so analysis stops after the conversion — which is
+    // enough to prove the card was read from the extracted photo and not the pdf key.
+    const read = [];
+    mock.method(ocrSource, 'getVisionForKey', async (key) => { read.push(key); throw new OcrFailure('no-text'); });
     const res = await request(app).post('/scorecard-ocr/analyse').send({ key: 'tameside-Hyde B-Shell A.pdf' });
     assert.strictEqual(res.status, 422);
     assert.strictEqual(res.body.ok, false);
+    assert.deepStrictEqual(read, [STORED.key]);
   }));
 
   it('tells the captain what to do when the document cannot be read',

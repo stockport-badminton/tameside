@@ -240,7 +240,7 @@
                                headers: { 'Content-Type': 'application/json' },
                                body: JSON.stringify({ key: key, homeTeamId: h, awayTeamId: a })
                              });
-                             var data = await resp.json();
+                             var data = await resp.json().catch(function () { return {}; });
                              if (!resp.ok || !data.ok) throw new Error(data.error || 'matching failed');
                              fillScoresAndDate(data);
                              var set = await fillSlots(data);
@@ -294,8 +294,11 @@
                            headers: { 'Content-Type': 'application/json' },
                            body: JSON.stringify({ key: key })
                          });
-                         var data = await resp.json();
-                         if (!resp.ok || !data.ok) throw new Error(data.error || 'Could not read the card');
+                         // Not JSON means the request never reached the handler's own answer
+                         // (a platform timeout, say), whose HTML would otherwise surface here
+                         // as "Unexpected token '<'".
+                         var data = await resp.json().catch(function () { return {}; });
+                         if (!resp.ok || !data.ok) throw new Error(data.error || 'The card could not be read automatically');
                          // The server converted a document: record the extracted jpeg
                          // rather than the pdf, or the whole conversion is thrown away at
                          // submit time. `key` follows too, so a re-analyse after a manual

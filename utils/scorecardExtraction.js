@@ -19,6 +19,7 @@
 // The 9 card rows map 1:1 onto the entry form's Game1..Game18 (see GAME_MAP).
 
 const { isValidGameScore } = require('./scorecardValidation');
+const { OcrFailure } = require('./ocrFailure');
 
 const EVENT_NAMES = ['Open A', 'Ladies', 'Open B', 'Mixed A', 'Mixed B', 'Mixed C', 'Mixed D', 'Open C', 'Open D'];
 // event index -> [first game number, second game number] in the entry form.
@@ -173,7 +174,7 @@ function extractScorecard(resp) {
     away: null,
   };
   for (const [name, tok] of Object.entries({ events: A.events, points: A.points, games: A.games })) {
-    if (!tok) throw new Error(`Scorecard anchors missing: could not find "${name}" — is this a Tameside scorecard photo?`);
+    if (!tok) throw new OcrFailure('not-a-card', `Scorecard anchors missing: could not find "${name}" — is this a Tameside scorecard photo?`);
   }
   // "Home"/"Away" sub-headers under Players (between Events and Points, above the rows).
   const headerY = A.points.cy;
@@ -193,7 +194,7 @@ function extractScorecard(resp) {
   if (rowAnchors.length !== 9) {
     warnings.push(`Expected 9 event-row anchors, found ${rowAnchors.length} — extraction may be incomplete.`);
   }
-  if (rowAnchors.length < 2) throw new Error('Could not locate the event rows on the scorecard.');
+  if (rowAnchors.length < 2) throw new OcrFailure('not-a-card', 'Could not locate the event rows on the scorecard.');
 
   /* ---- metadata ---- */
   const sameLine = (w, anchor, tol) => Math.abs(w.cy - anchor.cy) < tol;
