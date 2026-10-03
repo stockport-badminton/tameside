@@ -337,7 +337,9 @@ var sentryEnabled = process.env.NODE_ENV === 'production' || !!process.env.K_SER
     <%- include('pwa-head.ejs') %>
   </head>
 
-  <body class="pt-5 mt-4">
+  <%# No top offset: it cleared a fixed-top navbar, and the navbar has been sticky
+      (in the page flow) since Jan 2026, so the offset was 72px of blank space. %>
+  <body>
 
     <div class="container">
       

@@ -1,150 +1,117 @@
 <%- include('header.ejs') %>
 <%- include('nav.ejs') %>
 
-<!-- Hero Section -->
-<section class="hero">
-    <h1>Tameside Badminton League</h1>
-    <p>Competitive badminton across Tameside and surrounding areas</p>
-    <div class="cta-buttons">
-        <a href="/email-scorecard" class="btn-modern-primary">
+<%
+  // Date helpers: dd/mm/yyyy for the event link (unchanged URL shape), and a short
+  // "Sat 4 Oct" label for the compact lists.
+  var DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function ddmmyyyy(d){ return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth()+1)).slice(-2) + '/' + d.getFullYear(); }
+  function shortDate(d){ return DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; }
+  var HOME_LIST_MAX = 8;
+  var recentList = (typeof result !== 'undefined' ? result : []).slice().reverse().slice(0, HOME_LIST_MAX);
+  var upcomingList = (typeof row !== 'undefined' ? row : []).slice(0, HOME_LIST_MAX);
+  var newsList = (typeof announcements !== 'undefined' ? announcements : []);
+%>
+
+<div class="container home-body">
+<%# No hero: the changing content is the first thing on the page. The h1 stays for
+    search engines and screen readers; the navbar brand already says it visually. %>
+<h1 class="visually-hidden">Tameside Badminton League</h1>
+
+<% if (typeof scorecards !== 'undefined' && scorecards.length > 0) { %>
+<!-- Outstanding Scorecards: a compact alert, not a full section -->
+<section class="home-outstanding" data-ga-section="outstanding">
+    <div class="home-head">
+        <h2 class="section-title home-title">
+            <i class="fas fa-triangle-exclamation"></i>
+            <%= scorecards.length %> scorecard<%= scorecards.length === 1 ? '' : 's' %> outstanding
+        </h2>
+        <a href="/email-scorecard" class="btn-modern-primary home-enter">
             <i class="fas fa-pen-to-square"></i> Enter Result
         </a>
-        <a href="/results/All" class="btn-modern-secondary">
-            <i class="fas fa-calendar-days"></i> View All Results
-        </a>
     </div>
-</section>
-
-<!-- News Section -->
-<section class="section" data-ga-section="news">
-    <div class="container">
-        <h2 class="section-title">
-            <i class="fas fa-newspaper"></i> News
-        </h2>
-        
-        <% (typeof announcements !== 'undefined' ? announcements : []).forEach(function(a){ %>
-        <div class="news-card">
-            <h3><%= a.title %></h3>
-            <%- a.teaser_html %>
-            <% if (a.modal_body_html) { %>
-            <p><a href="#" data-bs-toggle="modal" data-bs-target="#announcementModal<%= a.id %>">Read more</a></p>
-            <% } %>
-        </div>
+    <ul class="home-chips">
+        <% scorecards.forEach(function(sc){
+            var d = new Date(sc['date']);
+            var age = Date.now() - d;
+            var level = age > 7*864e5 ? 'overdue' : age > 5*864e5 ? 'late' : '';
+        %>
+        <li class="home-chip <%= level %>">
+            <span class="home-chip-date"><%= shortDate(d) %></span>
+            <%= sc['homeTeam'] %> v <%= sc['awayTeam'] %>
+        </li>
         <% }) %>
-    </div>
+    </ul>
 </section>
+<% } %>
 
-<!-- Outstanding Scorecards (if any) -->
-<% if (typeof scorecards !== 'undefined' && scorecards.length > 0) { %>
-<section class="section" data-ga-section="outstanding" style="background: #fff3cd; padding: 3rem 0;">
-    <div class="container">
-        <h2 class="section-title" style="color: #856404;">
-            <i class="fas fa-triangle-exclamation"></i> Outstanding Scorecards
-        </h2>
-        <div class="results-grid">
-            <% scorecards.forEach(function(row){ 
-                var MyDate = new Date(row['date']);
-                var NowDate = Date.now();
-                var cardClass = "result-card";
-                if((NowDate - MyDate) > (5 * 24 * 60 * 60 * 1000)){
-                    cardClass = "result-card" + " bg-warning";
-                }
-                if((NowDate - MyDate) > (7 * 24 * 60 * 60 * 1000)){
-                    cardClass = "result-card" + " bg-danger text-white";
-                }
-                
-                var MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
-                    + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
-                    + MyDate.getFullYear();
-            %>
-            <div class="<%= cardClass %>">
-                <div class="result-date">
-                    <i class="far fa-calendar"></i> <%= MyDateString %>
-                </div>
-                <div class="result-teams">
-                    <span class="team-name"><%= row['homeTeam'] %></span>
-                    <span style="padding: 0 1rem; font-weight: 700;">vs</span>
-                    <span class="team-name" style="text-align: right;"><%= row['awayTeam'] %></span>
-                </div>
-            </div>
-            <% }) %>
+<div class="home-columns">
+    <!-- Recent Results, newest first -->
+    <section class="home-panel" data-ga-section="recent">
+        <div class="home-head">
+            <h2 class="section-title home-title"><i class="fas fa-list-check"></i> Recent Results</h2>
+            <a class="home-more" href="/results/All">All results <i class="fas fa-arrow-right"></i></a>
         </div>
+        <% if (recentList.length > 0) { %>
+        <ul class="home-list">
+            <% recentList.forEach(function(r){ var d = new Date(r['date']); %>
+            <li>
+                <span class="home-list-date"><%= shortDate(d) %></span>
+                <span class="home-list-home"><%= r['homeTeam'] %></span>
+                <span class="home-list-score"><%= r['homeScore'] %>&ndash;<%= r['awayScore'] %></span>
+                <span class="home-list-away"><%= r['awayTeam'] %></span>
+            </li>
+            <% }) %>
+        </ul>
+        <% } else { %>
+        <p class="home-empty">No results in the last 30 days.</p>
+        <% } %>
+    </section>
+
+    <!-- Upcoming Fixtures -->
+    <section class="home-panel" data-ga-section="upcoming">
+        <div class="home-head">
+            <h2 class="section-title home-title"><i class="fas fa-calendar-days"></i> Upcoming Fixtures</h2>
+            <a class="home-more" href="/fixtures/All">All fixtures <i class="fas fa-arrow-right"></i></a>
+        </div>
+        <% if (upcomingList.length > 0) { %>
+        <ul class="home-list">
+            <% upcomingList.forEach(function(f){ var d = new Date(f['date']); var ds = ddmmyyyy(d); %>
+            <li>
+                <span class="home-list-date"><%= shortDate(d) %></span>
+                <a class="home-list-fixture" href="<%= '/event/' + f.id + '/' + ds.replaceAll("/","") + '-' + f.homeTeam + '-' + f.awayTeam %>">
+                    <%= f['homeTeam'] %> <span class="home-list-v">v</span> <%= f['awayTeam'] %>
+                </a>
+            </li>
+            <% }) %>
+        </ul>
+        <% } else { %>
+        <p class="home-empty">No upcoming fixtures scheduled.</p>
+        <% } %>
+    </section>
+</div>
+
+<% if (newsList.length > 0) { %>
+<!-- News: headline and a two-line teaser; the full text is in the existing modal -->
+<section class="home-news" data-ga-section="news">
+    <h2 class="section-title home-title"><i class="fas fa-newspaper"></i> News</h2>
+    <div class="home-news-grid">
+        <% newsList.forEach(function(a){ %>
+        <article class="home-news-item">
+            <h3><%= a.title %></h3>
+            <%# Clamp only when there is a modal to read the rest in; otherwise the teaser IS the whole announcement. %>
+            <div class="home-news-teaser<%= a.modal_body_html ? ' clamped' : '' %>"><%- a.teaser_html %></div>
+            <% if (a.modal_body_html) { %>
+            <a href="#" data-bs-toggle="modal" data-bs-target="#announcementModal<%= a.id %>">Read more</a>
+            <% } %>
+        </article>
+        <% }) %>
     </div>
 </section>
 <% } %>
 
-<!-- Recent Results -->
-<section class="section" data-ga-section="recent" style="background: white; padding: 4rem 0;">
-    <div class="container">
-        <h2 class="section-title">
-            <i class="fas fa-list-check"></i> Recent Results
-        </h2>
-        
-        <div class="results-grid">
-            <% if (typeof result !== 'undefined' && result.length > 0) { %>
-                <% result.forEach(function(row){ 
-                    var MyDate = new Date(row['date']);
-                    var MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
-                        + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
-                        + MyDate.getFullYear();
-                %>
-                <div class="result-card">
-                    <div class="result-date">
-                        <i class="far fa-calendar"></i> <%= MyDateString %>
-                    </div>
-                    <div class="result-teams">
-                        <span class="team-name"><%= row['homeTeam'] %></span>
-                        <span class="score"><%= row['homeScore'] %> - <%= row['awayScore'] %></span>
-                        <span class="team-name" style="text-align: right;"><%= row['awayTeam'] %></span>
-                    </div>
-                </div>
-                <% }) %>
-            <% } else { %>
-                <p>No recent results available.</p>
-            <% } %>
-        </div>
-        
-        <div style="text-align: center; margin-top: 2rem;">
-            <a href="/results/All" class="btn-modern-primary">
-                <i class="fas fa-list"></i> View All Results
-            </a>
-        </div>
-    </div>
-</section>
-
-<!-- Upcoming Fixtures -->
-<section class="section" data-ga-section="upcoming">
-    <div class="container">
-        <h2 class="section-title">
-            <i class="fas fa-calendar-days"></i> Upcoming Fixtures
-        </h2>
-        
-        <div class="results-grid">
-            <% if (typeof row !== 'undefined' && row.length > 0) { %>
-                <% row.forEach(function(fixture){ 
-                    var MyDate = new Date(fixture['date']);
-                    var MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
-                        + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
-                        + MyDate.getFullYear();
-                %>
-                <div class="fixture-card">
-                    <div class="fixture-date">
-                        <i class="far fa-calendar"></i> <%= MyDateString %>
-                    </div>
-                    <div class="fixture-teams">
-                        <%= fixture['homeTeam'] %> vs <%= fixture['awayTeam'] %>
-                    </div>
-                    <a href="<%= '/event/' + fixture.id + '/' + MyDateString.replaceAll("/","") + '-' + fixture.homeTeam + '-' + fixture.awayTeam %>">
-                        View details <i class="fas fa-arrow-right"></i>
-                    </a>
-                </div>
-                <% }) %>
-            <% } else { %>
-                <p>No upcoming fixtures scheduled.</p>
-            <% } %>
-        </div>
-    </div>
-</section>
+</div>
 
 <%- include('resultsEntryModal.ejs') %>
 <% (typeof announcements !== 'undefined' ? announcements : []).forEach(function(a){ if (a.modal_body_html) { %>

@@ -34,6 +34,19 @@ nav, .navbar {
     font-size: 1.5rem;
     font-weight: 700;
     color: white !important;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+/* Font Awesome Free has no shuttlecock, so the brand mark is an inline SVG (nav.ejs). */
+.brand-shuttle { width: 1.15em; height: 1.15em; flex: none; }
+/* Full name until it would push the hamburger onto its own line; then TBL, as
+   Stockport does with SDBL. */
+.brand-short { display: none; }
+@media (max-width: 575.98px) {
+    /* Visually hidden rather than display:none, so a screen reader still hears the name. */
+    .brand-long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .brand-short { display: inline; }
 }
 
 .navbar-nav .nav-link {
@@ -75,7 +88,10 @@ nav, .navbar {
 @media (min-width: 1400px) and (max-width: 1749.98px) {
     .navbar-brand {
         font-size: 1.05rem;
+        gap: 0.3rem;
     }
+    /* The brand mark costs width too: at its full size it left 108px at 1400px. */
+    .brand-shuttle { width: 1em; height: 1em; }
 
     .navbar-nav .nav-link {
         padding: 0.5rem 0.55rem !important;
@@ -105,18 +121,17 @@ nav, .navbar {
  * dvh is declared after vh so browsers that support it use it and the rest fall
  * back — on mobile, vh ignores the browser chrome and would still overflow.
  *
- * The 10rem subtrahend is not arbitrary, and it is the fiddly part. The menu does
- * NOT start at the top of the viewport: views/header.ejs puts `pt-5 mt-4` on
- * <body> (72px) to clear what used to be a fixed-top navbar, and the navbar's own
- * brand/toggler row is another ~64px. So the collapse panel's top edge sits ~136px
- * down when the page is unscrolled. 10rem (160px) covers that worst case with a
- * little slack; once the user scrolls, the sticky nav pins to top:0 and the extra
- * room is simply unused. If that body offset ever changes, the reachability tests
- * in test/e2e/nav-viewport.spec.js are what will tell you this needs retuning. */
+ * The 6rem subtrahend is not arbitrary. The menu does NOT start at the top of the
+ * viewport: the navbar's own brand/toggler row (~80px with its 1rem padding) sits
+ * above it. 6rem (96px) covers that with a little slack. It was 10rem while
+ * views/header.ejs also put `pt-5 mt-4` (72px) on <body> to clear a long-gone
+ * fixed-top navbar; that offset was removed 2026-10-03. If the navbar row's height
+ * changes, the reachability tests in test/e2e/nav-viewport.spec.js are what will
+ * tell you this needs retuning. */
 @media (max-width: 1399.98px) {
     .navbar-collapse {
-        max-height: calc(100vh - 10rem);
-        max-height: calc(100dvh - 10rem);
+        max-height: calc(100vh - 6rem);
+        max-height: calc(100dvh - 6rem);
         overflow-y: auto;
         /* Stop the page scrolling once the panel reaches its end. */
         overscroll-behavior: contain;
@@ -142,8 +157,8 @@ nav, .navbar {
 
 @media (min-width: 1400px) {
     .navbar .dropdown-menu {
-        max-height: calc(100vh - 10rem);
-        max-height: calc(100dvh - 10rem);
+        max-height: calc(100vh - 6rem);
+        max-height: calc(100dvh - 6rem);
         overflow-y: auto;
     }
 }
@@ -2019,4 +2034,104 @@ table.colsearch-on .dt-colsearch-row {
     .alert-modern .alert-icon {
         align-self: center;
     }
+}
+/* Homepage — compact layout.
+   The changing content (outstanding, recent, upcoming) comes first and fits on the
+   first screen of a laptop; news follows as headlines. Measured 2026-10-03: the old
+   hero + full news cards put every one of those sections below the fold at every
+   common viewport. */
+.home-body { padding-top: 1.25rem; padding-bottom: 3rem; }
+.home-title { font-size: 1.5rem; margin: 0; gap: 0.6rem; }
+.home-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.75rem;
+}
+.home-enter { padding: 0.6rem 1.25rem; }
+
+.home-outstanding {
+    background: #fff3cd;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+.home-outstanding .home-title { color: #856404; font-size: 1.2rem; }
+.home-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.home-chip {
+    background: white;
+    border-radius: 999px;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.9rem;
+    border: 1px solid #f0d68a;
+}
+.home-chip.late { background: #ffc107; border-color: #ffc107; }
+.home-chip.overdue { background: #dc3545; border-color: #dc3545; color: white; }
+.home-chip-date { font-weight: 600; margin-right: 0.35rem; }
+
+.home-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 1.5rem;
+}
+.home-panel {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    padding: 1.25rem 1.25rem 1rem;
+}
+.home-list { list-style: none; margin: 0; padding: 0; }
+.home-list li {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr auto 1fr;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid #eef0f4;
+    font-size: 0.95rem;
+}
+.home-list li:last-child { border-bottom: 0; }
+.home-list-date { color: #888; font-size: 0.85rem; white-space: nowrap; }
+.home-list-score { font-weight: 700; color: #1e3c72; text-align: center; min-width: 3.2rem; }
+.home-list-away { text-align: right; }
+.home-list-fixture { grid-column: 2 / -1; color: #1e3c72; font-weight: 500; text-decoration: none; }
+.home-list-fixture:hover { text-decoration: underline; }
+.home-list-v { color: #888; font-weight: 400; padding: 0 0.2rem; }
+.home-more { font-weight: 600; color: #1e3c72; text-decoration: none; white-space: nowrap; }
+.home-more:hover { text-decoration: underline; }
+.home-empty { color: #888; margin: 0; }
+
+.home-news { margin-top: 2rem; }
+.home-news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+.home-news-item {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    padding: 1rem 1.15rem;
+}
+.home-news-item h3 { font-family: 'Poppins', sans-serif; font-size: 1.05rem; font-weight: 700; color: #1e3c72; margin: 0 0 0.35rem; }
+.home-news-teaser {
+    font-size: 0.92rem;
+    color: #555;
+    margin-bottom: 0.35rem;
+}
+.home-news-teaser.clamped {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.home-news-teaser p { margin: 0; }
+.home-news-item a { font-weight: 600; font-size: 0.9rem; }
+
+@media (max-width: 575.98px) {
+    .home-enter { width: 100%; justify-content: center; }
+    .home-columns { grid-template-columns: 1fr; }
+    .home-title { font-size: 1.3rem; }
+    /* Two lines per result on a phone: date over teams, rather than four squeezed columns. */
+    .home-list li { grid-template-columns: 1fr auto 1fr; row-gap: 0.15rem; }
+    .home-list-date { grid-column: 1 / -1; }
+    .home-list-fixture { grid-column: 1 / -1; }
 }
