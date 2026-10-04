@@ -15,8 +15,8 @@ const Sentry = require('@sentry/node');
 // whether that were true or not, which is worse than no test at all.
 const ocrSource = require('../utils/scorecardOcrSource');
 const { isOcrFailure } = require('../utils/ocrFailure');
-const { extractScorecard, parseCardDate } = require('../utils/scorecardExtraction');
-const { matchScorecard, matchTeamName } = require('../utils/scorecardMatch');
+const { extractScorecard, cardDateNear } = require('../utils/scorecardExtraction');
+const { matchScorecard, matchTeamName, matchFixturePair } = require('../utils/scorecardMatch');
 const Team = require('../models/teams');
 const Player = require('../models/players');
 const Fixture = require('../models/fixture');
@@ -136,10 +136,30 @@ async function analyseVision(vision, names, overrides) {
     const fromHeader = matchTeamName(headerName, allTeams);
     return fromHeader ? { team: fromHeader, how: 'header' } : { team: null, how: 'unresolved' };
   };
-  const [homeRes, awayRes] = await Promise.all([
-    resolveTeam(names && names.home, extraction.meta.homeTeam, overrides && overrides.homeTeamId),
-    resolveTeam(names && names.away, extraction.meta.awayTeam, overrides && overrides.awayTeamId),
-  ]);
+  // When both sides come from the handwriting (the wizard's first read: no team picked,
+  // no team-named key), read them as a PAIR against the fixtures the card could be for,
+  // before trying each name alone. Advisory: if the lookup fails, the names alone still
+  // work exactly as before.
+  const fromHeaderOnly = !(overrides && (overrides.homeTeamId || overrides.awayTeamId))
+    && !(names && (names.home || names.away));
+  let pair = null;
+  if (fromHeaderOnly) {
+    try {
+      const byId = new Map(allTeams.map((t) => [String(t.id), t]));
+      const candidates = (await Fixture.getScorecardCandidates())
+        .map((f) => ({ id: f.id, date: f.date, home: byId.get(String(f.homeTeam)), away: byId.get(String(f.awayTeam)) }))
+        .filter((f) => f.home && f.away);
+      pair = matchFixturePair(extraction.meta.homeTeam, extraction.meta.awayTeam, candidates, allTeams);
+    } catch (e) {
+      console.log(`[ocr] fixture candidates unavailable: ${e.message}`);
+    }
+  }
+  const [homeRes, awayRes] = pair
+    ? [{ team: pair.home, how: 'fixture' }, { team: pair.away, how: 'fixture' }]
+    : await Promise.all([
+      resolveTeam(names && names.home, extraction.meta.homeTeam, overrides && overrides.homeTeamId),
+      resolveTeam(names && names.away, extraction.meta.awayTeam, overrides && overrides.awayTeamId),
+    ]);
   const homeTeam = homeRes.team;
   const awayTeam = awayRes.team;
   const teamResolution = `${homeRes.how}/${awayRes.how}`;
@@ -175,16 +195,9 @@ async function analyseVision(vision, names, overrides) {
     } catch (e) { /* advisory only */ }
   }
 
-  // Card date -> yyyy-mm-dd for the form's date input (fixture date fallback).
-  // Sanity window: a match card's date can't plausibly be far in the future or
-  // more than ~15 months back — misreads (e.g. "2027" from smudged digits)
-  // fall through to the fixture's scheduled date instead.
-  let cardDate = parseCardDate(extraction.meta.date);
-  if (cardDate) {
-    const d = new Date(cardDate);
-    const now = Date.now();
-    if (d.getTime() > now + 60 * 86400e3 || d.getTime() < now - 450 * 86400e3) cardDate = null;
-  }
+  // Card date -> yyyy-mm-dd for the form's date input, with the year inferred from the
+  // written day and month (see cardDateNear); the fixture's date when there is none.
+  let cardDate = cardDateNear(extraction.meta.date, Date.now());
   if (!cardDate && fixture && fixture.date) cardDate = new Date(fixture.date).toISOString().slice(0, 10);
 
   // Handoff URL for the admin review flow (needs both teams).
@@ -354,6 +367,9 @@ exports.analyse = async function (req, res) {
       divisionId: r.divisionId,
       date: r.cardDate,
       slots: { home: slotIds('home'), away: slotIds('away') },
+      // Per-Mixed-event picks where the card differs from the form's default pairing;
+      // null means "keep the default". See scorecardMatch.mixedPicks.
+      mixed: r.matched.mixed,
       games: r.extraction.games,
       result: r.extraction.result,
       warnings: r.extraction.warnings,

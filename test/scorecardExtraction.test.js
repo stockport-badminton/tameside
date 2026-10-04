@@ -185,3 +185,27 @@ describe('extractScorecard — naming a card it cannot read', () => {
     assert.strictEqual(kindOf(v), 'ok');
   });
 });
+
+// The year is what Vision gets wrong; day and month it reads well. Oct 2026 corpus:
+// right 178 -> 193 of 271 dated cards.
+describe('cardDateNear (year from the day and month, as of filing)', () => {
+  const { cardDateNear } = require('../utils/scorecardExtraction');
+  const on = (iso) => Date.parse(iso + 'T12:00:00Z');
+  it('agrees with a correctly written date', () =>
+    assert.strictEqual(cardDateNear('27/10/25', on('2025-10-29')), '2025-10-27'));
+  it('overrules a misread year ("29" for 24)', () =>
+    assert.strictEqual(cardDateNear('26/11/29', on('2024-11-28')), '2024-11-26'));
+  it('reads a date with no year at all', () =>
+    assert.strictEqual(cardDateNear('27/10', on('2025-10-29')), '2025-10-27'));
+  it('crosses New Year: a December match filed in January', () =>
+    assert.strictEqual(cardDateNear('15/12/25', on('2026-01-06')), '2025-12-15'));
+  it('allows a few days ahead (a match brought forward), not weeks', () => {
+    assert.strictEqual(cardDateNear('8/11/25', on('2025-11-01')), '2025-11-08');
+    assert.strictEqual(cardDateNear('30/11/25', on('2025-11-01')), null);
+  });
+  it('rejects impossible dates and garbage', () => {
+    assert.strictEqual(cardDateNear('31/2/26', on('2026-03-01')), null);
+    assert.strictEqual(cardDateNear('32/13/24', on('2024-11-28')), null);
+    assert.strictEqual(cardDateNear('', on('2024-11-28')), null);
+  });
+});

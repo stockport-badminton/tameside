@@ -1382,6 +1382,40 @@ card** — Stockport's `recogniseCard` rules were not ported for that reason.
 - **Stockport has never rendered PDFs** — same byte extraction as ours plus a CCITT→TIFF
   rewrap. Rendered by macOS, 13 of our 14 declined real-card PDFs read 30-36 cells, so
   rendering would be new work on both sides, not a port.
+
+**Accuracy is measured, not guessed** (Oct 2026). `scripts/ocr-accuracy/` (gitignored — it
+holds a scorecardstore/player dump) replays the wizard's pipeline over 273 filed cards
+against what captains submitted, from cached Vision responses, in ~5s:
+`cd scripts/ocr-accuracy/accuracy && TEAMS=fixture MODES=live node eval2.js`. Run it before
+and after any change to extraction or matching; every number below came from it.
+
+| | before | after |
+|---|---|---|
+| games right / filled in wrong but valid | 63% / 906 | 74% / 606 |
+| both teams right (live / rosters at the time) | 63% / 69% | 79% / 86% |
+| players per event right / wrong | 5239 / 2093 | 6449 / 987 |
+| date right | 226 | 242 |
+
+- **Score lines are aligned over the whole Points column** (`alignScoreLines`), not cut
+  per printed label: handwriting sits ±¼ row from its label and whole columns drift up to
+  0.8 row, so per-label bands caught the next event's game. That was 55% of the
+  plausible-but-wrong scores.
+- **Slots are chosen by every event, then ordered to reproduce the card's pairings**
+  (`SLOT_EVENTS` mirrors the form's step list — home and away differ for Open C/D). The
+  form records events FROM the slots, so a right player in the wrong slot is recorded in
+  the wrong events. `SLOT_MIN_SCORE` 0.55: blank beats wrong.
+- **Mixed pairings the card shows** (`mixedPicks`) go back as `mixed` and are applied in
+  `goToStep(4)` after the per-event selects are rebuilt — only 323 of 570 sides used the
+  default pairing.
+- **Teams are read as a pair against outstanding fixtures** (`matchFixturePair`, Stockport
+  2a6c9b4, `Fixture.getScorecardCandidates`), and a club-only header that ties two sibling
+  teams resolves to null. The sibling rule needs `team.club`: rows without one never tie
+  (an `undefined === undefined` bug caught by an old test).
+- **The card year is inferred** from day/month (`cardDateNear`): the year is what Vision
+  misreads. It can override a fixture-date fallback that was right — net +16, but 2 fewer
+  than the fixture matching alone gave.
+- scorecardstore dates dump as London midnight; never `toISOString()` them in analysis
+  (it cost the first pass 89 false "wrong dates").
 Finding which project owns a key needs no credentials: call an API it hasn't enabled, and
 the error names `consumer: projects/<number>`.
 

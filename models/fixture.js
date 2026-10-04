@@ -340,6 +340,21 @@ exports.getAllSeasons = async function(){
   return await sql`SELECT name, "startDate", "endDate" FROM season ORDER BY "startDate" ASC`
 }
 
+// The fixtures a scorecard being entered now could be for: this season's outstanding
+// fixtures dated up to a week ahead (a card is filed on or after match day, sometimes
+// weeks late, and occasionally a day or two early when a date was brought forward). The
+// OCR matches both handwritten team names against these as PAIRS — see
+// utils/scorecardMatch.matchFixturePair. A read, so retried on a dead connection.
+// Promise-returning, not callback: its only caller is async.
+exports.getScorecardCandidates = async function () {
+  return withRetry(() => sql`
+    SELECT fixture.id, fixture.date, fixture."homeTeam", fixture."awayTeam"
+    FROM fixture
+    JOIN season ON season.name = ${seasonModel.current()} AND fixture.date > season."startDate"
+    WHERE fixture.status = 'outstanding'
+      AND fixture.date <= now() + interval '7 days'`);
+};
+
 exports.getOutstandingFixtureId = async function(obj,done){
   if(typeof obj.homeTeam !== undefined && typeof obj.awayTeam !== undefined){
     // var sql = 'select id from (select fixture.id, homeTeam, awayTeam, status from fixture join season where season.name=? AND fixture.date > season.startDate) as a where awayTeam = ? AND homeTeam = ? AND status = "outstanding"';

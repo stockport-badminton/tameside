@@ -174,6 +174,98 @@ function notOurCard(toks, detail) {
   return new OcrFailure(printed ? 'not-a-card' : 'hand-drawn', detail);
 }
 
+// Score lines, found over the whole Points column at once.
+//
+// Each event has two handwritten game lines, and the obvious reading — cut a band round
+// each printed event label and take the two digit rows inside it — was the single biggest
+// source of plausible WRONG scores. Measured Oct 2026 over 273 filed cards: handwriting
+// sits about a quarter-row either side of its label, and on many cards the whole column is
+// written up to 0.8 of a row high or low, so a band catches the event's second game plus
+// the next event's first. 55% of the scores that were filled in wrong but looked valid
+// were this.
+//
+// So: cluster the digit tokens into lines over the whole column, then fit the 18 lines to
+// the 18 expected positions (label ± a quarter-row) with ONE vertical offset per card,
+// choosing the offset and the assignment together. Lines that fit nowhere are dropped and
+// positions with no line stay blank. On the corpus: games right 63% -> 74%, wrong-but-valid
+// 906 -> 606, winner flipped 261 -> 132; 120 cards better, 9 worse. Not sensitive to these
+// constants (swept ±50%).
+//
+// Needs all nine labels to know the row pitch; returns null otherwise and the caller falls
+// back to per-label bands.
+const LINE = {
+  clusterTol: 0.28,  // tokens within this × pitch vertically are one written line
+  halfRow: 0.25,     // a game line's expected distance above/below its label, × pitch
+  window: 0.45,      // furthest a line may sit from its expected position, × pitch
+  maxShift: 0.6,     // the per-card offset searched, ± × pitch
+  shiftStep: 0.02,
+  skipLine: 2,       // cost of a written line assigned to no game (stray digits)
+  skipSlot: 1,       // cost of a game with no line (unplayed, or not read)
+  shiftCost: 4,      // cost of the offset itself: prefer the printed positions
+};
+
+function alignScoreLines(toks, rowAnchors, resultAnchor, ptsLo, ptsHi) {
+  if (rowAnchors.length !== 9) return null;
+  const pitch = (rowAnchors[8].cy - rowAnchors[0].cy) / 8;
+  if (!(pitch > 0)) return null;
+  const areaTop = rowAnchors[0].cy - 0.85 * pitch;
+  const areaBot = resultAnchor && resultAnchor.cy > rowAnchors[8].cy
+    ? Math.min(resultAnchor.y0 - 2, rowAnchors[8].cy + 0.95 * pitch)
+    : rowAnchors[8].cy + 0.85 * pitch;
+
+  const tol = LINE.clusterTol * pitch;
+  const digitToks = toks
+    .filter((w) => /\d/.test(w.t) && w.x1 > ptsLo && w.x0 < ptsHi && w.cy > areaTop && w.cy < areaBot)
+    .sort((a, b) => a.cy - b.cy);
+  const clusters = [];
+  for (const t of digitToks) {
+    const c = clusters.find((r) => Math.abs(r.cy - t.cy) < tol);
+    if (c) { c.toks.push(t); c.cy = c.toks.reduce((sum, x) => sum + x.cy, 0) / c.toks.length; } else clusters.push({ cy: t.cy, toks: [t] });
+  }
+  // Fewer than two digits is a games-won digit leaking left, not a score.
+  const lines = clusters
+    .map((c) => ({ cy: c.cy, digits: c.toks.sort((a, b) => a.cx - b.cx).map((t) => t.t).join('').replace(/\D/g, '') }))
+    .filter((l) => l.digits.length >= 2)
+    .sort((a, b) => a.cy - b.cy);
+
+  // For each offset, an order-preserving alignment of lines to the 18 positions (edit-
+  // distance style), costed by squared distance in quarter-rows.
+  const n = lines.length;
+  let best = null;
+  for (let d = -LINE.maxShift; d <= LINE.maxShift + 1e-9; d += LINE.shiftStep) {
+    const expected = [];
+    for (let k = 0; k < 18; k++) expected.push(rowAnchors[k >> 1].cy + ((k & 1) ? LINE.halfRow : -LINE.halfRow) * pitch + d * pitch);
+    const cost = Array.from({ length: n + 1 }, () => new Array(19).fill(Infinity));
+    const step = Array.from({ length: n + 1 }, () => new Array(19).fill(null));
+    cost[0][0] = 0;
+    for (let i = 0; i <= n; i++) {
+      for (let k = 0; k <= 18; k++) {
+        const c0 = cost[i][k];
+        if (c0 === Infinity) continue;
+        if (i < n && c0 + LINE.skipLine < cost[i + 1][k]) { cost[i + 1][k] = c0 + LINE.skipLine; step[i + 1][k] = 'line'; }
+        if (k < 18 && c0 + LINE.skipSlot < cost[i][k + 1]) { cost[i][k + 1] = c0 + LINE.skipSlot; step[i][k + 1] = 'slot'; }
+        if (i < n && k < 18) {
+          const off = (lines[i].cy - expected[k]) / pitch;
+          if (Math.abs(off) < LINE.window) {
+            const c = c0 + (off / LINE.halfRow) ** 2;
+            if (c < cost[i + 1][k + 1]) { cost[i + 1][k + 1] = c; step[i + 1][k + 1] = 'match'; }
+          }
+        }
+      }
+    }
+    const total = cost[n][18] + LINE.shiftCost * d * d;
+    if (!best || total < best.total) {
+      const assign = new Array(18).fill(null);
+      for (let i = n, k = 18; i > 0 || k > 0;) {
+        const s = step[i][k];
+        if (s === 'match') { assign[k - 1] = lines[i - 1].digits; i--; k--; } else if (s === 'line') i--; else k--;
+      }
+      best = { total, assign };
+    }
+  }
+  return best.assign;
+}
+
 function extractScorecard(resp) {
   const warnings = [];
   const { tokens: toks, rotationDegrees } = normaliseOrientation(resp);
@@ -299,6 +391,7 @@ function extractScorecard(resp) {
   // The last row's bottom extends to the printed RESULT line when we can find
   // it (handwriting in Open D often sits below the midpoint extrapolation).
   const resultAnchor = findToken(toks, /^RESULT/i);
+  const lineDigits = alignScoreLines(toks, rowAnchors, resultAnchor, ptsLo, ptsHi);
 
   const events = rowAnchors.map((row, i) => {
     const top = i === 0 ? row.cy - (rowAnchors[1].cy - row.cy) / 2 : (rowAnchors[i - 1].cy + row.cy) / 2;
@@ -313,18 +406,26 @@ function extractScorecard(resp) {
     // then split into H-A. Rows with fewer than 2 digits are dropped: they're
     // games-won digits that leaked left into the points band, and would
     // otherwise consume one of the two game slots.
-    const pointToks = toks.filter((w) => /\d/.test(w.t) && w.x1 > ptsLo && w.x0 < ptsHi && inBand(w)).sort((a, b) => a.cy - b.cy);
-    const yRows = [];
-    for (const t of pointToks) {
-      const g = yRows.find((r) => Math.abs(r.cy - t.cy) < 24);
-      if (g) { g.toks.push(t); g.cy = (g.cy + t.cy) / 2; } else yRows.push({ cy: t.cy, toks: [t] });
+    //
+    // Only when the card's nine labels weren't all found — otherwise alignScoreLines has
+    // already placed every line, and better.
+    let digits;
+    if (lineDigits) {
+      digits = [lineDigits[2 * i], lineDigits[2 * i + 1]];
+    } else {
+      const pointToks = toks.filter((w) => /\d/.test(w.t) && w.x1 > ptsLo && w.x0 < ptsHi && inBand(w)).sort((a, b) => a.cy - b.cy);
+      const yRows = [];
+      for (const t of pointToks) {
+        const g = yRows.find((r) => Math.abs(r.cy - t.cy) < 24);
+        if (g) { g.toks.push(t); g.cy = (g.cy + t.cy) / 2; } else yRows.push({ cy: t.cy, toks: [t] });
+      }
+      digits = yRows
+        .map((r) => r.toks.sort(byX).map((t) => t.t).join('').replace(/\D/g, ''))
+        .filter((d) => d.length >= 2)
+        .slice(0, 2);
+      while (digits.length < 2) digits.push(null);
     }
-    const gameScores = yRows
-      .map((r) => r.toks.sort(byX).map((t) => t.t).join('').replace(/\D/g, ''))
-      .filter((digits) => digits.length >= 2)
-      .slice(0, 2)
-      .map((digits) => splitScores(digits));
-    while (gameScores.length < 2) gameScores.push([null, null]);
+    const gameScores = digits.map((d) => (d ? splitScores(d) : [null, null]));
 
     const gamesWon = [0, 0];
     let complete = 0;
@@ -391,4 +492,44 @@ function parseCardDate(text) {
   return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-module.exports = { extractScorecard, splitScores, normaliseOrientation, divisionDigit, parseCardDate, EVENT_NAMES, GAME_MAP };
+// The card's date, as of `now` (ms). Day and month are what a captain writes carefully and
+// Vision reads well; the YEAR is the part that goes wrong ("29" for 24, "25" for 26, "277").
+// A card is filed on or after match day — sometimes weeks late, occasionally a few days
+// early — so take the written day and month and choose the year that puts them between
+// 200 days ago and 14 days ahead. A written year that agrees is preferred; one that
+// disagrees is overruled rather than trusted; no year at all ("27/10") is fine. Nothing in
+// the window -> null, and the caller falls back to the fixture's date.
+//
+// Replaces parseCardDate + a 60-days-ahead / 450-days-back window, which threw away every
+// misread year. Measured Oct 2026 over 271 dated cards: right 178 -> 193, null 84 -> 68.
+const CARD_DATE_BACK_DAYS = 200;
+const CARD_DATE_AHEAD_DAYS = 14;
+
+function cardDateNear(text, now) {
+  const iso = (y, mo, d) => `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const re = /(?<!\d)(\d{1,2})[/\-.](\d{1,2})(?:[/\-.](\d{2,4}))?(?!\d)/g;
+  const found = [];
+  let m;
+  while ((m = re.exec(String(text || '')))) {
+    const d = +m[1];
+    const mo = +m[2];
+    if (d < 1 || d > 31 || mo < 1 || mo > 12) continue;
+    const thisYear = new Date(now).getUTCFullYear();
+    let best = null;
+    for (const y of [thisYear - 1, thisYear, thisYear + 1]) {
+      const t = Date.parse(iso(y, mo, d));
+      // Date.parse accepts 31 Feb and rolls it over; reject anything that isn't itself.
+      if (isNaN(t) || new Date(t).getUTCDate() !== d) continue;
+      const days = (t - now) / 86400e3;
+      if (days > CARD_DATE_AHEAD_DAYS || days < -CARD_DATE_BACK_DAYS) continue;
+      if (!best || Math.abs(days) < Math.abs(best.days)) best = { y, days };
+    }
+    if (!best) continue;
+    const written = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : m[3].length === 4 ? +m[3] : null) : null;
+    found.push({ value: iso(best.y, mo, d), rank: written === best.y ? 0 : written == null ? 1 : 2 });
+  }
+  found.sort((a, b) => a.rank - b.rank);
+  return found.length ? found[0].value : null;
+}
+
+module.exports = { extractScorecard, splitScores, normaliseOrientation, divisionDigit, parseCardDate, cardDateNear, EVENT_NAMES, GAME_MAP };

@@ -188,6 +188,9 @@
                      }
 
                      async function fillSlots(data) {
+                       // Kept for goToStep(4), which rebuilds the per-event selects from
+                       // the slots and then applies these over the default pairings.
+                       window.ocrMixedPicks = data.mixed || null;
                        var slots = [
                          ['#homeMan1', data.slots.home.men[0]], ['#homeMan2', data.slots.home.men[1]],
                          ['#homeMan3', data.slots.home.men[2]], ['#homeMan4', data.slots.home.men[3]],
@@ -1070,6 +1073,28 @@
               $("#FirstLadieshomeLady2, #SecondMixedhomeLady2, #FourthMixedhomeLady2").html("<option value="+ $('#homeLady1')[0].selectedOptions[0].value +" >"+ $('#homeLady1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeLady2')[0].selectedOptions[0].value +" selected>"+ $('#homeLady2')[0].selectedOptions[0].text +"</option>");
               $("#FirstLadiesawayLady1, #FirstMixedawayLady1, #ThirdMixedawayLady1").html("<option value="+ $('#awayLady1')[0].selectedOptions[0].value +" selected>"+ $('#awayLady1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayLady2')[0].selectedOptions[0].value +">"+ $('#awayLady2')[0].selectedOptions[0].text +"</option>");
               $("#FirstLadiesawayLady2, #SecondMixedawayLady2, #FourthMixedawayLady2").html("<option value="+ $('#awayLady1')[0].selectedOptions[0].value +" >"+ $('#awayLady1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayLady2')[0].selectedOptions[0].value +" selected>"+ $('#awayLady2')[0].selectedOptions[0].text +"</option>");
+              // The card's own Mixed pairings, where the OCR read them clearly and they
+              // differ from the default (Man1+Lady1, Man2+Lady2, Man3+Lady1, Man4+Lady2).
+              // Only a player these selects already offer is chosen; anything else keeps
+              // the default. See utils/scorecardMatch.js mixedPicks.
+              var picks = window.ocrMixedPicks;
+              if (picks) {
+                var MIXED_SELECTS = {
+                  'Mixed A': ['FirstMixed', 'Man1', 'Lady1'], 'Mixed B': ['SecondMixed', 'Man2', 'Lady2'],
+                  'Mixed C': ['ThirdMixed', 'Man3', 'Lady1'], 'Mixed D': ['FourthMixed', 'Man4', 'Lady2'],
+                };
+                Object.keys(MIXED_SELECTS).forEach(function (ev) {
+                  var ids = MIXED_SELECTS[ev];
+                  ['home', 'away'].forEach(function (side) {
+                    var pick = picks[ev] && picks[ev][side];
+                    if (!pick) return;
+                    [['man', ids[1]], ['lady', ids[2]]].forEach(function (pr) {
+                      var $sel = $('#' + ids[0] + side + pr[1]);
+                      if (pick[pr[0]] != null && $sel.find('option[value="' + pick[pr[0]] + '"]').length) $sel.val(String(pick[pr[0]]));
+                    });
+                  });
+                });
+              }
 
             }
             if (step == 13){

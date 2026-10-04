@@ -219,3 +219,52 @@ describe('matchTeamName — safety rules (UAT round 2)', () => {
     assert.strictEqual(matchTeamName('CG', teams), null);
   });
 });
+
+// Oct 2026 corpus: 7 of 21 confidently wrong teams were a header naming only the club.
+describe('matchTeamName — a club name alone does not pick a sibling', () => {
+  const { matchTeamName } = require('../utils/scorecardMatch');
+  const teams = [
+    { id: 1, name: 'Aerospace A', club: 10, division: 1 },
+    { id: 2, name: 'Aerospace B', club: 10, division: 2 },
+    { id: 3, name: 'Mellor A', club: 11, division: 1 },
+  ];
+  it('"AEROSPACE" -> null, not a guess between A and B', () =>
+    assert.strictEqual(matchTeamName('AEROSPACE', teams), null));
+  it('"AEROSPACE B" still resolves', () =>
+    assert.strictEqual(matchTeamName('AEROSPACE B', teams).id, 2));
+  // Without a club on the rows there is no evidence they are siblings — the rule must not
+  // fire on undefined === undefined (it did, on the first draft).
+  it('teams with no club recorded are never treated as siblings', () => {
+    const noClub = [{ id: 55, name: 'Hyde A', division: 8 }, { id: 56, name: 'Hyde B', division: 8 }];
+    assert.strictEqual(matchTeamName('Hyde', noClub).id, 55);
+    const withClub = noClub.map((t) => Object.assign({ club: 1 }, t));
+    assert.strictEqual(matchTeamName('Hyde', withClub), null);
+  });
+});
+
+describe('matchFixturePair — both header readings against the outstanding fixtures', () => {
+  const { matchFixturePair } = require('../utils/scorecardMatch');
+  const T = {
+    aeroA: { id: 1, name: 'Aerospace A', club: 10, division: 1 },
+    aeroB: { id: 2, name: 'Aerospace B', club: 10, division: 2 },
+    mellorA: { id: 3, name: 'Mellor A', club: 11, division: 1 },
+    hydeB: { id: 4, name: 'Hyde B', club: 12, division: 2 },
+  };
+  const teams = Object.values(T);
+  const fx = (id, home, away) => ({ id, home, away, date: '2026-10-01' });
+
+  it('the other side decides which sibling a club-only header means', () => {
+    const f = matchFixturePair('AEROSPACE', 'HYDE B', [fx(1, T.aeroA, T.mellorA), fx(2, T.aeroB, T.hydeB)], teams);
+    assert.strictEqual(f.id, 2);
+  });
+  it('no candidate fixtures -> null (fall back to the names alone)', () =>
+    assert.strictEqual(matchFixturePair('Aerospace B', 'Hyde B', [], teams), null));
+  it('a header that resembles no team is treated as unread', () => {
+    const f = matchFixturePair('zzzz qqq', 'Hyde B', [fx(2, T.aeroB, T.hydeB)], teams);
+    assert.strictEqual(f.id, 2);
+  });
+  it('one side unread and that side\'s team in two fixtures -> null', () =>
+    assert.strictEqual(matchFixturePair('', 'Hyde B', [fx(2, T.aeroB, T.hydeB), fx(3, T.mellorA, T.hydeB)], teams), null));
+  it('refuses a fixture whose team reads clearly worse than the best team alone', () =>
+    assert.strictEqual(matchFixturePair('Mellor A', 'Hyde B', [fx(2, T.aeroB, T.hydeB)], teams), null));
+});
