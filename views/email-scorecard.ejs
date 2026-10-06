@@ -167,24 +167,30 @@
                          })();
                        });
                      }
+                     // No jQuery on this page — see the note above the wizard script.
+                     var hasOption = function (sel, val) {
+                       var s = document.querySelector(sel);
+                       return !!s && !!s.querySelector('option[value="' + val + '"]');
+                     };
                      function setSelect(sel, val) {
-                       if (val == null) return false;
-                       var $s = $(sel);
-                       if (!$s.find('option[value="' + val + '"]').length) return false;
-                       $s.val(String(val)).trigger('change');
+                       if (val == null || !hasOption(sel, val)) return false;
+                       var s = document.querySelector(sel);
+                       s.value = String(val);
+                       // The cascades listen for a real change event.
+                       s.dispatchEvent(new Event('change', { bubbles: true }));
                        return true;
                      }
-                     var hasOption = function (sel, val) { return $(sel).find('option[value="' + val + '"]').length > 0; };
 
                      function fillScoresAndDate(data) {
                        // Static fields, no cascade needed. Only fill blanks so a
                        // re-analysis never clobbers anything the user typed.
                        // Unread cells stay blank so they're obvious to the eye.
                        Object.keys(data.games || {}).forEach(function (k) {
-                         var $i = $('#' + k);
-                         if (data.games[k] != null && !$i.val()) $i.val(data.games[k]);
+                         var i = document.getElementById(k);
+                         if (i && data.games[k] != null && !i.value) i.value = data.games[k];
                        });
-                       if (data.date && !$('#date').val()) $('#date').val(data.date);
+                       var dateEl = document.getElementById('date');
+                       if (data.date && dateEl && !dateEl.value) dateEl.value = data.date;
                      }
 
                      async function fillSlots(data) {
@@ -229,13 +235,20 @@
                      // manual picks and re-run the analysis with them — the server
                      // re-maps the CACHED detection (no second OCR) against the
                      // chosen teams' rosters and we fill the players in.
+                     var rematchListener = null;
                      function rematchWhenTeamsPicked(key) {
-                       $('#homeTeam, #awayTeam').off('change.ocr').on('change.ocr', function () {
+                       var teamSelects = [document.getElementById('homeTeam'), document.getElementById('awayTeam')];
+                       function unbind() {
+                         if (rematchListener) teamSelects.forEach(function (s) { s.removeEventListener('change', rematchListener); });
+                         rematchListener = null;
+                       }
+                       unbind();
+                       rematchListener = function () {
                          setTimeout(async function () {
-                           var h = $('#homeTeam').val();
-                           var a = $('#awayTeam').val();
+                           var h = teamSelects[0].value;
+                           var a = teamSelects[1].value;
                            if (!h || !a) return;
-                           $('#homeTeam, #awayTeam').off('change.ocr');
+                           unbind();
                            status('Matching players against your team selection…');
                            try {
                              var resp = await fetch('/scorecard-ocr/analyse', {
@@ -253,7 +266,8 @@
                              status('⚠ Player matching failed (' + e.message + ') — pick the players manually below.');
                            }
                          }, 100);
-                       });
+                       };
+                       teamSelects.forEach(function (s) { s.addEventListener('change', rematchListener); });
                      }
 
                      go.addEventListener('click', async function () {
@@ -906,329 +920,238 @@
             }
         }
 
-    $(document).ready(function() {
-      <% if (hasResult || hasErrors || hasScorecard){ 
-        if (hasErrors){ %>
-          <% errors.forEach(function(errorRow){ %>
-                console.error('<%= errorRow.msg %>')
-            <% }) %>
-        <% }
-        %>
-
-
-        console.log(<%- JSON.stringify(user) %>);
-        
-      $(".form-group.step-2 input, .form-group.step-3 input").change(function() {
-        // console.log($(this).val() + '-' + $(this).attr("id"));
-
-        $("[data-player-type=" + $(this).attr("id") + "]").val($(this).val());
-      })
-      $("#division").change(function(){
-        var selectedDivision = this.value;
-        $.get('/static/formOption.ejs', function (template) {
-            $.post('/teams', {'divisionId':selectedDivision}, function (data) {
-               // Generate the html from the given data.
-               var html = ejs.render(template,{data:data});
-               $('#homeTeam').html(html);
-               $('#awayTeam').html(html);
-            });
-        });
-      })
-      $("#homeTeam").change(function(){
-        var selectedTeam = this.value;
-        $.get('/static/playerFormOptions.ejs', function (template) {
-            $.get('/eligiblePlayers/'+selectedTeam+'/Male', function (data) {
-               // Generate the html from the given data.
-               var html = ejs.render(template,{data:data});
-               $('#homeMan1').html(html);
-               $('#homeMan2').html(html);
-               $('#homeMan3').html(html);
-               $('#homeMan4').html(html);
-            });
-            $.get('/eligiblePlayers/'+selectedTeam+'/Female', function (data) {
-               // Generate the html from the given data.
-               var html = ejs.render(template,{data:data});
-               $('#homeLady1').html(html);
-               $('#homeLady2').html(html);
-            });
-        });
-      })
-      $("#awayTeam").change(function(){
-        var selectedTeam = this.value;
-        $.get('/static/playerFormOptions.ejs', function (template) {
-            $.get('/eligiblePlayers/'+selectedTeam+'/Male', function (data) {
-               // Generate the html from the given data.
-               var html = ejs.render(template,{data:data});
-               $('#awayMan1').html(html);
-               $('#awayMan2').html(html);
-               $('#awayMan3').html(html);
-               $('#awayMan4').html(html);
-            });
-            $.get('/eligiblePlayers/'+selectedTeam+'/Female', function (data) {
-               // Generate the html from the given data.
-               var html = ejs.render(template,{data:data});
-               $('#awayLady1').html(html);
-               $('#awayLady2').html(html);
-            });
-        });
-      })
-      $("#homeMan1, #homeMan2, #homeMan3, #homeMan4, #homeLady1, #homeLady2, #awayMan1, #awayMan2, #awayMan3, #awayMan4, #awayLady1, #awayLady2").change(function(){
-        var selectedPlayerName = $(this)[0].selectedOptions[0].text;
-        var selectedPlayerId = $(this)[0].selectedOptions[0].value;
-        var selectedPlayer = $(this)[0].id
-        // console.log(selectedPlayerName+'-'+selectedPlayerId+'-'+selectedPlayer);
-      })
-      $(".scoreInput").change(function(){
-        var inputScore = $(this)[0]
-        var inputScore = $(this)[0]
-        // console.log(inputScore.id + '-' + inputScore.value)
-      })
-      $(".playerInput").change(function(){
-        var inputPlayerName = $(this)[0].selectedOptions[0].text;
-        var inputPlayerId = $(this)[0].selectedOptions[0].value;
-        var inputPlayer = $(this)[0].id
-        // console.log(inputPlayerName+'-'+inputPlayerId+'-'+inputPlayer);
-      })
-
+    // NO jQuery on this page. It came only from code.jquery.com (footer.ejs), and on
+    // 6 Oct 2026 a captain whose browser could not reach that CDN got a dead
+    // division/team cascade and "$ is not defined" out of Read & prefill — while the
+    // Stockport site, which serves jQuery from its own origin, worked for them.
+    // test/e2e/no-jquery.spec.js runs this wizard with the CDN blocked; keep it that way.
+    <% if (hasResult || hasErrors || hasScorecard){ %>
+    (function () {
+      'use strict';
+      <% if (hasErrors){ %>
+        <% errors.forEach(function(errorRow){ %>
+          console.error('<%= errorRow.msg %>')
+        <% }) %>
       <% } %>
-    });
 
+      console.log(<%- JSON.stringify(user) %>);
 
-    <% if (hasResult || hasErrors || hasScorecard ){ %>
-    +function($) {
-    'use strict';
+      function qsa(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+      function hide(el) { if (el) el.style.display = 'none'; }
+      function show(el) { if (el) el.style.display = ''; }
+      function byId(id) { return document.getElementById(id); }
 
-    var modals = $('.modal.multi-step');
+      // ---- Steps 2/3: mirror each roster pick into the fields that carry it ----
+      qsa('.form-group.step-2 input, .form-group.step-3 input').forEach(function (input) {
+        input.addEventListener('change', function () {
+          qsa('[data-player-type="' + input.id + '"]').forEach(function (el) { el.value = input.value; });
+        });
+      });
 
-    modals.each(function(idx, modal) {
-        var $modal = $(modal);
-        var $buttons = $modal.find('button.step');
-        var total_num_steps = $buttons.length;
-        var $progress = $modal.find('.m-progress');
-        var $progress_bar = $modal.find('.m-progress-bar');
-        var $progress_stats = $modal.find('.m-progress-stats');
-        var $progress_current = $modal.find('.m-progress-current');
-        var $progress_total = $modal.find('.m-progress-total');
-        var $progress_complete  = $modal.find('.m-progress-complete');
-        var reset_on_close = $modal.attr('reset-on-close') === 'true';
-
-        function reset() {
-            $modal.find('.step').hide();
-            $modal.find('[data-step]').hide();
+      // ---- Division -> teams -> eligible players cascades ----
+      var templates = {};
+      function template(name) {
+        if (!templates[name]) {
+          templates[name] = fetch('/static/' + name)
+            .then(function (r) { if (!r.ok) throw new Error(name + ' HTTP ' + r.status); return r.text(); })
+            .catch(function (e) { delete templates[name]; throw e; });
         }
+        return templates[name];
+      }
+      function getJSON(url, opts) {
+        return fetch(url, opts).then(function (r) {
+          if (!r.ok) throw new Error(url + ' HTTP ' + r.status);
+          return r.json();
+        });
+      }
+      function fillSelects(ids, html) {
+        ids.forEach(function (id) { var s = byId(id); if (s) s.innerHTML = html; });
+      }
+      // console.log, not console.error: browser Sentry captures level 'error'.
+      function cascadeFailed(e) { console.log('scorecard form options failed to load:', e && e.message); }
 
-        function completeSteps() {
-            $progress_stats.hide();
-            $progress_complete.show();
-            $modal.find('.progress-text').animate({
-                top: '-2em'
+      var division = byId('division');
+      if (division) division.addEventListener('change', function () {
+        Promise.all([
+          template('formOption.ejs'),
+          getJSON('/teams', { method: 'POST', body: new URLSearchParams({ divisionId: division.value }) }),
+        ]).then(function (r) {
+          fillSelects(['homeTeam', 'awayTeam'], ejs.render(r[0], { data: r[1] }));
+        }).catch(cascadeFailed);
+      });
+
+      ['home', 'away'].forEach(function (side) {
+        var team = byId(side + 'Team');
+        if (!team) return;
+        team.addEventListener('change', function () {
+          var teamId = team.value;
+          template('playerFormOptions.ejs').then(function (tpl) {
+            getJSON('/eligiblePlayers/' + teamId + '/Male').then(function (data) {
+              fillSelects([side + 'Man1', side + 'Man2', side + 'Man3', side + 'Man4'], ejs.render(tpl, { data: data }));
+            }).catch(cascadeFailed);
+            getJSON('/eligiblePlayers/' + teamId + '/Female').then(function (data) {
+              fillSelects([side + 'Lady1', side + 'Lady2'], ejs.render(tpl, { data: data }));
+            }).catch(cascadeFailed);
+          }).catch(cascadeFailed);
+        });
+      });
+
+      // ---- The step-by-step modal ----
+      var modal = byId('signupModal');
+      if (!modal) return;
+
+      function reset() { qsa('.step, [data-step]', modal).forEach(hide); }
+
+      function selectedOf(id) {
+        var s = byId(id);
+        var o = s && s.selectedOptions[0];
+        return o ? { value: o.value, text: o.text } : { value: '', text: '' };
+      }
+
+      // Each event select offers that side's four men (or two ladies) and defaults to
+      // the one the event is played by. [source slot, which one is selected, targets]
+      var EVENT_SELECTS = [
+        ['homeMan', 1, ['FirstMenshomeMan1', 'ThirdMenshomeMan1', 'FirstMixedhomeMan1']],
+        ['homeMan', 2, ['FirstMenshomeMan2', 'ThirdMenshomeMan2', 'SecondMixedhomeMan2']],
+        ['homeMan', 3, ['SecondMenshomeMan3', 'FourthMenshomeMan3', 'ThirdMixedhomeMan3']],
+        ['homeMan', 4, ['SecondMenshomeMan4', 'FourthMenshomeMan4', 'FourthMixedhomeMan4']],
+        ['awayMan', 1, ['FirstMensawayMan1', 'FourthMensawayMan1', 'FirstMixedawayMan1']],
+        ['awayMan', 2, ['FirstMensawayMan2', 'FourthMensawayMan2', 'SecondMixedawayMan2']],
+        ['awayMan', 3, ['SecondMensawayMan3', 'ThirdMensawayMan3', 'ThirdMixedawayMan3']],
+        ['awayMan', 4, ['SecondMensawayMan4', 'ThirdMensawayMan4', 'FourthMixedawayMan4']],
+        ['homeLady', 1, ['FirstLadieshomeLady1', 'FirstMixedhomeLady1', 'ThirdMixedhomeLady1']],
+        ['homeLady', 2, ['FirstLadieshomeLady2', 'SecondMixedhomeLady2', 'FourthMixedhomeLady2']],
+        ['awayLady', 1, ['FirstLadiesawayLady1', 'FirstMixedawayLady1', 'ThirdMixedawayLady1']],
+        ['awayLady', 2, ['FirstLadiesawayLady2', 'SecondMixedawayLady2', 'FourthMixedawayLady2']],
+      ];
+
+      function rebuildEventSelects() {
+        EVENT_SELECTS.forEach(function (row) {
+          var count = /Lady$/.test(row[0]) ? 2 : 4;
+          row[2].forEach(function (id) {
+            var target = byId(id);
+            if (!target) return;
+            target.innerHTML = '';
+            for (var n = 1; n <= count; n++) {
+              var o = selectedOf(row[0] + n);
+              target.add(new Option(o.text, o.value, n === row[1], n === row[1]));
+            }
+          });
+        });
+        // The card's own Mixed pairings, where the OCR read them clearly and they
+        // differ from the default (Man1+Lady1, Man2+Lady2, Man3+Lady1, Man4+Lady2).
+        // Only a player these selects already offer is chosen; anything else keeps
+        // the default. See utils/scorecardMatch.js mixedPicks.
+        var picks = window.ocrMixedPicks;
+        if (picks) {
+          var MIXED_SELECTS = {
+            'Mixed A': ['FirstMixed', 'Man1', 'Lady1'], 'Mixed B': ['SecondMixed', 'Man2', 'Lady2'],
+            'Mixed C': ['ThirdMixed', 'Man3', 'Lady1'], 'Mixed D': ['FourthMixed', 'Man4', 'Lady2'],
+          };
+          Object.keys(MIXED_SELECTS).forEach(function (ev) {
+            var ids = MIXED_SELECTS[ev];
+            ['home', 'away'].forEach(function (side) {
+              var pick = picks[ev] && picks[ev][side];
+              if (!pick) return;
+              [['man', ids[1]], ['lady', ids[2]]].forEach(function (pr) {
+                var sel = byId(ids[0] + side + pr[1]);
+                if (sel && pick[pr[0]] != null && sel.querySelector('option[value="' + pick[pr[0]] + '"]')) sel.value = String(pick[pr[0]]);
+              });
             });
-            $modal.find('.complete-indicator').animate({
-                top: '-2em'
-            });
-            $progress_bar.addClass('completed');
+          });
         }
+      }
 
-        function getPercentComplete(current_step, total_steps) {
-            return Math.min(current_step / total_steps * 100, 100) + '%';
+      // Fill in the summary row for the event step just completed.
+      function summarise(prevStep) {
+        var selects = qsa('.form-group.step-' + prevStep + ' > select');
+        var scores = qsa('.form-group.step-' + prevStep + ' .scoreInput');
+        if (selects.length < 4 || scores.length < 4) return;
+        var classes = selects[0].parentElement.classList;
+        var summary = byId(classes[classes.length - 1] + 'Summary');
+        if (!summary) return;
+        function name(s) { return s.selectedOptions[0] ? s.selectedOptions[0].text : ''; }
+        summary.children[0].textContent = name(selects[0]) + ' & ' + name(selects[1]);
+        summary.children[2].textContent = name(selects[2]) + ' & ' + name(selects[3]);
+        var cell = summary.children[3];
+        cell.textContent = scores[0].value + '-' + scores[1].value;
+        cell.appendChild(document.createElement('br'));
+        cell.appendChild(document.createTextNode(scores[2].value + '-' + scores[3].value));
+      }
+
+      function totals() {
+        var home = qsa('.scoreInput.home');
+        var away = qsa('.scoreInput.away');
+        var t = { homePoints: 0, homeGames: 0, awayPoints: 0, awayGames: 0 };
+        for (var i = 0; i < home.length; i++) {
+          var h = home[i].value * 1, a = away[i].value * 1;
+          t.homePoints += h;
+          t.awayPoints += a;
+          if (h > a) t.homeGames++; else t.awayGames++;
         }
+        byId('finalScore').innerHTML = 'Points: ' + t.homePoints + '-' + t.awayPoints + '<br />Games:' + t.homeGames + '-' + t.awayGames;
+        byId('homeScore').value = t.homeGames;
+        byId('awayScore').value = t.awayGames;
+      }
 
-        function updateProgress(current, total) {
-            $progress_bar.animate({
-                width: getPercentComplete(current, total)
-            });
-            if (current - 1 >= total_num_steps) {
-                completeSteps();
-            } else {
-                $progress_current.text(current);
-            }
-
-            $progress.find('[data-progress]').each(function() {
-                var dp = $(this);
-                if (dp.data().progress <= current - 1) {
-                    dp.addClass('completed');
-                } else {
-                    dp.removeClass('completed');
-                }
-            });
-        }
-
-        function goToStep(step) {
-            reset();
-            var to_show = $modal.find('.step-' + step);
-            if (to_show.length === 0) {
-                // at the last step, nothing else to show
-                return;
-            }
-            if (step == 4){
-              $("#FirstMenshomeMan1, #ThirdMenshomeMan1, #FirstMixedhomeMan1").html("<option value="+ $('#homeMan1')[0].selectedOptions[0].value +" selected>"+ $('#homeMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan2')[0].selectedOptions[0].value +">"+ $('#homeMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan3')[0].selectedOptions[0].value +">"+ $('#homeMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan4')[0].selectedOptions[0].value +">"+ $('#homeMan4')[0].selectedOptions[0].text +"</option>");
-              $("#FirstMenshomeMan2, #ThirdMenshomeMan2, #SecondMixedhomeMan2").html("<option value="+ $('#homeMan1')[0].selectedOptions[0].value +" >"+ $('#homeMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan2')[0].selectedOptions[0].value +" selected>"+ $('#homeMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan3')[0].selectedOptions[0].value +">"+ $('#homeMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan4')[0].selectedOptions[0].value +">"+ $('#homeMan4')[0].selectedOptions[0].text +"</option>");
-              $("#SecondMenshomeMan3, #FourthMenshomeMan3, #ThirdMixedhomeMan3").html("<option value="+ $('#homeMan1')[0].selectedOptions[0].value +" >"+ $('#homeMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan2')[0].selectedOptions[0].value +">"+ $('#homeMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan3')[0].selectedOptions[0].value +" selected>"+ $('#homeMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan4')[0].selectedOptions[0].value +">"+ $('#homeMan4')[0].selectedOptions[0].text +"</option>");
-              $("#SecondMenshomeMan4, #FourthMenshomeMan4, #FourthMixedhomeMan4").html("<option value="+ $('#homeMan1')[0].selectedOptions[0].value +" >"+ $('#homeMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan2')[0].selectedOptions[0].value +">"+ $('#homeMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan3')[0].selectedOptions[0].value +">"+ $('#homeMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#homeMan4')[0].selectedOptions[0].value +" selected>"+ $('#homeMan4')[0].selectedOptions[0].text +"</option>");
-              $("#FirstMensawayMan1, #FourthMensawayMan1, #FirstMixedawayMan1").html("<option value="+ $('#awayMan1')[0].selectedOptions[0].value +" selected>"+ $('#awayMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan2')[0].selectedOptions[0].value +">"+ $('#awayMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan3')[0].selectedOptions[0].value +">"+ $('#awayMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan4')[0].selectedOptions[0].value +">"+ $('#awayMan4')[0].selectedOptions[0].text +"</option>");
-              $("#FirstMensawayMan2, #FourthMensawayMan2, #SecondMixedawayMan2").html("<option value="+ $('#awayMan1')[0].selectedOptions[0].value +" >"+ $('#awayMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan2')[0].selectedOptions[0].value +" selected>"+ $('#awayMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan3')[0].selectedOptions[0].value +">"+ $('#awayMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan4')[0].selectedOptions[0].value +">"+ $('#awayMan4')[0].selectedOptions[0].text +"</option>");
-              $("#SecondMensawayMan3, #ThirdMensawayMan3, #ThirdMixedawayMan3").html("<option value="+ $('#awayMan1')[0].selectedOptions[0].value +" >"+ $('#awayMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan2')[0].selectedOptions[0].value +">"+ $('#awayMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan3')[0].selectedOptions[0].value +" selected>"+ $('#awayMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan4')[0].selectedOptions[0].value +">"+ $('#awayMan4')[0].selectedOptions[0].text +"</option>");
-              $("#SecondMensawayMan4, #ThirdMensawayMan4, #FourthMixedawayMan4").html("<option value="+ $('#awayMan1')[0].selectedOptions[0].value +" >"+ $('#awayMan1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan2')[0].selectedOptions[0].value +">"+ $('#awayMan2')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan3')[0].selectedOptions[0].value +">"+ $('#awayMan3')[0].selectedOptions[0].text +"</option><option value="+ $('#awayMan4')[0].selectedOptions[0].value +" selected>"+ $('#awayMan4')[0].selectedOptions[0].text +"</option>");
-              $("#FirstLadieshomeLady1, #FirstMixedhomeLady1, #ThirdMixedhomeLady1").html("<option value="+ $('#homeLady1')[0].selectedOptions[0].value +" selected>"+ $('#homeLady1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeLady2')[0].selectedOptions[0].value +">"+ $('#homeLady2')[0].selectedOptions[0].text +"</option>");
-              $("#FirstLadieshomeLady2, #SecondMixedhomeLady2, #FourthMixedhomeLady2").html("<option value="+ $('#homeLady1')[0].selectedOptions[0].value +" >"+ $('#homeLady1')[0].selectedOptions[0].text +"</option><option value="+ $('#homeLady2')[0].selectedOptions[0].value +" selected>"+ $('#homeLady2')[0].selectedOptions[0].text +"</option>");
-              $("#FirstLadiesawayLady1, #FirstMixedawayLady1, #ThirdMixedawayLady1").html("<option value="+ $('#awayLady1')[0].selectedOptions[0].value +" selected>"+ $('#awayLady1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayLady2')[0].selectedOptions[0].value +">"+ $('#awayLady2')[0].selectedOptions[0].text +"</option>");
-              $("#FirstLadiesawayLady2, #SecondMixedawayLady2, #FourthMixedawayLady2").html("<option value="+ $('#awayLady1')[0].selectedOptions[0].value +" >"+ $('#awayLady1')[0].selectedOptions[0].text +"</option><option value="+ $('#awayLady2')[0].selectedOptions[0].value +" selected>"+ $('#awayLady2')[0].selectedOptions[0].text +"</option>");
-              // The card's own Mixed pairings, where the OCR read them clearly and they
-              // differ from the default (Man1+Lady1, Man2+Lady2, Man3+Lady1, Man4+Lady2).
-              // Only a player these selects already offer is chosen; anything else keeps
-              // the default. See utils/scorecardMatch.js mixedPicks.
-              var picks = window.ocrMixedPicks;
-              if (picks) {
-                var MIXED_SELECTS = {
-                  'Mixed A': ['FirstMixed', 'Man1', 'Lady1'], 'Mixed B': ['SecondMixed', 'Man2', 'Lady2'],
-                  'Mixed C': ['ThirdMixed', 'Man3', 'Lady1'], 'Mixed D': ['FourthMixed', 'Man4', 'Lady2'],
-                };
-                Object.keys(MIXED_SELECTS).forEach(function (ev) {
-                  var ids = MIXED_SELECTS[ev];
-                  ['home', 'away'].forEach(function (side) {
-                    var pick = picks[ev] && picks[ev][side];
-                    if (!pick) return;
-                    [['man', ids[1]], ['lady', ids[2]]].forEach(function (pr) {
-                      var $sel = $('#' + ids[0] + side + pr[1]);
-                      if (pick[pr[0]] != null && $sel.find('option[value="' + pick[pr[0]] + '"]').length) $sel.val(String(pick[pr[0]]));
-                    });
-                  });
-                });
-              }
-
-            }
-            if (step == 13){
-              var alreadyUploaded = !!$('#scoresheet-url').val();
-              $('#scoresheet-spreadsheet').toggle(!alreadyUploaded);
-              $('#scoresheet-already-uploaded-msg').toggle(alreadyUploaded);
-            }
-            if (step > 4 && step < 14){
-              var prevStep = step - 1;
-              var playerSelections = $(".form-group.step-"+prevStep+" > select");
-              var gameScores = $(".form-group.step-"+prevStep+" .scoreInput");
-              var parentElem = $($('.form-group.step-'+prevStep+' > select')[0].parentElement)[0].classList
-              var summaryElement = "#"+ parentElem[parentElem.length - 1] + "Summary";
-              var homePairSummary = playerSelections[0].selectedOptions[0].text + " & " + playerSelections[1].selectedOptions[0].text
-              var awayPairSummary = playerSelections[2].selectedOptions[0].text + " & " + playerSelections[3].selectedOptions[0].text
-              var game1score = gameScores[0].value + '-' + gameScores[1].value
-              var game2score = gameScores[2].value + '-' + gameScores[3].value
-              $(summaryElement)[0].children[0].innerHTML = homePairSummary
-              $(summaryElement)[0].children[2].innerHTML = awayPairSummary
-              $(summaryElement)[0].children[3].innerHTML = game1score + '<br />' + game2score
-            }
-            if (step == 14){
-                var matchSummary = {
-                  "homeTeamTotalPoints":0,
-                  "homeTeamTotalGames":0,
-                  "awayTeamTotalPoints":0,
-                  "awayTeamTotalGames":0
-                }
-                var homeScoresArray = $('.scoreInput.home')
-                var awayScoresArray = $('.scoreInput.away')
-                for(var i=0; i< homeScoresArray.length; i++) {
-                  matchSummary.homeTeamTotalPoints += (homeScoresArray[i].value)*1;
-                  matchSummary.awayTeamTotalPoints += (awayScoresArray[i].value)*1;
-                  // console.log(homeScoresArray[i].value)
-                  // console.log(awayScoresArray[i].value)
-                  if ((homeScoresArray[i].value)*1 > (awayScoresArray[i].value)*1){
-                    matchSummary.homeTeamTotalGames++;
-                  }
-                  else {
-                    matchSummary.awayTeamTotalGames++;
-                  }
-                  // console.log("points: "+matchSummary.homeTeamTotalPoints+"-"+matchSummary.awayTeamTotalPoints+"<br />"+matchSummary.homeTeamTotalGames+"-"+matchSummary.awayTeamTotalGames);
-                }
-                $('#finalScore')[0].innerHTML = "Points: "+matchSummary.homeTeamTotalPoints+"-"+matchSummary.awayTeamTotalPoints+"<br />Games:"+matchSummary.homeTeamTotalGames+"-"+matchSummary.awayTeamTotalGames
-                $('#homeScore')[0].value = matchSummary.homeTeamTotalGames;
-                $('#awayScore')[0].value = matchSummary.awayTeamTotalGames;
-            }
-            to_show.show();
-            var current = parseInt(step, 10);
-            updateProgress(current, total_num_steps);
-            findFirstFocusableInput(to_show).focus();
-        }
-
-        function findFirstFocusableInput(parent) {
-            var candidates = [parent.find('input'), parent.find('select'),
-                              parent.find('textarea'),parent.find('button')],
-                winner = parent;
-            $.each(candidates, function() {
-                if (this.length > 0) {
-                    winner = this[0];
-                    return false;
-                }
-            });
-            return $(winner);
-        }
-
-        function bindEventsToModal($modal) {
-            var data_steps = [];
-            $('[data-step]').each(function() {
-                var step = $(this).data().step;
-                if (step && $.inArray(step, data_steps) === -1) {
-                    data_steps.push(step);
-                }
-            });
-
-            $.each(data_steps, function(i, v) {
-                $modal.on('next.m.' + v, {step: v}, function(e) {
-                    goToStep(e.data.step);
-                });
-            });
-        }
-
-        async function setEmail(){
-          let storedUserData = localStorage.getItem('user')
-          if (storedUserData) {
-            const userData = JSON.parse(storedUserData)
-            let emailElems = await document.querySelectorAll('#email');
-            console.log(emailElems)
-            console.log(typeof emailElems)
-            for (const row of emailElems){
-              row.value = userData.emails[0].value
-            }
-          } else {
-            console.error('User data not found in local storage')
+      function firstFocusable(els) {
+        var tags = ['input', 'select', 'textarea', 'button'];
+        for (var t = 0; t < tags.length; t++) {
+          for (var i = 0; i < els.length; i++) {
+            var found = els[i].querySelector(tags[t]);
+            if (found) return found;
           }
         }
+        return null;
+      }
 
-        $(document).on('click', '#replace-scoresheet-link', function(e) {
-          e.preventDefault();
-          $('#scoresheet-url').val('');
-          $('#scoresheet-img').removeAttr('src').prop('hidden', true);
-          $('#scoresheet-doc-attached').prop('hidden', true);
-          $('#scoresheet-already-uploaded-msg').hide();
-          $('#scoresheet-spreadsheet').show();
-        });
-
-        function initialize() {
-            reset();
-            setEmail()
-            updateProgress(1, total_num_steps);
-            $modal.find('.step-1').show();
-            $progress_complete.hide();
-            $progress_total.text(total_num_steps);
-            bindEventsToModal($modal, total_num_steps);
-            $modal.data({
-                total_num_steps: $buttons.length,
-            });
-            if (reset_on_close){
-                //Bootstrap 2.3.2
-                $modal.on('hidden', function () {
-                    reset();
-                    $modal.find('.step-1').show();
-                })
-                //Bootstrap 3
-                $modal.on('hidden.bs.modal', function () {
-                    reset();
-                    $modal.find('.step-1').show();
-                })
-            }
+      function goToStep(step) {
+        step = parseInt(step, 10);
+        reset();
+        var toShow = qsa('.step-' + step, modal);
+        if (toShow.length === 0) return; // at the last step, nothing else to show
+        if (step === 4) rebuildEventSelects();
+        if (step === 13) {
+          var url = byId('scoresheet-url');
+          var alreadyUploaded = !!(url && url.value);
+          (alreadyUploaded ? hide : show)(byId('scoresheet-spreadsheet'));
+          (alreadyUploaded ? show : hide)(byId('scoresheet-already-uploaded-msg'));
         }
+        if (step > 4 && step < 14) summarise(step - 1);
+        if (step === 14) totals();
+        toShow.forEach(show);
+        var focus = firstFocusable(toShow);
+        if (focus) focus.focus();
+      }
+      window.scorecardGoToStep = goToStep;
 
-        initialize();
-    })
-    }(jQuery);
+      function setEmail() {
+        var storedUserData = localStorage.getItem('user');
+        if (storedUserData) {
+          var userData = JSON.parse(storedUserData);
+          qsa('#email').forEach(function (row) { row.value = userData.emails[0].value; });
+        } else {
+          console.error('User data not found in local storage');
+        }
+      }
+
+      document.addEventListener('click', function (e) {
+        if (!e.target.closest || !e.target.closest('#replace-scoresheet-link')) return;
+        e.preventDefault();
+        var url = byId('scoresheet-url');
+        if (url) url.value = '';
+        var img = byId('scoresheet-img');
+        if (img) { img.removeAttribute('src'); img.hidden = true; }
+        var doc = byId('scoresheet-doc-attached');
+        if (doc) doc.hidden = true;
+        hide(byId('scoresheet-already-uploaded-msg'));
+        show(byId('scoresheet-spreadsheet'));
+      });
+
+      reset();
+      setEmail();
+      qsa('.step-1', modal).forEach(show);
+    })();
 
     // Mirrors utils/scorecardValidation.js's isValidGameScore — keep in sync:
     // both scores 0-30, a winner reaching 21 (or 30), and a 2-point margin
@@ -1246,19 +1169,19 @@
     // letting the user continue. Steps without scores (1-3, 13, 14) are a
     // no-op. Returns false and shows inline errors if anything's invalid.
     function validateStepScores(step) {
-      var $groups = $('#signupModal .form-group.step-' + step + '.col-6');
-      if ($groups.length === 0) return true;
+      var groups = document.querySelectorAll('#signupModal .form-group.step-' + step + '.col-6');
+      if (groups.length === 0) return true;
       var allValid = true;
-      $groups.each(function() {
-        var $group = $(this);
-        var $home = $group.find('.scoreInput.home');
-        var $away = $group.find('.scoreInput.away');
-        $home.add($away).removeClass('is-invalid');
-        $group.find('.score-error').remove();
-        if ($home.length && $away.length && !isValidGameScoreClient($home.val(), $away.val())) {
+      groups.forEach(function (group) {
+        var home = group.querySelector('.scoreInput.home');
+        var away = group.querySelector('.scoreInput.away');
+        [home, away].forEach(function (i) { if (i) i.classList.remove('is-invalid'); });
+        group.querySelectorAll('.score-error').forEach(function (el) { el.remove(); });
+        if (home && away && !isValidGameScoreClient(home.value, away.value)) {
           allValid = false;
-          $home.add($away).addClass('is-invalid');
-          $group.append('<div class="score-error text-danger small mt-1">Enter a valid game score — the winner must reach 21 (or 30) with at least a 2-point lead.</div>');
+          home.classList.add('is-invalid');
+          away.classList.add('is-invalid');
+          group.insertAdjacentHTML('beforeend', '<div class="score-error text-danger small mt-1">Enter a valid game score — the winner must reach 21 (or 30) with at least a 2-point lead.</div>');
         }
       });
       return allValid;
@@ -1271,7 +1194,7 @@
       if (!isNaN(currentStep) && targetStep > currentStep && !validateStepScores(currentStep)) {
         return;
       }
-      $('#signupModal').trigger('next.m.' + page);
+      window.scorecardGoToStep(page);
     }
     <% } %>
     </script>
