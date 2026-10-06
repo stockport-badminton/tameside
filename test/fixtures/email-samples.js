@@ -76,6 +76,15 @@ module.exports = {
     whyReceiving: 'You are receiving this because you are the league&rsquo;s results secretary '
       + 'and clubs still owe their registration forms.',
   },
+  'missing-scorecards': {
+    fixtures: [
+      { date: 'Wed 30 Sep 2026', homeTeam: 'Manchester Edgeley A', awayTeam: 'GHAP B' },
+      { date: 'Wed 30 Sep 2026', homeTeam: 'Hyde C', awayTeam: 'Medlock A' },
+    ],
+    daysAgo: 6,
+    whyReceiving: 'You are receiving this because you are the league&rsquo;s results secretary '
+      + 'and a scorecard is overdue.',
+  },
   'registration-chase': {
     clubName: 'Hyde', teams: 3, firstFixtureLabel: 'Wed 2 Sep 2026',
     dueSentence: 'That has already been played, so this is overdue — please send the form '

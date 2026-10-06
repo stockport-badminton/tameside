@@ -440,6 +440,7 @@ let club_controller = require(__dirname + '/controllers/club_controller');
 let contactus_controller = require(__dirname + '/controllers/contactusController');
 let spam_admin_controller = require(__dirname + '/controllers/spamAdminController');
 let registration_reminder_controller = require(__dirname + '/controllers/registrationReminderController');
+let missing_scorecards_controller = require(__dirname + '/controllers/missingScorecardsController');
 let weekly_tables_controller = require(__dirname + '/controllers/weeklyTablesController');
 let weekly_fixtures_controller = require(__dirname + '/controllers/weeklyFixturesController');
 let weekly_video_controller = require(__dirname + '/controllers/weeklyVideoController');
@@ -481,6 +482,13 @@ app.use(filterState.middleware)
     // or probed endpoint gives nothing away. GET because that is what Cloud Scheduler
     // sends by default, and it writes nothing — it reports.
     app.get('/tasks/registration-digest', registration_reminder_controller.digestTask);
+
+    // The daily missing-scorecards email, for Cloud Scheduler. Same rules as the digest:
+    // not `secured` (a scheduler following the /login redirect records a green run), `?t=`
+    // or a superadmin session, 404 otherwise. Unset MISSING_SCORECARDS_TOKEN means inert.
+    app.get('/tasks/missing-scorecards',
+      requireCronCaller({ envVar: 'MISSING_SCORECARDS_TOKEN', callerProp: 'cronCaller' }),
+      missing_scorecards_controller.run);
 
     // `secured`, and no longer `ACL: 'public-read'`.
     //

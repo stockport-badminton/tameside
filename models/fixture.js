@@ -46,6 +46,28 @@ exports.getRecent = async function(done){
 }
 
 
+// The daily missing-scorecards email (controllers/missingScorecardsController.js). Fixtures
+// played exactly `daysAgo` days ago, London calendar, that have neither a result nor a
+// draft in scorecardstore. One day's slice per run, so each match is reported once rather
+// than every morning until it arrives. Ported from Stockport's getCardsDueToday, with two
+// differences: a filed-but-unpublished draft is not "missing" (the results secretary has
+// already had the scorecard-received email for it), and the date is formatted HERE —
+// fixture.date is a timestamp without time zone holding London midnight, and read through
+// a JS Date it lands on the previous day for anyone west of UTC+1.
+exports.getCardsDueToday = async function(daysAgo) {
+  return withRetry(() => sql`select fixture.id, to_char(fixture.date, 'Dy FMDD Mon YYYY') as "dateLabel",
+  home.name as "homeTeam", away.name as "awayTeam"
+from fixture
+  join team home on home.id = fixture."homeTeam"
+  join team away on away.id = fixture."awayTeam"
+where fixture."homeScore" is null
+  and fixture.status not in ('rearranged','rearranging','conceded','void','complete')
+  and fixture.date::date = (now() at time zone 'Europe/London')::date - ${daysAgo}::int
+  and not exists (select 1 from scorecardstore sc
+    where sc.date = fixture.date and sc."homeTeam" = fixture."homeTeam" and sc."awayTeam" = fixture."awayTeam")
+order by fixture.date, home.name`);
+}
+
 // Homepage. Retried on a dead connection — see withRetry in utils/db_connect.js.
 exports.getOutstandingScorecards = async function(done){
  try {

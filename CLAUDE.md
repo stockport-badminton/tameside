@@ -1441,6 +1441,10 @@ REGISTRATION_DIGEST_TOKEN  # Shared secret in the registration digest's schedule
                    # (/tasks/registration-digest?t=...). Unset means the route 404s, i.e.
                    # the daily digest is inert. See docs/registration-reminders.md.
 REGISTRATION_DIGEST_TO     # Who the digest goes to. Defaults to the results mailbox.
+MISSING_SCORECARDS_TOKEN   # Shared secret for the daily missing-scorecards email
+                   # (/tasks/missing-scorecards?t=...). Unset means the route 404s.
+                   # See docs/missing-scorecards.md.
+MISSING_SCORECARDS_TO      # Comma-separated recipients. Defaults to the results mailbox.
 MAILJET_WEBHOOK_TOKEN  # Shared secret in the Mailjet event-callback URL
                    # (/webhooks/mailjet?t=...). Unset means the route 404s, i.e. inert.
                    # See docs/email-deliverability.md.
