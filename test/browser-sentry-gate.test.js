@@ -19,17 +19,21 @@ before(async () => {
 });
 after(() => { delete process.env.K_SERVICE; });
 
+// The host check (window.tblServedByUs) is shared with PostHog, and the Sentry loader
+// reads it, so both are run together in one context.
 function loads(href) {
-  const gate = html.match(/<script>\s*\(function \(l\) \{[\s\S]*?\}\)\(window\.location\);\s*<\/script>/);
-  assert.ok(gate, 'the gate script is in the rendered header');
-  const code = gate[0].replace(/^<script>|<\/script>$/g, '');
+  const gate = html.match(/window\.tblServedByUs = \(function \(l\) \{[\s\S]*?\}\)\(window\.location\);/);
+  const loader = html.match(/<script>\s*(\(function \(\) \{\s*if \(!window\.tblServedByUs\) return;[\s\S]*?\}\)\(\);)\s*<\/script>/);
+  assert.ok(gate, 'the host check is in the rendered header');
+  assert.ok(loader, 'the gated Sentry loader is in the rendered header');
   const appended = [];
   const u = new URL(href);
-  vm.runInNewContext(code, {
-    window: { location: { protocol: u.protocol, hostname: u.hostname } },
+  const window = { location: { protocol: u.protocol, hostname: u.hostname } };
+  vm.runInNewContext(gate[0] + '\n' + loader[1], {
+    window,
     document: { createElement: () => ({}), head: { appendChild: s => appended.push(s) } },
   });
-  return appended.length === 1;
+  return appended.length === 1 && /sentry-cdn\.com/.test(appended[0].src);
 }
 
 it('the loader is never a static <script src>, so the gate cannot be bypassed', () => {
@@ -46,4 +50,8 @@ it('does not load from a saved copy, plain http, or a lookalike host', () => {
   assert.ok(!loads('https://tameside-badminton.co.uk.evil.example/'));
   assert.ok(!loads('https://eviltameside-badminton.co.uk/'));
   assert.ok(!loads('https://other-site-abc-nw.a.run.app/'));
+});
+it('no longer records sessions with Sentry — PostHog does that', () => {
+  assert.doesNotMatch(html, /replayIntegration/);
+  assert.doesNotMatch(html, /replaysSessionSampleRate/);
 });

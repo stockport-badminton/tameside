@@ -129,7 +129,10 @@
       entries.forEach(function (entry) {
         if (!entry.isIntersecting) return;
         observer.unobserve(entry.target);
-        gtag('event', 'section_view', { section: entry.target.closest('[data-ga-section]').dataset.gaSection });
+        var section = entry.target.closest('[data-ga-section]').dataset.gaSection;
+        gtag('event', 'section_view', { section: section });
+        // The same event to PostHog, so the GA comparison covers this report too.
+        tblTrack('section_view', { section: section });
       });
     }, { threshold: 1.0 });
     document.querySelectorAll('[data-ga-section] .section-title').forEach(function (h) {

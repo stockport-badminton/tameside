@@ -274,6 +274,10 @@
                        var f = document.getElementById('ocr-file').files[0];
                        if (!f) { status('Choose a photo first.'); return; }
                        go.disabled = true;
+                       tblTrack('scorecard_ocr_started', {
+                         file_type: f.type || f.name.split('.').pop(),
+                         size_kb: Math.round(f.size / 1024)
+                       });
                        try {
                          // HEIC goes with the documents: converted to a jpeg on the server, and
                          // no local preview, because only Safari can draw one.
@@ -329,6 +333,12 @@
                          }
                          status('Filling in the form…');
                          var full = await prefill(data);
+                         window.ocrPrefilled = true;
+                         tblTrack('scorecard_ocr_result', {
+                           outcome: full ? 'read' : 'teams_unread',
+                           unread_cells: (data.warnings || []).length,
+                           document: isDoc
+                         });
                          var checkNote = (data.warnings && data.warnings.length)
                            ? ' ' + data.warnings.length + ' score cell(s) couldn\'t be read and are left blank.'
                            : '';
@@ -343,6 +353,7 @@
                            go.disabled = false;
                          }
                        } catch (e) {
+                         tblTrack('scorecard_ocr_result', { outcome: 'refused', reason: e.message });
                          status('⚠ ' + e.message + ' — no problem, just continue entering below.');
                          go.disabled = false;
                        }
@@ -802,6 +813,7 @@
                 if (!updatedScorecard.ok) {
                   throw new Error('The photo uploaded but the scorecard could not be updated.');
                 }
+                tblTrack('scorecard_photo_attached', { outcome: 'stored', late: true });
                 window.alert('scorecard photo updated - Thank you!')
               }
             }
@@ -837,6 +849,7 @@
         // 'error' (views/header.ejs) and would file an issue per occurrence.
         function uploadFailed(error) {
           console.log('scorecard upload failed:', error && error.message);
+          tblTrack('scorecard_photo_attached', { outcome: 'failed', reason: error && error.message });
           window.alert('Sorry — that file could not be uploaded.\n\n'
             + (error && error.message ? error.message : 'Please try again.')
             + '\n\nYou can still submit the scorecard without a photo.');
@@ -872,6 +885,7 @@
                 let uploadedUrl = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz"))
                 const wasDocument = /\.(pdf|docx|doc|heic|heif)$/i.test(filename)
                 uploadedUrl = await photoUrlAfterConversion(filename, uploadedUrl)
+                tblTrack('scorecard_photo_attached', { outcome: 'stored', late: false });
                 let scoresheetUrls = await document.querySelectorAll('#scoresheet-url')
                 for (const ssUrl of scoresheetUrls){
                   ssUrl.value = uploadedUrl
@@ -1192,10 +1206,17 @@
       var targetStep = parseInt(page, 10);
       console.log(`clicked continue on page: ${page}`)
       if (!isNaN(currentStep) && targetStep > currentStep && !validateStepScores(currentStep)) {
+        tblTrack('scorecard_step', { from: currentStep, to: targetStep, blocked: true });
         return;
       }
+      tblTrack('scorecard_step', { from: currentStep, to: targetStep, blocked: false });
       window.scorecardGoToStep(page);
     }
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest || !e.target.closest('#signup')) return;
+      var url = document.getElementById('scoresheet-url');
+      tblTrack('scorecard_submit_clicked', { photo_attached: !!(url && url.value), ocr_prefilled: !!window.ocrPrefilled });
+    });
     <% } %>
     </script>
 

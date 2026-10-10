@@ -1,11 +1,11 @@
 <%
-/* Browser Sentry is gated to real deployments, mirroring instrument.js's server-side
- * condition exactly. Without this the block below fired from every local run and every
+/* Browser Sentry and PostHog are gated to real deployments, mirroring instrument.js's
+ * server-side condition exactly. Without this Sentry fired from every local run and every
  * headless Playwright run, tagged `production` because nothing set `environment` — 65
  * of the 68 events on one project's list came from localhost:8199, this repo's e2e
  * port. Cloud Run runs the Docker image, which sets NODE_ENV=production, and Cloud Run
  * also sets K_SERVICE. */
-var sentryEnabled = process.env.NODE_ENV === 'production' || !!process.env.K_SERVICE;
+var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K_SERVICE;
 %>
 <!DOCTYPE html>
 <html lang="en">
@@ -17,6 +17,83 @@ var sentryEnabled = process.env.NODE_ENV === 'production' || !!process.env.K_SER
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
+      // Named PostHog events (the scorecard wizard's steps and photo auto-fill, the
+      // homepage's section views), so a recording or a funnel can be found by what
+      // happened in it. Always defined, and a no-op wherever PostHog was not loaded —
+      // dev, tests, superadmins — so callers never need to check. Stockport's is sblTrack.
+      window.tblTrack = function (name, props) {
+        if (window.posthog && window.posthog.__loaded) window.posthog.capture(name, props || {});
+      };
+    <% if (monitoringEnabled) { %>
+      // Are we actually the ones serving this page? Shared by Sentry and PostHog.
+      //
+      // `monitoringEnabled` is decided when the page is RENDERED, which keeps localhost and
+      // the test suites out of production's projects. But a rendered page keeps its
+      // snippets, keys and user id for as long as someone keeps a copy — Stockport's
+      // JAVASCRIPT-1VF was a saved /email-scorecard opened from a file:// network share,
+      // reporting "$ is not defined" as production. So: https, and our own hostname, www,
+      // or this service's run.app host (old emails still carry those links). Exact
+      // matches, never a suffix test, so a lookalike domain does not pass. (Stockport's
+      // copy also allows http and any *.run.app; this one is deliberately stricter.)
+      window.tblServedByUs = (function (l) {
+        var site = <%- JSON.stringify(typeof siteHostname !== 'undefined' ? siteHostname : 'tameside-badminton.co.uk') %>;
+        var h = l.hostname;
+        return l.protocol === 'https:' && (h === site || h === 'www.' + site
+          || /^tameside-site-[a-z0-9]+-nw\.a\.run\.app$/.test(h));
+      })(window.location);
+    <% if (process.env.POSTHOG_KEY) { %>
+      // PostHog: web analytics on every page, and session recordings on the
+      // results-entry pages only. Running alongside Google Analytics from Oct 2026 to
+      // see whether it can replace it — docs/analytics-posthog-vs-ga.md.
+      //
+      // cookieless_mode 'always' stores nothing in the browser — no cookie, no
+      // localStorage — so it needs no consent. PostHog counts unique visitors with a
+      // server-side hash under a salt that is discarded daily, so a visitor returning on
+      // another day counts again, and identify() is not available: the account id goes
+      // on each event as a property instead.
+      //
+      // The project is SHARED with Stockport (same key), so every event carries `league`;
+      // filter on it, or the two sites' numbers are one number.
+      //
+      // Not loaded at all for a superadmin, who tests these pages daily.
+      //
+      // Recorded only on a results-entry page — the point is to watch how captains use
+      // the photo auto-fill, which needs the whole session from page load. Inputs are
+      // unmasked so scores are visible; recordings therefore carry player names. This
+      // replaced Sentry's replay, whose 50 a month (shared with Stockport) ran out within
+      // days, mostly on the stats pages — which is why those are not recorded here either.
+      (function () {
+        var RECORD_PATHS = [
+          /^\/email-scorecard/,
+          /^\/populated-scorecard/
+        ];
+        var loggedIn = <%= typeof user !== 'undefined' ? 'true' : 'false' %>;
+        var isSuperadmin = <%= (typeof user !== 'undefined' && user._json && user._json['https://my-app.example.com/role'] === 'superadmin') ? 'true' : 'false' %>;
+        var record = loggedIn && RECORD_PATHS.some(function (re) { return re.test(location.pathname); });
+        if (!window.tblServedByUs || isSuperadmin) return;
+
+        var s = document.createElement('script');
+        s.async = true;
+        s.crossOrigin = 'anonymous';
+        s.src = 'https://eu-assets.i.posthog.com/static/array.js';
+        s.onload = function () {
+          window.posthog.init(<%- jsonForScript(process.env.POSTHOG_KEY) %>, {
+            api_host: 'https://eu.i.posthog.com',
+            cookieless_mode: 'always',
+            person_profiles: 'never',
+            disable_session_recording: !record,
+            session_recording: { maskAllInputs: false },
+          });
+          window.posthog.register({
+            league: location.hostname.replace(/^www\./, ''),
+            logged_in: loggedIn,
+            account_id: <%- jsonForScript(typeof user !== 'undefined' ? String(user.user_id) : null) %>
+          });
+        };
+        document.head.appendChild(s);
+      })();
+    <% } %>
+    <% } %>
     </script>
 
       <% if (typeof user !== 'undefined') { %>
@@ -30,53 +107,15 @@ var sentryEnabled = process.env.NODE_ENV === 'production' || !!process.env.K_SER
     });
 
     localStorage.setItem('user', JSON.stringify(<%- JSON.stringify(user) %>))
-    <% if (sentryEnabled) { %>
+    <% if (monitoringEnabled) { %>
   window.sentryOnLoad = function () {
       // in here, Sentry is ensured to be loaded & fully available
 
-      // Session Replay is quota-limited (50/month on the free tier) and this used to
-      // pass replayIntegration unconditionally — a replay recorded on every page for
-      // every logged-in user, local runs included. Only record where it earns its
-      // keep: a results-entry or stats page, and not the site admin, who exercises
-      // these daily and can watch locally. Error/console capture below is unchanged
-      // and still runs on every page for every logged-in user.
-      var REPLAY_PATHS = [
-        /^\/email-scorecard/,
-        /^\/populated-scorecard/,
-        /^\/player-stats/,
-        /^\/pair-stats/,
-        /^\/admin\/scorecard-ocr/
-      ];
-      var isSiteAdmin = <%= (user._json && user._json['https://my-app.example.com/role'] === 'superadmin') ? 'true' : 'false' %>;
-      var onReplayPath = REPLAY_PATHS.some(function (re) { return re.test(window.location.pathname); });
-      var enableReplay = !isSiteAdmin && onReplayPath;
-
-      var integrations = [];
-      if (enableReplay) {
-        integrations.push(Sentry.replayIntegration({
-          maskAllText: false,
-          // INPUTS ARE MASKED SEPARATELY, and default to on — which is why the scores and
-          // the player dropdowns came through as asterisks while the surrounding page text
-          // was readable. `maskAllText: false` alone does not cover them.
-          //
-          // Unmasked because a replay is useless for the thing it is here to do: the point
-          // is watching a captain fill the scorecard in and seeing WHICH value they typed
-          // into which slot. Starred-out fields show that something was entered and
-          // nothing more.
-          //
-          // The privacy call, made explicitly: the Sentry org has exactly one member (the
-          // results secretary, owner), so nobody else can open these. What the forms carry
-          // is league data that ends up published anyway — team names, player selections,
-          // scores, the fixture date — with ONE exception, the `email` field on
-          // /email-scorecard, which is the submitting captain's own address. That is
-          // already in `scorecardstore.email` and in the results mailbox, so the replay
-          // adds no exposure that the league does not already hold. Revisit this if anyone
-          // else is ever added to the Sentry org.
-          maskAllInputs: false,
-          blockAllMedia: false
-        }));
-      }
-
+      // No session replay here any more: PostHog records the results-entry pages (above).
+      // Sentry's free tier is 50 replays a month shared with league-site, which ran out
+      // within days once the stats pages were on the list, and a replay that starts at
+      // the error (buffer mode keeps ~60s) misses the OCR steps that come before it.
+      // Two recorders on one phone page would also be twice the CPU for one recording.
       Sentry.init({
         dsn: "https://41a5442332daa78ebc9dba9dfe8da392@o4508301910540288.ingest.de.sentry.io/4508301914800208",
         // TODO: this DSN is the `javascript` project, which belongs to league-site —
@@ -85,20 +124,14 @@ var sentryEnabled = process.env.NODE_ENV === 'production' || !!process.env.K_SER
         // key here AND in the CDN loader URL below (it embeds the same public key).
         // The server side is already separated correctly (SENTRY_DSN -> tameside-node).
         environment: "<%= process.env.NODE_ENV || 'production' %>",
-        // Off (0) on every non-eligible page. On eligible pages: keep a light sample of
-        // normal sessions, and always keep one that hits an error — errors are rare and
-        // the most useful, so they cost little quota.
         tracesSampleRate: 0,
-        replaysSessionSampleRate: enableReplay ? 1.0 : 0,
-        replaysOnErrorSampleRate: enableReplay ? 1.0 : 0,
-        integrations: integrations,
       });
 
 
       Sentry.lazyLoadIntegration("captureConsoleIntegration").then(
         (integration) => {
           // Only forward real errors — not console.log/info/debug/warn — so
-          // stray logging (and third-party console noise like Hotjar/Maps
+          // stray logging (and third-party console noise like Maps
           // deprecation warnings) doesn't flood Sentry / the free-tier quota.
           Sentry.addIntegration(integration({ levels: ['error'] }));
         },
@@ -107,27 +140,17 @@ var sentryEnabled = process.env.NODE_ENV === 'production' || !!process.env.K_SER
     };
     <% } %>
   </script>
-  <% if (sentryEnabled) { %>
-  <%# `sentryEnabled` is decided when the page is RENDERED, which keeps localhost and the
-      test suites out of production's project. But a rendered page keeps its snippet, DSN
-      and Sentry.setUser id for as long as someone keeps a copy — Stockport's
-      JAVASCRIPT-1VF was a saved /email-scorecard opened from a file:// network share,
-      reporting "$ is not defined" as production. So the loader is only inserted when the
-      page is really being served by us: https, and our own hostname, www, or this
-      service's run.app host (old emails still carry those links). Exact matches, never a
-      suffix test, so a lookalike domain does not pass. %>
+  <% if (monitoringEnabled) { %>
+  <%# The loader is inserted only when tblServedByUs (above) says this page is really
+      being served by us — never a static <script src>, which a saved copy would fetch. %>
   <script>
-    (function (l) {
-      var site = <%- JSON.stringify(typeof siteHostname !== 'undefined' ? siteHostname : 'tameside-badminton.co.uk') %>;
-      var h = l.hostname;
-      var ours = l.protocol === 'https:' && (h === site || h === 'www.' + site
-        || /^tameside-site-[a-z0-9]+-nw\.a\.run\.app$/.test(h));
-      if (!ours) return;
+    (function () {
+      if (!window.tblServedByUs) return;
       var s = document.createElement('script');
       s.src = 'https://js-de.sentry-cdn.com/41a5442332daa78ebc9dba9dfe8da392.min.js';
       s.crossOrigin = 'anonymous';
       document.head.appendChild(s);
-    })(window.location);
+    })();
   </script>
   <% } %>
     <% } else{ %>
@@ -141,7 +164,7 @@ var sentryEnabled = process.env.NODE_ENV === 'production' || !!process.env.K_SER
       <% } %> 
     
     
-
+    
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="description" content="Tameside Badminton Association. <%= pageDescription %>">
