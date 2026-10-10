@@ -21,6 +21,14 @@ exports.history = async function(req, res, next) {
     }
 }
 
+exports.privacy_policy = function(req, res) {
+    res.render('privacy', {
+        title: 'Privacy Policy',
+        pageDescription: 'What personal information the Tameside Badminton League holds, why, and what you can ask us to do with it.',
+        static_path: '/static'
+    });
+}
+
 const client = contentful.createClient({
     space: process.env.CONTENTFUL_SPACE,
     environment: 'master', // defaults to 'master' if not set

@@ -571,6 +571,7 @@ app.post('/contact-us', spamGate({ endpoint: '/contact-us' }), contactus_control
 app.get('/info/clubs', club_controller.club_list_detail)
 app.get('/rules', static_controller.rules)
 app.get('/history', static_controller.history)
+app.get('/privacy-policy', static_controller.privacy_policy)
 // GET /mailjet deleted: the Mailjet getting-started sample, unauthenticated, sending a
 // hardcoded message to the league results mailbox. A curl loop was a mail bomb and
 // nothing ever linked to it. Same shape as the /SESemail endpoint Stockport removed.

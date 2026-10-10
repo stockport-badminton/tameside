@@ -511,12 +511,39 @@ ship events). The central 500 handler in `app.js` **must** be a 4-arg function
 (`err, req, res, next`) — Express only registers error middleware by arity.
 Read-only triage: `tools/sentry/sentry-issues.js` (uses `SENTRY_AUTH_TOKEN`).
 Browser Sentry lives in `views/header.ejs` (logged-in users only) and scopes
-`captureConsoleIntegration` to `levels: ['error']`. It is gated twice: `sentryEnabled` at
-render time, and a runtime host check that inserts the loader only on https and our own
+`captureConsoleIntegration` to `levels: ['error']`. It is gated twice: `monitoringEnabled` at
+render time, and a runtime host check (`window.tblServedByUs`, shared with PostHog) that
+inserts the loader only on https and our own
 hostname / `www.` / this service's run.app host — so a *saved copy* of a page (Stockport's
 JAVASCRIPT-1VF, a `file://` share) does not report as production. Exact host matches, never
 a suffix. `test/browser-sentry-gate.test.js` runs the emitted script in a vm. The browser
-DSN is still Stockport's `javascript` project (TODO in the header).
+DSN is still Stockport's `javascript` project (TODO in the header). **No session replay in
+Sentry any more** — its 50 a month, shared with Stockport, ran out within days.
+
+### PostHog (analytics and session recordings)
+
+Ported from Stockport 10 Oct 2026. `header.ejs` loads PostHog on **every page** in
+production, for everyone except superadmins and only when served by us. It **records
+sessions only on `/email-scorecard` and `/populated-scorecard*`** for logged-in users,
+with inputs unmasked so the scores are visible. **Unset `POSTHOG_KEY` loads nothing.**
+`test/browser-posthog.test.js` runs the emitted block in a vm.
+
+- **`cookieless_mode: 'always'` is what lets it run without a consent bar.** Nothing goes
+  in cookies or storage. The costs: no `identify()`, so the account id goes on every event
+  as `account_id`; and a visitor returning on another day counts as new.
+- **The PostHog project is Stockport's too (same key).** Every event carries `league`
+  (the hostname). Filter on it, or the numbers are both sites added together.
+- **`window.tblTrack(name, props)`** sends named events (the scorecard wizard's steps and
+  OCR, the homepage `section_view`). It is always defined and a no-op without PostHog, so
+  callers never check. Stockport's is `sblTrack`.
+- **PostHog drops events from automated browsers.** A Playwright check sees nothing unless
+  it sets `opt_out_useragent_filter: true`.
+- **It is running beside Google Analytics to see whether GA can go**, and with it the need
+  for a cookie banner. Method, criteria and the removal checklist are in
+  `docs/analytics-posthog-vs-ga.md`. The `/rules` Google Maps iframe also sets cookies.
+
+`views/privacy.ejs` (`/privacy-policy`, footer) describes all of this. **Keep it in step
+with the header**: a new tracker or processor needs a line there.
 
 **`player.rating` is read back from the games** (`Player.refreshRatings`) after a result is
 published, never written from the in-memory Elo calculation — a late scorecard is not the
@@ -1432,6 +1459,8 @@ CONTENTFUL_KEY / CONTENTFUL_SPACE
 DB_ENCODE          # PgP key for decrypting player contact data
 SENTRY_DSN         # Server-side error reporting (instrument.js). Dormant unless set;
                    # only sends when NODE_ENV=production or K_SERVICE is set (Cloud Run).
+POSTHOG_KEY        # PostHog project key (phc_..., EU). Public, printed into pages; shared
+                   # with Stockport's project. Unset loads no PostHog. See ### PostHog.
 SENTRY_AUTH_TOKEN  # Read-only token for the tools/sentry/sentry-issues.js triage helper
 SITE_URL           # The site's own public address for absolute links (emails, canonical,
                    # logout returnTo). Defaults to https://tameside-badminton.co.uk.
