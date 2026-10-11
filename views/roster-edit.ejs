@@ -1,0 +1,156 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<%#
+  The editor — superadmin only. Ported from Stockport's views/roster-edit.ejs (Bootstrap 4
+  there, 5 here: data-bs-dismiss, btn-close, visually-hidden, no input-group-append).
+
+  Three ways to reorder: drag a handle (pointer events, so mouse, touch and pen alike), the
+  row menu, or the arrow keys on a focused handle. Cross-team moves use a destination list
+  rather than a drag, since the target is usually off-screen.
+
+  Reorders are staged and written on Save — static/js/roster-edit.js posts one request per
+  changed team to /api/teams/:id/order, and the server renumbers in a transaction. Moves,
+  removes and adds apply immediately.
+%>
+
+<div class="roster-page" id="roster-editor"
+     data-club="<%= clubName %>"
+     data-club-url="<%= encodeURIComponent(clubName) %>">
+
+  <div class="roster-head">
+    <div>
+      <h1>Manage <%= clubName %></h1>
+      <div class="roster-sub">
+        Drag a handle, use the row menu, or focus a handle and press
+        <kbd>&uarr;</kbd>/<kbd>&darr;</kbd>. Changes to the order are saved when you press Save.
+      </div>
+    </div>
+    <div class="roster-actions">
+      <% if (clubs && clubs.length > 1) { %>
+        <select class="form-select form-select-sm w-auto" id="club-switch" aria-label="Switch club">
+          <% clubs.forEach(function(name) { %>
+            <option value="<%= encodeURIComponent(name) %>" <%= name === clubName ? 'selected' : '' %>><%= name %></option>
+          <% }) %>
+        </select>
+      <% } %>
+      <a class="btn btn-outline-secondary btn-sm"
+         href="/manage-players/club-<%= encodeURIComponent(clubName) %>">
+        <i class="fa fa-eye" aria-hidden="true"></i> Roster view
+      </a>
+      <a class="btn btn-outline-secondary btn-sm"
+         href="/forms/team-registration/<%= encodeURIComponent(clubName) %>/docx">
+        <i class="fa fa-download" aria-hidden="true"></i> Registration form
+      </a>
+    </div>
+  </div>
+
+  <div class="roster-summary">
+    <div class="roster-stat"><span class="n"><%= summary.players %></span><span class="l">Players</span></div>
+    <div class="roster-stat"><span class="n"><%= summary.teams %></span><span class="l">Teams</span></div>
+    <div class="roster-stat"><span class="n"><%= summary.nominated %></span><span class="l">Nominated</span></div>
+    <div class="roster-stat"><span class="n"><%= summary.reserves %></span><span class="l">Reserves</span></div>
+  </div>
+
+  <div class="roster-grid">
+    <% teamCards.forEach(function(team) { %>
+      <%- include('partials/roster-team-card.ejs', { team: team, editable: true, contacts: false }) %>
+    <% }) %>
+  </div>
+
+  <div class="roster-savebar" id="roster-savebar" hidden>
+    <span class="msg" id="roster-savebar-msg">1 change</span>
+    <span class="spacer"></span>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="roster-discard">Discard</button>
+    <button type="button" class="btn btn-sm btn-primary" id="roster-save">Save changes</button>
+  </div>
+</div>
+
+<%# Destinations for a cross-team move: the club's full team list, so a team with nobody
+    in it yet is still a valid target. %>
+<div class="modal" id="rosterMoveModal" tabindex="-1" aria-labelledby="rosterMoveTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="rosterMoveTitle">Move player</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small" id="rosterMoveWho"></p>
+        <div class="mb-3">
+          <label class="form-label" for="rosterMoveTeam">Team</label>
+          <select class="form-select" id="rosterMoveTeam">
+            <% moveTargets.forEach(function(t) { %>
+              <option value="<%= t.id %>"><%= t.name %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="rosterMoveSection">Position</label>
+          <select class="form-select" id="rosterMoveSection">
+            <option value="nominated">Nominated</option>
+            <option value="reserve" selected>Reserve</option>
+          </select>
+        </div>
+        <p class="text-muted small mb-0">The move is applied immediately and both teams are renumbered.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="rosterMoveConfirm">Move player</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# Add a player: search the whole league, then add (at no club), transfer (at another
+    club), or create — three labelled actions, where the old modal had one Add button. %>
+<div class="modal" id="rosterAddModal" tabindex="-1" aria-labelledby="rosterAddTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="rosterAddTitle">Add a player</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body roster-finder">
+        <p class="text-muted small" id="rosterAddTarget"></p>
+
+        <div class="mb-3">
+          <label class="form-label" for="rosterAddSearch">Search by name</label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="rosterAddSearch"
+                   placeholder="Surname or first name" autocomplete="off">
+            <button class="btn btn-outline-secondary" type="button" id="rosterAddSearchBtn">Search</button>
+          </div>
+          <div class="form-text">Searches the whole league, so you can see whether someone is already registered.</div>
+        </div>
+
+        <div id="rosterAddResults" aria-live="polite"></div>
+
+        <hr>
+
+        <div class="result-group">
+          <h6>Or create a new player</h6>
+          <div class="row g-2">
+            <div class="col-sm-5">
+              <label class="visually-hidden" for="rosterNewFirst">First name</label>
+              <input type="text" class="form-control" id="rosterNewFirst" placeholder="First name" maxlength="60">
+            </div>
+            <div class="col-sm-5">
+              <label class="visually-hidden" for="rosterNewFamily">Family name</label>
+              <input type="text" class="form-control" id="rosterNewFamily" placeholder="Family name" maxlength="60">
+            </div>
+            <div class="col-sm-2 d-grid">
+              <button type="button" class="btn btn-success" id="rosterCreateBtn">Create</button>
+            </div>
+          </div>
+          <div class="form-text">Search first — creating a duplicate splits a player's match history and Elo.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="roster-toast" id="roster-toast" role="status" aria-live="polite"></div>
+
+<script src="<%= assetUrl('/static/js/roster-edit.js') %>" defer></script>
+<%- include('footer.ejs') %>

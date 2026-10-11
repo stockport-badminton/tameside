@@ -9,10 +9,9 @@
 //     cannot invent a team, a rank or a club, and it cannot promote a flagged transfer
 //     into an applied one.
 //
-//  2. POST /player/batch-update used to be an UNAUTHENTICATED "UPDATE any table SET any
-//     column WHERE id = any id" endpoint -- `player.role` included. It is still in use by
-//     the team-admin drag-and-drop, so it is narrowed rather than removed, and the
-//     narrowing is what these tests pin.
+//  2. POST /player/batch-update, once an UNAUTHENTICATED "UPDATE any table SET any column
+//     WHERE id = any id" endpoint, is gone: the team-admin page that drove it was replaced
+//     by the roster editor in Oct 2026 (test/integration/roster.test.js pins that it 404s).
 
 const { describe, it, afterEach, mock } = require('node:test');
 const assert = require('node:assert');
@@ -272,84 +271,5 @@ describe('registration import: applying is decided server-side', () => {
     const res = await request.agent(app).post('/admin/team-registrations/apply')
       .send({ selections: [{ key: 'e0' }] });
     assert.strictEqual(res.status, 400);
-  }));
-});
-
-describe('POST /player/batch-update: the hole that is now closed', () => {
-  const OK_BODY = { tablename: 'player', fields: ['id', 'team', 'rank'], data: [[10, 2, 1]] };
-
-  it('requires a session -- it had no auth gate at all', asUser({}, async () => {
-    installModels({ onUpdate: () => { throw new Error('must not write'); } });
-    const res = await request(app).post('/player/batch-update').send(OK_BODY);
-    assert.strictEqual(res.status, 302);
-    assert.match(res.headers.location, /\/login/);
-  }));
-
-  it('403s an ordinary logged-in user', asUser(ORDINARY, async () => {
-    installModels({ onUpdate: () => { throw new Error('must not write'); } });
-    const res = await request(app).post('/player/batch-update').send(OK_BODY);
-    assert.strictEqual(res.status, 403);
-  }));
-
-  it('refuses any table but player', asUser(SUPERADMIN, async () => {
-    installModels({ onUpdate: () => { throw new Error('must not write'); } });
-    const res = await request(app).post('/player/batch-update')
-      .send({ tablename: 'fixture', fields: ['id', 'rank'], data: [[1, 1]] });
-    assert.strictEqual(res.status, 400);
-  }));
-
-  it('refuses columns outside the allowlist, role above all', asUser(SUPERADMIN, async () => {
-    // This is the escalation the open endpoint allowed: anyone could set their own
-    // player.role to 'superadmin'.
-    installModels({ onUpdate: () => { throw new Error('must not write'); } });
-    for (const fields of [['id', 'role'], ['id', 'statsAccess'], ['id', 'playerEmail']]) {
-      const res = await request(app).post('/player/batch-update')
-        .send({ tablename: 'player', fields, data: [[10, 1]] });
-      assert.strictEqual(res.status, 400, fields.join(','));
-    }
-  }));
-
-  it('requires an id, integers, and rectangular data', asUser(SUPERADMIN, async () => {
-    installModels({ onUpdate: () => { throw new Error('must not write'); } });
-    const bad = [
-      { tablename: 'player', fields: ['team', 'rank'], data: [[2, 1]] },          // no id
-      { tablename: 'player', fields: ['id', 'team'], data: [[10]] },              // ragged
-      { tablename: 'player', fields: ['id', 'team'], data: [[10, 'DEFAULT']] },   // not an int
-      { tablename: 'player', fields: ['id', 'team'], data: [[10, 2], [10, 3]] },  // dup id
-      { tablename: 'player', fields: [], data: [[10]] },                          // no fields
-    ];
-    for (const body of bad) {
-      const res = await request(app).post('/player/batch-update').send(body);
-      assert.strictEqual(res.status, 400, JSON.stringify(body));
-    }
-  }));
-
-  it('scopes a club admin to their own club, from the database not the payload', asUser(HYDE_ADMIN, async () => {
-    installModels({ onUpdate: () => { throw new Error('must not write'); } });
-    setModel('Player', 'getClubsForPlayerIds', (ids, done) =>
-      done(null, [{ id: 91, club: 39, clubName: 'Mellor' }]));
-    const res = await request(app).post('/player/batch-update')
-      .send({ tablename: 'player', fields: ['id', 'team', 'rank'], data: [[91, 2, 1]] });
-    assert.strictEqual(res.status, 403);
-  }));
-
-  it('refuses an id that does not exist rather than letting it through unchecked', asUser(HYDE_ADMIN, async () => {
-    // A missing row has no club to compare, so without this it would fall past the scope
-    // check entirely.
-    installModels({ onUpdate: () => { throw new Error('must not write'); } });
-    setModel('Player', 'getClubsForPlayerIds', (ids, done) => done(null, []));
-    const res = await request(app).post('/player/batch-update')
-      .send({ tablename: 'player', fields: ['id', 'team', 'rank'], data: [[424242, 2, 1]] });
-    assert.strictEqual(res.status, 400);
-  }));
-
-  it('lets a club admin reorder their own club', asUser(HYDE_ADMIN, async () => {
-    const writes = [];
-    installModels({ onUpdate: (p) => writes.push(p) });
-    setModel('Player', 'getClubsForPlayerIds', (ids, done) =>
-      done(null, [{ id: 10, club: 47, clubName: 'Hyde' }]));
-    const res = await request(app).post('/player/batch-update').send(OK_BODY);
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(writes.length, 1);
   }));
 });

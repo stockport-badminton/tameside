@@ -42,8 +42,8 @@ const createPlayerP = (first, family, team, club, gender) =>
     (err, r) => (err ? reject(err) : resolve(r))));
 const updateBulkP = promisify(Player.updateBulk);
 
-// The placeholder club/team a removed player is parked at, matching what the existing
-// team-admin remove button writes. Nothing is ever deleted by this screen: "No Club" is
+// The placeholder club/team a removed player is parked at, matching what the roster
+// editor's Remove writes (models/roster.js releasePlayer). Nothing is ever deleted by this screen: "No Club" is
 // the league's archive — 486 of 1,138 players live there — and parking is reversible
 // where a delete would not be.
 const NO_CLUB_NAME = 'No Club';
@@ -67,9 +67,9 @@ const renderOpts = (title, extra) => Object.assign({
   pageDescription: title,
 }, extra);
 
-// A superadmin may import for any club; a club admin only for their own. Same rule as the
-// team-admin screen this sits beside, and the write path (POST /player/batch-update and
-// the apply route below) enforces it independently rather than trusting this check.
+// A superadmin may import for any club; a club admin only for their own. The apply route
+// below enforces it independently rather than trusting this check. (Stricter than the
+// roster editor beside it, where every change is superadmin only.)
 function assertClubAccess(req, clubName) {
   if (authz.isSuperAdmin(req)) return null;
   if (authz.isAdmin(req) && authz.hasClubAccess(req, clubName)) return null;
@@ -237,8 +237,7 @@ exports.apply = async function (req, res, next) {
       });
     }
 
-    // Updates go through the same gated bulk path the team-admin screen uses, so there is
-    // one place that knows how to write these four columns.
+    // Updates go through Player.updateBulk, which writes these four columns.
     if (updates.length) {
       await updateBulkP({ tablename: 'player', fields: ['id', 'team', 'rank', 'club'], data: updates });
     }

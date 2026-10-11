@@ -315,7 +315,7 @@ async function movePlayerIn(tx, playerId, destTeamId, destSection) {
   const team = await exports.getTeamOwner(destTeamId, tx);
   if (!team) throw notFound('team');
   const rank = await place(tx, player, team, destSection);
-  return { playerId: player.id, name: player.name, teamId: team.id, rank,
+  return { playerId: player.id, name: player.name, teamId: team.id, teamName: team.name, rank,
     fromClub: player.clubName, toClub: team.clubName };
 }
 

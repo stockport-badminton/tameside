@@ -1,0 +1,46 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<%# Superadmin entry point to team management. The menu used to link straight to
+    /manage-players/club-Aerospace — one club standing in for a picker. %>
+
+<div class="roster-page">
+  <div class="roster-head">
+    <div>
+      <h1>Team Management</h1>
+      <div class="roster-sub">Registered players by club</div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>Club</th>
+          <th class="text-end">Teams</th>
+          <th class="text-end">Players</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% clubs.forEach(function(club) { %>
+          <tr<%- club.teams === 0 ? ' class="text-muted"' : '' %>>
+            <td><a href="/manage-players/club-<%= encodeURIComponent(club.name) %>"><%= club.name %></a></td>
+            <td class="text-end"><%= club.teams %></td>
+            <td class="text-end"><%= club.players %></td>
+            <td class="text-end text-nowrap">
+              <% if (club.teams > 0) { %>
+                <a class="btn btn-sm btn-outline-primary py-0"
+                   href="/manage-players/club-<%= encodeURIComponent(club.name) %>/edit">Manage</a>
+              <% } else { %>
+                <span class="small">No teams</span>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('footer.ejs') %>

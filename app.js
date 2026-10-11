@@ -449,6 +449,7 @@ const requireCronCaller = require(__dirname + '/middleware/requireCronCaller');
 let auth_link_controller = require(__dirname + '/controllers/authLinkController');
 const spamGate = require(__dirname + '/middleware/spamGate');
 let player_controller = require(__dirname + '/controllers/playerController');
+const roster_controller = require(__dirname + '/controllers/rosterController');
 let userInViews = require(__dirname + '/models/userInViews');
 var auth_controller = require(__dirname + '/models/auth.js');
 let social_controller = require(__dirname + '/controllers/social_controller')
@@ -642,7 +643,6 @@ app.get('/eligiblePlayers/:id(\\d+)/:gender', player_controller.eligible_players
 
 /* GET request for list of all Player items. */
 app.get('/players/club-:clubid?/team-:teamid?/gender-:gender?', player_controller.player_list);
-app.get('/players/matching/:name/:gender',player_controller.find_closest_matched_player);
 app.post('/player/create', secured, player_controller.player_create);
 
 /* ELO ratings: chart page (login required), public JSON APIs, admin backfill
@@ -679,7 +679,6 @@ app.get('/lewis-shield/:season', team_controller.lewis_draw);
 
 
 
-app.post('/manage-players/create', secured, player_controller.player_create_from_team);
 app.get('/populated-scorecard/:division/:home_team/:away_team/:home_man_1/:home_man_2/:home_man_3/:home_man_4/:home_lady_1/:home_lady_2/:away_man_1/:away_man_2/:away_man_3/:away_man_4/:away_lady_1/:away_lady_2/:Game1homeScore/:Game1awayScore/:Game2homeScore/:Game2awayScore/:Game3homeScore/:Game3awayScore/:Game4homeScore/:Game4awayScore/:Game5homeScore/:Game5awayScore/:Game6homeScore/:Game6awayScore/:Game7homeScore/:Game7awayScore/:Game8homeScore/:Game8awayScore/:Game9homeScore/:Game9awayScore/:Game10homeScore/:Game10awayScore/:Game11homeScore/:Game11awayScore/:Game12homeScore/:Game12awayScore/:Game13homeScore/:Game13awayScore/:Game14homeScore/:Game14awayScore/:Game15homeScore/:Game15awayScore/:Game16homeScore/:Game16awayScore/:Game17homeScore/:Game17awayScore/:Game18homeScore/:Game18awayScore', secured, (req,res,next) => {
   console.log(req.params)
   fixture_controller.fixture_populate_scorecard_fromUrl(req,res,next)
@@ -825,6 +824,15 @@ function requireSuperAdmin(req, res, next) {
   next(err);
 }
 
+// For routes a page's script calls with fetch: a 401 it can read, not `secured`'s redirect
+// to /login, which fetch follows silently into an HTML page. (Stockport's /api routes sit
+// behind plain `secured`, so an expired session there surfaces as a network-style error.)
+function securedApi(req, res, next) {
+  if (req.isAuthenticated()) return next();
+  res.set('Cache-Control', 'private, no-store');
+  res.status(401).json({ ok: false, error: 'Your login has expired. Reload the page to log in again.' });
+}
+
 function secured(req, res, next) {
     if (req.isAuthenticated()) {
       return next();
@@ -899,8 +907,18 @@ function secured(req, res, next) {
   app.get('/players/gender-:gender?', secured,player_controller.player_list_clubs_teams);
   app.get('/players', secured,player_controller.player_list_clubs_teams);
   app.get('/played-up-counts', secured,player_controller.player_played_up_counts);
-  app.get('/manage-players/club-:club?', secured,player_controller.manage_player_list_clubs_teams);
-  app.get('/manage-players/:season?/club-:club?', secured,player_controller.manage_player_list_clubs_teams);
+  // Team management (controllers/rosterController.js, ported from Stockport). A club admin
+  // may VIEW their own club's roster; every change is superadmin only.
+  app.get('/manage-players', secured, roster_controller.club_picker);
+  app.get('/manage-players/club-:club', secured, roster_controller.club_roster);
+  app.get('/manage-players/club-:club/edit', secured, requireSuperAdmin, roster_controller.club_roster_edit);
+  app.post('/api/teams/:id/order', securedApi, requireSuperAdmin, roster_controller.api_team_order);
+  app.post('/api/players/:id/move', securedApi, requireSuperAdmin, roster_controller.api_player_move);
+  app.post('/api/players/:id/release', securedApi, requireSuperAdmin, roster_controller.api_player_release);
+  app.get('/api/roster/club-:club/candidates', securedApi, requireSuperAdmin, roster_controller.api_candidates);
+  app.post('/api/roster/club-:club/players', securedApi, requireSuperAdmin, roster_controller.api_player_create);
+  app.post('/api/roster/club-:club/attach', securedApi, requireSuperAdmin, roster_controller.api_player_attach);
+  app.post('/api/roster/club-:club/transfer', securedApi, requireSuperAdmin, roster_controller.api_transfer);
   // Team registration form, prefilled with a club's current registrations
   // (auth check in controller). Blank template is served statically from
   // /static/docs/Team Registration.pdf.
@@ -938,12 +956,9 @@ function secured(req, res, next) {
 
   /* GET request for creating a Player. NOTE This must come before routes that display Player (uses id) */
   app.get('/player/create', secured,player_controller.player_create_get);
-  // Was ungated entirely, and took `tablename`/`fields`/`data` from the request body —
-  // an unauthenticated write to any table, column and row in the database, `player.role`
-  // included. Kept (not removed) because the team-admin drag-and-drop and the
-  // add-player modal all drive it; narrowed to that use in the controller.
-  app.post('/player/batch-update', secured, player_controller.player_batch_update);
-  app.post('/player/:id',secured, player_controller.player_update_post);
+  // Numeric ids only. POST /player/batch-update (retired with the team-admin page, Oct 2026)
+  // would otherwise land here with 'batch-update' as the id and reach a bigint query.
+  app.post('/player/:id(\\d+)',secured, player_controller.player_update_post);
   app.get('/club-api/:id', secured,club_controller.club_detail_api);
   app.get('/admin/info/clubs', secured,club_controller.club_list_detail);
 
@@ -977,6 +992,17 @@ app.use(function(error, req, res, next) {
     // buries the real faults. Only 5xx is a fault.
     const status = Number(error && error.status) || 500;
     res.set('Cache-Control', 'private, no-store'); // never edge-cache error pages
+
+    // /api/ callers are scripts: answer in JSON they can show. A 4xx message was written
+    // for the user; a 5xx's message can carry SQL, so it stays in the log and Sentry.
+    if (req.path.startsWith('/api/')) {
+      if (status >= 400 && status < 500) {
+        return res.status(status).json({ ok: false, error: error.message || 'That request was refused' });
+      }
+      console.error(error);
+      Sentry.captureException(error);
+      return res.status(500).json({ ok: false, error: 'Something went wrong on our side. Nothing was changed.' });
+    }
 
     if (status >= 400 && status < 500) {
       res.status(status);

@@ -23,7 +23,7 @@ const GROUPS = [
   {
     title: 'Players & teams',
     tools: [
-      { href: '/manage-players/club-Aerospace', label: 'Team Management', blurb: 'Every club\'s squads — reorder, move, add and release players.' },
+      { href: '/manage-players', label: 'Team Management', blurb: 'Every club\'s squads — reorder, move, add, transfer and release players.' },
       { href: '/admin/registration-reminders', label: 'Registration Reminders', blurb: 'Which clubs have returned this season\'s registration form; chase the rest.', count: 'formsOutstanding' },
       { href: '/admin/team-registrations', label: 'Team Registration (import returned)', blurb: 'Diff a returned form against the database and apply the changes.' },
       { href: '/forms/team-registration/Aerospace/prefilled', label: 'Team Registration (prefilled)', blurb: 'A club\'s form filled in from its current roster.', newTab: true },
@@ -71,7 +71,7 @@ const GROUPS = [
 // tied slot. The registration pages are high because it was the start of the season, so
 // this is worth re-measuring mid-season rather than treating as settled.
 const NAV_SHORTLIST = [
-  '/manage-players/club-Aerospace',
+  '/manage-players',
   '/admin/registration-reminders',
   '/admin/team-registrations',
   '/admin/missed-three',

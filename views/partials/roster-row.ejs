@@ -1,0 +1,60 @@
+<%#
+  One player. Locals: player, editable, contacts, reserve.
+
+  Reserves display as R1, R2 … from their position in the list, not from the stored rank
+  (99, 100, 101 — or a flat 99 on rows the old page wrote, until the team is first saved).
+%>
+<li class="roster-row<%= reserve ? ' is-reserve' : '' %>"
+    data-player-id="<%= player.playerId %>"
+    data-player-name="<%= player.name %>"
+    data-gender="<%= player.gender %>">
+  <% if (editable) { %>
+    <button type="button" class="drag-handle"
+            aria-label="Reorder <%= player.name %>. Press arrow up or arrow down to move.">
+      <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true" focusable="false">
+        <g fill="currentColor">
+          <circle cx="4" cy="3" r="1.4"/><circle cx="10" cy="3" r="1.4"/>
+          <circle cx="4" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/>
+          <circle cx="4" cy="13" r="1.4"/><circle cx="10" cy="13" r="1.4"/>
+        </g>
+      </svg>
+    </button>
+  <% } %>
+
+  <span class="rank"><%= reserve ? 'R' + player.position : player.position %></span>
+  <span class="player-name" title="<%= player.name %>"><%= player.name %></span>
+
+  <% if (player.teamCaptain) { %><span class="roster-flag captain">Capt</span><% } %>
+  <%# One flag for the secretary roles: 10 of the league's 14 officers hold both, and two
+      flags plus Capt squeezed the name out of a half-width card entirely. %>
+  <% if (player.clubSecretary || player.matchSecretary) {
+       const roles = [player.clubSecretary && 'club secretary', player.matchSecretary && 'match secretary'].filter(Boolean); %>
+    <span class="roster-flag official" title="<%= roles.join(' and ') %>"><%= roles.length > 1 ? 'Secretary' : (player.clubSecretary ? 'Club sec' : 'Match sec') %></span>
+  <% } %>
+
+  <% if (contacts) { %>
+    <span class="roster-contact">
+      <% if (player.tel) { %>
+        <a href="tel:<%= player.tel.replace(/[^0-9+]/g, '') %>" title="Call <%= player.name %> on <%= player.tel %>">
+          <i class="fa fa-phone" aria-hidden="true"></i><span class="visually-hidden">Call <%= player.name %></span>
+        </a>
+      <% } else { %>
+        <span class="missing" title="No phone number on file"><i class="fa fa-phone" aria-hidden="true"></i></span>
+      <% } %>
+      <% if (player.email) { %>
+        <a href="mailto:<%= player.email %>" title="Email <%= player.name %> at <%= player.email %>">
+          <i class="fa fa-envelope" aria-hidden="true"></i><span class="visually-hidden">Email <%= player.name %></span>
+        </a>
+      <% } else { %>
+        <span class="missing" title="No email address on file"><i class="fa fa-envelope" aria-hidden="true"></i></span>
+      <% } %>
+    </span>
+  <% } %>
+
+  <% if (editable) { %>
+    <button type="button" class="row-menu-btn" aria-haspopup="true" aria-expanded="false"
+            aria-label="Actions for <%= player.name %>">
+      <i class="fa fa-ellipsis-v" aria-hidden="true"></i>
+    </button>
+  <% } %>
+</li>

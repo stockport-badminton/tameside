@@ -1,0 +1,64 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<%#
+  A club's registered players, read-only — what a club admin sees (decided 11 Oct 2026:
+  club admins view, only a superadmin changes anything). Contact details are shown to
+  that club's admins; views/privacy.ejs says so. Ported from Stockport's views/roster.ejs.
+%>
+
+<div class="roster-page">
+  <div class="roster-head">
+    <div>
+      <h1><%= clubName %></h1>
+      <div class="roster-sub">Registered players and nominated order</div>
+    </div>
+    <div class="roster-actions">
+      <a class="btn btn-outline-secondary btn-sm"
+         href="/forms/team-registration/<%= encodeURIComponent(clubName) %>/docx">
+        <i class="fa fa-download" aria-hidden="true"></i> Registration form (Word)
+      </a>
+      <a class="btn btn-outline-secondary btn-sm"
+         href="/forms/team-registration/<%= encodeURIComponent(clubName) %>/prefilled">
+        <i class="fa fa-download" aria-hidden="true"></i> Registration form (PDF)
+      </a>
+      <% if (canEdit) { %>
+        <a class="btn btn-primary btn-sm"
+           href="/manage-players/club-<%= encodeURIComponent(clubName) %>/edit">
+          <i class="fa fa-pen" aria-hidden="true"></i> Manage players
+        </a>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="roster-summary">
+    <div class="roster-stat"><span class="n"><%= summary.players %></span><span class="l">Players</span></div>
+    <div class="roster-stat"><span class="n"><%= summary.teams %></span><span class="l">Teams</span></div>
+    <div class="roster-stat"><span class="n"><%= summary.nominated %></span><span class="l">Nominated</span></div>
+    <div class="roster-stat"><span class="n"><%= summary.reserves %></span><span class="l">Reserves</span></div>
+    <div class="roster-stat<%= summary.noContact ? ' flag' : '' %>">
+      <span class="n"><%= summary.noContact %></span><span class="l">No contact</span>
+    </div>
+  </div>
+
+  <% if (summary.noContact > 0) { %>
+    <p class="text-muted small">
+      <i class="fa fa-circle-info" aria-hidden="true"></i>
+      <%= summary.noContact %> <%= summary.noContact === 1 ? 'player has' : 'players have' %>
+      no phone number or email on file. Grey icons mark them.
+    </p>
+  <% } %>
+  <% if (!canEdit) { %>
+    <p class="text-muted small">
+      To change who is registered or the nominated order, contact the results secretary.
+    </p>
+  <% } %>
+
+  <div class="roster-grid">
+    <% teamCards.forEach(function(team) { %>
+      <%- include('partials/roster-team-card.ejs', { team: team, editable: false, contacts: true }) %>
+    <% }) %>
+  </div>
+</div>
+
+<%- include('footer.ejs') %>

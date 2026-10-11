@@ -1,0 +1,509 @@
+/* Team management — a club's read-only roster and the results secretary's editor.
+ *
+ * Ported from Stockport's static/beta/css/roster.css (Oct 2026) and kept close to it, so
+ * fixes there apply here. Loaded only by the roster pages: rosterController renders them
+ * with `useRosterCss`, which views/header.ejs turns into a hashed <link>. The `.fa` and
+ * `.starter-template` overrides below were written for Stockport's custom.css; they are
+ * harmless here and kept for the same reason.
+ *
+ * The page this replaced laid a club's teams out as `<div class="container row">`
+ * with a bare `.col` per team: a flex row with no wrap and no breakpoint, so five
+ * teams always shared one row and got about 60px each on a phone. Here the cards
+ * are a grid that actually reflows, and men/ladies stack below 768px instead of
+ * being permanently half-width.
+ */
+
+.roster-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  /* More than the fixed footer is tall (~70px, and the Facebook widget in it more), or
+   * the last row of a long table sits underneath it and cannot be clicked. */
+  padding: 0 12px 110px;
+  /* nav.ejs wraps every page in `.starter-template row`, which sets
+   * `text-align: center` — so player names sat centred in their rows and the
+   * headings drifted to the middle. A roster is a list you scan down the left edge.
+   * Overridden here rather than in custom.css, which 40-odd other pages rely on.
+   * `width: 100%` because that wrapper is also a Bootstrap flex row. */
+  text-align: left;
+  width: 100%;
+}
+
+/* custom.css styles `.fa, .fa-brands` globally for the footer's social icons —
+ * `font-size: 30px; padding: 10px; float: right; margin: 5px` — and that lands on
+ * every Font Awesome icon on the site. Inside a button it makes a 30px glyph float
+ * away from its own label, which is why the old team page carried
+ * `.add-player-box .fa, .player-box .fa { font-size:16px; position:absolute; }` as
+ * a workaround. Rather than change a rule 40-odd other pages depend on, undo it for
+ * this page's icons: here an icon is a glyph next to a word, at the size of the
+ * word. */
+.roster-page .fa,
+.roster-page .fas,
+.roster-page .far,
+.roster-page .fa-solid,
+.roster-page .fa-regular {
+  float: none;
+  padding: 0;
+  margin: 0;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  display: inline-block;
+  width: auto;
+  vertical-align: baseline;
+}
+
+.roster-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 20px;
+  margin: 18px 0 14px;
+}
+.roster-head h1 {
+  margin: 0;
+  font-size: 1.9rem;
+  line-height: 1.1;
+}
+.roster-head .roster-sub {
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+.roster-head .roster-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---- summary strip ---- */
+/* Flex rather than grid: an auto-fit grid left a bare grey cell at the end of the
+ * last row whenever the stat count didn't divide by the column count — five stats in
+ * three columns on a phone. Flex items stretch to fill instead. */
+.roster-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  background: #dee2e6;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.roster-stat {
+  background: #fff;
+  padding: 8px 12px;
+  flex: 1 1 88px;
+}
+.roster-stat .n {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: 600;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.roster-stat .l {
+  display: block;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6c757d;
+}
+.roster-stat.flag .n { color: #b4622c; }
+
+/* ---- team cards ---- */
+.roster-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+/* Two cards abreast needs room for four name columns, not two — each card splits
+ * again into men and ladies inside. At the 992px this used to use, a name column was
+ * about 235px and 13 of one club's 50 names ellipsised; at 1200px it is about 290px
+ * and only the longest names carrying an officer flag still clip. */
+@media (min-width: 1200px) {
+  .roster-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* No `overflow: hidden` here, deliberately. The row menu is absolutely positioned
+ * inside its own row, so clipping the card cut it off for every player in the
+ * bottom half of a team — the rows a captain reorders most. The head's grey band
+ * gets explicit top corners instead, which is all the clipping was buying. */
+.roster-card {
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+  background: #fff;
+  min-width: 0;
+}
+.roster-card-head {
+  border-radius: 4px 4px 0 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 10px 12px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+}
+.roster-card-head .team-name {
+  font-weight: 600;
+  font-size: 1.02rem;
+  margin: 0;
+}
+.roster-card-head .division {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #495057;
+  border: 1px solid #ced4da;
+  border-radius: 20px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.roster-card-head .spacer { flex: 1 1 auto; }
+.roster-card-head .team-count {
+  font-size: 0.78rem;
+  color: #6c757d;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Men | Ladies. Two columns where there's room, stacked on a phone — the old page
+ * used col-6 unconditionally, so both halves were always cramped. */
+.roster-genders {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 768px) {
+  .roster-genders { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .roster-genders > .roster-gender + .roster-gender { border-left: 1px solid #e9ecef; }
+}
+.roster-gender { min-width: 0; padding-bottom: 4px; }
+.roster-genders > .roster-gender + .roster-gender { border-top: 1px solid #e9ecef; }
+@media (min-width: 768px) {
+  .roster-genders > .roster-gender + .roster-gender { border-top: none; }
+}
+
+.roster-section-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px 4px;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #6c757d;
+}
+.roster-section-label .hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.72rem;
+}
+
+.roster-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* The gap and the rank column are deliberately tight. Two cards side by side at
+ * 1280px leaves each gender column about 289px, and the handle, rank and menu
+ * button take a fixed slice of that — at gap: 8px and a 22px rank the longest name
+ * in the league ("Prem Chandar-Anandan") ellipsised with 6px to spare. Names also
+ * carry a title attribute, so anything that does clip is still readable. */
+.roster-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-top: 1px solid #f1f3f5;
+  min-height: 40px;
+}
+.roster-list .roster-row:first-child { border-top: none; }
+
+.roster-row .rank {
+  flex: none;
+  width: 20px;
+  text-align: right;
+  font-size: 0.8rem;
+  color: #6c757d;
+  font-variant-numeric: tabular-nums;
+}
+.roster-row .player-name {
+  flex: 1 1 auto;
+  /* Never squeezed to nothing by the flags beside it (it was, with three of them). */
+  min-width: 5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.94rem;
+}
+.roster-row.is-reserve { background: #fbfbfc; }
+
+/* Flags. Bootstrap's badge classes are close, but these need to stay legible at
+ * 0.62rem next to a name that may be ellipsised. */
+.roster-flag {
+  /* Shrinks (with an ellipsis) before the name or the row menu can be pushed out of a
+   * half-width card: a captain who is also a secretary carries two flags. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.roster-flag.junior { color: #b4622c; }
+.roster-flag.captain { color: #0e6f5c; }
+.roster-flag.official { color: #495057; }
+
+.roster-contact {
+  flex: none;
+  display: flex;
+  gap: 6px;
+}
+.roster-contact a {
+  color: #6c757d;
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 3px;
+  font-size: 0.85rem;
+}
+.roster-contact a:hover { background: #f1f3f5; color: #0e6f5c; }
+.roster-contact .missing { color: #ced4da; cursor: default; }
+
+.roster-empty {
+  padding: 8px 12px 10px;
+  color: #adb5bd;
+  font-size: 0.84rem;
+  font-style: italic;
+}
+
+/* ---- editor-only ---- */
+.roster-row .drag-handle {
+  flex: none;
+  width: 30px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #adb5bd;
+  border-radius: 3px;
+  cursor: grab;
+  /* Without this the browser scrolls the page instead of giving us the
+   * pointermove events, which is the whole reason the old drag-and-drop did
+   * nothing on a phone. */
+  touch-action: none;
+}
+.roster-row .drag-handle:hover { background: #f1f3f5; color: #495057; }
+.roster-row .drag-handle:active { cursor: grabbing; }
+
+.roster-row .row-menu-btn {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #6c757d;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.roster-row .row-menu-btn:hover { background: #f1f3f5; color: #212529; }
+
+.roster-row.grabbed {
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.17);
+  border-radius: 4px;
+  position: relative;
+  z-index: 5;
+}
+.roster-row.grabbed .rank { color: #0e6f5c; font-weight: 700; }
+.roster-row.moved .rank::after {
+  content: "\2022";
+  color: #b4622c;
+  margin-left: 1px;
+}
+
+.roster-list.drop-active {
+  background: #f4faf8;
+  outline: 1px dashed #0e6f5c;
+  outline-offset: -1px;
+}
+/* An empty list is 0px tall and therefore impossible to drop into. */
+.roster-list.is-empty-target { min-height: 38px; }
+
+.roster-add {
+  padding: 8px 12px 10px;
+}
+
+/* ---- save bar ---- */
+.roster-savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #b4622c;
+  border-radius: 5px;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+}
+.roster-savebar[hidden] { display: none; }
+.roster-savebar .msg { font-weight: 600; color: #8a4a1f; }
+.roster-savebar .spacer { flex: 1 1 auto; }
+
+/* ---- row menu ---- */
+/* The row is the anchor, and it has to out-rank the cards after it in the grid and
+ * the sticky save bar (z-index 30) while its menu is open. */
+.roster-row.has-menu {
+  position: relative;
+  z-index: 41;
+}
+.roster-menu {
+  position: absolute;
+  right: 6px;
+  top: 100%;
+  min-width: 190px;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 4px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+}
+/* Opened upwards when the row is close to the bottom of the window — the card no
+ * longer clips the menu, but the viewport still does. */
+.roster-menu.drop-up {
+  top: auto;
+  bottom: 100%;
+}
+.roster-menu button {
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 3px;
+  font-size: 0.88rem;
+  color: #212529;
+  cursor: pointer;
+}
+.roster-menu button:hover { background: #f1f3f5; }
+.roster-menu button:disabled { color: #adb5bd; cursor: default; background: transparent; }
+.roster-menu button.danger { color: #a32a22; }
+.roster-menu hr { margin: 4px 0; border: none; border-top: 1px solid #e9ecef; }
+
+/* ---- toast ---- */
+.roster-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%) translateY(10px);
+  max-width: min(520px, calc(100vw - 32px));
+  background: #212529;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 22px;
+  font-size: 0.88rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 1080;
+}
+.roster-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+.roster-toast.error { background: #a32a22; }
+.roster-toast button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: #fff;
+  border-radius: 16px;
+  font-size: 0.78rem;
+  padding: 2px 10px;
+  margin-left: 10px;
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .roster-toast { transition: none; }
+}
+
+/* ---- add / transfer panel ---- */
+.roster-finder .result-group + .result-group { margin-top: 14px; }
+.roster-finder .result-group h6 {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6c757d;
+  margin-bottom: 6px;
+}
+.roster-finder .candidate {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid #f1f3f5;
+}
+.roster-finder .candidate:first-of-type { border-top: none; }
+.roster-finder .candidate .who { flex: 1 1 auto; min-width: 0; }
+.roster-finder .candidate .who small { display: block; color: #6c757d; }
+.roster-finder .empty { color: #adb5bd; font-size: 0.86rem; font-style: italic; }
+
+/* Focus visibility. The old page's controls were bare <div>s and <i>s with click
+ * handlers, so there was nothing focusable to style. */
+.roster-page button:focus-visible,
+.roster-page a:focus-visible,
+.roster-page input:focus-visible,
+.roster-page select:focus-visible {
+  outline: 2px solid #b4622c;
+  outline-offset: 1px;
+}
+
+/* /admin/player-requests/:id — the email being worked through. Kept as the sender wrote
+   it (line breaks and all, since a pasted list is the thing being read), but scrollable
+   so a long thread does not push the people off the screen. */
+.player-request .request-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85rem;
+  max-height: 70vh;
+  overflow-y: auto;
+  margin-bottom: 0;
+}
+
+/* custom.css sets `.alert { height: 100% }` site-wide, and inside the flex row nav.ejs
+   wraps every page in, that stretches a one-line alert to fill the space — the
+   registration pages' warnings rendered as a tall empty yellow box. */
+.roster-page .alert {
+  height: auto;
+}
+
+/* /admin — the tool groups as columns that wrap: three across on a laptop, one on a
+   phone. Columns rather than cards so the whole page is scannable without scrolling. */
+.admin-hub-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px 32px;
+  margin-top: 8px;
+}
+.admin-hub-group h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+.admin-hub-group li { margin-bottom: 10px; }
+.admin-hub-group li > a { font-weight: 500; }

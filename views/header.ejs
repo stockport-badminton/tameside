@@ -194,6 +194,7 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
 
 <!-- Modern Styles - MUST come after Bootstrap -->
 <link rel="stylesheet" href="<%= assetUrl('/static/css/modern-styles.css') %>" type="text/css" />
+<% if (locals.useRosterCss) { %><link rel="stylesheet" href="<%= assetUrl('/static/css/roster.css') %>" type="text/css" /><% } %>
 
 <!-- DataTables styling, only on the handful of pages that build a DataTable.
      Those views opt in with include('header.ejs', { useDataTables: true }). -->

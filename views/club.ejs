@@ -127,7 +127,7 @@
                   <i class="fas fa-user-gear"></i> Admin
                 </div>
                 <div class="info-content">
-                  <a href="/manage-players/club-<%= row['name'] %>" class="btn-modern-secondary btn-sm">
+                  <a href="/manage-players/club-<%= encodeURIComponent(row['name']) %>" class="btn-modern-secondary btn-sm">
                     <i class="fas fa-users-gear"></i> Manage Players
                   </a>
                 </div>

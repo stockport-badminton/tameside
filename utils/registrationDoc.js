@@ -7,8 +7,8 @@
 //
 // TWO FORMATS, because clubs return both:
 //
-//   .docx  — an edited copy of the file controllers/playerController.js generates and
-//            views/team-admin.ejs links to. One table, and a very regular one.
+//   .docx  — an edited copy of the file utils/registrationDocx.js generates (the roster
+//            page links to it). One table, and a very regular one.
 //   .pdf   — the AcroForm at static/docs/Team Registration.pdf, filled in, as generated
 //            by controllers/documentsController.js.
 //

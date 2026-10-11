@@ -20,7 +20,7 @@
 //     "Chandar-Anandan" = "Chandar Anandan", "Zoë" = "Zoe".
 //
 // Ported from Stockport (league-site 90cb07f). Tameside had the same two holes: the
-// team-admin "add player" search (/players/matching) only looked at names starting with
+// old team-admin "add player" search (/players/matching, since retired) only looked at names starting with
 // the same LETTER as the query, then allowed 10 edits over the whole name — so a typo in
 // the first letter found nobody, and a short name found strangers — and nothing checked
 // for an existing player before creating one.

@@ -15,16 +15,19 @@ npm start          # Production start (node server.js)
 
 ```bash
 npm test           # Unit/integration tests (node:test + supertest), no browser
-npm run test:e2e    # Playwright — email-scorecard wizard only (see below)
+npm run test:e2e    # Playwright — the scorecard wizard and the roster editor (see below)
 ```
 
 `test.js` in the root is an unrelated manual scratch file (not part of either suite).
 
-Playwright (`test/e2e/`) is scoped to the email-scorecard entry wizard specifically —
-step navigation, live score validation, and OCR-photo reuse — not the whole site. It
-boots the real server via `playwright.config.js`'s `webServer` (`DEV_MODE=true
-NODE_ENV=development` on port 8199) and drives a real Chromium browser against it,
-so it needs the real dev DB for the AJAX team/player cascades (reads only, no writes).
+Playwright (`test/e2e/`) covers the two pages whose behaviour lives in browser JS — the
+email-scorecard entry wizard (step navigation, live score validation, OCR-photo reuse) and
+the roster editor (drag on mouse and touch, keyboard, menu, Save/Discard) — not the whole
+site. It boots the real server via `playwright.config.js`'s `webServer` (`DEV_MODE=true
+NODE_ENV=development` on port 8199) and drives a real Chromium browser against it, so it
+reads the **production** database (there is no local one). Reads only: the roster spec's
+`test/e2e/helpers/read-only.js` aborts every write the page attempts, and the tests that
+exercise a write answer it themselves with `page.route` so it never reaches the server.
 
 ```bash
 # Docker build & run locally
@@ -1192,20 +1195,79 @@ that container* — and it was named after the first **team** (`GHAP`) while the
 `type: undefined`: the constant is `docx.WidthType.PERCENTAGE`, and the original used
 `docx.percentage` and `docx.PERCENTAGE`, neither of which exists.
 
-#### POST /player/batch-update
+#### POST /player/batch-update — gone
 
-Had **no auth gate and no validation**, and passed `req.body` straight into
-`Player.updateBulk` as `tablename` / `fields` / `data` — an unauthenticated *UPDATE any
-table SET any column WHERE id = any id*, `player.role` included. Identifiers are escaped by
-postgres.js so it wasn't SQL injection, which hardly helped.
+Once an unauthenticated *UPDATE any table SET any column WHERE id = any id*, then narrowed
+to the team-admin page's four columns, it was **deleted in Oct 2026** with that page (see
+**Club rosters**). `POST /player/:id` is constrained to `\d+` so the old URL 404s rather
+than landing there with `batch-update` as the id. `Player.updateBulk` stays: the
+registration import writes through it directly.
 
-**It is not redundant and must not be deleted**: `views/team-admin.ejs` (twice) and
-`views/AddCreatePlayerModal.ejs` all drive it for drag-and-drop reordering. So it is
-narrowed instead — `secured`, an allowlist of the one table and the four columns those
-callers use (`id`, `team`, `rank`, `club`), integer-and-shape validation, and club scope
-resolved **from the database, not the payload**, for the whole batch before any write. A
-player id that doesn't exist is a refusal, not a pass: a missing row has no club to compare
-and would otherwise fall past the scope check.
+### Club rosters (team management)
+
+`/manage-players` → `controllers/rosterController.js` + `models/roster.js` +
+`views/roster*.ejs` + `static/js/roster-edit.js` + `static/css/roster.css`. **Ported from
+Stockport in Oct 2026** (league-site `fe39772`, with their later fixes `06824a0`, `499a87a`,
+`b5a99744`), replacing `views/team-admin.ejs`, `AddCreatePlayerModal.ejs` and
+`POST /player/batch-update`. The DOM contract (`data-team` / `data-gender` / `data-section`)
+and most of the code are kept close to theirs on purpose, so their fixes apply here.
+
+**Access is narrower than Stockport's — decided 11 Oct 2026:**
+
+| Who | Sees | Changes |
+|---|---|---|
+| club admin | own club's roster at `/manage-players/club-:club`, **phone and email included** | nothing — "contact the results secretary" |
+| superadmin | the club picker, any roster, the editor (`…/edit`) | everything: reorder, move, remove, add, create, transfer |
+
+Every `/api/teams|players|roster/…` write carries `requireSuperAdmin` in `app.js`, so the
+controller does no club-scope check for writes. With no club-admin writes there are no
+transfer *requests*: Stockport's transfer email is not ported, and a superadmin's transfer is
+simply applied (as a reserve). Don't add club-admin write paths "for parity". The privacy page
+says that club officers can see their members' contact details.
+
+**Ranks** (`utils/rosterRank.js`): `1..n` nominated per (team, **gender**); reserves are
+**`>= 99`**, numbered 99, 100, 101… so their order can be saved; NULL is unplaced, treated as
+nominated. Test `isReserve(rank)`, never `rank == 99`: before the port every reserve was a flat
+99 and every reader compared with 99. Those readers were switched first, in their own deploy
+(`6a62ea5b`). The registration import still writes 99 for a reserve and doesn't record reserve
+order; the editor's next save of that team renumbers it.
+
+- **Rank planning is pure** (`planGender` / `planSection` / `appendRank`) and unit-tested in
+  `test/roster-model.test.js`; `applyRanks` writes the plan in one `unnest` UPDATE, guarded by
+  team and gender. **Section membership comes from the payload**, never the stored rank: deriving
+  it from the rank was Stockport's promoted-reserve bug (a save that wrote nothing and said ok).
+- **There is no local database, so the SQL is rehearsed against production and rolled back**:
+  `node tools/rehearse-roster.js [teamId]` runs reorder, promote, idempotent re-save, move,
+  release and create in one transaction, checks every list is left contiguous, and always
+  throws to roll back. Run it after changing `models/roster.js`. (It consumes two player-id
+  sequence values; nothing else persists.)
+- `/api/*` errors answer JSON (`app.js` central handler): a 4xx carries its message, a 5xx a
+  generic one plus Sentry. `securedApi` answers **401 JSON** rather than `secured`'s redirect —
+  fetch would follow that silently into the login page's HTML.
+
+Fixed rather than ported (Stockport still has these; worth telling them):
+
+- **Drag moves are heard on `window`, not the handle.** Moving a row in the DOM releases pointer
+  capture, so after the first swap the handle only hears the pointer while it is over it. At the
+  foot of the window the Save bar appears under the finger, the moves stop, and the drag freezes;
+  a release over the bar never ended it.
+- **Auto-scroll uses `scrollBy({behavior: 'instant'})`.** Bootstrap 5 sets
+  `scroll-behavior: smooth` on `:root` (their Bootstrap 4 doesn't), and a smooth scroll hasn't
+  moved `pageYOffset` when the editor reads it back. Same reason the e2e helpers scroll instantly.
+- Create and place are **one transaction** (theirs: two, so a failure between left a player on a
+  team with no rank); the player and team are resolved **inside** each write's transaction; a
+  placement always renumbers the destination, so NULL-ranked players can't share a rank.
+
+Smaller divergences: Bootstrap 5 markup and `bootstrap.Modal` (no jQuery in the editor at all);
+no `withdrawn` teams or `junior` column here; player 0 ("No Player") is excluded from every list
+read; the secretary roles share **one** flag because 10 of 14 officers hold both, and three flags
+squeezed the name out of a half-width card; the registration-form buttons use our own
+`/forms/team-registration/:club/docx` and `/prefilled`.
+
+Coverage: `test/roster-model.test.js` (planning), `test/integration/roster.test.js` (the access
+matrix, asserting a refused write never reached the model, plus the retired routes 404ing),
+`test/e2e/roster-edit.spec.js` (20 browser tests incl. a real touch drag and the edge auto-scroll),
+`test/roster-rank.test.js` (every reader with a reserve at 100).
 
 ### Missed three (rule 18)
 
@@ -1237,15 +1299,13 @@ the same person entered twice (Ed/Edward Higton, Wahab Siddiqi/Siddiqui, Lilly/L
 plus **25** exact same-name pairs. Those existing duplicates are not cleaned up — a separate
 decision.
 
-- `GET /players/matching/:name/:gender` (the team-admin add-player search) ranks every
-  player of that gender with it. It used to keep only names starting with the query's first
-  LETTER and accept 10 edits over the whole name.
+- The roster editor's add search (`GET /api/roster/club-:club/candidates`) ranks the whole
+  table with it, split into own club / no club / another club. (It replaced the public
+  `/players/matching`, which kept only names starting with the query's first LETTER.)
 - `GET /api/players/search` ranks with it too; still limited to players on a team in a
   division, which is what the ELO chart wants.
-- **`POST /manage-players/create` answers 409 with the likely matches** unless `confirmNew`
-  is sent; the modal asks first. It also checks club scope now (it was `secured` only, so
-  any member could create players at any club), trims names, and returns the `insertId`
-  the modal reads.
+- **Creating a player answers 409 with the likely matches** unless `confirmNew` is sent;
+  the editor asks first (`POST /api/roster/club-:club/players`).
 - `utils/scorecardMatch.js` (OCR and the registration import) is a different matcher for a
   different problem — noisy OCR text — and is untouched.
 

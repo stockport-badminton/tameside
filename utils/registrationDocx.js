@@ -1,15 +1,15 @@
 // The club's team registration form, as a Word document.
 //
 // This used to live inline in playerController.manage_player_list_clubs_teams, which
-// built the document as a SIDE EFFECT of rendering the team-admin page and wrote it to
+// built the document as a SIDE EFFECT of rendering the old team-admin page and wrote it to
 // `static/docs/<name>.docx` with fs.writeFileSync — so the "Download" link on that page
 // only worked if somebody had loaded the page first, on that container, and the
 // generated files kept turning up as untracked changes in git.
 //
 // It is here because the registration chase email attaches the same document, and an
 // email cannot wait for someone to visit a page. `build()` returns a Buffer; nothing in
-// this file touches the filesystem. The team-admin page keeps writing its copy, from
-// this same builder, so the two can never disagree about what a club is sent.
+// this file touches the filesystem. GET /forms/team-registration/:club/docx streams the
+// same build, so a download and an attachment can never disagree.
 //
 // THE FORMAT IS A CONTRACT. utils/registrationDoc.js parses these documents back when a
 // club returns one, and utils/registrationDiff.js turns that into changes. In particular:
@@ -55,8 +55,8 @@ const PARAGRAPH_STYLES = [
 // Historically this was `teamNames[0]` with its last two characters chopped off, which
 // works for "Hyde A" and produces "Alderley Park " (trailing space) for the league's one
 // team not named "<club> <letter>". The club's own name is passed in where the caller
-// has it — the team-admin page's Download link still resolves the old way, so that
-// spelling is kept as the fallback rather than silently renaming seven committed files.
+// has it; the old spelling is kept as the fallback rather than silently renaming seven
+// committed files.
 function docBaseName(teamNames, clubName) {
   if (clubName) return String(clubName);
   const first = String((teamNames && teamNames[0]) || '');
@@ -77,8 +77,7 @@ function bucketsFor(rows, teamName) {
   };
 }
 
-// The structure the team-admin page renders, built from the same buckets as the document
-// so the screen and the form a club receives cannot drift apart.
+// The team blocks the document lays out, built from the same buckets as everything else.
 function teamBlocks(rows, teamNames, teamIds) {
   teamNames = teamNames || pluck(rows, 'teamName').filter(unique);
   teamIds = teamIds || pluck(rows, 'teamId').filter(unique);

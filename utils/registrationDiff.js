@@ -274,8 +274,8 @@ function diffRegistration(parsed, ctx) {
   // these are never pre-ticked in the review, and the count is shown prominently.
   //
   // "Remove" does NOT delete anybody. It parks the row at the placeholder club/team
-  // ("No Club" / "No Team", rank 99), which is exactly what the existing team-admin
-  // remove button already does and is fully reversible. That is also why 486 of the
+  // ("No Club" / "No Team", rank 99), which is exactly what the roster editor's Remove
+  // does and is fully reversible. That is also why 486 of the
   // 1,138 players in the table sit at "No Club": it is the league's archive, not a bin.
   for (const p of ctx.roster || []) {
     if (matchedPlayerIds.has(Number(p.id))) continue;

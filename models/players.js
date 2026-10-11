@@ -1235,28 +1235,6 @@ exports.searchRosterOutsideClub = async function(clubId){
     where p.club is distinct from ${clubId}`;
 }
 
-// The club each of these player ids belongs to, for authorizing a bulk write before
-// any of it runs. Returns clubName as well as the id because the club claim used for
-// per-row authorization is a club *name* — see utils/authz.hasClubAccess.
-//
-// One query for the whole batch rather than one per id: /player/batch-update is used by
-// the team-admin drag-and-drop, which sends a whole team's worth of rows at once, and a
-// per-row lookup would be a round trip per player on a screen that fires on every drop.
-//
-// Rows that do not exist simply come back absent, which the caller must treat as a
-// refusal rather than as "no club to check".
-exports.getClubsForPlayerIds = async function(ids, done){
-  try {
-    if (!Array.isArray(ids) || !ids.length) return done(null, []);
-    const result = await sql`
-      select player.id, player.club, club.name as "clubName"
-      from player left join club on club.id = player.club
-      where player.id = any(${ids})`;
-    return done(null, result);
-  } catch (err) {
-    return done(err);
-  }
-}
 
 exports.getPlayerDetailsbyId = async function(playerId, done){
   // clubName (not just the club id) because the club claim used for per-row

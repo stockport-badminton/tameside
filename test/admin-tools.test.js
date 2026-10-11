@@ -39,8 +39,10 @@ it('the shortlist is built from tools that exist', () => {
 
 // Every superadmin link the dropdown carried before the shortlist (2026-10-02), so cutting
 // the menu cannot quietly drop one.
+// (Team Management linked to /manage-players/club-Aerospace — one club standing in for a
+// picker — until the roster port of Oct 2026 gave it /manage-players.)
 const FORMER_MENU = [
-  '/manage-players/club-Aerospace', '/static/docs/Team Registration.pdf',
+  '/manage-players', '/static/docs/Team Registration.pdf',
   '/forms/team-registration/Aerospace/prefilled', '/admin/team-registrations',
   '/admin/registration-reminders', '/admin/missed-three', '/fixture-players', '/played-up-counts',
   '/player-stats', '/pair-stats', '/players/eloBackfillAdmin', '/admin/homepage-content',

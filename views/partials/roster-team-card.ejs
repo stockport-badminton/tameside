@@ -1,0 +1,73 @@
+<%#
+  One team's registrations. Shared by roster.ejs (read-only) and roster-edit.ejs so the
+  two views can't drift apart. Ported from Stockport's views/roster-team-card.ejs; the
+  data-team / data-gender / data-section contract is theirs, kept so their fixes apply here.
+
+  Locals:
+    team      — a card from rosterController.groupByTeam
+    editable  — drag handles, row menu, Add buttons
+    contacts  — tap-to-call / mail links
+
+  Ranks are per (team, gender): a team's number 1 man and number 1 lady both hold rank 1,
+  so men and ladies are separate numbered lists. `position` (not the stored rank) is what
+  shows — stored ranks can still have the old page's gaps until the team is first saved.
+%>
+<div class="roster-card" data-team-id="<%= team.id %>" data-team-name="<%= team.name %>">
+  <div class="roster-card-head">
+    <h2 class="team-name"><%= team.name %></h2>
+    <% if (team.divisionName) { %>
+      <span class="division"><%= team.divisionName %></span>
+    <% } %>
+    <span class="spacer"></span>
+    <span class="team-count">
+      <%= team.counts.nominated %> nominated<% if (team.counts.reserve) { %> · <%= team.counts.reserve %> reserve<% } %>
+    </span>
+  </div>
+
+  <div class="roster-genders">
+    <% ['Male', 'Female'].forEach(function(gender) {
+         const genderLabel = gender === 'Male' ? 'Men' : 'Ladies';
+    %>
+      <div class="roster-gender">
+        <div class="roster-section-label">
+          <span>Nominated <%= genderLabel %></span>
+          <span><%= team.nominated[gender].length %></span>
+        </div>
+        <ul class="roster-list<%= team.nominated[gender].length ? '' : ' is-empty-target' %>"
+            data-team="<%= team.id %>" data-gender="<%= gender %>" data-section="nominated">
+          <% team.nominated[gender].forEach(function(player) { %>
+            <%- include('roster-row.ejs', { player: player, editable: editable, contacts: contacts, reserve: false }) %>
+          <% }) %>
+        </ul>
+        <% if (!team.nominated[gender].length && !editable) { %>
+          <p class="roster-empty">None nominated</p>
+        <% } %>
+
+        <div class="roster-section-label">
+          <span>Reserve <%= genderLabel %></span>
+          <span><%= team.reserve[gender].length %></span>
+        </div>
+        <ul class="roster-list<%= team.reserve[gender].length ? '' : ' is-empty-target' %>"
+            data-team="<%= team.id %>" data-gender="<%= gender %>" data-section="reserve">
+          <% team.reserve[gender].forEach(function(player) { %>
+            <%- include('roster-row.ejs', { player: player, editable: editable, contacts: contacts, reserve: true }) %>
+          <% }) %>
+        </ul>
+        <% if (!team.reserve[gender].length && !editable) { %>
+          <p class="roster-empty">No reserves</p>
+        <% } %>
+
+        <% if (editable) { %>
+          <div class="roster-add">
+            <button type="button" class="btn btn-sm btn-outline-success roster-add-btn"
+                    data-team="<%= team.id %>" data-team-name="<%= team.name %>"
+                    data-gender="<%= gender %>">
+              <i class="fa fa-user-plus" aria-hidden="true"></i>
+              Add <%= gender === 'Male' ? 'a man' : 'a lady' %>
+            </button>
+          </div>
+        <% } %>
+      </div>
+    <% }) %>
+  </div>
+</div>
