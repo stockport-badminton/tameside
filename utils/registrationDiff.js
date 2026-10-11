@@ -9,7 +9,7 @@
 //
 // The form gives each player a name, a gender column, and a letter. The letter is either
 // a team letter ('A', 'B', …) or 'R' for reserve. The database stores the same facts as
-// `player.team` (a team id) and `player.rank` (99 for a reserve, otherwise the player's
+// `player.team` (a team id) and `player.rank` (>= 99 for a reserve — see utils/rosterRank —, otherwise the player's
 // position in that team-and-gender's order). So:
 //
 //   nominated:  team = the team whose name ends in that letter
@@ -41,8 +41,9 @@
 
 const { scoreCandidate, tokenise, normalise } = require('./scorecardMatch');
 
-// A reserve's rank. Matches documentsController's own test (`Number(r.rank) !== 99`).
-const RESERVE_RANK = 99;
+// The rank the import writes for a reserve. Reading one back is `isReserve` (>= 99): the
+// roster editor numbers reserves 99, 100, 101… to keep their order.
+const { RESERVE_BASE: RESERVE_RANK, isReserve: isReserveRank } = require('./rosterRank');
 
 // Fuzzy threshold for a *typed* name, deliberately much higher than
 // scorecardMatch.MATCH_THRESHOLD (0.55), which is tuned for handwriting read by OCR.
@@ -240,9 +241,11 @@ function diffRegistration(parsed, ctx) {
 
     // In the club already: what, if anything, moved?
     const teamChanged = player.teamId !== Number(team.id);
-    const rankChanged = player.rank !== rank;
-    const wasReserve = player.rank === RESERVE_RANK;
-    const isReserve = rank === RESERVE_RANK;
+    const wasReserve = isReserveRank(player.rank);
+    const isReserve = isReserveRank(rank);
+    // The form doesn't record an order among reserves, so a reserve still a reserve hasn't
+    // changed — whichever of 99, 100, 101… the editor gave them.
+    const rankChanged = wasReserve && isReserve ? false : Number(player.rank) !== rank;
 
     if (!teamChanged && !rankChanged) {
       changes.push({ ...base, kind: 'unchanged', player, matchNote, detail: null });
@@ -291,7 +294,7 @@ function diffRegistration(parsed, ctx) {
         rank: p.rank == null ? null : Number(p.rank),
       },
       matchNote: null,
-      detail: `${playerLabel(p)} (${p.teamName || 'no team'}${Number(p.rank) === RESERVE_RANK ? ', reserve' : ', no. ' + p.rank}) is not on the form.`,
+      detail: `${playerLabel(p)} (${p.teamName || 'no team'}${isReserveRank(p.rank) ? ', reserve' : ', no. ' + p.rank}) is not on the form.`,
     });
   }
 

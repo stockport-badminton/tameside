@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { isReserve } = require('../utils/rosterRank');
 const path = require('path');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const Player = require('../models/players');
@@ -42,12 +43,12 @@ function nominatedField(gender, letter, rowIndex) {
 }
 
 // Splits a club's players into per-letter nominated ladies/men and pooled
-// reserve ladies/men, each rank-ordered. NB: player.rank comes back from
-// postgres.js as a string ("99"), so coerce before the reserve test.
+// reserve ladies/men, each rank-ordered. A reserve is rank >= 99 (utils/rosterRank);
+// player.rank comes back from postgres.js as a string, which isReserve handles.
 function organiseRoster(rows) {
   const byRank = (a, b) => Number(a.rank) - Number(b.rank);
-  const nominated = rows.filter(r => Number(r.rank) !== 99);
-  const reserves = rows.filter(r => Number(r.rank) === 99);
+  const nominated = rows.filter(r => !isReserve(r.rank));
+  const reserves = rows.filter(r => isReserve(r.rank));
 
   const teamLadies = {}, teamMen = {};
   nominated.forEach(r => {
@@ -265,3 +266,4 @@ exports.teamRegistrationFormPrefilled = async function(req, res, next) {
     next(err);
   }
 };
+exports._organiseRosterForTesting = organiseRoster;

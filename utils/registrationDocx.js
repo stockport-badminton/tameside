@@ -22,6 +22,7 @@
 // So a change to the table shape here is a change to what the import screen reads.
 
 const docx = require('docx');
+const { isReserve } = require('./rosterRank');
 // Field `key` from every row that has it — what `jsonpath`'s `$..key` did over these flat
 // query rows. jsonpath is gone: it has an unfixable advisory (via underscore), and the
 // filter below used to be a JSONPath expression with the team name INTERPOLATED into it,
@@ -62,13 +63,12 @@ function docBaseName(teamNames, clubName) {
   return first.substring(0, Math.max(0, first.length - 2));
 }
 
-// Split a team's players into the four buckets the form lays out. rank 99 is a reserve;
-// everything else is nominated, and the row order the query returned is the rank order.
+// Split a team's players into the four buckets the form lays out. A reserve is rank >= 99
+// (utils/rosterRank); everything else is nominated, and the row order the query returned is
+// the rank order.
 function bucketsFor(rows, teamName) {
-  // Loose `!=`/`==` on rank, exactly as the JSONPath filter compared it: rank can arrive as
-  // a number or a string.
   const q = (reserve, gender) => rows.filter(r => r && r.teamName == teamName
-    && (reserve ? r.rank == 99 : r.rank != 99) && r.gender == gender);
+    && isReserve(r.rank) === reserve && r.gender == gender);
   return {
     nomMen: q(false, 'Male'),
     nomLadies: q(false, 'Female'),

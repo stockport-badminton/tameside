@@ -15,8 +15,9 @@ const { sql } = require('../utils/db_connect');
 const seasonModel = require('./season');
 const { NO_CLUB_ID, mergeOfficers } = require('./clubRegistration');
 
-// A reserve's rank. Everything else — including NULL — is a nominated player.
-const RESERVE_RANK = 99;
+// Reserves are rank >= 99 (utils/rosterRank). Everything else — including NULL — is a
+// nominated player.
+const { RESERVE_BASE: RESERVE_RANK } = require('../utils/rosterRank');
 // A full side of a team's own players. A team that fielded this many of its own men AND
 // ladies across its last three matches had no gap a nominated player left; one that
 // borrowed while a nominated player sat out is what the rule is about.
@@ -84,7 +85,7 @@ SELECT t.id AS "teamId", t.name AS "teamName", t.club AS "clubId", t.rank AS "te
          ORDER BY n.rank, n.id LIMIT 1) AS "nextTeamName"
   FROM team_filtered t
   JOIN teams_with_three twt ON twt.team_id = t.id
-  JOIN player p ON p.team = t.id AND p.id <> 0 AND (p.rank IS NULL OR p.rank <> ${RESERVE_RANK})
+  JOIN player p ON p.team = t.id AND p.id <> 0 AND (p.rank IS NULL OR p.rank < ${RESERVE_RANK})
   LEFT JOIN appearances a ON a.team_id = t.id AND a.player_id = p.id
   LEFT JOIN own_used ou ON ou.team_id = t.id
  WHERE t.club_team_count > 1
