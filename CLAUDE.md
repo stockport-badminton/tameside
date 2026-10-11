@@ -1245,7 +1245,8 @@ order; the editor's next save of that team renumbers it.
   generic one plus Sentry. `securedApi` answers **401 JSON** rather than `secured`'s redirect —
   fetch would follow that silently into the login page's HTML.
 
-Fixed rather than ported (Stockport still has these; worth telling them):
+Fixed rather than ported. All but the auto-scroll one are faults in Stockport's copy too,
+worth telling them; the auto-scroll one is ours alone (Bootstrap 5):
 
 - **Drag moves are heard on `window`, not the handle.** Moving a row in the DOM releases pointer
   capture, so after the first swap the handle only hears the pointer while it is over it. At the

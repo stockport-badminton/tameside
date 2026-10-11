@@ -10,9 +10,9 @@
  *     page, and they are who approves transfers. So the button says "Transfer here".
  *   - A 401 is a JSON answer here (securedApi in app.js), so the expired-session message
  *     below is actually reachable; on the Stockport side fetch follows a redirect instead.
- *   - Two drag fixes found in the port, both also present in Stockport's copy: drag moves
- *     are heard on the window rather than the handle (see onHandleDown), and auto-scroll
- *     scrolls with behavior 'instant' (see autoScroll).
+ *   - Two drag fixes found in the port: drag moves are heard on the window rather than the
+ *     handle (see onHandleDown) — a bug Stockport's copy has too — and auto-scroll scrolls
+ *     with behavior 'instant' (see autoScroll), which only Bootstrap 5's smooth scrolling needs.
  *
  * What this replaces, and why it's built this way:
  *
