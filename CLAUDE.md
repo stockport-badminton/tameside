@@ -969,11 +969,11 @@ those cards are 4:5, not 9:16) and the weekly video (`video_stories`). It is a f
   it is the last entry in `configuredTargets()`. **Last on purpose**: the targets run in order
   inside one request with a 60s ceiling, so a slow story can only ever cost itself (a 207 with the
   feed posted), never a feed post.
-- **Built from Meta's docs with nothing published for real**, on either site. `photo_stories`
-  takes an unpublished photo's id, so the upload half is the usual free step, but the publish
-  half has no dry run — **the first post after switching it on is the measurement**. Watch the
-  first weekly tables post's duration too: the story adds parallel uploads and one publish call
-  per card to a request that is already the slowest of the three.
+- **Switched on 11 Oct 2026 (revision `tameside-site-00313-jjn`) and confirmed working**: the
+  first Page stories published, and the weekly fixtures post went out with its story frames as
+  expected — the first real use of `photo_stories` on either site. There is still no dry run for
+  the publish half. Not yet observed: the weekly tables post's duration with the story added (one
+  publish call per card on the slowest of the three requests), and the first video story.
 - The video story is three calls (`start`, then Meta fetches our `file_url` via the returned
   rupload URL, then `finish`). That upload has its own **25s** budget, so a slow fetch fails the
   story target rather than the request. It is `fetch`, not Stockport's axios, and checks the
