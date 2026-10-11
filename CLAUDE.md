@@ -957,6 +957,29 @@ story card was accepted on our Page token with no new permission.
   caption — a story shows none, so everything it says is in the pixels. A published story
   reads back as `media_type` IMAGE; only `media_product_type` says STORY.
 
+#### Facebook Page stories, behind `SOCIAL_POST_FB_STORY`
+
+Ported from Stockport `b79b221`, 11 Oct 2026. With `SOCIAL_POST_FB_STORY=true` **every Facebook
+Page post also goes out as a Page story**: the result (its 9:16 story card — also when the
+Instagram story is off), the weekly tables and fixtures (one frame per card, in division order;
+those cards are 4:5, not 9:16) and the weekly video (`video_stories`). It is a fourth target,
+`page-story`, reported apart from the feed post. **Unset posts none.**
+
+- **`metaPublisher.pageStoryTarget()` is the one switch**, and it reaches all four posts because
+  it is the last entry in `configuredTargets()`. **Last on purpose**: the targets run in order
+  inside one request with a 60s ceiling, so a slow story can only ever cost itself (a 207 with the
+  feed posted), never a feed post.
+- **Built from Meta's docs with nothing published for real**, on either site. `photo_stories`
+  takes an unpublished photo's id, so the upload half is the usual free step, but the publish
+  half has no dry run — **the first post after switching it on is the measurement**. Watch the
+  first weekly tables post's duration too: the story adds parallel uploads and one publish call
+  per card to a request that is already the slowest of the three.
+- The video story is three calls (`start`, then Meta fetches our `file_url` via the returned
+  rupload URL, then `finish`). That upload has its own **25s** budget, so a slow fetch fails the
+  story target rather than the request. It is `fetch`, not Stockport's axios, and checks the
+  status itself — a refused upload would otherwise go on to `finish` a video Meta never received.
+- `test/social-fb-story.test.js` runs it all against a fake Graph API.
+
 #### The other two weekly posts: fixtures, and the results video
 
 Added 21 Sep 2026. Three scheduled social posts now, all the same shape
@@ -1539,6 +1562,8 @@ MAILJET_WEBHOOK_TOKEN  # Shared secret in the Mailjet event-callback URL
                    # (/webhooks/mailjet?t=...). Unset means the route 404s, i.e. inert.
                    # See docs/email-deliverability.md.
 SOCIAL_WEEKLY_FIXTURES_TOKEN  # Shared secret for the weekly fixtures post's scheduler job.
+SOCIAL_POST_FB_STORY  # 'true' also posts every Facebook Page post as a Page story. Unset
+                   # posts none. See "Facebook Page stories" above.
 SOCIAL_WEEKLY_VIDEO_TOKEN     # Shared secret for BOTH weekly-video routes (generate and
                    # post). Unset means that post is inert. One token per post rather than
                    # a shared one, so a post can be turned off on its own.

@@ -199,6 +199,36 @@ async function publishPageAlbum(pageId, token, { imageUrls, message }) {
 
 // ── Instagram ────────────────────────────────────────────────────────────────
 
+
+/**
+ * Photos as Facebook Page stories, one frame each, in the order given. Ported from Stockport
+ * (league-site b79b221).
+ *
+ * A story is single-media, so four tables are four frames rather than one album. Same two
+ * steps as the album: upload unpublished, then `POST /{page-id}/photo_stories` names the
+ * photo — which is the step that publishes.
+ *
+ * Uploads run in parallel and the publishes in order: each upload is Meta fetching a card we
+ * render on demand, and sequential fetches would eat the 60s request budget the weekly tables
+ * post already spends most of. Publishing in order keeps the frames in division order.
+ *
+ * Fresh uploads, not the album's photo ids: once a feed post has attached a photo it is
+ * published, and whether `photo_stories` takes one in that state is unmeasured.
+ */
+async function publishPageStories(pageId, token, { imageUrls }) {
+  const urls = [].concat(imageUrls || []);
+  if (!urls.length) throw new MetaError('No images to post as a story', { step: 'validate' });
+
+  const photoIds = await Promise.all(urls.map((url) => uploadPagePhoto(pageId, token, url)));
+  const postIds = [];
+  for (const photoId of photoIds) {
+    const r = await graph(`${pageId}/photo_stories`, { photo_id: photoId, access_token: token },
+      { step: 'the page story' });
+    postIds.push(r.post_id || r.id);
+  }
+  return { postIds, photoIds };
+}
+
 /**
  * Create a media container. Nothing is visible until it is published, and an unpublished
  * container expires by itself in 24 hours — so this is the free way to ask Meta whether it
@@ -449,6 +479,44 @@ async function publishPageVideo(pageId, token, { videoUrl, description }) {
   return { postId: r.id };
 }
 
+// The video story's upload step: Meta fetching our file, inside the weekly-video post's
+// request. Well under the platform's 60s, so a slow fetch fails this target alone (a 207 with
+// the feed posts intact) rather than the whole request being cut off mid-publish.
+const VIDEO_STORY_UPLOAD_TIMEOUT_MS = 25000;
+
+/**
+ * A video as a Facebook Page story. Unlike `/videos` there is no `file_url` on the story
+ * endpoint itself: `start` hands back an upload URL on rupload.facebook.com, that URL is given
+ * our `file_url` to fetch, and `finish` publishes. Ported from Stockport (b79b221), with
+ * `fetch` for their axios — this repo has neither and needs neither — and that fetch, like
+ * every other here, checks the status itself because fetch does not throw on a 4xx.
+ */
+async function publishPageVideoStory(pageId, token, { videoUrl }) {
+  assertPublishableVideo(videoUrl);
+  const start = await graph(`${pageId}/video_stories`, { upload_phase: 'start', access_token: token },
+    { step: 'starting a page video story' });
+
+  let res;
+  try {
+    res = await fetch(start.upload_url, {
+      method: 'POST',
+      headers: { Authorization: `OAuth ${token}`, file_url: videoUrl },
+      signal: AbortSignal.timeout(VIDEO_STORY_UPLOAD_TIMEOUT_MS),
+    });
+  } catch (cause) {
+    throw describeFailure({ cause }, 'uploading a page video story');
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw describeFailure({ body, status: res.status }, 'uploading a page video story');
+  }
+
+  const r = await graph(`${pageId}/video_stories`, {
+    upload_phase: 'finish', video_id: start.video_id, access_token: token,
+  }, { step: 'publishing a page video story' });
+  return { postId: r.post_id || r.id || start.video_id };
+}
+
 /**
  * The dry run: ask Meta to fetch and transcode, and publish nothing.
  *
@@ -490,6 +558,9 @@ async function publishVideoEverywhere(targetList, { videoUrl, message, caption, 
     try {
       if (t.kind === 'page') {
         const r = await publishPageVideo(t.id, t.token, { videoUrl, description: message });
+        posted.push({ target: t.name, kind: t.kind, id: r.postId });
+      } else if (t.kind === 'page-story') {
+        const r = await publishPageVideoStory(t.id, t.token, { videoUrl });
         posted.push({ target: t.name, kind: t.kind, id: r.postId });
       } else if (t.kind === 'instagram') {
         let mediaId;
@@ -560,12 +631,33 @@ function targets() {
   };
 }
 
-/** The `targets()` map as the list `publishEverywhere` takes, named for a log line. */
+/**
+ * The Tameside Page's story target, or null unless SOCIAL_POST_FB_STORY is 'true' and the
+ * Page is configured. Every Facebook post — the result, the weekly tables, fixtures and
+ * video — also goes out as a Page story when it is set, because all four read their targets
+ * from configuredTargets() below. Ported from Stockport (b79b221).
+ *
+ * Off unless set: nothing has been published through `photo_stories` / `video_stories` on
+ * either site yet, so the first post after switching it on is the measurement.
+ */
+function pageStoryTarget(t = targets()) {
+  if (process.env.SOCIAL_POST_FB_STORY !== 'true' || !t.page) return null;
+  return { ...t.page, name: 'Tameside page story', kind: 'page-story' };
+}
+
+/**
+ * The `targets()` map as the list `publishEverywhere` takes, named for a log line.
+ *
+ * **The order is load-bearing**: the feed posts first, the story LAST. The posts run in this
+ * order inside one request with a 60s ceiling, so anything slow should be the thing whose
+ * loss matters least — a 207 with the feed posted, never a feed post lost to a story.
+ */
 function configuredTargets() {
   const t = targets();
   return [
     t.page && { ...t.page, name: 'Tameside page', kind: 'page' },
     t.instagram && { ...t.instagram, name: 'Instagram', kind: 'instagram' },
+    pageStoryTarget(t),
   ].filter(Boolean);
 }
 
@@ -593,6 +685,11 @@ async function publishEverywhere(targetList, { imageUrls, message, caption, stor
       if (t.kind === 'page') {
         const r = await publishPageAlbum(t.id, t.token, { imageUrls, message });
         posted.push({ target: t.name, kind: t.kind, id: r.postId });
+      } else if (t.kind === 'page-story') {
+        // The result's 9:16 story card when there is one; otherwise every image, one frame
+        // each (the weekly tables and fixtures cards, in division order).
+        const r = await publishPageStories(t.id, t.token, { imageUrls: storyImageUrl || imageUrls });
+        posted.push({ target: t.name, kind: t.kind, id: r.postIds.join(',') });
       } else if (t.kind === 'instagram') {
         const urls = [].concat(imageUrls || []);
         const r = urls.length > 1
@@ -619,13 +716,13 @@ async function publishEverywhere(targetList, { imageUrls, message, caption, stor
 module.exports = {
   MetaError,
   assertPublishableImage, assertPublishableVideo, ratioOk,
-  uploadPagePhoto, publishPageAlbum,
+  uploadPagePhoto, publishPageAlbum, publishPageStories, publishPageVideoStory,
   publishInstagramPhoto, publishInstagramCarousel, publishInstagramStory,
   publishInstagramReel, prepareInstagramReel, publishPageVideo, waitForContainer,
   createContainer, publishContainer,
   validateImages, validateVideo, publishingQuota,
   publishEverywhere, publishVideoEverywhere,
-  targets, configuredTargets,
+  targets, configuredTargets, pageStoryTarget,
   IG_MAX_CAROUSEL, IG_MIN_RATIO, IG_MAX_RATIO,
   VIDEO_POLL_MS, VIDEO_TIMEOUT_MS, PREPARED_READY_TIMEOUT_MS,
 };

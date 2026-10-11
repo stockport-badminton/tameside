@@ -599,8 +599,12 @@ FROM (SELECT "fixturePlayers".*, club.name
         'through Make.com.');
     }
 
+    // The 9:16 card goes to either story — Instagram's (SOCIAL_POST_STORY) or the Facebook
+    // Page's (SOCIAL_POST_FB_STORY, already in configuredTargets()). Without it a Page story
+    // would fall back to the 4:5 feed card.
+    const anyStory = configured.some((t) => t.kind === 'instagram-story' || t.kind === 'page-story');
     const out = await meta.publishEverywhere(configured, {
-      imageUrls: imgGen, message, storyImageUrl: story ? storyImageUrl : undefined,
+      imageUrls: imgGen, message, storyImageUrl: anyStory ? storyImageUrl : undefined,
     });
 
     for (const f of out.failed) console.error(`result post to ${f.target} failed:`, f.error.message);
