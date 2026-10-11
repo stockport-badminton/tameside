@@ -102,7 +102,7 @@
               var targetTeamContainer = document.querySelectorAll("[data-teamid='"+teamId+"']")[0].parentElement.querySelectorAll("div."+nominatedOrReserves.toLowerCase()+"-container div."+maleOrFemale.toLowerCase())
               var targetPlayers = [...targetTeamContainer[0].children].filter(n => n.classList.contains('player-box'))
               if (selectedPlayer.class == "playerExisting"){
-                alert("Only the results secretary can transfer players between clubs, an email has been sent to request a transfer.")
+                alert("That player is registered at another club. Only the results secretary can transfer players between clubs: please ask them to move " + selectedPlayer.text + ".")
                 console.log("adding player: "+ selectedPlayer.text +" id: "+parseInt(selectedPlayer.value));
                 <% if (typeof superadmin !== 'undefined' && superadmin) { %>
                   var newPlayerElem = document.createElement("div")
@@ -123,7 +123,6 @@
                 
               }
               else if (selectedPlayer.class == "playerNoClub"){
-                alert("adding player: "+ selectedPlayer.text +" id: "+parseInt(selectedPlayer.value));
                 var newPlayerElem = document.createElement("div")
                 newPlayerElem.className = "player-box row border rounded p-3"
                 newPlayerElem.draggable = true
@@ -139,7 +138,6 @@
                 targetPlayers = [...targetTeamContainer.children].filter(n => n.classList.contains('player-box'))
               }
               else { //this section deals with creating a player from scratch, inserting into the DB, and adding the new playerelement to the UI
-                alert("creating player: "+ selectedPlayer.text +" id: "+parseInt(selectedPlayer.value));
                 var playerObject = {
                   "first_name":selectedPlayer.text.slice(0,selectedPlayer.text.indexOf(" ")),
                   "family_name":selectedPlayer.text.slice(selectedPlayer.text.indexOf(" "),selectedPlayer.text.indexOf("(New")),
@@ -200,26 +198,12 @@
                 }
               })
               console.log(batchObj);
-              fetch('/player/batch-update', {
-                method: 'POST', // or 'PUT'
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(batchObj),
-              })
-              .then((response) => {
-                response.json()
-              })
-              .then((data) => {
-                console.log('Success:', data);
+              saveRoster(batchObj).then(function () {
                 var searchButton = document.getElementById("searchPlayer")
                 var newAddButton = searchButton.previousSibling
                 newAddButton.style = "display:none";
                 searchButton.style = "display:auto";
-              })
-              .catch((error) => {
-                console.error('Error:', error);
-              }); 
+              }).catch(function () {});
             })
             addButton.classList = "btn btn-primary add-player-submit";
             addButton.type = "button";

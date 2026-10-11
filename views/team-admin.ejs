@@ -143,6 +143,31 @@
 
 <script type="text/javascript">
 
+// Every roster change saves through here. The page moves the player before the server
+// answers, so a refusal (club scope, validation) used to leave the screen showing a change
+// that was never saved: the old fetches never looked at the status. On failure, say so and
+// reload, so the page shows what the database actually holds.
+window.saveRoster = function (batchObj) {
+  return fetch('/player/batch-update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(batchObj),
+  })
+  .then(function (response) {
+    if (!response.ok) throw new Error(response.status === 403
+      ? "You don't have permission to make that change."
+      : 'The server refused it (' + response.status + ').');
+    return response.json();
+  })
+  .catch(function (error) {
+    // console.log, not console.error: browser Sentry files every console.error.
+    console.log('roster save failed:', error);
+    alert('That change was NOT saved. ' + error.message + ' The page will reload to show what is saved.');
+    location.reload();
+    throw error;
+  });
+};
+
 document.addEventListener('DOMContentLoaded', (event) => {
 var counter=0;
 function handleDragStart(e) {
@@ -194,30 +219,16 @@ function handlePlayerUpdate(e) {
 }
 
 function handlePlayerRemove(e) {
-  e.target.parentNode.parentNode.parentNode.removeChild(e.target.parentNode.parentNode);
-  alert(e.target.parentNode.parentNode.childNodes[0].nodeValue+" ("+ e.target.parentNode.parentNode.attributes['data-id'].nodeValue +") removed");
-  var batchObj = {
+  var playerBox = e.target.closest('.player-box')
+  if (!confirm('Remove ' + playerBox.childNodes[0].nodeValue.trim() + ' from the club?')) return
+  playerBox.remove()
+  saveRoster({
     "tablename":"player",
     "fields":[
         "id","club","team","rank"
     ],
-    "data":[[parseInt(e.target.parentNode.parentNode.attributes['data-id'].nodeValue),63,52,99]]
-  }
-// console.log(batchObj);
-  fetch('/player/batch-update', {
-    method: 'POST', // or 'PUT'
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(batchObj),
-  })
-  .then((response) => response.json())
-  .then((data) => {
-// console.log('Success:', data);
-  })
-  .catch((error) => {
-    console.error('Error:', error);
-  });
+    "data":[[parseInt(playerBox.attributes['data-id'].nodeValue),63,52,99]]
+  }).catch(function () {});
 }
 
 function handleDrop(e) {
@@ -270,26 +281,7 @@ function handleDrop(e) {
       rank++;
     }
   })
-  // console.log(batchObj);
-  /* $.post("/player/batch-update", batchObj, function(result,status){
-    console.log(status);
-  }); */
-  fetch('/player/batch-update', {
-    method: 'POST', // or 'PUT'
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(batchObj),
-  })
-  .then((response) => {
-    response.json()
-  })
-  .then((data) => {
-    console.log('Success:', data);
-  })
-  .catch((error) => {
-    console.error('Error:', error);
-  }); 
+  saveRoster(batchObj).catch(function () {});
   resetDragged()
   return false;
 }
