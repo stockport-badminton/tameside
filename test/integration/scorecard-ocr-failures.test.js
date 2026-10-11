@@ -105,6 +105,20 @@ describe('POST /scorecard-ocr/analyse — a card that cannot be read', () => {
     assert.strictEqual(fields.rematch, true);
   }));
 
+  it('a team pick that is not an id is a 400, never a query and never Sentry', asCaptain(async () => {
+    // TAMESIDE-NODE-4: the placeholder had no value, so its label "Choose..." was posted as
+    // awayTeamId and reached a bigint query — 500 and a Sentry event for every one.
+    const keys = readFailsWith(new Error('must not be reached'));
+    const { sentry } = watch();
+    for (const bad of [{ homeTeamId: '12', awayTeamId: 'Choose...' }, { homeTeamId: '12; drop', awayTeamId: '5' }]) {
+      const res = await analyse(Object.assign({ key: KEY }, bad));
+      assert.strictEqual(res.status, 400, JSON.stringify(bad));
+      assert.strictEqual(res.body.ok, false);
+    }
+    assert.deepStrictEqual(keys, []);
+    assert.strictEqual(sentry.mock.callCount(), 0);
+  }));
+
   it('a document reads from the extracted photo, and the log names both keys', asCaptain(async () => {
     mock.method(scorecardDocument, 'convertStoredDocument', async () => ({
       key: 'tameside-Hyde B-Shell A-photo.jpg', url: 'https://example.invalid/x.jpg',

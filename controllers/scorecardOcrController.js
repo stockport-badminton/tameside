@@ -317,6 +317,14 @@ exports.analyse = async function (req, res) {
   if (isRefusedArchive(key)) {
     return res.status(400).json({ ok: false, error: 'Archives are not accepted. Send the photo or the document itself.' });
   }
+  // A team pick that isn't an id is a bad request, not a failed read. Unchecked, the
+  // placeholder's label ("Choose...") reached a bigint query and answered 500 (TAMESIDE-NODE-4).
+  for (const side of ['homeTeamId', 'awayTeamId']) {
+    const v = req.body[side];
+    if (v != null && v !== '' && !/^\d+$/.test(String(v))) {
+      return res.status(400).json({ ok: false, error: 'Pick both teams from the lists.' });
+    }
+  }
   try {
     // Optional overrides: the wizard re-analyses with the user's team picks
     // when the header couldn't be read — same cached detection, new mapping.

@@ -126,6 +126,17 @@ describe('B: the error re-render keeps the choice and cannot post a label', () =
       'these post their label as the field value: ' + bare.join(', '));
   });
 
+  it('no placeholder on the wizard has a label for a value, disabled or not', () => {
+    // A disabled option is not submitted with the form, but script reading `select.value`
+    // still gets its label: the OCR rematch posted "Choose..." as a team id
+    // (TAMESIDE-NODE-4). The static templates fill the wizard's selects client-side.
+    for (const file of ['views/email-scorecard.ejs', 'static/formOption.ejs', 'static/playerFormOptions.ejs']) {
+      const src = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+      const valueless = (src.match(/<option(?![^>]*\bvalue=)[^>]*>/g) || []);
+      assert.deepStrictEqual(valueless, [], file + ': options with no value= read back their label');
+    }
+  });
+
   it('every player select passes the posted value through to the partial', () => {
     const view = fs.readFileSync(path.join(__dirname, '..', 'views', 'email-scorecard.ejs'), 'utf8');
     const includes = view.match(/include\('partials\/scorecard-player-options'[^)]*\)/g) || [];
