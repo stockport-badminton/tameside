@@ -130,11 +130,30 @@ describe('B: the error re-render keeps the choice and cannot post a label', () =
     // A disabled option is not submitted with the form, but script reading `select.value`
     // still gets its label: the OCR rematch posted "Choose..." as a team id
     // (TAMESIDE-NODE-4). The static templates fill the wizard's selects client-side.
-    for (const file of ['views/email-scorecard.ejs', 'static/formOption.ejs', 'static/playerFormOptions.ejs']) {
+    for (const file of ['views/email-scorecard.ejs', 'static/formOption.ejs', 'static/playerFormOptions.ejs',
+      'views/populated-scorecard.ejs', 'views/index-scorecard.ejs', 'views/contact-us-form.ejs']) {
       const src = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
       const valueless = (src.match(/<option(?![^>]*\bvalue=)[^>]*>/g) || []);
       assert.deepStrictEqual(valueless, [], file + ': options with no value= read back their label');
     }
+  });
+
+  it('the confirmation form\'s placeholders are not disabled', () => {
+    // They are never marked selected there. A disabled one is skipped, so a select whose
+    // stored value matches nothing would display — and confirm — the first real player.
+    // Enabled with value="", it shows the placeholder and the POST fails isInt instead.
+    const src = fs.readFileSync(path.join(__dirname, '..', 'views', 'populated-scorecard.ejs'), 'utf8');
+    const disabled = src.match(/<option[^>]*\bdisabled\b[^>]*>Choose [^<]*</g) || [];
+    assert.deepStrictEqual(disabled, []);
+  });
+
+  it('the confirmation form loads option templates that exist', () => {
+    // It asked for /static/beta/*.ejs, which never existed here, so changing the division
+    // or a team on that page silently did nothing.
+    const src = fs.readFileSync(path.join(__dirname, '..', 'views', 'populated-scorecard.ejs'), 'utf8');
+    const urls = src.match(/\/static\/[\w/.-]+\.ejs/g) || [];
+    assert.ok(urls.length, 'expected option template urls');
+    for (const u of urls) assert.ok(fs.existsSync(path.join(__dirname, '..', u.slice(1))), u + ' does not exist');
   });
 
   it('every player select passes the posted value through to the partial', () => {

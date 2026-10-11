@@ -191,3 +191,20 @@ describe('the async-validator trap is avoided rather than documented', () => {
     assert.ok(!/Player\.|sql`|await /.test(naming), 'naming must work from rows passed in');
   });
 });
+
+describe('division and teams must be ids, not just non-empty', () => {
+  // notEmpty() let a placeholder's label through, and on the success path the team goes
+  // straight into a bigint query — the TAMESIDE-NODE-4 crash, on /scorecard-beta.
+  for (const field of ['division', 'homeTeam', 'awayTeam']) {
+    it(`rejects a label or blank as ${field}`, async () => {
+      for (const bad of ['Choose Home Team', '', 'Choose...']) {
+        const errs = await validate(validBody({ [field]: bad }));
+        assert.ok(errs.some((e) => e.path === field), `${field}=${JSON.stringify(bad)} passed`);
+      }
+    });
+  }
+
+  it('still accepts a complete submission', async () => {
+    assert.deepStrictEqual(msgs(await validate(validBody())), []);
+  });
+});

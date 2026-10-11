@@ -92,7 +92,7 @@
                      <div class="form-group">
                        <label for="division">Division</label>
                        <select class="form-control" name="division" id="division" placeholder="Division">
-                         <option disabled>Choose Division</option>
+                         <option value="">Choose Division</option>
                          <% result.divisionRows.forEach(function(row){ %>
                            <%
                             if (row.selected == 1){
@@ -123,7 +123,7 @@
                  <div class="form-group">
                    <label for="homeTeam">Home Team</label>
                    <select class="form-control" id="homeTeam" name="homeTeam" placeholder="Home Team">
-                     <option>Choose Home Team</option>
+                     <option value="">Choose Home Team</option>
                      <% result.homeTeamRows.forEach(function(row){ %>
                        <%
                         if (row.selected == 1){
@@ -140,7 +140,7 @@
                  <div class="form-group">
                    <label for="awayTeam">Away Team</label>
                    <select class="form-control" id="awayTeam" name="awayTeam" placeholder="Away Team">
-                     <option>Choose Away Team</option>
+                     <option value="">Choose Away Team</option>
                      <% result.awayTeamRows.forEach(function(row){ %>
                        <%
                         if (row.selected == 1){
@@ -162,7 +162,7 @@
                      <div class="form-group step-2">
                        <label for="homeMan1">Man 1</label>
                        <select class="form-control" id="homeMan1" name="homeMan1" placeholder="Home Man 1">
-                         <option>Choose Man 1</option>
+                         <option value="">Choose Man 1</option>
                          <% result.homeMenRows.forEach(function(row){ %>
                            <%
                             if (row.first == 1){
@@ -181,7 +181,7 @@
                      <div class="form-group step-2">
                        <label for="homeMan2">Man 2</label>
                        <select class="form-control" id="homeMan2" name="homeMan2" placeholder="Home Man 2">
-                         <option>Choose Man 1</option>
+                         <option value="">Choose Man 2</option>
                          <% result.homeMenRows.forEach(function(row){ %>
                            <%
                             if (row.second == 1){
@@ -200,7 +200,7 @@
                      <div class="form-group step-2">
                        <label for="homeMan3">Man 3</label>
                        <select class="form-control" id="homeMan3" name="homeMan3" placeholder="Home Man 3">
-                         <option>Choose Man 1</option>
+                         <option value="">Choose Man 3</option>
                          <% result.homeMenRows.forEach(function(row){ %>
                            <%
                             if (row.third == 1){
@@ -221,7 +221,7 @@
                     <div class="form-group step-2">
                         <label for="homeMan4">Man 4</label>
                         <select class="form-control" id="homeMan4" name="homeMan4" placeholder="Home Man 4">
-                          <option>Choose Man 4</option>
+                          <option value="">Choose Man 4</option>
                           <% result.homeMenRows.forEach(function(row){ %>
                             <%
                              if (row.fourth == 1){
@@ -240,7 +240,7 @@
                      <div class="form-group step-2">
                        <label for="homeLady1">Lady 1</label>
                        <select class="form-control" id="homeLady1" name="homeLady1" placeholder="Home Lady 1">
-                         <option disabled>Choose Lady 1</option>
+                         <option value="">Choose Lady 1</option>
                          <% result.homeLadiesRows.forEach(function(row){ %>
                            <%
                             if (row.first == 1){
@@ -259,7 +259,7 @@
                      <div class="form-group step-2">
                        <label for="homeLady2">Lady 2</label>
                        <select class="form-control" id="homeLady2" name="homeLady2" placeholder="Home Lady 2">
-                         <option disabled>Choose Lady 2</option>
+                         <option value="">Choose Lady 2</option>
                          <% result.homeLadiesRows.forEach(function(row){ %>
                            <%
                             if (row.second == 1){
@@ -285,7 +285,7 @@
                      <div class="form-group step-3">
                        <label for="awayMan1">Man 1</label>
                        <select class="form-control" id="awayMan1" name="awayMan1" placeholder="Away Man 1">
-                         <option disabled>Choose Man 1</option>
+                         <option value="">Choose Man 1</option>
                          <% result.awayMenRows.forEach(function(row){ %>
                            <%
                             if (row.first == 1){
@@ -304,7 +304,7 @@
                      <div class="form-group step-3">
                        <label for="awayMan2">Man 2</label>
                        <select class="form-control" id="awayMan2" name="awayMan2" placeholder="Away Man 2">
-                         <option disabled>Choose Man 2</option>
+                         <option value="">Choose Man 2</option>
                          <% result.awayMenRows.forEach(function(row){ %>
                            <%
                             if (row.second == 1){
@@ -323,7 +323,7 @@
                      <div class="form-group step-3">
                        <label for="awayMan3">Man 3</label>
                        <select class="form-control" id="awayMan3" name="awayMan3" placeholder="Away Man 3">
-                         <option disabled>Choose Man 3</option>
+                         <option value="">Choose Man 3</option>
                          <% result.awayMenRows.forEach(function(row){ %>
                            <%
                             if (row.third == 1){
@@ -345,7 +345,7 @@
                     <div class="form-group step-3">
                         <label for="awayMan4">Man 4</label>
                         <select class="form-control" id="awayMan4" name="awayMan4" placeholder="Away Man 4">
-                          <option disabled>Choose Man 4</option>
+                          <option value="">Choose Man 4</option>
                           <% result.awayMenRows.forEach(function(row){ %>
                             <%
                              if (row.fourth == 1){
@@ -365,7 +365,7 @@
                      <div class="form-group step-3">
                        <label for="awayLady1">Lady 1</label>
                        <select class="form-control" id="awayLady1" name="awayLady1" placeholder="Away Lady 1">
-                         <option disabled>Choose Lady 1</option>
+                         <option value="">Choose Lady 1</option>
                          <% result.awayLadiesRows.forEach(function(row){ %>
                            <%
                             if (row.first == 1){
@@ -384,7 +384,7 @@
                      <div class="form-group step-3">
                        <label for="awayLady2">Lady 2</label>
                        <select class="form-control" id="awayLady2" name="awayLady2" placeholder="Away Lady 2">
-                         <option disabled>Choose Lady 2</option>
+                         <option value="">Choose Lady 2</option>
                          <% result.awayLadiesRows.forEach(function(row){ %>
                            <%
                             if (row.second == 1){
@@ -976,7 +976,7 @@
       })
       $("#division").change(function(){
         var selectedDivision = this.value;
-        $.get('/static/beta/formOption.ejs', function (template) {
+        $.get('/static/formOption.ejs', function (template) {
             $.post('/teams', {'divisionId':selectedDivision}, function (data) {
                // Generate the html from the given data.
                var html = ejs.render(template,{data:data});
@@ -987,7 +987,7 @@
       })
       $("#homeTeam").change(function(){
         var selectedTeam = this.value;
-        $.get('/static/beta/playerFormOptions.ejs', function (template) {
+        $.get('/static/playerFormOptions.ejs', function (template) {
             $.get('/eligiblePlayers/'+selectedTeam+'/Male', function (data) {
                // Generate the html from the given data.
                var html = ejs.render(template,{data:data});
@@ -1006,7 +1006,7 @@
       })
       $("#awayTeam").change(function(){
         var selectedTeam = this.value;
-        $.get('/static/beta/playerFormOptions.ejs', function (template) {
+        $.get('/static/playerFormOptions.ejs', function (template) {
             $.get('/eligiblePlayers/'+selectedTeam+'/Male', function (data) {
                // Generate the html from the given data.
                var html = ejs.render(template,{data:data});

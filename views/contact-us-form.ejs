@@ -11,7 +11,7 @@
   <div class="form-group">
     <label for="contactType">Are you trying to get in touch with a committee member of a specific club?</label>
     <select class="form-control" name="contactType" id="contactType">
-      <option disabled selected>Choose..</option>
+      <option value="" disabled selected>Choose..</option>
       <option value="Clubs">Club Secretaries</option>
       <option value="League">League Representatives</option>
     </select>
@@ -19,7 +19,7 @@
   <div class="form-group d-none" id="clubsDropDown">
     <label for="clubSelect">Which club are you contacting?</label>
     <select class="form-control" id="clubSelect" name="clubSelect">
-      <option disabled selected>Choose a Club</option>
+      <option value="" disabled selected>Choose a Club</option>
       <% clubs.forEach(function(row){ %>
         <option value="<%= row['id'] %>"><%= row['name'] %></option>
       <% }) %>
@@ -28,7 +28,7 @@
   <div class="form-group d-none" id="leagueDropDown">
     <label for="leagueSelect">Which committee member are you contacting</label>
     <select name="leagueSelect" id="leagueSelect" class="form-control">
-      <option disabled selected>Choose...</option>
+      <option value="" disabled selected>Choose...</option>
       <option value="secretary">League Secretary</option>
       <option value="results">Results Secretary</option>
       <option value="tournament">Tournament Secretary</option>

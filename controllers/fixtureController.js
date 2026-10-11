@@ -257,11 +257,13 @@ const MIXED_LADY_FIELDS = [
 ];
 
 exports.validateScorecard = [
-  body("division").notEmpty().withMessage("Please choose a division."),
+  // isInt, not notEmpty: a placeholder's label is not empty, and a team that isn't an id
+  // reaches a bigint query on the success path (the same crash as TAMESIDE-NODE-4).
+  body("division").isInt().withMessage("Please choose a division."),
   body("date").isISO8601().withMessage("Please choose a valid date."),
-  body("homeTeam").notEmpty().withMessage("Please choose a home team."),
+  body("homeTeam").isInt().withMessage("Please choose a home team."),
   body("awayTeam")
-    .notEmpty()
+    .isInt()
     .withMessage("Please choose an away team.")
     .bail()
     .custom((value, { req }) => value != req.body.homeTeam)
