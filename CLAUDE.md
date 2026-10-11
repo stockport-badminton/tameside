@@ -534,6 +534,12 @@ with inputs unmasked so the scores are visible. **Unset `POSTHOG_KEY` loads noth
 - **`cookieless_mode: 'always'` is what lets it run without a consent bar.** Nothing goes
   in cookies or storage. The costs: no `identify()`, so the account id goes on every event
   as `account_id`; and a visitor returning on another day counts as new.
+- **A recorded page is NOT cookieless — it inits with `persistence: 'memory'`.** The
+  recorder needs a client-side session and cookieless mode keeps none (`$session_id` is
+  assigned server-side), so with cookieless everywhere no recording was ever stored —
+  events carried no `$window_id`. Memory still writes nothing to cookies or storage, so the
+  no-consent position holds; each page load is its own recording. Found and fixed by
+  Stockport (`9141840`), ported 12 Oct 2026.
 - **The PostHog project is Stockport's too (same key).** Every event carries `league`
   (the hostname). Filter on it, or the numbers are both sites added together.
 - **`window.tblTrack(name, props)`** sends named events (the scorecard wizard's steps and

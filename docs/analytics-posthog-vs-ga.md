@@ -6,7 +6,9 @@ same trial started the same day.
 ## Why
 
 Google Analytics sets cookies, and this site has no consent banner. PostHog in
-`cookieless_mode: 'always'` stores nothing in the browser, so it needs no consent. If
+`cookieless_mode: 'always'` stores nothing in the browser, so it needs no consent. (The
+recorded scorecard pages use `persistence: 'memory'` instead, because the recorder cannot
+run cookieless; that stores nothing in the browser either.) If
 PostHog tells us what GA tells us, GA can go and no banner has to be built.
 
 ## What is running

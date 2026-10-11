@@ -47,7 +47,8 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
       // see whether it can replace it — docs/analytics-posthog-vs-ga.md.
       //
       // cookieless_mode 'always' stores nothing in the browser — no cookie, no
-      // localStorage — so it needs no consent. PostHog counts unique visitors with a
+      // localStorage — so it needs no consent. (A recorded page uses in-memory
+      // persistence instead, which stores nothing either; see the init below.) PostHog counts unique visitors with a
       // server-side hash under a salt that is discarded daily, so a visitor returning on
       // another day counts again, and identify() is not available: the account id goes
       // on each event as a property instead.
@@ -77,13 +78,20 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
         s.crossOrigin = 'anonymous';
         s.src = 'https://eu-assets.i.posthog.com/static/array.js';
         s.onload = function () {
-          window.posthog.init(<%- jsonForScript(process.env.POSTHOG_KEY) %>, {
+          // A recorded page uses in-memory persistence instead of cookieless mode,
+          // because the recorder cannot run cookieless: that mode keeps no session in
+          // the browser (PostHog assigns $session_id server-side), and without one the
+          // recorder never starts. Not one recording was stored while replay ran with
+          // cookieless on every page. 'memory' still stores nothing in the browser, so
+          // the no-consent position holds; the cost is that each page load is a new
+          // session, so the wizard and its confirmation page are two recordings.
+          var storage = record ? { persistence: 'memory' } : { cookieless_mode: 'always' };
+          window.posthog.init(<%- jsonForScript(process.env.POSTHOG_KEY) %>, Object.assign({
             api_host: 'https://eu.i.posthog.com',
-            cookieless_mode: 'always',
             person_profiles: 'never',
             disable_session_recording: !record,
             session_recording: { maskAllInputs: false },
-          });
+          }, storage));
           window.posthog.register({
             league: location.hostname.replace(/^www\./, ''),
             logged_in: loggedIn,

@@ -98,6 +98,17 @@ describe('PostHog', () => {
     }
   });
 
+  // The recorder cannot run cookieless: that mode keeps no session in the browser, so it
+  // never starts, and nothing was stored while it was on everywhere (Stockport 9141840).
+  // A recorded page keeps its session in memory instead — still nothing written to the browser.
+  it('keeps a recorded page out of cookieless mode, in memory rather than storage', () => {
+    const { config } = runPostHog(captain, { pathname: '/email-scorecard' });
+    assert.strictEqual(config.cookieless_mode, undefined);
+    assert.strictEqual(config.persistence, 'memory');
+    assert.strictEqual(config.person_profiles, 'never');
+    assert.strictEqual(runPostHog(captain, { pathname: '/player-stats' }).config.cookieless_mode, 'always');
+  });
+
   it('records nowhere else — the stats pages are what emptied Sentry\'s quota', () => {
     for (const pathname of ['/player-stats', '/pair-stats', '/', '/admin/scorecard-ocr']) {
       assert.strictEqual(runPostHog(captain, { pathname }).config.disable_session_recording, true, pathname);
