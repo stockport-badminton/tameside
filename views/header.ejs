@@ -21,9 +21,17 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
       // homepage's section views), so a recording or a funnel can be found by what
       // happened in it. Always defined, and a no-op wherever PostHog was not loaded —
       // dev, tests, superadmins — so callers never need to check. Stockport's is sblTrack.
+      //
+      // PostHog loads async, so an event fired before it is ready is QUEUED and sent once
+      // it is (the onload below). Dropping it lost every homepage section already on
+      // screen at load — the top one was never recorded at all — while GA, whose gtag
+      // queues, counted them, which skewed the very comparison PostHog is here for.
+      // Bounded, because where PostHog never loads nothing will ever drain it.
       window.tblTrack = function (name, props) {
         if (window.posthog && window.posthog.__loaded) window.posthog.capture(name, props || {});
+        else if (window.tblTrack.queue.length < 50) window.tblTrack.queue.push([name, props || {}]);
       };
+      window.tblTrack.queue = [];
     <% if (monitoringEnabled) { %>
       // Are we actually the ones serving this page? Shared by Sentry and PostHog.
       //
@@ -97,6 +105,10 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
             logged_in: loggedIn,
             account_id: <%- jsonForScript(typeof user !== 'undefined' ? String(user.user_id) : null) %>
           });
+          // Anything tblTrack queued before we got here — after register(), so it carries
+          // `league` like every other event.
+          var queued = window.tblTrack && window.tblTrack.queue;
+          (queued ? queued.splice(0) : []).forEach(function (e) { window.posthog.capture(e[0], e[1]); });
         };
         document.head.appendChild(s);
       })();

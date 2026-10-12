@@ -42,12 +42,12 @@ function renderHeader(env, user) {
 
 // Run the emitted PostHog block against a fake browser. Returns null if it did not load
 // PostHog, otherwise the config it passed to init() and the properties it registered.
-function runPostHog(html, { pathname, servedByUs = true }) {
+function runPostHog(html, { pathname, servedByUs = true, queued }) {
   const m = html.match(/\(function \(\) \{\s*var RECORD_PATHS[\s\S]*?\}\)\(\);/);
   if (!m) throw new Error('PostHog block not found in rendered header');
   const injected = [];
   const sandbox = {
-    window: { tblServedByUs: servedByUs },
+    window: { tblServedByUs: servedByUs, ...(queued ? { tblTrack: { queue: queued } } : {}) },
     location: { pathname, hostname: 'www.tameside-badminton.co.uk' },
     document: {
       createElement: () => ({}),
@@ -58,10 +58,11 @@ function runPostHog(html, { pathname, servedByUs = true }) {
   vm.runInContext(m[0], sandbox);
   const script = injected.find((el) => /posthog\.com\/static\/array\.js$/.test(el.src));
   if (!script) return null;
-  const seen = {};
+  const seen = { calls: [] };
   sandbox.window.posthog = {
     init: (key, config) => { seen.key = key; seen.config = config; },
-    register: (props) => { seen.registered = props; },
+    register: (props) => { seen.registered = props; seen.calls.push('register'); },
+    capture: (name, props) => { seen.calls.push(['capture', name, props]); },
   };
   script.onload();
   return seen;
@@ -148,12 +149,40 @@ describe('PostHog', () => {
   // exist on every render — dev included — or they throw where PostHog is absent.
   it('always defines tblTrack, as a no-op where PostHog is not loaded', () => {
     for (const html of [renderHeader({ NODE_ENV: 'development' }, CAPTAIN), renderHeader({ NODE_ENV: 'development' })]) {
-      const m = html.match(/window\.tblTrack = function[\s\S]*?\n\s*\};/);
+      const m = html.match(/window\.tblTrack = function[\s\S]*?window\.tblTrack\.queue = \[\];/);
       assert.ok(m);
       const sandbox = { window: {} };
       vm.createContext(sandbox);
       vm.runInContext(m[0], sandbox);
       assert.doesNotThrow(() => sandbox.window.tblTrack('x', {}));
     }
+  });
+
+  // The homepage reports sections already on screen the moment it loads, which is before
+  // PostHog's async script is ready. Dropping those lost every above-the-fold section.
+  it('queues events fired before PostHog is ready, and sends them after register()', () => {
+    const html = renderHeader(PROD);
+    const sandbox = { window: {} };
+    vm.createContext(sandbox);
+    vm.runInContext(html.match(/window\.tblTrack = function[\s\S]*?window\.tblTrack\.queue = \[\];/)[0], sandbox);
+    sandbox.window.tblTrack('section_view', { section: 'outstanding' });
+    const queued = sandbox.window.tblTrack.queue;
+    assert.strictEqual(queued.length, 1);
+
+    const { calls } = runPostHog(html, { pathname: '/', queued });
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(calls)), [
+      'register',
+      ['capture', 'section_view', { section: 'outstanding' }],
+    ]);
+    assert.strictEqual(queued.length, 0, 'drained, so nothing is sent twice');
+  });
+
+  it('bounds the queue where PostHog never loads', () => {
+    const html = renderHeader({ NODE_ENV: 'development' });
+    const sandbox = { window: {} };
+    vm.createContext(sandbox);
+    vm.runInContext(html.match(/window\.tblTrack = function[\s\S]*?window\.tblTrack\.queue = \[\];/)[0], sandbox);
+    for (let i = 0; i < 200; i++) sandbox.window.tblTrack('x');
+    assert.strictEqual(sandbox.window.tblTrack.queue.length, 50);
   });
 });

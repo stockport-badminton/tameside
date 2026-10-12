@@ -543,8 +543,11 @@ with inputs unmasked so the scores are visible. **Unset `POSTHOG_KEY` loads noth
 - **The PostHog project is Stockport's too (same key).** Every event carries `league`
   (the hostname). Filter on it, or the numbers are both sites added together.
 - **`window.tblTrack(name, props)`** sends named events (the scorecard wizard's steps and
-  OCR, the homepage `section_view`). It is always defined and a no-op without PostHog, so
-  callers never check. Stockport's is `sblTrack`.
+  OCR, the homepage `section_view`). It is always defined, so callers never check, and
+  **queues** anything fired before PostHog's async script is ready (bounded at 50), sent
+  once it is. It used to drop them, which lost every homepage section already on screen at
+  load — `outstanding` was never recorded — while GA's `gtag` queues and counted them.
+  Stockport's is `sblTrack` (still drops; they track no sections, so left alone).
 - **PostHog drops events from automated browsers.** A Playwright check sees nothing unless
   it sets `opt_out_useragent_filter: true`.
 - **It is running beside Google Analytics to see whether GA can go**, and with it the need
