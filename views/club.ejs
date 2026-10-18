@@ -19,7 +19,25 @@
 <!-- Map Section -->
 <section class="section" style="padding-top: 2rem;">
   <div class="container">
-    <div id="map" style="height: 400px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 3rem;"></div>
+    <%
+      // Tap to load. The map was 1.15MB in 34 requests of this page's 1.8MB, loaded the
+      // moment the page opened, and its first tile was the page's LCP element — ~10s in
+      // Lighthouse mobile, nearly all of it waiting on the Maps script (18 Oct 2026). 95% of
+      // this page's visitors are on phones. Google Maps replaces everything inside #map
+      // when it starts, so the placeholder needs no clean-up. Script: loadVenueMap below.
+      var mappedVenues = venues.filter(function (v) { return v.Lat != null && v.Lng != null; }).length;
+    %>
+    <div id="map" class="map-placeholder" style="height: 400px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 3rem;">
+      <div class="map-placeholder-inner">
+        <i class="fas fa-map-location-dot map-placeholder-icon" aria-hidden="true"></i>
+        <p class="map-placeholder-title">Where we play</p>
+        <p class="map-placeholder-sub"><%= mappedVenues %> venue<%= mappedVenues === 1 ? '' : 's' %> around Tameside</p>
+        <button type="button" id="showMap" class="btn-modern-primary"
+                data-maps-src="https://maps.googleapis.com/maps/api/js?key=<%= mapsApiKey %>&libraries=marker&callback=initMap&loading=async">
+          Show venues map
+        </button>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -250,7 +268,29 @@ function initMap() {
 }
 </script>
 
-<script src="//maps.googleapis.com/maps/api/js?key=<%= mapsApiKey %>&libraries=marker&callback=initMap&loading=async" async defer></script>
+<script>
+// The Maps script is fetched only when someone asks for the map (see the note on #map).
+// Once only: a second tap while it loads does nothing. If the script fails, the button
+// says so and can be tapped again.
+(function () {
+  var btn = document.getElementById('showMap');
+  if (!btn) { return; }
+  btn.addEventListener('click', function () {
+    if (btn.disabled) { return; }
+    btn.disabled = true;
+    btn.textContent = 'Loading map…';
+    var s = document.createElement('script');
+    s.src = btn.getAttribute('data-maps-src');
+    s.async = true;
+    s.onerror = function () {
+      s.remove();
+      btn.disabled = false;
+      btn.textContent = "Couldn't load the map. Try again";
+    };
+    document.head.appendChild(s);
+  });
+})();
+</script>
 <script src="//www.google.com/recaptcha/api.js" async defer></script>
 
 <script type="text/javascript">

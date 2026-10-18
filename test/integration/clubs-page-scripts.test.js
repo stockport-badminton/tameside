@@ -112,3 +112,33 @@ describe('GET /info/clubs inline scripts', () => {
     assert.strictEqual(parsed[0].clubNights[0].clubNightText, 'Wednesday 6pm');
   });
 });
+
+// The map is tap-to-load: 1.15MB of the page's 1.8MB, and its first tile was the LCP
+// element (~10s in Lighthouse mobile, 18 Oct 2026). Nothing from Google Maps may load
+// with the page; the button carries the URL the click fetches.
+describe('GET /info/clubs map', () => {
+  function render(venues) {
+    setModel('Club', 'clubDetail', done => done(null, CLUB_ROWS));
+    setModel('Venue', 'getVenueClubs', done => done(null, venues));
+    return request(app).get('/info/clubs').expect(200);
+  }
+
+  it('does not load Google Maps with the page', async () => {
+    const res = await render(venueRows());
+    assert.doesNotMatch(res.text, /<script[^>]+src="[^"]*maps\.googleapis\.com/);
+  });
+
+  it('offers a button that fetches it, with initMap as the callback', async () => {
+    const res = await render(venueRows());
+    const m = res.text.match(/<button[^>]+id="showMap"[^>]+data-maps-src="([^"]+)"/);
+    assert.ok(m, 'no Show map button with a data-maps-src');
+    const src = m[1].replace(/&amp;/g, '&');
+    assert.match(src, /^https:\/\/maps\.googleapis\.com\/maps\/api\/js\?key=[^&]+&libraries=marker&callback=initMap&loading=async$/);
+  });
+
+  it('counts only the venues that can be placed', async () => {
+    const venues = venueRows().concat([{ venueName: 'No Venue', Lat: null, Lng: null, matchTeams: [], clubNights: [] }]);
+    const res = await render(venues);
+    assert.match(res.text, /1 venue around Tameside/);
+  });
+});

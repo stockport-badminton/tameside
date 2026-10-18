@@ -636,6 +636,39 @@ footer {
     width: 100%;
 }
 
+/* The clubs page's tap-to-load placeholder, in the map's own box so nothing moves when
+   the map replaces it. */
+.map-placeholder {
+    background: linear-gradient(135deg, #eef2f9 0%, #dde5f3 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.map-placeholder-inner {
+    padding: 1.5rem;
+}
+
+.map-placeholder-icon {
+    font-size: 2.5rem;
+    color: #2a5298;
+    margin-bottom: 0.75rem;
+}
+
+.map-placeholder-title {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    font-size: 1.25rem;
+    color: #1e3c72;
+    margin-bottom: 0.25rem;
+}
+
+.map-placeholder-sub {
+    color: #4a5568;
+    margin-bottom: 1.25rem;
+}
+
 .alert-danger {
     background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
     color: white;
