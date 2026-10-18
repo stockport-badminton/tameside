@@ -199,13 +199,8 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
 
     <title>Tameside Badminton League - <%= title %></title>
 
-<!-- Webfonts used by modern-styles.css. Declared here rather than via @import inside
-     the stylesheet: an @import can only start downloading after the importing sheet
-     has been fetched and parsed, which serialises two round trips before any text
-     can paint. -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700&display=swap">
+<!-- Webfonts used by modern-styles.css: self-hosted, @font-face inline. Why: webfonts.ejs. -->
+<%- include('webfonts.ejs') %>
 
 <!-- Bootstrap + Font Awesome, compiled from bootstrap/style.scss. This already
      contains the full Font Awesome 6 CSS (icons, and @font-face pointing at

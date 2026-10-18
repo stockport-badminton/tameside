@@ -4,7 +4,8 @@ Poppins and Inter, both **SIL Open Font License 1.1**, which explicitly permits
 redistribution. `POPPINS-OFL.txt` and `INTER-OFL.txt` are their licences and must stay
 alongside them — the OFL requires the notice to travel with the files.
 
-These are the site's own typefaces: `views/header.ejs` loads both from Google Fonts and
+These are the site's own typefaces: the website serves them as woff2 from `static/fonts/`
+(see `views/webfonts.ejs`; these TTFs are for the social cards only) and
 `static/css/modern-styles.css` uses Poppins for headings. Before this, the social images
 were drawn in Arial bitmaps, so every picture the league posted was in a typeface the
 website does not use.
