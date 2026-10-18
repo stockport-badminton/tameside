@@ -179,9 +179,22 @@ nav, .navbar {
     animation: fadeIn 1s ease-in;
 }
 
+/* Entrance animations move content but never hide it. Starting from opacity: 0 held the
+   page's main heading back from Largest Contentful Paint until the fade finished — Chrome
+   does not count an invisible element as painted — which cost /tables/All ~860ms of field
+   LCP on mobile. A transform delays neither LCP nor counts as layout shift.
+   test/entrance-animations.test.js pins this. */
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-20px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { transform: translateY(-20px); }
+    to { transform: translateY(0); }
+}
+
+/* Entrance animations only — a blanket `*` rule would also stop the loading spinners. */
+@media (prefers-reduced-motion: reduce) {
+    .hero, .card, .news-card, .result-card, .fixture-card, .club-card,
+    .table-container, .tournament-bracket, .champion-card, .info-card-main {
+        animation: none !important;
+    }
 }
 
 .hero h1 {
@@ -285,8 +298,8 @@ section.all-tables, section.all-tables .container {
 }
 
 @keyframes slideUp {
-    from { opacity: 0; transform: translateY(30px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { transform: translateY(30px); }
+    to { transform: translateY(0); }
 }
 
 .card:hover, .news-card:hover {
