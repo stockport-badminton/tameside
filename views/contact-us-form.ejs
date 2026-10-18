@@ -62,24 +62,22 @@
 <%- include('footer.ejs') %>
 
 <script type="text/javascript">
-  $(document).ready(function(){
-    $('#contactType').change(function(){
-      switch ($('#contactType').val()) {
-        case 'Clubs':
-          $('#clubsDropDown').attr('class','form-group d-block');
-          $('#leagueDropDown').attr('class','form-group d-none');
-          break;
-        case 'League':
-          $('#leagueDropDown').attr('class','form-group d-block');
-          $('#clubsDropDown').attr('class','form-group d-none');
-          break;
-        default:
-      }
-    })
-    $('.click').click(function(){
-      console.log($(this).attr('data-club'))
-    })
-  })
+  // Plain JS: this page loads no jQuery (footer.ejs, useJQuery).
+  document.getElementById('contactType').addEventListener('change', function () {
+    var clubs = document.getElementById('clubsDropDown');
+    var league = document.getElementById('leagueDropDown');
+    switch (this.value) {
+      case 'Clubs':
+        clubs.className = 'form-group d-block';
+        league.className = 'form-group d-none';
+        break;
+      case 'League':
+        league.className = 'form-group d-block';
+        clubs.className = 'form-group d-none';
+        break;
+      default:
+    }
+  });
 </script>
 <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 

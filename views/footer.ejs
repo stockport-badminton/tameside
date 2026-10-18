@@ -16,7 +16,21 @@
 
 </div> <!-- close container from header -->
 
-<script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+<%
+/* jQuery only on the pages that use it: include('footer.ejs', { useJQuery: true }).
+ *
+ * It used to load on every page, from code.jquery.com, as a parser-blocking script — on
+ * the homepage, which uses none of it, Lighthouse mobile put ~1.2s of first paint on it
+ * (18 Oct 2026). Now it is self-hosted from node_modules (behind assetUrl's year cache)
+ * and absent from the pages that never call it. Bootstrap 5 does not need it.
+ *
+ * Still synchronous where it does load: the inline scripts on those pages call
+ * $(document).ready / $(document).on while the page is being parsed, right after this
+ * tag. test/jquery-opt-in.test.js fails if a view uses $ without opting in. */
+%>
+<% if (typeof useJQuery !== 'undefined' && useJQuery) { %>
+<script src="<%= assetUrl('/scripts/jquery/dist/jquery.min.js') %>"></script>
+<% } %>
 <script type="module" src="<%= assetUrl('/static/js/main.js') %>"></script>
 </body>
 </html>

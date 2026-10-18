@@ -254,13 +254,17 @@ function initMap() {
 <script src="//www.google.com/recaptcha/api.js" async defer></script>
 
 <script type="text/javascript">
-  $(document).ready(function(){
-    $('.openForm').click(function(){
-      var clubName = $(this).attr('data-club')
-      $('#exampleModalLabel').html('<i class="fas fa-envelope"></i> Get in touch with ' + clubName)
-      $('#clubSelect').val(clubName)
-    })
-  })
+  // Plain JS: this page loads no jQuery (footer.ejs, useJQuery). Delegated, so a button
+  // added after load is covered too. The club name goes in as text, not HTML.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.openForm');
+    if (!btn) { return; }
+    var clubName = btn.getAttribute('data-club') || '';
+    var label = document.getElementById('exampleModalLabel');
+    label.innerHTML = '<i class="fas fa-envelope"></i> ';
+    label.appendChild(document.createTextNode('Get in touch with ' + clubName));
+    document.getElementById('clubSelect').value = clubName;
+  });
 </script>
 
 </body>

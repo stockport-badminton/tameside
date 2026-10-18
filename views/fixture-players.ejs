@@ -150,7 +150,7 @@
 
 
 
-<%- include('footer.ejs') %>
+<%- include('footer.ejs', { useJQuery: true }) %>
 <%- include('datatables.ejs') %>
 <script>
   <% if (typeof filter !== 'undefined' && filter == true){ %>

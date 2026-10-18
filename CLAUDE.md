@@ -271,8 +271,14 @@ and **has no purge**, so a long cache is only safe on a URL that changes with th
   get `max-age=0`. **Use `assetUrl` for anything a view links**, or it revalidates hourly.
 - **The header is set only when a mount will actually serve the file.** A public max-age
   on a missing URL is held by Firebase past the deploy that adds it (Stockport hit this).
-- `/scripts` serves `VENDOR_DIRS` only (`bootstrap/dist`, `ejs`), not all of
+- `/scripts` serves `VENDOR_DIRS` only (`bootstrap/dist`, `ejs`, `jquery/dist`), not all of
   `node_modules`. Add a directory there before a view links into it.
+- **jQuery loads only where a page asks for it**: `include('footer.ejs', { useJQuery: true })`,
+  self-hosted 3.7.1. It used to be on every page from `code.jquery.com`, parser-blocking,
+  including the homepage that calls none of it. A page that uses `$` without opting in
+  renders fine and throws `$ is not defined` in the browser — `test/jquery-opt-in.test.js`
+  catches that, through the DataTables partials too. Prefer plain JS for a new page;
+  `/info/clubs` and `/contact-us` were moved off it for a few lines each.
 - It replaced a flat 30-day max-age on every file, versioned or not — so `main.js`, which
   wasn't versioned, could sit stale at the CDN for a month after a deploy.
 - `test/integration/static-asset-caching.test.js` renders `/privacy-policy`, not `/rules`

@@ -33,9 +33,11 @@ const ROOT = path.join(__dirname, '..');
 // installed package's files; these are the only ones a page asks for.
 //   bootstrap/dist  static/js/main.js imports the bundle on every page
 //   ejs             client-side templates on the scorecard and player-form pages
+//   jquery/dist     footer.ejs, on the pages that opt in with useJQuery
 const VENDOR_DIRS = [
   'bootstrap/dist',
-  'ejs'
+  'ejs',
+  'jquery/dist'
 ];
 
 // /static/webfonts is Font Awesome's, straight out of the package; style.css's

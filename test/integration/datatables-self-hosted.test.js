@@ -77,17 +77,17 @@ test('the bundle carries no jQuery of its own', () => {
   assert.doesNotMatch(bundle, /jQuery JavaScript Library/);
 });
 
-test('every view that loads DataTables does so after footer.ejs', () => {
-  // The deferred bundle needs window.jQuery, which only footer.ejs defines, and the
-  // inline initialisers call $(document).ready at parse time.
+test('every view that loads DataTables does so after footer.ejs, with jQuery opted in', () => {
+  // The deferred bundle needs window.jQuery, which only footer.ejs defines (and only with
+  // useJQuery), and the inline initialisers call $(document).ready at parse time.
   const users = fs.readdirSync(VIEWS).filter((f) => f.endsWith('.ejs') && !f.endsWith('-old.ejs'));
   let checked = 0;
   for (const f of users) {
     const src = fs.readFileSync(path.join(VIEWS, f), 'utf8');
     const dt = src.search(/include\('datatables(-stats)?\.ejs'/);
     if (dt === -1 || f.startsWith('datatables')) continue;
-    const footer = src.indexOf("include('footer.ejs')");
-    assert.ok(footer !== -1 && footer < dt, `${f} includes DataTables before footer.ejs`);
+    const footer = src.search(/include\('footer\.ejs', \{ useJQuery: true \}\)/);
+    assert.ok(footer !== -1 && footer < dt, `${f} needs include('footer.ejs', { useJQuery: true }) before DataTables`);
     checked++;
   }
   assert.ok(checked >= 8, `expected the eight DataTables views, found ${checked}`);

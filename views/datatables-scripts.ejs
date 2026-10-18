@@ -13,8 +13,9 @@
 
      The bundle has NO jQuery in it (no `jq-` segment in its builder URL). It used to
      include jQuery 3.3.1, fetched on top of footer.ejs's copy and then replacing
-     window.jQuery with a second instance. Every view includes this AFTER footer.ejs, so
-     footer's jQuery is defined by the time anything here runs — keep it that way.
+     window.jQuery with a second instance. Every view includes this AFTER
+     include('footer.ejs', { useJQuery: true }), so footer's jQuery is defined by the time
+     anything here runs — keep it that way.
 
      `defer` keeps document order, so the plug-ins run after the bundle they register
      on, and all of it before DOMContentLoaded — which is when jQuery's ready fires the
