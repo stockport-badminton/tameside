@@ -1,7 +1,25 @@
 <!-- DataTables library tags. Shared by datatables.ejs (results/fixture tables) and
-     datatables-stats.ejs (stats tables) so the CDN URLs are declared in one place.
-     The bundle is jQuery + DataTables + Buttons/ColVis + FixedHeader + Responsive;
-     date-euro adds the dd/mm/yyyy sort type both partials rely on.
-     Views opt into the matching CSS with include('header.ejs', { useDataTables: true }). -->
-<script type="text/javascript" src="https://cdn.datatables.net/v/bs4/jq-3.3.1/dt-1.10.20/b-1.6.1/b-colvis-1.6.1/fh-3.1.6/r-2.2.3/datatables.min.js"></script>
-<script type="text/javascript" src="//cdn.datatables.net/plug-ins/1.10.19/sorting/date-euro.js"></script>
+     datatables-stats.ejs (stats tables) so the URLs are declared in one place.
+     The bundle is DataTables + Buttons/ColVis + FixedHeader + Responsive; date-euro
+     adds the dd/mm/yyyy sort type both partials rely on, and page.jumpToData() (used
+     by datatables.ejs only) is loaded here too so the order below holds.
+
+     Self-hosted in static/vendor/datatables/ since Oct 2026 (Stockport's HARD-45). From
+     cdn.datatables.net these were three synchronous scripts and a render-blocking
+     stylesheet on a host nothing else on the page used. They are byte-for-byte what the
+     CDN's builder serves, not an npm install: the bundle is a builder output (rebuild
+     link in its header) and the npm equivalent is several packages at different
+     versions, which is an upgrade, not a move.
+
+     The bundle has NO jQuery in it (no `jq-` segment in its builder URL). It used to
+     include jQuery 3.3.1, fetched on top of footer.ejs's copy and then replacing
+     window.jQuery with a second instance. Every view includes this AFTER footer.ejs, so
+     footer's jQuery is defined by the time anything here runs — keep it that way.
+
+     `defer` keeps document order, so the plug-ins run after the bundle they register
+     on, and all of it before DOMContentLoaded — which is when jQuery's ready fires the
+     inline initialisers in datatables.ejs and datatables-stats.ejs.
+     test/integration/datatables-self-hosted.test.js pins all of this. -->
+<script defer src="<%= assetUrl('/static/vendor/datatables/datatables.min.js') %>"></script>
+<script defer src="<%= assetUrl('/static/vendor/datatables/date-euro.js') %>"></script>
+<script defer src="<%= assetUrl('/static/vendor/datatables/page.jumpToData.js') %>"></script>
