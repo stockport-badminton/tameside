@@ -49,7 +49,7 @@ for (const [file, data] of PARTIALS) {
     assert.ok(found.length > 0, 'asks for something, or the scan is broken');
 
     for (const { tag, url, attrs } of found) {
-      assert.match(url, /^\/static\/vendor\/datatables\/[^?]+\?v=[0-9a-f]{8}$/, url);
+      assert.match(url, /^\/static\/vendor\/datatables\/[^?]+\?v=[0-9a-f]{12}$/, url);
       if (tag === 'script') assert.match(attrs, /\bdefer\b/, `${url} must not block parsing`);
 
       const res = await request(app).get(url);

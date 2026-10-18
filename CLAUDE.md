@@ -259,6 +259,25 @@ from an older handler.
 - `AUTH0_CALLBACK_URL` is `https://tameside-badminton.co.uk/callback`, which is correct and
   should stay on the custom domain.
 
+### Static assets and caching
+
+`utils/assets.js` owns both the versioned URL and the `Cache-Control` on `/static` and
+`/scripts` (ported from Stockport's HARD-42, Oct 2026). Firebase's CDN honours our header
+and **has no purge**, so a long cache is only safe on a URL that changes with the file:
+
+- `assetUrl('/static/...')` appends `?v=<sha256, 12 hex>`. **That exact hash** gets a year,
+  `immutable`; a *different* hash gets `no-cache` (two revisions overlap during a deploy, and
+  the new page's URL must not pin the old bytes); no `?v=` gets an hour; generated images
+  get `max-age=0`. **Use `assetUrl` for anything a view links**, or it revalidates hourly.
+- **The header is set only when a mount will actually serve the file.** A public max-age
+  on a missing URL is held by Firebase past the deploy that adds it (Stockport hit this).
+- `/scripts` serves `VENDOR_DIRS` only (`bootstrap/dist`, `ejs`), not all of
+  `node_modules`. Add a directory there before a view links into it.
+- It replaced a flat 30-day max-age on every file, versioned or not — so `main.js`, which
+  wasn't versioned, could sit stale at the CDN for a month after a deploy.
+- `test/integration/static-asset-caching.test.js` renders `/privacy-policy`, not `/rules`
+  as Stockport's does: `/rules` calls Contentful and never answers under test.
+
 ### Sessions
 
 `express-session`, cookie name `__session`, **stored in Postgres** —
