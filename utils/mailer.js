@@ -125,7 +125,18 @@ async function send({ template, data, subject, text, to, bcc, replyTo, customId,
     message.Attachments = files;
   }
 
-  return mailjet.post('send', { version: 'v3.1' }).request({ Messages: [message] });
+  // Timed because several requests wait on this before answering — publishing a result
+  // among them (Stockport's HARD-47). Grep Cloud Logging for `[timing]`.
+  const started = Date.now();
+  let outcome = 'ok';
+  try {
+    return await mailjet.post('send', { version: 'v3.1' }).request({ Messages: [message] });
+  } catch (err) {
+    outcome = 'failed';
+    throw err;
+  } finally {
+    console.log(`[timing] mail: ${template} ${Date.now() - started}ms ${outcome}`);
+  }
 }
 
 module.exports = {

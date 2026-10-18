@@ -555,6 +555,9 @@ async function publishVideoEverywhere(targetList, { videoUrl, message, caption, 
   const failed = [];
 
   for (const t of (targetList || []).filter(Boolean)) {
+    // Timed per target, as in publishEverywhere: this runs under the same 60s request cut.
+    const started = Date.now();
+    const before = failed.length;
     try {
       if (t.kind === 'page') {
         const r = await publishPageVideo(t.id, t.token, { videoUrl, description: message });
@@ -585,6 +588,7 @@ async function publishVideoEverywhere(targetList, { videoUrl, message, caption, 
     } catch (err) {
       failed.push({ target: t.name, error: err });
     }
+    console.log(`[timing] meta: ${t.name} ${Date.now() - started}ms ${failed.length > before ? 'failed' : 'ok'}`);
   }
 
   return { posted, failed, ok: failed.length === 0 };
@@ -681,6 +685,12 @@ async function publishEverywhere(targetList, { imageUrls, message, caption, stor
   const failed = [];
 
   for (const t of (targetList || []).filter(Boolean)) {
+    // Targets run in sequence, so each one's time adds to the caller's — and a published
+    // result waits on all of them inside the request (Stockport's HARD-47 measured 16-51s
+    // against Firebase's 60s cut). Logged rather than returned so no caller's contract
+    // changes. Grep Cloud Logging for `[timing]`.
+    const started = Date.now();
+    const before = failed.length;
     try {
       if (t.kind === 'page') {
         const r = await publishPageAlbum(t.id, t.token, { imageUrls, message });
@@ -708,6 +718,7 @@ async function publishEverywhere(targetList, { imageUrls, message, caption, stor
     } catch (err) {
       failed.push({ target: t.name, error: err });
     }
+    console.log(`[timing] meta: ${t.name} ${Date.now() - started}ms ${failed.length > before ? 'failed' : 'ok'}`);
   }
 
   return { posted, failed, ok: failed.length === 0 };

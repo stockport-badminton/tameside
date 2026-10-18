@@ -650,6 +650,14 @@ FROM (SELECT "fixturePlayers".*, club.name
     // result went out hashtagged two different ways. `#tbl` is the one the league uses.
     const message = `Result: ${zapObject.homeTeam} vs ${zapObject.awayTeam} : ${zapObject.homeScore}-${zapObject.awayScore} #tameside #badminton #tbl #result #bulutangkis #badminton🏸 #badmintonclub https://tameside-badminton.co.uk`;
 
+    // The publish request waits on all of this; metaPublisher logs each target, this is
+    // the total. Grep Cloud Logging for `[timing]` (Stockport's HARD-47, step 1).
+    const started = Date.now();
+    const timed = (result) => {
+      console.log(`[timing] publish: result-announcement ${Date.now() - started}ms ${result.sent ? 'ok' : 'failed'}`);
+      return done(null, result);
+    };
+
     try {
       // ── Direct, or through Make.com ──────────────────────────────────────────
       //
@@ -666,7 +674,7 @@ FROM (SELECT "fixturePlayers".*, club.name
         const out = await publishResultToMeta({
           imgGen, message, storyImageUrl: absoluteUrl(resultStoryImagePath(zapObject)),
         });
-        return done(null, { sent: true, via: 'meta', posted: out.posted.map(p => p.target) });
+        return timed({ sent: true, via: 'meta', posted: out.posted.map(p => p.target) });
       }
 
       await fetch('https://hook.integromat.com/uihmc7g54i8xrvdvpsec2f6ejfqul70g', {
@@ -688,11 +696,11 @@ FROM (SELECT "fixturePlayers".*, club.name
       // The self-fetch of the image that used to sit here is gone. It pulled ~150KB back
       // as a *string* purely to make the route write its PNG to local disk, and handed that
       // string to the callback, which ignores it. Make fetches `imgGen` itself.
-      return done(null, { sent: true, via: 'make.com' });
+      return timed({ sent: true, via: 'make.com' });
     } catch (err) {
       console.error('result announcement failed:', err.message);
       try { require('@sentry/node').captureException(err); } catch (_) { /* Sentry is a no-op without a DSN */ }
-      return done(null, { sent: false, reason: err.message });
+      return timed({ sent: false, reason: err.message });
     }
   }
 
