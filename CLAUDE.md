@@ -677,9 +677,9 @@ project. postgres.js won't retry it — its only retry path is `retryRoutines` o
 - **Once, then give up.** Sized for a stale socket, which the next connection fixes. If
   the DB is genuinely away, more attempts just hold the request open.
 - Applied to the three pages judged worth protecting — `/`, `/info/clubs`, `/tables/*` —
-  across 9 model functions. `test/db-retry.test.js` asserts the behaviour *and* that
-  those 9 still use it, so it can't be dropped by a later edit to one of the queries.
-- Those 9 were also moved from the `.catch(err => done(err))` idiom to `try`/`catch`.
+  across 8 model functions. `test/db-retry.test.js` asserts the behaviour *and* that
+  those 8 still use it, so it can't be dropped by a later edit to one of the queries.
+- The original 9 (incl. `siteSettings.get`, which `/` no longer calls) were also moved from the `.catch(err => done(err))` idiom to `try`/`catch`.
   The old idiom called `done(err)` and then fell through to `done(null, undefined)`, so
   the controller rendered on top of a 500 already in flight — and being outside the
   request chain, the resulting throw killed the process. `try`/`catch` removes the path

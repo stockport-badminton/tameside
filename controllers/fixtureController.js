@@ -4,7 +4,6 @@ let Team = require("../models/teams");
 let Player = require("../models/players");
 let Game = require("../models/game");
 let HomepageContent = require("../models/homepageContent");
-let SiteSettings = require("../models/siteSettings");
 const ejs = require('ejs');
 const ICAL = require("ical.js");
 const seasonModel = require("../models/season");
@@ -301,34 +300,19 @@ exports.fixture_get_summary = function(req, res,next) {
               next(err);
               return;
             }
-            SiteSettings.get('homepage_gallery_tag', function(err,galleryTag){
-              if (err){
-                console.log(err);
-                galleryTag = undefined;
-              }
-              const renderHomepage = function(assets){
-                res.render('homepage', {
-                    static_path: '/static',
-                    title : "Homepage",
-                    pageDescription : "Clubs: Aerospace, College Green, Disley, GHAP, Hyde, Manchester Edgeley, Manor, Mellor, Medlock, Shell. Social and Competitive badminton in and around Tameside.",
-                    result : recentResults,
-                    row : upcomingFixtures,
-                    scorecards:scorecards,
-                    announcements : announcements,
-                    assets : assets
-                });
-              }
-              fetch('https://api.cloudinary.com/v1_1/hvunsveuh/resources/image/tags/' + encodeURIComponent(galleryTag || 'messer2024') + '?max_results=30&context=true', {
-                headers: { 'Authorization': 'Basic ' + process.env.CLOUDINARY_AUTH }
-              })
-              .then(r => r.json())
-              .then(function(assets){
-                renderHomepage(assets.resources)
-              })
-              // A Cloudinary failure must never take the homepage down —
-              // render with an empty gallery instead of hanging the request.
-              .catch(function(){ renderHomepage([]) })
-            })
+            // No gallery fetch here. This used to await the Cloudinary Admin API on every
+            // homepage request — uncached, no timeout — for a gallery homepage.ejs never
+            // rendered. If the gallery is ever built, port Stockport's
+            // utils/cloudinaryGallery.js (cached, hard deadline, never rejects) — HARD-43.
+            res.render('homepage', {
+                static_path: '/static',
+                title : "Homepage",
+                pageDescription : "Clubs: Aerospace, College Green, Disley, GHAP, Hyde, Manchester Edgeley, Manor, Mellor, Medlock, Shell. Social and Competitive badminton in and around Tameside.",
+                result : recentResults,
+                row : upcomingFixtures,
+                scorecards:scorecards,
+                announcements : announcements
+            });
           })
       }
     })

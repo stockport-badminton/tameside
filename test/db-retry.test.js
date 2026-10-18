@@ -148,7 +148,6 @@ test('the three protected pages still retry', async (t) => {
     ['models/fixture.js', 'getOutstandingScorecards', '/'],
     ['models/fixture.js', 'getupComing', '/'],
     ['models/homepageContent.js', 'getActive', '/'],
-    ['models/siteSettings.js', 'get', '/'],
     ['models/club.js', 'clubDetail', '/info/clubs'],
     ['models/venue.js', 'getVenueClubs', '/info/clubs'],
     ['models/league.js', 'getLeagueTable', '/tables/:division'],
