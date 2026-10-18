@@ -66,8 +66,10 @@ curl -s -u "$MAILJET_KEY:$MAILJET_SECRET" \
 
 `IsSpamComplaining: true` means they clicked Junk (or their provider's feedback loop
 reported it) and **Mailjet now suppresses that address permanently**. No bounce, no
-rejection, no log line — mail simply stops. `peter.taylor13@outlook.com` is in exactly
-this state, flagged since 24 Oct 2024.
+rejection, no log line — mail simply stops. `peter.taylor13@outlook.com` was in exactly
+this state, flagged since 24 Oct 2024. Cleared by deleting the contact; it was recreated
+clean on the next send (6 Oct 2026), and by 18 Oct 2026 six messages had gone out as
+`sent` and two had been opened. So the fix below works.
 
 To fix one: delete the contact in Mailjet (Contacts → the address → delete, or the v4
 contacts delete endpoint), which clears the flag; it is recreated clean on the next send.
