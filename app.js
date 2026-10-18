@@ -79,6 +79,9 @@ app.locals.serviceWorkerEnabled =
 const assets = require('./utils/assets');
 app.locals.assetUrl = assets.assetUrl;
 
+// icon('trophy') -> inline SVG. Replaced the Font Awesome webfont; see utils/icons.js.
+app.locals.icon = require('./utils/icons').icon;
+
 // Resolve the current/previous season from the DB (cached) at boot so every
 // season-scoped query agrees on which season is "current", and cache the list
 // of past seasons (those with an archived team<season> snapshot) for the
@@ -238,7 +241,6 @@ app.use(express.static('rootfiles'));
 // response that sets none — which is what a file outside these mounts would get.
 app.use(['/static', '/scripts'], assets.cacheHeaders);
 app.use('/static', express.static(path.join(__dirname,'/static'), { cacheControl: false }));
-app.use('/static/webfonts', express.static(assets.WEBFONTS_DIR, { cacheControl: false }));
 assets.VENDOR_DIRS.forEach(function(dir) {
   app.use('/scripts/' + dir, express.static(path.join(__dirname, 'node_modules', dir), { cacheControl: false }));
 });

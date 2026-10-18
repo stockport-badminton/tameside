@@ -16,7 +16,7 @@
 %>
 
 <div class="container my-4">
-  <h1 class="mb-1"><i class="fas fa-wand-magic-sparkles"></i> <%= homeTeam.name %> v <%= awayTeam.name %></h1>
+  <h1 class="mb-1"><%- icon('wand-magic-sparkles') %> <%= homeTeam.name %> v <%= awayTeam.name %></h1>
   <p class="text-muted mb-3"><%= s3key %><% if (_ex.rotationDegrees) { %> · photo auto-rotated <%= _ex.rotationDegrees %>°<% } %></p>
 
   <% if (_ex.warnings.length) { %>
@@ -67,7 +67,7 @@
       </table></div>
 
       <div class="my-4">
-        <a class="btn btn-primary btn-lg" href="<%= handoffUrl %>"><i class="fas fa-file-import"></i> Open prefilled scorecard</a>
+        <a class="btn btn-primary btn-lg" href="<%= handoffUrl %>"><%- icon('file-import') %> Open prefilled scorecard</a>
         <a class="btn btn-link" href="/admin/scorecard-ocr">Back to list</a>
         <div class="form-text mt-2">Opens the normal scorecard entry form with everything above prefilled — check the amber/unread cells against the photo, then submit as usual. Nothing is saved until that form is submitted.</div>
       </div>

@@ -20,7 +20,7 @@
 
       <% if (hidden.indexOf('division') === -1) { %>
         <div class="filter-field">
-          <label for="divisionSelect"><i class="fas fa-trophy"></i> Division</label>
+          <label for="divisionSelect"><%- icon('trophy') %> Division</label>
           <select class="form-control" name="divisionSelect" id="divisionSelect">
             <option value="0">All divisions</option>
             <% for (const division of filterBar.divisions) { %>
@@ -32,7 +32,7 @@
 
       <% if (hidden.indexOf('season') === -1) { %>
         <div class="filter-field">
-          <label for="seasonSelect"><i class="fas fa-calendar-check"></i> Season</label>
+          <label for="seasonSelect"><%- icon('calendar-check') %> Season</label>
           <select class="form-control" name="seasonSelect" id="seasonSelect">
             <option value="0">Current season<%= filterBar.currentSeasonLabel ? ' (' + filterBar.currentSeasonLabel + ')' : '' %></option>
             <% for (const season of filterBar.seasons) { %>
@@ -44,7 +44,7 @@
 
       <% if (hidden.indexOf('status') === -1) { %>
         <div class="filter-field">
-          <label for="statusSelect"><i class="fas fa-circle-check"></i> Status</label>
+          <label for="statusSelect"><%- icon('circle-check') %> Status</label>
           <select class="form-control" name="statusSelect" id="statusSelect">
             <option value="0">All statuses</option>
             <% for (const status of ['outstanding', 'rearranging', 'rearranged', 'conceded', 'complete']) { %>
@@ -56,7 +56,7 @@
 
       <% if (hidden.indexOf('gender') === -1) { %>
         <div class="filter-field">
-          <label for="gender"><i class="fas fa-venus-mars"></i> Gender</label>
+          <label for="gender"><%- icon('venus-mars') %> Gender</label>
           <select class="form-control" name="gender" id="gender">
             <option value="0">All</option>
             <option value="Male" <%= applied.gender === 'Male' ? 'selected' : '' %>>Male</option>
@@ -67,7 +67,7 @@
 
       <% if (hidden.indexOf('gametype') === -1) { %>
         <div class="filter-field">
-          <label for="gameType"><i class="fas fa-shuttle-badminton"></i> Game type</label>
+          <label for="gameType"><%- icon('shuttlecock') %> Game type</label>
           <select class="form-control" name="gameType" id="gameType">
             <option value="0">All types</option>
             <% for (const type of ['Mens', 'Ladies', 'Mixed']) { %>
@@ -79,7 +79,7 @@
 
       <% if (typeof clubs !== 'undefined') { %>
         <div class="filter-field">
-          <label for="club"><i class="fas fa-building"></i> Club</label>
+          <label for="club"><%- icon('building') %> Club</label>
           <select class="form-control" name="club" id="club">
             <option value="0">All clubs</option>
             <% for (const row of clubs) { %>
@@ -91,7 +91,7 @@
 
       <% if (typeof teams !== 'undefined') { %>
         <div class="filter-field">
-          <label for="team"><i class="fas fa-users"></i> Team</label>
+          <label for="team"><%- icon('users') %> Team</label>
           <select class="form-control" name="team" id="team">
             <option value="0">All teams</option>
             <% for (const row of teams) { %>
@@ -104,7 +104,7 @@
     </div>
 
     <button class="btn-modern-primary filter-apply" id="statsUpdate" type="button">
-      <i class="fas fa-filter"></i> Apply filters
+      <%- icon('filter') %> Apply filters
     </button>
   </form>
 
@@ -113,7 +113,7 @@
       <span class="filter-chips-label">Showing</span>
       <% for (const chip of filterBar.chips) { %>
         <a class="filter-chip" href="<%= chip.removeUrl %>" title="<%= chip.title %>">
-          <%= chip.label %><i class="fas fa-xmark"></i>
+          <%= chip.label %><%- icon('xmark') %>
         </a>
       <% } %>
       <a class="filter-clear" href="<%= filterBar.clearUrl %>">Clear all</a>

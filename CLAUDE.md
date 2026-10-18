@@ -284,6 +284,20 @@ and **has no purge**, so a long cache is only safe on a URL that changes with th
 - `test/integration/static-asset-caching.test.js` renders `/privacy-policy`, not `/rules`
   as Stockport's does: `/rules` calls Contentful and never answers under test.
 
+**Icons are inline SVG — there is no icon font.** `<%- icon('trophy') %>` (`utils/icons.js`,
+ported from Stockport's HARD-44) reads the Font Awesome package's `svgs/` at render time.
+Font Awesome's CSS and webfonts are out of `style.css` (339 KB → 236 KB raw) and the
+157 KB `fa-solid-900.woff2` is no longer fetched. So:
+
+- **An `fa-` class renders as nothing**, silently. `test/icons.test.js` fails on one.
+- Names are **Font Awesome 6 file names** (`xmark`, `circle-check`, `table-cells`), not v4
+  aliases; an unknown name throws at render. `{ variant: 'regular' }` for the outline style.
+- `icon('shuttlecock')` is the nav's brand mark: Free has no `shuttle-badminton` (Pro only),
+  so the two places that asked for it had rendered **blank** until this.
+- `icon-float` reproduces the old global `.fa` rule (30px, floated) for the `/results`
+  header icons that relied on it. Style an icon with `.icon`, never `i`.
+- Output is double-quoted, no newlines: safe inside a single-quoted JS string.
+
 ### Sessions
 
 `express-session`, cookie name `__session`, **stored in Postgres** —

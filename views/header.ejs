@@ -202,9 +202,8 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
 <!-- Webfonts used by modern-styles.css: self-hosted, @font-face inline. Why: webfonts.ejs. -->
 <%- include('webfonts.ejs') %>
 
-<!-- Bootstrap + Font Awesome, compiled from bootstrap/style.scss. This already
-     contains the full Font Awesome 6 CSS (icons, and @font-face pointing at
-     /static/webfonts), so no CDN copy of Font Awesome is needed on top. -->
+<!-- Bootstrap, compiled from bootstrap/style.scss. No icon font: icons are inline SVG
+     (utils/icons.js). -->
 <link rel="stylesheet" href="<%= assetUrl('/static/css/style.css') %>" type="text/css" />
 
 <!-- Modern Styles - MUST come after Bootstrap -->

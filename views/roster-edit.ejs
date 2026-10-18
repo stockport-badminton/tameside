@@ -36,11 +36,11 @@
       <% } %>
       <a class="btn btn-outline-secondary btn-sm"
          href="/manage-players/club-<%= encodeURIComponent(clubName) %>">
-        <i class="fa fa-eye" aria-hidden="true"></i> Roster view
+        <%- icon('eye') %> Roster view
       </a>
       <a class="btn btn-outline-secondary btn-sm"
          href="/forms/team-registration/<%= encodeURIComponent(clubName) %>/docx">
-        <i class="fa fa-download" aria-hidden="true"></i> Registration form
+        <%- icon('download') %> Registration form
       </a>
     </div>
   </div>

@@ -36,17 +36,17 @@
     <span class="roster-contact">
       <% if (player.tel) { %>
         <a href="tel:<%= player.tel.replace(/[^0-9+]/g, '') %>" title="Call <%= player.name %> on <%= player.tel %>">
-          <i class="fa fa-phone" aria-hidden="true"></i><span class="visually-hidden">Call <%= player.name %></span>
+          <%- icon('phone') %><span class="visually-hidden">Call <%= player.name %></span>
         </a>
       <% } else { %>
-        <span class="missing" title="No phone number on file"><i class="fa fa-phone" aria-hidden="true"></i></span>
+        <span class="missing" title="No phone number on file"><%- icon('phone') %></span>
       <% } %>
       <% if (player.email) { %>
         <a href="mailto:<%= player.email %>" title="Email <%= player.name %> at <%= player.email %>">
-          <i class="fa fa-envelope" aria-hidden="true"></i><span class="visually-hidden">Email <%= player.name %></span>
+          <%- icon('envelope') %><span class="visually-hidden">Email <%= player.name %></span>
         </a>
       <% } else { %>
-        <span class="missing" title="No email address on file"><i class="fa fa-envelope" aria-hidden="true"></i></span>
+        <span class="missing" title="No email address on file"><%- icon('envelope') %></span>
       <% } %>
     </span>
   <% } %>
@@ -54,7 +54,7 @@
   <% if (editable) { %>
     <button type="button" class="row-menu-btn" aria-haspopup="true" aria-expanded="false"
             aria-label="Actions for <%= player.name %>">
-      <i class="fa fa-ellipsis-v" aria-hidden="true"></i>
+      <%- icon('ellipsis-vertical') %>
     </button>
   <% } %>
 </li>

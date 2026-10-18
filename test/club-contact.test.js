@@ -112,8 +112,10 @@ describe('views/club-contact.ejs', () => {
     const interpolated = helper.match(/' \+ (\w+)/g) || [];
     assert.ok(interpolated.length > 0, 'expected officerCard to interpolate values');
     for (const frag of interpolated) {
-      assert.match(frag, /' \+ esc/, 'unescaped interpolation in officerCard: ' + frag);
+      // icon() is markup by design — fixed SVG from the Font Awesome package, never data.
+      assert.match(frag, /' \+ (esc|icon)$/, 'unescaped interpolation in officerCard: ' + frag);
     }
+    assert.ok(interpolated.some((f) => f.endsWith('esc')), 'expected the data to go through esc');
   });
 
   it('routes all four officer slots through the one helper', () => {

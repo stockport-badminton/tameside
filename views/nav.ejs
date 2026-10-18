@@ -29,23 +29,23 @@
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-trophy"></i> Fixtures & Results
+                        <%- icon('trophy') %> Fixtures & Results
                     </a>
                     <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="/email-scorecard"><i class="fas fa-pen-to-square"></i> Enter Result</a></li>
-                        <li><a class="dropdown-item" href="/tables/All"><i class="fas fa-table"></i> Tables</a></li>
-                        <li><a class="dropdown-item" href="/results/All"><i class="fas fa-list"></i> All</a></li>
+                        <li><a class="dropdown-item" href="/email-scorecard"><%- icon('pen-to-square') %> Enter Result</a></li>
+                        <li><a class="dropdown-item" href="/tables/All"><%- icon('table') %> Tables</a></li>
+                        <li><a class="dropdown-item" href="/results/All"><%- icon('list') %> All</a></li>
                         <li><a class="dropdown-item" href="/results/Division 1">Division 1</a></li>
                         <li><a class="dropdown-item" href="/results/Division 2">Division 2</a></li>
                         <% if(locals.user) { %>
-                        <li><a class="dropdown-item" href="/elo-chart"><i class="fas fa-chart-line"></i> Ratings</a></li>
+                        <li><a class="dropdown-item" href="/elo-chart"><%- icon('chart-line') %> Ratings</a></li>
                         <% } %>
                     </ul>
                 </li>
-                <li class="nav-item"><a class="nav-link" href="/info/clubs"><i class="fas fa-users"></i> Clubs</a></li>
+                <li class="nav-item"><a class="nav-link" href="/info/clubs"><%- icon('users') %> Clubs</a></li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-clock-rotate-left"></i> History
+                        <%- icon('clock-rotate-left') %> History
                     </a>
                     <ul class="dropdown-menu">
                         <% var _past = (typeof pastSeasons !== 'undefined' && pastSeasons) ? pastSeasons : []; %>
@@ -57,21 +57,21 @@
                         <li><a class="dropdown-item" href="/history">All seasons &amp; documents</a></li>
                     </ul>
                 </li>
-                <li class="nav-item"><a class="nav-link" href="/lewis-shield"><i class="fas fa-shield-halved"></i> Lewis Shield</a></li>
+                <li class="nav-item"><a class="nav-link" href="/lewis-shield"><%- icon('shield-halved') %> Lewis Shield</a></li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-file-lines"></i> Useful Files
+                        <%- icon('file-lines') %> Useful Files
                     </a>
                     <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="/static/docs/scorecard.pdf"><i class="fas fa-file-pdf"></i> Scorecard</a></li>
+                        <li><a class="dropdown-item" href="/static/docs/scorecard.pdf"><%- icon('file-pdf') %> Scorecard</a></li>
                     </ul>
                 </li>
-                <li class="nav-item"><a class="nav-link" href="/rules"><i class="fas fa-book"></i> Rules</a></li>
-                <li class="nav-item"><a class="nav-link" href="/contact-us"><i class="fas fa-envelope"></i> Contact</a></li>
+                <li class="nav-item"><a class="nav-link" href="/rules"><%- icon('book') %> Rules</a></li>
+                <li class="nav-item"><a class="nav-link" href="/contact-us"><%- icon('envelope') %> Contact</a></li>
                 <% if(locals.user) { %>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                            <i class="fas fa-user-gear"></i> Admin
+                            <%- icon('user-gear') %> Admin
                         </a>
                         <!-- dropdown-menu-end: right-most item, so right-align the
                              menu or it extends past the viewport edge -->
@@ -102,7 +102,7 @@
                         </div>
                     </li>
                 <% } else { %>
-                    <li class="nav-item"><a class="nav-link" href="/login"><i class="fas fa-right-to-bracket"></i> Log in</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/login"><%- icon('right-to-bracket') %> Log in</a></li>
                 <% } %>
             </ul>
         </div>

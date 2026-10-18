@@ -4,7 +4,7 @@
 <% if (error || typeof clubrow == 'undefined') { %>
   <div class="container my-5">
     <div class="alert alert-danger" role="alert">
-      <i class="fas fa-triangle-exclamation"></i> <strong>Something went wrong</strong>
+      <%- icon('triangle-exclamation') %> <strong>Something went wrong</strong>
       <p class="mb-0 mt-2"><%= error %></p>
     </div>
   </div>
@@ -28,14 +28,14 @@
       return out + '<div class="official-name text-muted fst-italic">Not recorded</div></div>';
     }
     out += '<div class="official-name">' + esc(name) + '</div><div class="official-contacts">';
-    if (tel) out += '<a href="tel:' + esc(tel) + '" class="contact-link"><i class="fas fa-phone"></i> ' + esc(tel) + '</a>';
-    if (email) out += '<a href="mailto:' + esc(email) + '" class="contact-link"><i class="fas fa-envelope"></i> ' + esc(email) + '</a>';
+    if (tel) out += '<a href="tel:' + esc(tel) + '" class="contact-link">' + icon('phone') + ' ' + esc(tel) + '</a>';
+    if (email) out += '<a href="mailto:' + esc(email) + '" class="contact-link">' + icon('envelope') + ' ' + esc(email) + '</a>';
     return out + '</div></div>';
   }
 %>
 <!-- Page Header -->
 <section class="hero" style="padding: 4rem 2rem 3rem;">
-  <h1><i class="fas fa-shield-halved"></i> Club Contact Information</h1>
+  <h1><%- icon('shield-halved') %> Club Contact Information</h1>
   <p>Private contact details for league officials and team captains</p>
 </section>
 
@@ -44,7 +44,7 @@
   <div class="container">
     <div class="alert alert-warning alert-modern" role="alert">
       <div class="alert-icon">
-        <i class="fas fa-lock"></i>
+        <%- icon('lock') %>
       </div>
       <div class="alert-content">
         <strong>Secure Area - Confidential Information</strong>
@@ -66,33 +66,33 @@
       <div class="col-lg-5">
         <div class="info-card-main">
           <div class="card-header-custom">
-            <i class="fas fa-building"></i>
+            <%- icon('building') %>
             <h2><%= clubrow[0].clubName %></h2>
           </div>
           
           <div class="info-section">
             <% if (!clubrow[0].venueId && !clubrow[0].matchVenueId) { %>
               <div class="info-block">
-                <h3><i class="fas fa-map-marker-alt"></i> Venue</h3>
+                <h3><%- icon('location-dot') %> Venue</h3>
                 <p class="text-muted fst-italic mb-0">Not recorded</p>
               </div>
             <% } else if (clubrow[0].venueId == clubrow[0].matchVenueId) { %>
               <!-- Single Venue -->
               <div class="info-block">
-                <h3><i class="fas fa-map-marker-alt"></i> Venue</h3>
+                <h3><%- icon('location-dot') %> Venue</h3>
                 <p class="venue-name"><%= clubrow[0].venueName %></p>
                 <p class="venue-address"><%= clubrow[0].address %></p>
               </div>
             <% } else { %>
               <!-- Separate Match and Club Venues -->
               <div class="info-block">
-                <h3><i class="fas fa-trophy"></i> Match Venue</h3>
+                <h3><%- icon('trophy') %> Match Venue</h3>
                 <p class="venue-name"><%= clubrow[0].matchVenueName %></p>
                 <p class="venue-address"><%= clubrow[0].matchVenueAddress %></p>
               </div>
               
               <div class="info-block">
-                <h3><i class="fas fa-home"></i> Club Venue</h3>
+                <h3><%- icon('house') %> Club Venue</h3>
                 <p class="venue-name"><%= clubrow[0].venueName %></p>
                 <p class="venue-address"><%= clubrow[0].address %></p>
               </div>
@@ -101,7 +101,7 @@
 
           <!-- Officials Section -->
           <div class="officials-section">
-            <h3><i class="fas fa-user-tie"></i> Club Officials</h3>
+            <h3><%- icon('user-tie') %> Club Officials</h3>
             
             <%- officerCard('Club Secretary', clubrow[0].clubSecretary, clubrow[0].clubSecTel, clubrow[0].clubSecEmail) %>
             <%- officerCard('Match Secretary', clubrow[0].matchSecretary, clubrow[0].matchSecTel, clubrow[0].matchSecEmail) %>
@@ -113,7 +113,7 @@
       <div class="col-lg-7">
         <div class="info-card-main">
           <div class="card-header-custom">
-            <i class="fas fa-users"></i>
+            <%- icon('users') %>
             <h2>Team Captains</h2>
           </div>
           
@@ -121,7 +121,7 @@
             <% clubrow.forEach(function(teamRow){ %>
               <div class="team-captain-card">
                 <div class="team-header">
-                  <span class="team-badge"><i class="fas fa-shuttle-badminton"></i></span>
+                  <span class="team-badge"><%- icon('shuttlecock') %></span>
                   <h4><%= teamRow.teamName %></h4>
                 </div>
                 <div class="captain-info">

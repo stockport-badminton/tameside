@@ -24,11 +24,11 @@
 <section class="home-outstanding" data-ga-section="outstanding">
     <div class="home-head">
         <h2 class="section-title home-title">
-            <i class="fas fa-triangle-exclamation"></i>
+            <%- icon('triangle-exclamation') %>
             <%= scorecards.length %> scorecard<%= scorecards.length === 1 ? '' : 's' %> outstanding
         </h2>
         <a href="/email-scorecard" class="btn-modern-primary home-enter">
-            <i class="fas fa-pen-to-square"></i> Enter Result
+            <%- icon('pen-to-square') %> Enter Result
         </a>
     </div>
     <ul class="home-chips">
@@ -50,8 +50,8 @@
     <!-- Recent Results, newest first -->
     <section class="home-panel" data-ga-section="recent">
         <div class="home-head">
-            <h2 class="section-title home-title"><i class="fas fa-list-check"></i> Recent Results</h2>
-            <a class="home-more" href="/results/All">All results <i class="fas fa-arrow-right"></i></a>
+            <h2 class="section-title home-title"><%- icon('list-check') %> Recent Results</h2>
+            <a class="home-more" href="/results/All">All results <%- icon('arrow-right') %></a>
         </div>
         <% if (recentList.length > 0) { %>
         <ul class="home-list">
@@ -72,8 +72,8 @@
     <!-- Upcoming Fixtures -->
     <section class="home-panel" data-ga-section="upcoming">
         <div class="home-head">
-            <h2 class="section-title home-title"><i class="fas fa-calendar-days"></i> Upcoming Fixtures</h2>
-            <a class="home-more" href="/fixtures/All">All fixtures <i class="fas fa-arrow-right"></i></a>
+            <h2 class="section-title home-title"><%- icon('calendar-days') %> Upcoming Fixtures</h2>
+            <a class="home-more" href="/fixtures/All">All fixtures <%- icon('arrow-right') %></a>
         </div>
         <% if (upcomingList.length > 0) { %>
         <ul class="home-list">
@@ -95,7 +95,7 @@
 <% if (newsList.length > 0) { %>
 <!-- News: headline and a two-line teaser; the full text is in the existing modal -->
 <section class="home-news" data-ga-section="news">
-    <h2 class="section-title home-title"><i class="fas fa-newspaper"></i> News</h2>
+    <h2 class="section-title home-title"><%- icon('newspaper') %> News</h2>
     <div class="home-news-grid">
         <% newsList.forEach(function(a){ %>
         <article class="home-news-item">

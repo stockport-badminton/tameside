@@ -4,7 +4,7 @@
 <% if (error) { %>
   <div class="container my-5">
     <div class="alert alert-danger" role="alert">
-      <i class="fas fa-triangle-exclamation"></i> <strong>Something went wrong</strong>
+      <%- icon('triangle-exclamation') %> <strong>Something went wrong</strong>
       <p class="mb-0 mt-2"><%= error %></p>
     </div>
   </div>
@@ -14,11 +14,11 @@
 <section class="results-header">
   <div class="container">
     <div class="results-header-content">
-      <h1><i class="fas fa-th"></i> <%= division.replace('-',' ') %></h1>
+      <h1><%- icon('table-cells') %> <%= division.replace('-',' ') %></h1>
       <div class="header-actions">
         <a class="action-btn" href="<%= path.replace('\/results-grid\/','\/results\/') %>" 
            title="Switch to list view">
-          <i class="fa fa-bars"></i>
+          <%- icon('bars', { class: 'icon-float' }) %>
           <span>List View</span>
         </a>
       </div>
@@ -33,7 +33,7 @@
       
       <% if (jsonResult.length > 1) { %>
         <div class="division-header">
-          <h3><i class="fas fa-trophy"></i> <%= division.division %></h3>
+          <h3><%- icon('trophy') %> <%= division.division %></h3>
         </div>
       <% } %>
       

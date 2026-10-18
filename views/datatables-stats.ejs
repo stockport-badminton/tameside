@@ -57,7 +57,7 @@
           <% if (typeof dtColumnSearch !== 'undefined' && dtColumnSearch) { %>
           ,
           {
-            text: '<i class="fas fa-magnifying-glass"></i> Search columns',
+            text: '<%- icon('magnifying-glass') %> Search columns',
             className: 'dt-btn dt-btn-colsearch',
             action: function (e, dt, node) {
               var on = $('#results-table').toggleClass('colsearch-on').hasClass('colsearch-on');

@@ -16,16 +16,16 @@
     <div class="roster-actions">
       <a class="btn btn-outline-secondary btn-sm"
          href="/forms/team-registration/<%= encodeURIComponent(clubName) %>/docx">
-        <i class="fa fa-download" aria-hidden="true"></i> Registration form (Word)
+        <%- icon('download') %> Registration form (Word)
       </a>
       <a class="btn btn-outline-secondary btn-sm"
          href="/forms/team-registration/<%= encodeURIComponent(clubName) %>/prefilled">
-        <i class="fa fa-download" aria-hidden="true"></i> Registration form (PDF)
+        <%- icon('download') %> Registration form (PDF)
       </a>
       <% if (canEdit) { %>
         <a class="btn btn-primary btn-sm"
            href="/manage-players/club-<%= encodeURIComponent(clubName) %>/edit">
-          <i class="fa fa-pen" aria-hidden="true"></i> Manage players
+          <%- icon('pen') %> Manage players
         </a>
       <% } %>
     </div>
@@ -43,7 +43,7 @@
 
   <% if (summary.noContact > 0) { %>
     <p class="text-muted small">
-      <i class="fa fa-circle-info" aria-hidden="true"></i>
+      <%- icon('circle-info') %>
       <%= summary.noContact %> <%= summary.noContact === 1 ? 'player has' : 'players have' %>
       no phone number or email on file. Grey icons mark them.
     </p>

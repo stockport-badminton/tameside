@@ -4,7 +4,7 @@
 <% if (error) { %>
   <div class="container my-5">
     <div class="alert alert-danger" role="alert">
-      <i class="fas fa-triangle-exclamation"></i> <strong>Something went wrong</strong>
+      <%- icon('triangle-exclamation') %> <strong>Something went wrong</strong>
       <p class="mb-0 mt-2"><%= error %></p>
     </div>
   </div>
@@ -14,16 +14,16 @@
 <section class="results-header">
   <div class="container">
     <div class="results-header-content">
-      <h1><i class="fas fa-trophy"></i> <%= division %></h1>
+      <h1><%- icon('trophy') %> <%= division %></h1>
       <div class="header-actions">
         <a class="action-btn" href="<%= path.replace('\/results\/','\/results-grid\/') %>" 
            title="Switch to grid view">
-          <i class="fa fa-th"></i>
+          <%- icon('table-cells', { class: 'icon-float' }) %>
           <span>Grid View</span>
         </a>
         <a class="action-btn" href="<%= path.replace('\/results\/','\/calendars\/') %>" 
            title="Download calendar">
-          <i class="fa fa-calendar"></i>
+          <%- icon('calendar', { class: 'icon-float' }) %>
           <span>Calendar</span>
         </a>
       </div>
@@ -36,7 +36,7 @@
 <section class="admin-info">
   <div class="container">
     <div class="info-card">
-      <i class="fas fa-user-shield"></i>
+      <%- icon('user-shield') %>
       <div>
         <strong>Welcome, <%= user.nickname %></strong><br />
         <span class="text-muted">
@@ -67,16 +67,16 @@
       <table class="table modern-table" id="results-table">
         <thead>
           <tr>
-            <th><i class="far fa-calendar"></i> Date</th>
-            <th><i class="fas fa-house"></i> Home Team</th>
-            <th><i class="fas fa-plane-departure"></i> Away Team</th>
-            <th><i class="fas fa-trophy"></i> Result</th>
+            <th><%- icon('calendar', { variant: 'regular' }) %> Date</th>
+            <th><%- icon('house') %> Home Team</th>
+            <th><%- icon('plane-departure') %> Away Team</th>
+            <th><%- icon('trophy') %> Result</th>
             <% if (typeof admin !== 'undefined') { %>
-              <th><i class="fas fa-circle-info"></i> Details</th>
+              <th><%- icon('circle-info') %> Details</th>
             <% } %>
             <% if (typeof superadmin !== 'undefined' && superadmin) { %>
-              <th><i class="fas fa-calendar-days"></i> Rearrange</th>
-              <th><i class="fas fa-pen-to-square"></i> Action</th>
+              <th><%- icon('calendar-days') %> Rearrange</th>
+              <th><%- icon('pen-to-square') %> Action</th>
             <% } %>
           </tr>
         </thead>
@@ -141,14 +141,14 @@
                                  + ('0' + MyDate.getDate()).slice(-2); %>
               <td class="date-cell" data-fixture-id="<%= row['id'] %>" data-date-iso="<%= MyDateISO %>">
                 <span class="date-display"><%= MyDateString %></span>
-                <button type="button" class="btn btn-sm btn-link p-0 ms-1 date-edit-btn" title="Edit date"><i class="fas fa-pencil"></i></button>
+                <button type="button" class="btn btn-sm btn-link p-0 ms-1 date-edit-btn" title="Edit date"><%- icon('pencil') %></button>
               </td>
               <% } else { %>
               <td class="date-cell"><%= MyDateString %></td>
               <% } %>
               <td data-hometeam="<%= row['homeClubId'] %>">
                 <a href="<%= row['venuelink'] %>" target="_blank" class="venue-icon" title="View venue">
-                  <i class="fa-solid fa-map-location-dot"></i>
+                  <%- icon('map-location-dot') %>
                 </a>
                 <span class="team-name"><%= row['homeTeam'] %></span>
               </td>
@@ -179,14 +179,14 @@
                         superadmin sees it. %>
                     <a href="<%= resultImagePath({ homeTeam: row['homeTeam'], awayTeam: row['awayTeam'], homeScore: row['homeScore'], awayScore: row['awayScore'], division: division }) %>" 
                        class="social-link">
-                      <i class="fas fa-image"></i> Social Image
+                      <%- icon('image') %> Social Image
                     </a>
                   <% } %>
                 </td>
                 <% if (typeof admin !== 'undefined') { %>
                   <td>
                     <a href="/scorecard/fixture/<%= row['id'] %>" class="details-link">
-                      <i class="fas fa-file-lines"></i> Details
+                      <%- icon('file-lines') %> Details
                     </a>
                   </td>
                 <% } %>
@@ -210,14 +210,14 @@
                        data-club="<%= row['name'] %>" 
                        data-fixtureId="<%= row['id'] %>"
                        class="action-link">
-                      <i class="fas fa-calendar-days"></i> Rearrange
+                      <%- icon('calendar-days') %> Rearrange
                     </a> 
                     <% if(resultValue === 'Awaiting Result'){ %>
                       <br />
                       <a data-bs-toggle="modal" 
                          data-bs-target="#reminderModal"
                          class="action-link">
-                        <i class="fas fa-bell"></i> Send Reminder
+                        <%- icon('bell') %> Send Reminder
                       </a> 
                     <% } %>
                   <% } %>
@@ -226,13 +226,13 @@
                 <% if (user._json["https://my-app.example.com/club"] == 'All' || user._json["https://my-app.example.com/club"] == row['homeClubName']){ %>
                   <td>
                     <a href="/fixtures/edit/<%= row['id'] %>" class="btn-modern-primary btn-sm">
-                      <i class="fas fa-pen"></i> Enter
+                      <%- icon('pen') %> Enter
                     </a>
                   </td> 
                 <% } else { %>
                   <td>
                     <a href="/fixtures/edit/<%= row['id'] %>" class="btn-modern-secondary btn-sm">
-                      <i class="fas fa-check"></i> Confirm
+                      <%- icon('check') %> Confirm
                     </a>
                   </td> 
                 <% } %>
@@ -254,7 +254,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">
-          <i class="fas fa-calendar-days"></i> Rearrange Fixture
+          <%- icon('calendar-days') %> Rearrange Fixture
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
@@ -262,12 +262,12 @@
         <div class="modal-body" id="rearrangementModal">
           <div class="formMessage" style="display:none">
             <div class="alert alert-success">
-              <i class="fas fa-check-circle"></i> Fixture Updated!
+              <%- icon('circle-check') %> Fixture Updated!
             </div>
           </div>
           <div id="rearrangementForm" class="form-group">
             <label for="date">
-              <i class="far fa-calendar"></i> New Fixture Date
+              <%- icon('calendar', { variant: 'regular' }) %> New Fixture Date
             </label>
             <input type="date" class="form-control" id="date" name="date">
             <small class="form-text text-muted">Leave blank if date not yet confirmed.</small>
@@ -278,10 +278,10 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-            <i class="fas fa-times"></i> Close
+            <%- icon('xmark') %> Close
           </button>
           <button type="button" id="fixtureRearange" class="btn-modern-primary">
-            <i class="fas fa-check"></i> Submit
+            <%- icon('check') %> Submit
           </button>
         </div>
       </form>
@@ -295,7 +295,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">
-          <i class="fas fa-bell"></i> Send Reminder
+          <%- icon('bell') %> Send Reminder
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
@@ -303,7 +303,7 @@
         <div class="modal-body" id="reminderModalBody">
           <div class="form-group">
             <label for="email">
-              <i class="fas fa-envelope"></i> Email Contact
+              <%- icon('envelope') %> Email Contact
             </label>
             <input type="email" class="form-control" id="email" name="email" 
                    placeholder="captain@example.com">
@@ -313,10 +313,10 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-            <i class="fas fa-times"></i> Close
+            <%- icon('xmark') %> Close
           </button>
           <button type="button" id="remindFixture" class="btn-modern-primary">
-            <i class="fas fa-paper-plane"></i> Send
+            <%- icon('paper-plane') %> Send
           </button>
         </div>
       </form>
@@ -422,7 +422,7 @@
       'hometeam':$('#reminderhometeam')[0].value,
       'awayteam':$('#reminderawayteam')[0].value 
     }, function (data) {
-      $('#reminderModalBody').html('<div class="alert alert-success"><i class="fas fa-check-circle"></i> Reminder sent!</div>');
+      $('#reminderModalBody').html('<div class="alert alert-success"><%- icon('circle-check') %> Reminder sent!</div>');
       $('#remindFixture').remove();
     }).fail(function (xhr) {
       // A 400 names what to fix (a mistyped address, or more than ten of them).

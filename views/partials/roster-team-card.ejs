@@ -62,7 +62,7 @@
             <button type="button" class="btn btn-sm btn-outline-success roster-add-btn"
                     data-team="<%= team.id %>" data-team-name="<%= team.name %>"
                     data-gender="<%= gender %>">
-              <i class="fa fa-user-plus" aria-hidden="true"></i>
+              <%- icon('user-plus') %>
               Add <%= gender === 'Male' ? 'a man' : 'a lady' %>
             </button>
           </div>

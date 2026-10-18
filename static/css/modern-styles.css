@@ -1,9 +1,28 @@
 /* Modern Tameside Badminton Styles
  *
  * Loaded after style.css (compiled Bootstrap), so rules here win on equal
- * specificity. Inter/Poppins are pulled in by a <link> in views/header.ejs rather
- * than an @import here, so the font request isn't queued behind this file.
+ * specificity. Inter/Poppins are self-hosted and declared inline by
+ * views/webfonts.ejs rather than @imported here, so no font request is queued behind
+ * this file.
  */
+
+/* Inline SVG icons from utils/icons.js, which replaced the Font Awesome webfont. An icon
+ * is a glyph the size of the text around it, coloured like it — what a Font Awesome <i>
+ * was. vertical-align matches Font Awesome's own SVG framework. Same rules as Stockport. */
+.icon {
+    display: inline-block;
+    height: 1em;
+    width: auto;
+    vertical-align: -0.125em;
+    overflow: visible;
+    fill: currentColor;
+}
+
+/* Drawn in strokes (icon('shuttlecock')): the paths carry their own stroke widths. */
+.icon-stroke {
+    fill: none;
+    stroke: currentColor;
+}
 
 /* Global Resets & Base Styles */
 * {
@@ -38,7 +57,8 @@ nav, .navbar {
     align-items: center;
     gap: 0.5rem;
 }
-/* Font Awesome Free has no shuttlecock, so the brand mark is an inline SVG (nav.ejs). */
+/* Font Awesome Free has no shuttlecock, so the brand mark is an inline SVG (nav.ejs), also
+   available as icon('shuttlecock'). */
 .brand-shuttle { width: 1.15em; height: 1.15em; flex: none; }
 /* Full name until it would push the hamburger onto its own line; then TBL, as
    Stockport does with SDBL. */
@@ -652,6 +672,7 @@ footer {
 
 .map-placeholder-icon {
     font-size: 2.5rem;
+    padding-right: 0; /* .icon-map-location-dot pads the /results venue link; not here */
     color: #2a5298;
     margin-bottom: 0.75rem;
 }
@@ -751,7 +772,7 @@ footer {
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
-.info-card i {
+.info-card .icon {
     font-size: 2rem;
     color: #667eea;
 }
@@ -809,7 +830,7 @@ footer {
     color: #1e3c72;
 }
 
-.filter-field label i {
+.filter-field label .icon {
     margin-right: 0.3rem;
     opacity: 0.75;
 }
@@ -867,7 +888,7 @@ footer {
     text-decoration: none;
 }
 
-.filter-chip i {
+.filter-chip .icon {
     font-size: 0.7rem;
     opacity: 0.7;
 }
@@ -1000,7 +1021,7 @@ footer {
     color: white;
 }
 
-.dt-controls .dt-buttons .dt-btn i {
+.dt-controls .dt-buttons .dt-btn .icon {
     margin-right: 0.35rem;
     opacity: 0.8;
 }
@@ -1841,7 +1862,7 @@ table.colsearch-on .dt-colsearch-row {
     gap: 1rem;
 }
 
-.card-header-custom i {
+.card-header-custom .icon {
     font-size: 2rem;
 }
 
@@ -1875,7 +1896,7 @@ table.colsearch-on .dt-colsearch-row {
     gap: 0.5rem;
 }
 
-.info-block h3 i {
+.info-block h3 .icon {
     color: #ff6b6b;
 }
 
@@ -1909,7 +1930,7 @@ table.colsearch-on .dt-colsearch-row {
     gap: 0.5rem;
 }
 
-.officials-section h3 i {
+.officials-section h3 .icon {
     color: #ff6b6b;
 }
 
@@ -1967,9 +1988,8 @@ table.colsearch-on .dt-colsearch-row {
     color: #ff6b6b;
 }
 
-.contact-link i {
+.contact-link .icon {
     width: 20px;
-    text-align: center;
 }
 
 /* Teams Grid */
@@ -2038,7 +2058,7 @@ table.colsearch-on .dt-colsearch-row {
     color: #333;
 }
 
-.captain-name i {
+.captain-name .icon {
     color: #2a5298;
 }
 
@@ -2058,7 +2078,7 @@ table.colsearch-on .dt-colsearch-row {
         font-size: 1.3rem;
     }
     
-    .card-header-custom i {
+    .card-header-custom .icon {
         font-size: 1.5rem;
     }
     

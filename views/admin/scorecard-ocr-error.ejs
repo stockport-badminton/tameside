@@ -2,7 +2,7 @@
 <%- include('../nav.ejs') %>
 
 <div class="container my-4">
-  <h1 class="mb-3"><i class="fas fa-triangle-exclamation"></i> Couldn't read that scorecard</h1>
+  <h1 class="mb-3"><%- icon('triangle-exclamation') %> Couldn't read that scorecard</h1>
   <div class="alert alert-warning">
     <strong><%= typeof s3key !== 'undefined' ? s3key : '' %></strong><br />
     <%= typeof message !== 'undefined' ? message : 'Unknown error' %>

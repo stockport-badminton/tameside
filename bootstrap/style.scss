@@ -29,7 +29,7 @@ $container-max-widths: (
 @import "../node_modules/bootstrap/scss/bootstrap.scss";
 
 // Sized grid columns are position:relative, which absolutely-positioned children rely
-// on (e.g. `.add-player-box .fa` further down this file, used by team-admin.ejs).
+// on (team-admin.ejs placed its icons that way; that page is gone, the patch is kept).
 // This was the second hand-edit to node_modules — added to Bootstrap's own make-col
 // mixin — so it is reproduced here against the same selectors the mixin emits:
 // .col-{n} and .col-{bp}-{n}, each inside its breakpoint's media query. `.col` and
@@ -49,69 +49,37 @@ $container-max-widths: (
   }
 }
 
-// importing core styling file
-
-@import '../node_modules/@fortawesome/fontawesome-free/scss/fontawesome.scss';
-
-// our project needs Classic Solid, Brands, and Sharp Solid
-@import '../node_modules/@fortawesome/fontawesome-free/scss/solid.scss';
-@import '../node_modules/@fortawesome/fontawesome-free/scss/brands.scss';
-@import '../node_modules/@fortawesome/fontawesome-free/scss/regular.scss';
+// No Font Awesome CSS or webfonts: icons are inline SVG from utils/icons.js, which reads
+// the same package's svgs/ at render time. Importing it here again would bring back
+// the 157 KB font for nothing — every `fa-` class is gone from the views.
 
 #map {
       width:100%;
       height:400px;
 }
 
-/* Style all font awesome icons */
-.fa, .fa-brands {
+/* What the old global `.fa` rule did to every `fa fa-*` icon (a 30px glyph floated
+   right with padding), kept for the two places that relied on it: the grid and calendar
+   links at the top of the results pages. Opt in with icon(name, { class: 'icon-float' }).
+   content-box, or the padding would eat into the SVG's 1em height. Same as Stockport's. */
+.icon-float {
+      box-sizing: content-box;
       padding: 10px;
       font-size: 30px;
-      text-align: center;
-      text-decoration: none;
-      float:right;
+      float: right;
       margin: 5px;
     }
-    
-    /* Add a hover effect if you want */
-    .fa:hover, .fa-brands:hover {
+    .icon-float:hover {
       opacity: 0.7;
     }
-    
-    /* Set a specific color for each brand */
-    
-    /* Facebook */
-    .fa-facebook {
-      background: #3B5998;
-      color: white;
-    }
-    
-    /* Twitter */
-    .fa-twitter {
-      background: #55ACEE;
-      color: white;
-    }
-    
-    /* Instagram */
-    .fa-instagram {
-      background: #125688;
-      color: white;
-    }
-    
-    .fa-map-location-dot {
+
+    /* Was .fa-map-location-dot: the venue link beside each home team on /results. */
+    .icon-map-location-dot {
       color: black;
       font-size: 1.5em;
-      padding-right:1em
+      padding-right: 1em;
     }
-    
-    .add-player-box .fa, .player-box .fa {
-      font-size:16px;
-      padding:0px;
-      position:absolute;
-      right:16px;
-      width: auto;
-    }
-    
+
     .nominated-container, .reserves-container {
       border-style: dashed !important;
     }
@@ -135,10 +103,6 @@ $container-max-widths: (
     
     .nav-link {
       cursor: pointer;
-    }
-    
-    i.fa.fa-ellipsis-v.dropdown-toggle::after {
-      content:unset
     }
     
     .h-13 {

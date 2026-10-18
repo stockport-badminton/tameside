@@ -4,7 +4,7 @@
 <% var _cards = (typeof cards !== 'undefined' && cards) ? cards : []; %>
 
 <div class="container my-4">
-  <h1 class="mb-3"><i class="fas fa-wand-magic-sparkles"></i> Scorecard OCR</h1>
+  <h1 class="mb-3"><%- icon('wand-magic-sparkles') %> Scorecard OCR</h1>
   <p class="text-muted">Pick an uploaded scorecard photo. It'll be read with Google Vision, the players matched against each team's eligible roster, and you review the result before anything is entered.</p>
 
   <div class="table-responsive">
@@ -18,7 +18,7 @@
           <th scope="row"><%= c.label %></th>
           <td><%= c.uploaded ? new Date(c.uploaded).toLocaleDateString('en-GB') : '' %></td>
           <td><%= c.sizeKb %> KB</td>
-          <td class="text-end"><a class="btn btn-sm btn-primary" href="/admin/scorecard-ocr/review?key=<%= encodeURIComponent(c.key) %>"><i class="fas fa-wand-magic-sparkles"></i> Read card</a></td>
+          <td class="text-end"><a class="btn btn-sm btn-primary" href="/admin/scorecard-ocr/review?key=<%= encodeURIComponent(c.key) %>"><%- icon('wand-magic-sparkles') %> Read card</a></td>
         </tr>
         <% }); %>
         <% if (!_cards.length) { %><tr><td colspan="4">No tameside scorecard photos found in the bucket.</td></tr><% } %>

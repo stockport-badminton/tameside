@@ -40,11 +40,6 @@ const VENDOR_DIRS = [
   'jquery/dist'
 ];
 
-// /static/webfonts is Font Awesome's, straight out of the package; style.css's
-// @font-face rules point there. There is no static/webfonts directory.
-const WEBFONTS_PREFIX = '/static/webfonts/';
-const WEBFONTS_DIR = path.join(ROOT, 'node_modules', '@fortawesome', 'fontawesome-free', 'webfonts');
-
 const YEAR = 'public, max-age=31536000, immutable';
 const HOUR = 'public, max-age=3600';
 const NONE = 'public, max-age=0';
@@ -56,10 +51,7 @@ const UNCACHED_PREFIXES = ['/static/images/generated/', '/static/generated/'];
 // URL path -> absolute file, or null if it is not something the static mounts serve.
 function resolve(urlPath) {
   let base, inner;
-  if (urlPath.startsWith(WEBFONTS_PREFIX)) {
-    base = WEBFONTS_DIR;
-    inner = urlPath.slice(WEBFONTS_PREFIX.length);
-  } else if (urlPath.startsWith('/static/')) {
+  if (urlPath.startsWith('/static/')) {
     base = path.join(ROOT, 'static');
     inner = urlPath.slice('/static/'.length);
   } else if (urlPath.startsWith('/scripts/')) {
@@ -138,4 +130,4 @@ function cacheHeaders(req, res, next) {
   next();
 }
 
-module.exports = { assetUrl, hashFor, resolve, cacheControlFor, cacheHeaders, VENDOR_DIRS, WEBFONTS_DIR };
+module.exports = { assetUrl, hashFor, resolve, cacheControlFor, cacheHeaders, VENDOR_DIRS };

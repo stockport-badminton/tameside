@@ -3,7 +3,7 @@
 
 <!-- Page Header -->
 <section class="hero" style="padding: 4rem 2rem 3rem;">
-  <h1><i class="fas fa-shield-halved"></i> Lewis Shield Draw</h1>
+  <h1><%- icon('shield-halved') %> Lewis Shield Draw</h1>
   <p>Tournament knockout bracket</p>
 </section>
 
@@ -39,11 +39,11 @@
                             <span class="match-number">Match <%= fixCount %></span>
                             <% if (teams[fixCount + offset].homeScore != null) { %>
                               <span class="match-status completed">
-                                <i class="fas fa-check-circle"></i> Complete
+                                <%- icon('circle-check') %> Complete
                               </span>
                             <% } else { %>
                               <span class="match-status pending">
-                                <i class="far fa-clock"></i> Pending
+                                <%- icon('clock', { variant: 'regular' }) %> Pending
                               </span>
                             <% } %>
                           </div>
@@ -87,11 +87,11 @@
                           <span class="match-number">Match <%= fixCount %></span>
                           <% if (teams[fixCount + offset].homeScore != null) { %>
                             <span class="match-status completed">
-                              <i class="fas fa-check-circle"></i> Complete
+                              <%- icon('circle-check') %> Complete
                             </span>
                           <% } else { %>
                             <span class="match-status pending">
-                              <i class="far fa-clock"></i> Pending
+                              <%- icon('clock', { variant: 'regular' }) %> Pending
                             </span>
                           <% } %>
                         </div>
@@ -131,7 +131,7 @@
     <div class="champion-section">
       <div class="champion-card">
         <div class="trophy-icon">
-          <i class="fas fa-trophy"></i>
+          <%- icon('trophy') %>
         </div>
         <h2>Champion</h2>
         <h3><%= champion %></h3>

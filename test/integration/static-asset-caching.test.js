@@ -50,11 +50,11 @@ describe('Cache-Control on the static mounts', () => {
     });
   }
 
-  test('the Bootstrap bundle and Font Awesome fonts are served from their own mounts', async () => {
+  test('the vendor files are served from their own mounts', async () => {
     for (const url of [
       '/scripts/bootstrap/dist/js/bootstrap.bundle.min.js',
       '/scripts/ejs/ejs.js',
-      '/static/webfonts/fa-solid-900.woff2',
+      '/scripts/jquery/dist/jquery.min.js',
     ]) {
       const res = await request(app).get(url);
       assert.strictEqual(res.status, 200, url);

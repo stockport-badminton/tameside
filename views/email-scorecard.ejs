@@ -140,11 +140,11 @@
                       whole form. Optional — manual entry below is unchanged. -->
                  <div class="card mb-3" id="ocr-panel">
                    <div class="card-body py-3">
-                     <h5 class="card-title mb-1"><i class="fas fa-wand-magic-sparkles"></i> Got a photo of the scorecard?</h5>
+                     <h5 class="card-title mb-1"><%- icon('wand-magic-sparkles') %> Got a photo of the scorecard?</h5>
                      <p class="card-text small text-muted mb-2">Upload it and we'll read the card and prefill everything — you check it and submit as normal. Or skip this and enter manually below.</p>
                      <div class="form-row align-items-center">
                        <div class="col-auto"><input type="file" id="ocr-file" accept="image/jpeg,image/png,image/heic,image/heif,application/pdf,.pdf,.docx" /></div>
-                       <div class="col-auto"><button type="button" class="btn btn-primary btn-sm" id="ocr-go"><i class="fas fa-wand-magic-sparkles"></i> Read &amp; prefill</button></div>
+                       <div class="col-auto"><button type="button" class="btn btn-primary btn-sm" id="ocr-go"><%- icon('wand-magic-sparkles') %> Read &amp; prefill</button></div>
                      </div>
                      <div id="ocr-status" class="small mt-2"></div>
                    </div>
@@ -610,7 +610,7 @@
                             <img id="scoresheet-img" class="img-fluid mt-2" hidden
                                  alt="The scorecard photo you just chose" />
                             <div id="scoresheet-doc-attached" class="text-success small mt-2" hidden>
-                              <i class="fas fa-file-arrow-up"></i> Scorecard file attached.
+                              <%- icon('file-arrow-up') %> Scorecard file attached.
                             </div>
                         </div>
                     </div>

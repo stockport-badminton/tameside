@@ -2,9 +2,9 @@
  *
  * Ported from Stockport's static/beta/css/roster.css (Oct 2026) and kept close to it, so
  * fixes there apply here. Loaded only by the roster pages: rosterController renders them
- * with `useRosterCss`, which views/header.ejs turns into a hashed <link>. The `.fa` and
- * `.starter-template` overrides below were written for Stockport's custom.css; they are
- * harmless here and kept for the same reason.
+ * with `useRosterCss`, which views/header.ejs turns into a hashed <link>. The `.starter-template`
+ * override below was written for Stockport's custom.css; it is harmless here and kept for
+ * the same reason. (The `.fa` one went with Font Awesome: icons are inline SVG now.)
  *
  * The page this replaced laid a club's teams out as `<div class="container row">`
  * with a bare `.col` per team: a flex row with no wrap and no breakpoint, so five
@@ -26,30 +26,6 @@
    * `width: 100%` because that wrapper is also a Bootstrap flex row. */
   text-align: left;
   width: 100%;
-}
-
-/* custom.css styles `.fa, .fa-brands` globally for the footer's social icons —
- * `font-size: 30px; padding: 10px; float: right; margin: 5px` — and that lands on
- * every Font Awesome icon on the site. Inside a button it makes a 30px glyph float
- * away from its own label, which is why the old team page carried
- * `.add-player-box .fa, .player-box .fa { font-size:16px; position:absolute; }` as
- * a workaround. Rather than change a rule 40-odd other pages depend on, undo it for
- * this page's icons: here an icon is a glyph next to a word, at the size of the
- * word. */
-.roster-page .fa,
-.roster-page .fas,
-.roster-page .far,
-.roster-page .fa-solid,
-.roster-page .fa-regular {
-  float: none;
-  padding: 0;
-  margin: 0;
-  font-size: inherit;
-  line-height: inherit;
-  text-align: inherit;
-  display: inline-block;
-  width: auto;
-  vertical-align: baseline;
 }
 
 .roster-head {

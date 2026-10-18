@@ -75,14 +75,14 @@
           <td class="text-end" style="white-space:nowrap;">
             <form method="post" action="/admin/registration-reminders/<%= c.id %>/chase" class="d-inline">
               <button type="submit" class="btn btn-sm btn-primary" <%= c.emailable ? '' : 'disabled' %>>
-                <i class="fas fa-envelope"></i>
+                <%- icon('envelope') %>
                 <%= c.chaseCount ? 'Chase again' : 'Send the form' %>
               </button>
             </form>
             <form method="post" action="/admin/registration-reminders/<%= c.id %>/received" class="d-inline">
               <input type="hidden" name="received" value="true">
               <button type="submit" class="btn btn-sm btn-outline-success">
-                <i class="fas fa-check"></i> Received
+                <%- icon('check') %> Received
               </button>
             </form>
           </td>

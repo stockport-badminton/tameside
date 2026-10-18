@@ -6,7 +6,7 @@
 <% var _divisions = (typeof divisions !== 'undefined' && divisions) ? divisions : []; %>
 
 <div class="container my-4">
-  <h1 class="mb-3"><i class="fas fa-paper-plane"></i> Distribution Lists</h1>
+  <h1 class="mb-3"><%- icon('paper-plane') %> Distribution Lists</h1>
   <p class="text-muted">Pick a role (and optionally narrow by division / club), preview the recipients, then send. The list goes out as Bcc so recipients don't see each other.</p>
 
   <form id="distForm" class="col-12 col-lg-8">
@@ -41,7 +41,7 @@
     </div>
 
     <div class="my-3">
-      <button type="button" id="previewBtn" class="btn btn-outline-secondary"><i class="fas fa-users"></i> Preview recipients</button>
+      <button type="button" id="previewBtn" class="btn btn-outline-secondary"><%- icon('users') %> Preview recipients</button>
       <span id="previewResult" class="ms-2"></span>
     </div>
     <div id="recipientList" class="small text-muted mb-3" style="max-height:8rem;overflow:auto"></div>
@@ -56,7 +56,7 @@
       <div class="form-text">Plain text; line breaks are preserved.</div>
     </div>
 
-    <button type="submit" id="sendBtn" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
+    <button type="submit" id="sendBtn" class="btn btn-primary"><%- icon('paper-plane') %> Send</button>
     <span id="sendResult" class="ms-2"></span>
   </form>
 </div>
