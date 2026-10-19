@@ -421,6 +421,57 @@ exports.getOutstandingFixtureId = async function(obj,done){
   
   }
 
+  /* Conceding a fixture — superadmin, from the results page.
+   *
+   * A conceded match is recorded the way the hand-entered ones always were: status
+   * 'conceded', 18-0 to the side that did NOT concede, no game rows. The league table
+   * reads only the scores, so that is all it takes to count.
+   *
+   * Only 'outstanding' and 'rearranging' can be conceded. A 'rearranged' row is the
+   * SUPERSEDED original — rearranging with a date inserts a fresh 'outstanding' row
+   * beside it — so conceding one would put the same match in the table twice. A fixture
+   * with a score or game rows has a result already; conceding over it would leave games
+   * the score contradicts. Those rules live in the WHERE clause, not just the UI, so a
+   * hand-made POST can't get past them.
+   *
+   * concededBy 'none' undoes a concession: back to 'outstanding' with no score.
+   * Resolves { ok: true, fixture } or { ok: false, reason: 'not-found' | 'not-concedable',
+   * status }. `db` is there so tools can rehearse it inside a rolled-back transaction. */
+  const CONCEDABLE = ['outstanding', 'rearranging'];
+
+  function concedeScores(concededBy) {
+    if (concededBy === 'home') return { homeScore: 0, awayScore: 18 };
+    if (concededBy === 'away') return { homeScore: 18, awayScore: 0 };
+    throw new Error('concededBy must be home or away');
+  }
+  exports.concedeScores = concedeScores;
+  exports.CONCEDABLE = CONCEDABLE;
+
+  exports.setConceded = async function (fixtureId, concededBy, db = sql) {
+    const noGames = db`NOT EXISTS (SELECT 1 FROM game WHERE game.fixture = ${fixtureId})`;
+    let rows;
+    if (concededBy === 'none') {
+      rows = await db`
+        UPDATE fixture SET status = 'outstanding', "homeScore" = NULL, "awayScore" = NULL
+        WHERE id = ${fixtureId} AND status = 'conceded' AND ${noGames}
+        RETURNING id, status, "homeScore", "awayScore"`;
+    } else {
+      const { homeScore, awayScore } = concedeScores(concededBy);
+      // An already-conceded fixture may be re-conceded the other way, to correct a
+      // mis-click without an undo in between.
+      rows = await db`
+        UPDATE fixture SET status = 'conceded', "homeScore" = ${homeScore}, "awayScore" = ${awayScore}
+        WHERE id = ${fixtureId}
+          AND (status = 'conceded' OR (status IN ${db(CONCEDABLE)} AND "homeScore" IS NULL))
+          AND ${noGames}
+        RETURNING id, status, "homeScore", "awayScore"`;
+    }
+    if (rows.length) return { ok: true, fixture: rows[0] };
+    const [current] = await db`SELECT status FROM fixture WHERE id = ${fixtureId}`;
+    if (!current) return { ok: false, reason: 'not-found' };
+    return { ok: false, reason: 'not-concedable', status: current.status };
+  };
+
   exports.getFixtureDetailsById = async function(fixtureId,done){
     let rows = await sql`Select a."fixtureId", a.date, a."homeTeam",  team.name as "awayTeam", a.status, a."homeScore", a."awayScore" from (select team.name as "homeTeam", fixture.id as "fixtureId", fixture.date as date, fixture."awayTeam", fixture.status, fixture."homeScore",fixture."awayScore" from  fixture join team on team.id = fixture."homeTeam") as a join team on team.id = a."awayTeam" AND "fixtureId" = ${fixtureId}`.catch(err => {
         return done(err)

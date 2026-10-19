@@ -608,7 +608,12 @@ Superadmin-gated pages under `/admin/*` (session-`secured()` route + in-controll
 homepage content, site settings, and league structure — **clubs** and **teams**
 (`/admin/clubs`, `/admin/teams`) with add/edit and one-click promotion/relegation
 (moves `team.division` to the adjacent-rank division in the same league). Superadmins
-can also edit a fixture's date inline on the admin results grid.
+can also edit a fixture's date inline on the admin results grid, and **concede** a fixture
+there (`POST /admin/fixture/:id/concede`, `Fixture.setConceded`): status `conceded`, 18-0
+to the side that didn't concede, no game rows — the shape the hand-entered ones always had;
+the table reads only the scores. Only `outstanding`/`rearranging` qualify, enforced in the
+UPDATE's WHERE: a **`rearranged` row is the superseded original** of a rearranged match
+(a fresh `outstanding` row was inserted beside it), so conceding one counts the match twice.
 
 **The superadmin Admin menu is a shortlist; `/admin` is the full list.** `utils/adminTools.js`
 holds every tool, grouped — add a new one THERE, not in `views/nav.ejs`. The dropdown shows

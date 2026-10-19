@@ -755,6 +755,7 @@ app.post('/admin/teams/:id(\\d+)/move', secured, team_controller.admin_team_move
 app.get('/admin/teams/:id(\\d+)', secured, team_controller.admin_team_editForm);
 app.post('/admin/teams/:id(\\d+)', secured, team_controller.admin_team_update);
 app.post('/admin/fixture/:id(\\d+)/date', secured, fixture_controller.admin_fixture_date_update);
+app.post('/admin/fixture/:id(\\d+)/concede', secured, fixture_controller.admin_fixture_concede);
 app.get('/admin/lewis', secured, team_controller.admin_lewis_form);
 app.post('/admin/lewis/:drawPos(\\d+)/result', secured, team_controller.admin_lewis_result);
 

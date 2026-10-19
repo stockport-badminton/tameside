@@ -218,8 +218,23 @@
                          data-bs-target="#reminderModal"
                          class="action-link">
                         <%- icon('bell') %> Send Reminder
-                      </a> 
+                      </a>
                     <% } %>
+                  <% } %>
+                  <%# Mirrors Fixture.CONCEDABLE — and not 'rearranged', which is the
+                      superseded original of a rearranged match. The server enforces it too. %>
+                  <% if ((row['status'] === 'outstanding' || row['status'] === 'rearranging') && row['homeScore'] == null) { %>
+                    <br />
+                    <a href="#" class="action-link concede-link"
+                       data-fixture-id="<%= row['id'] %>"
+                       data-home="<%= row['homeTeam'] %>"
+                       data-away="<%= row['awayTeam'] %>">
+                      <%- icon('flag') %> Concede
+                    </a>
+                  <% } else if (row['status'] === 'conceded') { %>
+                    <a href="#" class="action-link concede-undo-link" data-fixture-id="<%= row['id'] %>">
+                      <%- icon('rotate-left') %> Undo concession
+                    </a>
                   <% } %>
                 </td>
                 
@@ -285,6 +300,32 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- Concede Modal -->
+<div class="modal fade" id="concedeModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <%- icon('flag') %> Concede Fixture
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Which team conceded? The other team is awarded the match 18-0.</p>
+        <div class="d-grid gap-2">
+          <button type="button" class="btn btn-outline-danger concede-side" data-side="home"></button>
+          <button type="button" class="btn btn-outline-danger concede-side" data-side="away"></button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <%- icon('xmark') %> Cancel
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -377,6 +418,37 @@
     else if (e.key === 'Escape') { cancelEdit($(this).closest('.date-cell')); }
   });
   $(document).on('blur', 'input.date-input', function () { saveDate($(this).closest('.date-cell')); });
+
+  // Conceding: POSTs to /admin/fixture/:id/concede and reloads, because the row's
+  // class, result cell and actions all change with the status.
+  function postConcede(id, concededBy) {
+    return $.post('/admin/fixture/' + id + '/concede', { concededBy: concededBy })
+      .done(function () { location.reload(); })
+      .fail(function (xhr) {
+        alert('Could not update fixture: ' + ((xhr.responseJSON && xhr.responseJSON.error) || xhr.statusText));
+      });
+  }
+
+  var concedeFixtureId = null;
+  $(document).on('click', '.concede-link', function (e) {
+    e.preventDefault();
+    concedeFixtureId = $(this).attr('data-fixture-id');
+    // .text(), never .html(): team names go in as text.
+    $('#concedeModal .concede-side[data-side="home"]').text($(this).attr('data-home') + ' conceded').prop('disabled', false);
+    $('#concedeModal .concede-side[data-side="away"]').text($(this).attr('data-away') + ' conceded').prop('disabled', false);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('concedeModal')).show();
+  });
+  $('#concedeModal .concede-side').on('click', function () {
+    $('#concedeModal .concede-side').prop('disabled', true);
+    postConcede(concedeFixtureId, $(this).attr('data-side'))
+      .fail(function () { $('#concedeModal .concede-side').prop('disabled', false); });
+  });
+  $(document).on('click', '.concede-undo-link', function (e) {
+    e.preventDefault();
+    if (confirm('Undo this concession? The fixture goes back to outstanding with no score.')) {
+      postConcede($(this).attr('data-fixture-id'), 'none');
+    }
+  });
 
   $('a[data-bs-target="#exampleModal"]').click(function(){
     $('#rearrangementModal > .formMessage').hide();
