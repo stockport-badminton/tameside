@@ -40,10 +40,14 @@ document.addEventListener('DOMContentLoaded', function () {
     var base = basePath();
     var path = base;
     var hasDivision = false;
+    // One flat property per filter, so PostHog can break down by any of them. The URL
+    // already records what was filtered; this records that someone chose to.
+    var tracked = { page: base };
 
     ORDER.forEach(function (name) {
       var field = form.elements[name];
       if (!field || !field.value || field.value === '0') { return; }
+      tracked['filter_' + (POSITIONAL[name] || PREFIXED[name])] = field.value;
       var value = encodeURIComponent(field.value);
 
       if (POSITIONAL[name]) {
@@ -59,6 +63,7 @@ document.addEventListener('DOMContentLoaded', function () {
       path = base + '/All' + path.slice(base.length);
     }
 
+    window.tblTrack('filter_applied', tracked, { leaving: true });
     window.location.assign(window.location.origin + path);
   }
 

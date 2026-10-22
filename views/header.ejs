@@ -27,9 +27,15 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
       // screen at load — the top one was never recorded at all — while GA, whose gtag
       // queues, counted them, which skewed the very comparison PostHog is here for.
       // Bounded, because where PostHog never loads nothing will ever drain it.
-      window.tblTrack = function (name, props) {
-        if (window.posthog && window.posthog.__loaded) window.posthog.capture(name, props || {});
-        else if (window.tblTrack.queue.length < 50) window.tblTrack.queue.push([name, props || {}]);
+      //
+      // `opts.leaving` is for a caller about to navigate away (a filter Apply, a save
+      // followed by a reload): it sends the event now rather than in the next batch,
+      // which the navigation could otherwise cut off. Queued, it is lost with the page.
+      window.tblTrack = function (name, props, opts) {
+        if (!(window.posthog && window.posthog.__loaded)) {
+          if (window.tblTrack.queue.length < 50) window.tblTrack.queue.push([name, props || {}]);
+        } else if (opts && opts.leaving) window.posthog.capture(name, props || {}, { send_instantly: true });
+        else window.posthog.capture(name, props || {});
       };
       window.tblTrack.queue = [];
     <% if (monitoringEnabled) { %>
@@ -76,8 +82,17 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
           /^\/email-scorecard/,
           /^\/populated-scorecard/
         ];
+        <%
+        // Who is using a page, by what they are allowed to do rather than who they are.
+        // `role` is 'admin' (club-scoped, from player.role) or 'member' (logged in with no
+        // site role); superadmins never get this far. `club` only for an admin: a
+        // superadmin's is 'All', which is not a club name.
+        var phClaims = (typeof user !== 'undefined' && user._json) || {};
+        var phRole = typeof user === 'undefined' ? null : (phClaims['https://my-app.example.com/role'] || 'member');
+        var phClub = phRole === 'admin' ? (phClaims['https://my-app.example.com/club'] || null) : null;
+        %>
         var loggedIn = <%= typeof user !== 'undefined' ? 'true' : 'false' %>;
-        var isSuperadmin = <%= (typeof user !== 'undefined' && user._json && user._json['https://my-app.example.com/role'] === 'superadmin') ? 'true' : 'false' %>;
+        var isSuperadmin = <%= phRole === 'superadmin' ? 'true' : 'false' %>;
         var record = loggedIn && RECORD_PATHS.some(function (re) { return re.test(location.pathname); });
         if (!window.tblServedByUs || isSuperadmin) return;
 
@@ -97,13 +112,19 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
           window.posthog.init(<%- jsonForScript(process.env.POSTHOG_KEY) %>, Object.assign({
             api_host: 'https://eu.i.posthog.com',
             person_profiles: 'never',
+            // Names the element behind each LCP/INP/CLS reading (and splits LCP into its
+            // phases), so the web vitals say what was slow, not only how slow. Web vitals
+            // capture itself is switched on in the project settings, not here.
+            capture_performance: { web_vitals_attribution: true },
             disable_session_recording: !record,
             session_recording: { maskAllInputs: false },
           }, storage));
           window.posthog.register({
             league: location.hostname.replace(/^www\./, ''),
             logged_in: loggedIn,
-            account_id: <%- jsonForScript(typeof user !== 'undefined' ? String(user.user_id) : null) %>
+            account_id: <%- jsonForScript(typeof user !== 'undefined' ? String(user.user_id) : null) %>,
+            role: <%- jsonForScript(phRole) %>,
+            club: <%- jsonForScript(phClub) %>
           });
           // Anything tblTrack queued before we got here — after register(), so it carries
           // `league` like every other event.
@@ -126,7 +147,7 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
     'crm_id' : '<%= user.user_id %>' 
     });
 
-    localStorage.setItem('user', JSON.stringify(<%- JSON.stringify(user) %>))
+    localStorage.setItem('user', JSON.stringify(<%- jsonForScript(user) %>))
     <% if (monitoringEnabled) { %>
   window.sentryOnLoad = function () {
       // in here, Sentry is ensured to be loaded & fully available

@@ -122,9 +122,11 @@ describe('PostHog', () => {
   it('tags events with the league and the account, not identify(), which cookieless mode does not support', () => {
     assert.deepStrictEqual({ ...runPostHog(captain, { pathname: '/' }).registered }, {
       league: 'tameside-badminton.co.uk', logged_in: true, account_id: 'auth0|captain',
+      role: 'member', club: null,
     });
     assert.deepStrictEqual({ ...runPostHog(anon, { pathname: '/' }).registered }, {
       league: 'tameside-badminton.co.uk', logged_in: false, account_id: null,
+      role: null, club: null,
     });
     assert.doesNotMatch(captain, /posthog\.identify/);
   });
@@ -133,6 +135,27 @@ describe('PostHog', () => {
     const html = renderHeader(PROD, { user_id: 'auth0|</script><script>alert(1)//' });
     assert.strictEqual(runPostHog(html, { pathname: '/' }).registered.account_id, 'auth0|</script><script>alert(1)//');
     assert.doesNotMatch(html, /account_id: "auth0\|<\/script>/);
+  });
+
+  // So "how many club admins used X" is one query. The club is a string from the
+  // database printed into a <script>, so it must not be able to close the tag.
+  it('tags a club admin with their role and club', () => {
+    const admin = {
+      user_id: 'auth0|sec',
+      _json: {
+        'https://my-app.example.com/role': 'admin',
+        'https://my-app.example.com/club': 'Hyde</script><script>alert(1)',
+      },
+    };
+    const html = renderHeader(PROD, admin);
+    assert.doesNotMatch(html, /Hyde<\/script>/);
+    const { registered } = runPostHog(html, { pathname: '/' });
+    assert.strictEqual(registered.role, 'admin');
+    assert.strictEqual(registered.club, 'Hyde</script><script>alert(1)');
+  });
+
+  it('turns on web vitals attribution', () => {
+    assert.deepStrictEqual({ ...runPostHog(anon, { pathname: '/' }).config.capture_performance }, { web_vitals_attribution: true });
   });
 
   it('does not load for a superadmin, or on a page not served by us', () => {
@@ -175,6 +198,22 @@ describe('PostHog', () => {
       ['capture', 'section_view', { section: 'outstanding' }],
     ]);
     assert.strictEqual(queued.length, 0, 'drained, so nothing is sent twice');
+  });
+
+  // A filter Apply or a roster save is followed by a navigation, which can cut off a
+  // batched event.
+  it('sends an event immediately when the caller is about to navigate away', () => {
+    const html = renderHeader({ NODE_ENV: 'development' }, CAPTAIN);
+    const calls = [];
+    const sandbox = { window: { posthog: { __loaded: true, capture: (...a) => calls.push(a) } } };
+    vm.createContext(sandbox);
+    vm.runInContext(html.match(/window\.tblTrack = function[\s\S]*?window\.tblTrack\.queue = \[\];/)[0], sandbox);
+    sandbox.window.tblTrack('filter_applied', { page: '/results' }, { leaving: true });
+    sandbox.window.tblTrack('scorecard_step', { step: 2 });
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(calls)), [
+      ['filter_applied', { page: '/results' }, { send_instantly: true }],
+      ['scorecard_step', { step: 2 }],
+    ]);
   });
 
   it('bounds the queue where PostHog never loads', () => {

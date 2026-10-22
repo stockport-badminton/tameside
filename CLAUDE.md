@@ -572,7 +572,8 @@ with inputs unmasked so the scores are visible. **Unset `POSTHOG_KEY` loads noth
 
 - **`cookieless_mode: 'always'` is what lets it run without a consent bar.** Nothing goes
   in cookies or storage. The costs: no `identify()`, so the account id goes on every event
-  as `account_id`; and a visitor returning on another day counts as new.
+  as `account_id` (with `role` — `admin`/`member` — and, for an admin, `club`); and a
+  visitor returning on another day counts as new.
 - **A recorded page is NOT cookieless — it inits with `persistence: 'memory'`.** The
   recorder needs a client-side session and cookieless mode keeps none (`$session_id` is
   assigned server-side), so with cookieless everywhere no recording was ever stored —
@@ -587,6 +588,9 @@ with inputs unmasked so the scores are visible. **Unset `POSTHOG_KEY` loads noth
   once it is. It used to drop them, which lost every homepage section already on screen at
   load — `outstanding` was never recorded — while GA's `gtag` queues and counted them.
   Stockport's is `sblTrack` (still drops; they track no sections, so left alone).
+  `{ leaving: true }` sends at once, for an event right before a navigation (the filter
+  toolbar's `filter_applied`). Stockport's `roster_change` was **not** ported: our roster
+  editor is superadmin-only and PostHog never loads for a superadmin, so it could not fire.
 - **PostHog drops events from automated browsers.** A Playwright check sees nothing unless
   it sets `opt_out_useragent_filter: true`.
 - **It is running beside Google Analytics to see whether GA can go**, and with it the need
