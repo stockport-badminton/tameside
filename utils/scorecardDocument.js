@@ -20,6 +20,7 @@
 // a browser and the OCR reader can read it, neither of which is true of the pdf.
 
 const { GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
+const sharp = require('sharp');
 const { s3Client } = require('./s3');
 const { extractEmbeddedImage, isRefusedArchive } = require('./documentImage');
 // The module, so a test can stub the conversion.
@@ -90,12 +91,39 @@ function photoUrlFor(key) {
   return `https://${BUCKET}.s3.eu-west-1.amazonaws.com/${key.replace(/ /g, '%20')}`;
 }
 
+// A small copy of the extracted photo for the captain to look at, as a data url.
+//
+// The upload box shows a preview so a captain can see they picked the right file — and a
+// pdf had none, because an <img> cannot draw one. That is how a captain filed the card
+// from a PREVIOUS match without noticing (Oct 2026). The stored jpeg cannot be shown
+// instead: it is private, and there is no scorecardstore row yet, so
+// `GET /scorecard-photo/:id` does not exist for it. Handing back the bytes from the
+// conversion that just ran needs no new route, and in particular no route that serves an
+// object by a key the browser names — these keys are `tameside-<season>-<home>-<away>`,
+// i.e. guessable.
+//
+// Shrunk because it rides in a JSON response; big enough to read the team names off.
+// Never fails the conversion: no preview is the state the page was already in.
+const PREVIEW_WIDTH = 900;
+
+async function previewDataUrl(buffer) {
+  try {
+    const jpeg = await sharp(buffer).rotate()
+      .resize({ width: PREVIEW_WIDTH, withoutEnlargement: true })
+      .jpeg({ quality: 70 }).toBuffer();
+    return `data:image/jpeg;base64,${jpeg.toString('base64')}`;
+  } catch (err) {
+    console.log('[scorecard-document] no preview:', err.message);
+    return null;
+  }
+}
+
 /**
  * Read a document (or a HEIC photo) out of the bucket, pull a jpeg out of it, and store
  * that beside it.
  *
  * @param {string} key  an S3 key that has already passed the caller's ownership check
- * @returns {Promise<{key, url, contentType, bytes} | null>} null when the document is not
+ * @returns {Promise<{key, url, contentType, bytes, preview} | null>} null when the document is not
  *          one of the shapes utils/documentImage.js handles — which is not an error, and
  *          leaves the document itself untouched and still referenced.
  * @throws  only when S3 itself fails, or the object is too large to read.
@@ -139,6 +167,7 @@ async function convertStoredDocument(key, deps = {}) {
     url: photoUrlFor(photoKey),
     contentType: extracted.contentType,
     bytes: extracted.buffer.length,
+    preview: await previewDataUrl(extracted.buffer),
   };
 }
 
@@ -150,6 +179,7 @@ module.exports = {
   isRefusedArchive,
   photoKeyFor,
   photoUrlFor,
+  previewDataUrl,
   DOCUMENT_EXTENSIONS,
   HEIC_EXTENSIONS,
   MAX_DOCUMENT_BYTES,

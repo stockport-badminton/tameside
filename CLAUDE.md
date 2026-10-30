@@ -1442,6 +1442,19 @@ inside a PDF 1.5 `/ObjStm`, where a byte-level walk cannot see it.
 
 #### Other things worth not rediscovering
 
+- **The upload box previews a document from the conversion's answer.** An `<img>` cannot
+  draw a pdf, so for two seasons a document upload showed nothing — and in Oct 2026 a
+  captain filed the card from a previous match without being able to tell.
+  `/scorecard-document/convert` now returns `preview`, a ≤900px jpeg data url of the
+  extracted photo, and the box always names the file. **Not a route serving the stored
+  jpeg by key**: those keys are `tameside-<season>-<home>-<away>`, i.e. guessable. The OCR
+  box converts *before* analysing, so a card Vision fails still records the jpeg.
+  **That alone did not cover the card that prompted it**: a Konica Minolta "compact PDF"
+  (MRC, 84 CCITT masks), which extraction declines. So a declined pdf is shown by the
+  browser's **own pdf viewer** from the local file (`navigator.pdfViewerEnabled`; desktop
+  browsers yes, Android Chrome no — there it's the file name only). Checked by eye in real
+  Chrome with the real card; Playwright's bundled Chromium has no viewer, so the spec fakes
+  the flag. `test/e2e/document-preview.spec.js`.
 - **A failed extraction is not a failed upload.** The document is already in the bucket and
   still attached; declining leaves it exactly as those files have been for two seasons.
   This differs from Stockport, where a refusal is the only option because nothing can store

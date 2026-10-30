@@ -296,23 +296,32 @@
                          // cannot find, and is why utils/scorecardPhoto.js has to undo it
                          // for 314 existing rows.
                          var uploadedUrl = sign.signedUrl.substr(0, sign.signedUrl.indexOf('?X-Amz'));
-                         document.querySelectorAll('#scoresheet-url').forEach(function (el) { el.value = uploadedUrl; });
                          // Preview from the LOCAL file, not from the bucket. The stored
                          // value still has to be the object URL (that is what the row
                          // records), but the objects are going private, so an <img> aimed
                          // at S3 would become a broken image. There is no scorecardstore
                          // row yet either, so /scorecard-photo/:id does not exist for it.
                          //
-                         // A document has nothing to preview: an <img> cannot render a pdf
-                         // blob, and the jpeg the server extracts is private with no row
-                         // pointing at it yet.
-                         if (!isDoc) {
-                           var localPreview = URL.createObjectURL(f);
-                           document.querySelectorAll('#scoresheet-img').forEach(function (el) { el.src = localPreview; el.hidden = false; });
+                         // A document cannot be drawn by an <img>, so it is converted
+                         // FIRST and the preview is the server's copy of the extracted
+                         // photo. Converting here rather than inside the analyse call also
+                         // means a card Vision then fails to read still records the jpeg
+                         // and still shows the captain what they attached.
+                         var preview = null;
+                         if (isDoc) {
+                           status('Pulling the photo out of the document…');
+                           var conv = await convertIfDocument(key, uploadedUrl);
+                           uploadedUrl = conv.url;
+                           preview = conv.preview;
+                           document.querySelectorAll('#scoresheet-url').forEach(function (el) { el.value = uploadedUrl; });
+                           showScoresheet(preview, f);
+                           if (!conv.converted) throw new Error(conv.reason || 'That file could not be read as a scorecard photo');
+                           key = conv.key;
+                         } else {
+                           document.querySelectorAll('#scoresheet-url').forEach(function (el) { el.value = uploadedUrl; });
+                           showScoresheet(URL.createObjectURL(f), f);
                          }
-                         status(/\.(pdf|docx|doc)$/i.test(f.name)
-                           ? 'Pulling the photo out of the document and reading the card… (takes a few seconds)'
-                           : 'Reading the card… (takes a few seconds)');
+                         status('Reading the card… (takes a few seconds)');
                          var resp = await fetch('/scorecard-ocr/analyse', {
                            method: 'POST',
                            headers: { 'Content-Type': 'application/json' },
@@ -585,7 +594,7 @@
               </div><% }) %>
              <div class="modal-body step step-13 ScorecardUpload">
                 <div class="form-row">
-                    <div class="form-group step-13 ScorecardUpload col-6">
+                    <div class="form-group step-13 ScorecardUpload col-12">
                         <label for="scoresheet-spreadsheet">Upload Scorecard</label>
                         <div id="scoresheet-already-uploaded-msg" class="text-success small mb-2" style="display:none;">
                           ✓ Already uploaded from step 1 — <a href="#" id="replace-scoresheet-link">upload a different photo instead</a>
@@ -603,14 +612,26 @@
                                  resolves against the DOCUMENT url, so WebKit fetches this
                                  page as an image and paints a broken-image placeholder —
                                  sitting under "Upload Scorecard" whenever there is nothing
-                                 to preview yet, which for a pdf/docx upload is always
-                                 (the preview is deliberately skipped: an <img> cannot
-                                 render a pdf blob). `width="200%"` was not a valid width
+                                 to preview yet — e.g. a pdf the photo could not be pulled
+                                 out of (an <img> cannot render a pdf blob; a pdf that DID
+                                 convert previews the server's copy of the extracted photo).
+                                 `width="200%"` was not a valid width
                                  either — the attribute is pixels. -%>
                             <img id="scoresheet-img" class="img-fluid mt-2" hidden
                                  alt="The scorecard photo you just chose" />
+                            <%# A pdf the photo cannot be pulled out of — the photocopier "compact PDF"
+                                 kind, see the MRC note in utils/documentImage.js — is shown by the
+                                 browser's own pdf viewer from the local file, where there is one.
+                                 That is the case that mattered: the card filed from a previous
+                                 match in Oct 2026 was a Konica Minolta scan the extractor declines. -%>
+                            <iframe id="scoresheet-pdf" class="d-block w-100 mt-2" hidden
+                                    style="aspect-ratio: 1 / 1.414; border: 1px solid #dee2e6;"
+                                    title="The scorecard file you just chose"></iframe>
+                            <%# Names the file, because a pdf the photo could not be pulled out of has
+                                 no preview, and the name is then the only way to spot that the
+                                 card from last week's match was picked by mistake. -%>
                             <div id="scoresheet-doc-attached" class="text-success small mt-2" hidden>
-                              <%- icon('file-arrow-up') %> Scorecard file attached.
+                              <%- icon('file-arrow-up') %> Attached: <span class="scoresheet-file-name"></span>
                             </div>
                         </div>
                     </div>
@@ -801,7 +822,7 @@
                 // takes the key literally. utils/scorecardPhoto.js has to undo it.
                 let uploadedUrl = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz"))
                 // A pdf/docx becomes a stored jpeg, and the row records the jpeg.
-                uploadedUrl = await photoUrlAfterConversion(filename, uploadedUrl)
+                uploadedUrl = (await convertIfDocument(filename, uploadedUrl)).url
                 e.srcElement.nextSibling.nextSibling.value = uploadedUrl
 
                 const myHeaders = new Headers();
@@ -828,10 +849,13 @@
         // photo out — see utils/documentImage.js. The file has already been PUT to the
         // bucket by the time this runs, so the server is handed the KEY and reads it back.
         //
-        // Returns the url to record. A document that cannot be read keeps its own url:
-        // the file is still uploaded and still attached, so this is never a failure.
-        async function photoUrlAfterConversion(key, uploadedUrl) {
-          if (!/\.(pdf|docx|doc|heic|heif)$/i.test(key)) return uploadedUrl;
+        // Returns { url, key, preview, converted, reason }: `url` is what to record. A
+        // document that cannot be read keeps its own url and key: the file is still
+        // uploaded and still attached, so this is never a failure. `preview` is a data url
+        // of the extracted photo, or null.
+        async function convertIfDocument(key, uploadedUrl) {
+          const unchanged = { url: uploadedUrl, key: key, preview: null, converted: false };
+          if (!/\.(pdf|docx|doc|heic|heif)$/i.test(key)) return unchanged;
           const resp = await fetch('/scorecard-document/convert', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -839,7 +863,31 @@
           });
           const data = await resp.json().catch(function () { return {}; });
           if (!resp.ok) throw new Error(data.error || 'Could not read that file.');
-          return data.converted ? data.url : uploadedUrl;
+          if (!data.converted) return Object.assign(unchanged, { reason: data.reason });
+          return { url: data.url, key: data.key, preview: data.preview || null, converted: true };
+        }
+
+        // Show the captain what they attached: the picture when there is one, and always
+        // the file's name. A pdf used to show neither, and a captain filed the card from a
+        // previous match without being able to tell.
+        //
+        // `src` is an image to show (the local photo, or the server's copy of the photo
+        // pulled out of a document). Without one, a pdf is handed to the browser's own
+        // viewer from the LOCAL file — the bucket copy is private. Desktop browsers have
+        // one; Android Chrome does not, and there the file name is all there is.
+        function showScoresheet(src, file) {
+          const pdfInViewer = !src && /\.pdf$/i.test(file.name) && navigator.pdfViewerEnabled === true;
+          document.querySelectorAll('#scoresheet-img').forEach(function (el) {
+            if (src) { el.src = src; el.hidden = false; } else { el.removeAttribute('src'); el.hidden = true; }
+          });
+          document.querySelectorAll('#scoresheet-pdf').forEach(function (el) {
+            if (pdfInViewer) { el.src = URL.createObjectURL(file) + '#toolbar=0&navpanes=0&view=FitH'; el.hidden = false; }
+            else { el.removeAttribute('src'); el.hidden = true; }
+          });
+          document.querySelectorAll('#scoresheet-doc-attached').forEach(function (el) {
+            el.querySelector('.scoresheet-file-name').textContent = file.name;
+            el.hidden = false;
+          });
         }
 
         // The upload boxes used to end `catch (error) { console.error(error.message) }`,
@@ -885,7 +933,8 @@
                 // No `.replaceAll('%20','+')` — see the note on the other upload handler.
                 let uploadedUrl = response.signedUrl.substr(0,response.signedUrl.indexOf("?X-Amz"))
                 const wasDocument = /\.(pdf|docx|doc|heic|heif)$/i.test(filename)
-                uploadedUrl = await photoUrlAfterConversion(filename, uploadedUrl)
+                const conv = await convertIfDocument(filename, uploadedUrl)
+                uploadedUrl = conv.url
                 tblTrack('scorecard_photo_attached', { outcome: 'stored', late: false });
                 let scoresheetUrls = await document.querySelectorAll('#scoresheet-url')
                 for (const ssUrl of scoresheetUrls){
@@ -896,20 +945,9 @@
                 // logging this URL: browser Sentry captures console at level 'error'
                 // (views/header.ejs), so a debug line was filing an issue per upload.
                 //
-                // Skipped for a document: an <img> cannot render a pdf blob, and the
-                // extracted jpeg is a private object with no row pointing at it yet, so
-                // there is nothing to show either way.
-                if (wasDocument) {
-                  document.querySelectorAll('#scoresheet-doc-attached').forEach(function (el) { el.hidden = false })
-                }
-                if (!wasDocument) {
-                  let localPreview = URL.createObjectURL(file)
-                  let scoresheetImgs = await document.querySelectorAll('#scoresheet-img')
-                  for (const ssImg of scoresheetImgs){
-                    ssImg.src = localPreview
-                    ssImg.hidden = false
-                  }
-                }
+                // A document's preview is the server's copy of the extracted photo: an
+                // <img> cannot render a pdf blob.
+                showScoresheet(wasDocument ? conv.preview : URL.createObjectURL(file), file)
               }
             }
             catch (error){
@@ -1157,6 +1195,8 @@
         if (url) url.value = '';
         var img = byId('scoresheet-img');
         if (img) { img.removeAttribute('src'); img.hidden = true; }
+        var pdf = byId('scoresheet-pdf');
+        if (pdf) { pdf.removeAttribute('src'); pdf.hidden = true; }
         var doc = byId('scoresheet-doc-attached');
         if (doc) doc.hidden = true;
         hide(byId('scoresheet-already-uploaded-msg'));

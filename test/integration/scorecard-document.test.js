@@ -126,9 +126,19 @@ describe('POST /scorecard-document/convert — behaviour', () => {
     const res = await post({ key: 'tameside-Hyde B-Shell A.pdf' });
     assert.strictEqual(res.status, 200);
     assert.deepStrictEqual(res.body, {
-      ok: true, converted: true, url: STORED.url, key: STORED.key,
+      ok: true, converted: true, url: STORED.url, key: STORED.key, preview: null,
     });
     assert.deepStrictEqual(calls, ['tameside-Hyde B-Shell A.pdf']);
+  }));
+
+  // An <img> cannot draw a pdf, so this is the only picture of the upload the captain
+  // gets — without it a captain attached the card from a previous match unnoticed.
+  it('hands back a preview of the extracted photo', asUser({ role: 'none' }, async () => {
+    const preview = 'data:image/jpeg;base64,/9j/AA==';
+    stubConversion(Object.assign({}, STORED, { preview }));
+    const res = await post({ key: 'tameside-Hyde B-Shell A.pdf' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.preview, preview);
   }));
 
   // THE PROMISE THE FORM MAKES. The plain photo box exists so a captain can attach a card

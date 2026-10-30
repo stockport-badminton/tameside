@@ -417,7 +417,9 @@ exports.convert_document = async function (req, res) {
     // Not an error: the document is still uploaded and still attached. The caller keeps
     // the url it already has.
     if (!stored) return res.json({ ok: true, converted: false, reason: CANNOT_EXTRACT });
-    res.json({ ok: true, converted: true, url: stored.url, key: stored.key });
+    // `preview` is a data url of the extracted photo, so the captain can see what they
+    // attached — see previewDataUrl in utils/scorecardDocument.js.
+    res.json({ ok: true, converted: true, url: stored.url, key: stored.key, preview: stored.preview || null });
   } catch (err) {
     if (err.status === 413) return res.status(413).json({ ok: false, error: err.message });
     console.log('[scorecard-document] conversion failed:', err.message);

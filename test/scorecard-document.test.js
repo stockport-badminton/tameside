@@ -12,7 +12,7 @@ const path = require('path');
 process.env.S3_BUCKET_NAME = process.env.S3_BUCKET_NAME || 'badmintontemp';
 
 const {
-  convertStoredDocument, isDocumentKey, photoKeyFor, photoUrlFor, MAX_DOCUMENT_BYTES,
+  convertStoredDocument, isDocumentKey, photoKeyFor, photoUrlFor, previewDataUrl, MAX_DOCUMENT_BYTES,
 } = require('../utils/scorecardDocument');
 const { photoKeyFromStored } = require('../utils/scorecardPhoto');
 
@@ -95,6 +95,24 @@ describe('converting a stored document', () => {
     assert.strictEqual(puts[0].ACL, undefined);
     assert.strictEqual(out.key, puts[0].Key);
     assert.strictEqual(photoKeyFromStored(out.url), out.key);
+  });
+
+  // The captain sees this in place of the pdf, which an <img> cannot draw. It has to be
+  // a real, shrunk jpeg: it rides in the JSON response.
+  it('hands back a small jpeg preview of the extracted photo', async () => {
+    const sharp = require('sharp');
+    const { client } = stubS3(load('scorecard-pdf-dct.pdf'));
+    const out = await convertStoredDocument('tameside-Hyde B-Shell A.pdf', { s3: client });
+    const m = /^data:image\/jpeg;base64,(.+)$/.exec(out.preview || '');
+    assert.ok(m, 'expected a jpeg data url');
+    const meta = await sharp(Buffer.from(m[1], 'base64')).metadata();
+    assert.strictEqual(meta.format, 'jpeg');
+    assert.ok(meta.width <= 900, `preview is ${meta.width}px wide`);
+  });
+
+  // No preview is the state the page was already in, so it must never sink a conversion.
+  it('gives no preview, rather than failing, for bytes it cannot decode', async () => {
+    assert.strictEqual(await previewDataUrl(Buffer.from('not an image')), null);
   });
 
   it('reads a Word document too', async () => {
