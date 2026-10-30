@@ -485,6 +485,13 @@ app.use(filterState.middleware)
     app.get('/sign-s3', secured, async (req, res, next) => {
       const fileName = req.query['file-name'];
       const fileType = req.query['file-type'];
+      // Our own objects only. `secured` stopped strangers, but any logged-in member could
+      // still presign a PUT over ANY key — including the other league's scorecards, at the
+      // root of a bucket they own. Every uploader here writes `tameside-…` at the root, and
+      // that prefix is already the ownership test on the read side (utils/scorecardPhoto.js).
+      if (typeof fileName !== 'string' || !/^tameside-[^/]+$/.test(fileName)) {
+        return res.status(400).json({ error: 'Bad file name' });
+      }
       const s3Params = {
           Bucket: process.env.S3_BUCKET_NAME,
           Key: fileName,

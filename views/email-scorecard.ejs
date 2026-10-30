@@ -739,6 +739,7 @@
     <% } %>
     <%- include('footer.ejs') %>
     <script type="text/javascript" src="/scripts/ejs/ejs.js"></script>
+    <script src="<%= assetUrl('/static/js/scorecard-upload.js') %>"></script>
 
     <script type="text/javascript">
       
@@ -845,27 +846,8 @@
             
         }
         
-        // A pdf or docx is a photo with a wrapper round it, and the server can pull the
-        // photo out — see utils/documentImage.js. The file has already been PUT to the
-        // bucket by the time this runs, so the server is handed the KEY and reads it back.
-        //
-        // Returns { url, key, preview, converted, reason }: `url` is what to record. A
-        // document that cannot be read keeps its own url and key: the file is still
-        // uploaded and still attached, so this is never a failure. `preview` is a data url
-        // of the extracted photo, or null.
-        async function convertIfDocument(key, uploadedUrl) {
-          const unchanged = { url: uploadedUrl, key: key, preview: null, converted: false };
-          if (!/\.(pdf|docx|doc|heic|heif)$/i.test(key)) return unchanged;
-          const resp = await fetch('/scorecard-document/convert', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: key }),
-          });
-          const data = await resp.json().catch(function () { return {}; });
-          if (!resp.ok) throw new Error(data.error || 'Could not read that file.');
-          if (!data.converted) return Object.assign(unchanged, { reason: data.reason });
-          return { url: data.url, key: data.key, preview: data.preview || null, converted: true };
-        }
+        // convertIfDocument lives in static/js/scorecard-upload.js, shared with the
+        // superadmin "Replace photo" panel on the confirmation page.
 
         // Show the captain what they attached: the picture when there is one, and always
         // the file's name. A pdf used to show neither, and a captain filed the card from a

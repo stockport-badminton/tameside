@@ -817,6 +817,21 @@ have turned into a broken image on the day they swept.
   `/admin/scorecard-ocr/image` too, which did echo it.
 - **PDFs are 40 of our 322 photos** and go out as `Content-Disposition: attachment`, never
   inline: an inline PDF renders in our origin and PDFs can carry script.
+- **`/sign-s3` signs `tameside-…` root keys only** (Oct 2026). `secured` stopped strangers,
+  but any member could still presign a PUT over any key — the other league's scorecards
+  included. It does not stop one of *our* keys being overwritten; they are guessable
+  (`tameside-<season>-<home>-<away>.<ext>`), and a server-chosen key would fix that.
+- **`POST /add-scorecard-photo/:id` is owner-or-superadmin** (Oct 2026; it was `secured`
+  and nothing else, so any member could repoint any scorecard's photo). The url must pass
+  `photoKeyFromStored`; a captain may only fill an EMPTY photo on a row whose `email` is
+  their login (exactly the `/email-scorecard` list); a superadmin may replace any, and is
+  not mailed about it. **Replacing a photo is the "Scorecard photo" panel on
+  `/populated-scorecard-beta/:id`** — no more blanking the column in the DB. The new file
+  gets its own key (`tameside-scorecard-<id>-<ts>`), so the old object survives.
+  `test/integration/scorecard-photo-replace.test.js`.
+- **The `/email-scorecard` "add scorecard photos" list shows a superadmin every row**
+  missing a photo (`getMissingScorecardPhotos(email, seeAll)`). It used to key that on
+  the login being `stockport.badders.results@` — the other league's mailbox.
 - **`/sign-s3` is `secured` and no longer sets an ACL.** It was unauthenticated, presigning
   a PUT with a caller-chosen key into a bucket shared with the other league — anyone could
   write any object anywhere in it. Dropping the ACL is what makes the lockdown durable:

@@ -23,6 +23,7 @@ const promisify = (fn) => (...args) => new Promise((resolve, reject) =>
 // fixture that isn't there. Now shared with teamController's Lewis route — see
 // utils/render404.js for why the no-store header matters.
 const render404 = require('../utils/render404');
+const crypto = require('crypto');
 // Absolute urls for emails and rel=canonical. NOT req.headers.host: Firebase Hosting
 // rewrites Host to the Cloud Run hostname, so that produced *.a.run.app links, which
 // break the Auth0 round trip — a different origin is a different cookie jar, so the
@@ -696,7 +697,7 @@ exports.email_scorecard = function (req, res, next) {
       return next(err);
     }
     function renderWithEmail(email) {
-      Fixture.getMissingScorecardPhotos(email, function (err, fixtures) {
+      Fixture.getMissingScorecardPhotos(email, authz.isSuperAdmin(req), function (err, fixtures) {
         if (err) {
           return next(err);
         }
@@ -1085,11 +1086,26 @@ exports.fixture_populate_scorecard_errors = function (req, res, next) {
     };
   }
 
+// What the confirmation page's "Scorecard photo" panel shows. `kind` follows the same
+// rules as GET /scorecard-photo/:id, so the page never offers a photo the route would
+// refuse; `version` changes when the stored url does, to step round the photo's
+// five-minute private cache after a replacement.
+function photoPanelFor(row) {
+  const key = photoKeyFromStored(row["scoresheet-url"]);
+  const kind = !key ? "none" : contentTypeFor(key) ? "image" : downloadTypeFor(key) ? "document" : "none";
+  const version = crypto.createHash("sha256")
+    .update(String(row["scoresheet-url"] || "")).digest("hex").slice(0, 10);
+  return { id: row.id, kind, version };
+}
+
 exports.fixture_populate_scorecard_fromId = function (req, res, next) {
   Fixture.getScorecardById(req.params.id, (err, rows) => {
     if (err) {
       console.log(err);
       next(err);
+    } else if (!rows || !rows.length) {
+      // An id with no draft used to read rows[0].division off undefined and 500.
+      return render404(req, res);
     } else {
       Division.getAllAndSelectedById(
         1,
@@ -1179,6 +1195,7 @@ exports.fixture_populate_scorecard_fromId = function (req, res, next) {
                                                       "Show result of uploading scorecard",
                                                     result: renderData,
                                                     data: rows[0],
+                                                    photo: photoPanelFor(rows[0]),
                                                   }
                                                 );
                                               }
@@ -1898,44 +1915,85 @@ exports.fixture_reminder_post = function(req,res,next){
   .catch((err) => next(err))
 }
 
-exports.add_scorecard_photo = function(req,res,next){
-  Fixture.updateScorecardPhoto(req.params.id, req.body.imgURL,function(err,row){
-    if (err){
-      res.send(err);
-      // console.log(err);
+/* ------------------------------------------------------------------ *
+ * POST /add-scorecard-photo/:id — attach (or, for a superadmin, replace) a photo
+ *
+ * This was `secured` and nothing else: any logged-in user could point any scorecard's
+ * photo at any url, and the results mailbox was emailed "photo added" about it. Now:
+ *
+ *   - the url must name one of OUR objects — the same `photoKeyFromStored` test that
+ *     GET /scorecard-photo/:id applies, so nothing is stored that the reader would refuse;
+ *   - a captain may only FILL AN EMPTY photo on a scorecard filed under their own login
+ *     address. That is exactly the list /email-scorecard offers them (`email` on the row
+ *     is the login address the wizard fills in), so no legitimate use is lost;
+ *   - a superadmin may set or replace any row's photo — the "Replace photo" control on
+ *     the confirmation page. That used to be done by blanking the column in the database.
+ *
+ * A superadmin is not emailed about their own change: they are the results mailbox.
+ * ------------------------------------------------------------------ */
+exports.add_scorecard_photo = async function (req, res, next) {
+  const imgURL = req.body && req.body.imgURL;
+  const key = photoKeyFromStored(imgURL);
+  if (!key || !(contentTypeFor(key) || downloadTypeFor(key))) {
+    return res.status(400).json({ ok: false, error: 'That is not an uploaded scorecard photo.' });
+  }
+
+  let row;
+  try {
+    row = ((await getScorecardByIdP(req.params.id)) || [])[0];
+  } catch (err) {
+    return next(err);
+  }
+  if (!row) return res.status(404).json({ ok: false, error: 'No such scorecard.' });
+
+  const superAdmin = authz.isSuperAdmin(req);
+  if (!superAdmin) {
+    const mine = String(row.email || '').trim().toLowerCase() === String(authz.userEmail(req) || '').trim().toLowerCase();
+    if (!mine || !authz.userEmail(req)) {
+      return res.status(403).json({ ok: false, error: 'That scorecard was not filed by you.' });
     }
-    else{
-      // The photo goes as a `secured` /scorecard-photo/:id link, not the raw public S3
-      // URL, which stops working once the shared bucket's public ACLs are stripped.
-      const confirmUrl = absoluteUrl('/populated-scorecard-beta/' + req.params.id);
-      const photoUrl = absoluteUrl('/scorecard-photo/' + req.params.id);
-      // A scorecardstore row carries the same Game* columns the form posts, so the same
-      // describe helper names the fixture here. This handler previously knew nothing but
-      // the row id, so the email could not say which match had gained a photo.
-      getScorecardByIdP(req.params.id)
-        .then((rows) => describeFixtureFromBody((rows && rows[0]) || {}))
-        .catch(() => ({ homeTeamName: 'a fixture', awayTeamName: '', scoreLabel: 'games' }))
-        .then((described) => mailer.send({
-          template: 'scorecard-photo-added',
-          subject: `Scorecard photo added: ${described.homeTeamName} vs ${described.awayTeamName}`,
-          text: `A scorecard photo has been added to ${described.homeTeamName} vs `
-              + `${described.awayTeamName}.\n\nCheck and confirm: ${confirmUrl}`
-              + `\nScorecard photo: ${photoUrl}`,
-          to: mailer.RESULTS_MAILBOX,
-          replyTo: mailer.RESULTS_MAILBOX,
-          data: Object.assign({}, described, { confirmUrl, photoUrl }),
-          customId: 'ScorecardPhotoAdded',
-        }))
-        .then(() => res.sendStatus(200))
-        // The original send had no .catch at all, so a Mailjet failure here was an
-        // unhandled rejection and the request never got a response.
-        .catch((sendErr) => {
-          console.error('[email] scorecard-photo-added failed:', sendErr.message);
-          next(sendErr);
-        });
+    if (row['scoresheet-url']) {
+      return res.status(409).json({
+        ok: false,
+        error: 'That scorecard already has a photo. Ask the results secretary to replace it.',
+      });
     }
-  })
-}
+  }
+
+  try {
+    await promisify(Fixture.updateScorecardPhoto)(req.params.id, imgURL);
+  } catch (err) {
+    return next(err);
+  }
+  if (superAdmin) return res.json({ ok: true });
+
+  // The photo goes as a `secured` /scorecard-photo/:id link, not the raw public S3
+  // URL, which stops working once the shared bucket's public ACLs are stripped.
+  const confirmUrl = absoluteUrl('/populated-scorecard-beta/' + req.params.id);
+  const photoUrl = absoluteUrl('/scorecard-photo/' + req.params.id);
+  // A scorecardstore row carries the same Game* columns the form posts, so the same
+  // describe helper names the fixture here.
+  describeFixtureFromBody(row)
+    .catch(() => ({ homeTeamName: 'a fixture', awayTeamName: '', scoreLabel: 'games' }))
+    .then((described) => mailer.send({
+      template: 'scorecard-photo-added',
+      subject: `Scorecard photo added: ${described.homeTeamName} vs ${described.awayTeamName}`,
+      text: `A scorecard photo has been added to ${described.homeTeamName} vs `
+          + `${described.awayTeamName}.\n\nCheck and confirm: ${confirmUrl}`
+          + `\nScorecard photo: ${photoUrl}`,
+      to: mailer.RESULTS_MAILBOX,
+      replyTo: mailer.RESULTS_MAILBOX,
+      data: Object.assign({}, described, { confirmUrl, photoUrl }),
+      customId: 'ScorecardPhotoAdded',
+    }))
+    .then(() => res.json({ ok: true }))
+    // The original send had no .catch at all, so a Mailjet failure here was an
+    // unhandled rejection and the request never got a response.
+    .catch((sendErr) => {
+      console.error('[email] scorecard-photo-added failed:', sendErr.message);
+      next(sendErr);
+    });
+};
 /* ------------------------------------------------------------------ *
  * Inline fixture-date editing from the admin results grid.
  * Superadmin only. Edits the existing fixture's date in place — distinct

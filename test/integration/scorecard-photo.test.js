@@ -208,6 +208,16 @@ describe('/sign-s3 no longer mints world-readable objects', () => {
     assert.match(res.headers.location, /\/login/);
   }));
 
+  // `secured` alone still let any member presign a PUT over any key in a bucket the other
+  // league owns — their scorecards included.
+  it('signs only our own keys', asUser(LOGGED_IN, async () => {
+    for (const name of ['x.jpg', 'canute-a-b.jpg', 'inbound-email/x', 'tameside-x/../../y.jpg', '']) {
+      const res = await request(app).get('/sign-s3?file-name=' + encodeURIComponent(name) + '&file-type=image%2Fjpeg');
+      assert.strictEqual(res.status, 400, name);
+      assert.ok(!res.body.signedUrl, name);
+    }
+  }));
+
   it('does not sign a public-read ACL', asUser(LOGGED_IN, async () => {
     // The read path above is only durable if new uploads stop being public: Stockport's
     // ACL sweep is one-off, so while this was here the bucket would drift back to

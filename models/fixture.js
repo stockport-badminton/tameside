@@ -828,8 +828,15 @@ order by game.id`.catch(err => {
   }
 
 
-  exports.getMissingScorecardPhotos = async function(email,done){
-    let result = await sql`select
+  // Scorecards with no photo yet. A captain sees the ones filed under their own login
+  // address whose fixture is still open; a superadmin sees every one. That used to be
+  // decided by the login address being `stockport.badders.results@` — the OTHER league's
+  // mailbox, inherited with the code — so from Tameside's own results mailbox a blanked
+  // photo never showed up to be replaced.
+  exports.getMissingScorecardPhotos = async function(email, seeAll, done){
+    let result
+    try {
+    result = await sql`select
   fixture.id as fixtureid,
   fixture.status,
   scorecardstore.id,
@@ -850,26 +857,27 @@ from
 where
   "scoresheet-url" = ''
   ${
-    email == 'stockport.badders.results@gmail.com' ? 
+    seeAll ?
     sql`` :
     sql`and email = ${email} 
   and status not like 'complete'`
   }
-`.catch(err => {
-         console.log(err)
-         console.log(err.query)
-         return done(err)
-       })
-       done(null,result);
+`
+    } catch (err) {
+      return done(err)
+    }
+    done(null,result);
    }
 
+   // try/catch rather than `.catch(err => done(err))`, which called done(err) and then
+   // fell through to done(null, undefined) as well.
    exports.updateScorecardPhoto = async function(id,imgurl,done){
-    let result = await sql`update scorecardstore set "scoresheet-url" = ${imgurl} where id = ${id}`
-    .catch(err => {
-      console.log(err)
-      console.log(err.query)
+    let result
+    try {
+      result = await sql`update scorecardstore set "scoresheet-url" = ${imgurl} where id = ${id}`
+    } catch (err) {
       return done(err)
-    })
+    }
     done(null,result);
 }
 

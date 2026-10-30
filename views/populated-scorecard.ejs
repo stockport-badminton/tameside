@@ -60,6 +60,40 @@
         <% if (hasResult && !hasErrors) { %>
         <p><a class="btn btn-lg btn-success"  data-bs-toggle="modal" href="#signupModal">Enter Result</a></p>
         <% } %>
+        <%# Only on /populated-scorecard-beta/:id (superadmin), which passes `photo`. Replacing
+             a photo used to mean blanking scoresheet-url in the database. The `?v=` changes
+             with the stored url, because /scorecard-photo/:id is cached privately for five
+             minutes and a replaced photo should show at once. -%>
+        <% if (typeof photo !== 'undefined' && photo) { %>
+        <section id="scorecard-photo-panel" class="mt-4" data-scorecard-id="<%= photo.id %>">
+          <h2 class="h5">Scorecard photo</h2>
+          <% if (photo.kind === 'image') { %>
+            <a href="/scorecard-photo/<%= photo.id %>?v=<%= photo.version %>" target="_blank" rel="noopener">
+              <img src="/scorecard-photo/<%= photo.id %>?v=<%= photo.version %>" class="img-fluid border"
+                   style="max-height: 32rem;" alt="The scorecard photo attached to this result" />
+            </a>
+          <% } else if (photo.kind === 'document') { %>
+            <p><a href="/scorecard-photo/<%= photo.id %>?v=<%= photo.version %>"><%- icon('file-arrow-down') %> Download the attached file</a></p>
+          <% } else { %>
+            <p class="text-muted">No photo attached.</p>
+          <% } %>
+          <div class="mt-3">
+            <label for="replace-photo-file" class="form-label"><%= photo.kind === 'none' ? 'Attach a photo' : 'Replace it with a different file' %></label>
+            <input type="file" id="replace-photo-file" class="form-control" style="max-width: 32rem;"
+                   accept="image/jpeg,image/png,image/heic,image/heif,application/pdf,.pdf,.docx" />
+          </div>
+          <div id="replace-photo-preview" class="mt-2" hidden>
+            <img id="replace-photo-img" class="img-fluid border" style="max-height: 32rem;" hidden
+                 alt="The file you just chose" />
+            <iframe id="replace-photo-pdf" class="d-block w-100" hidden
+                    style="aspect-ratio: 1 / 1.414; max-width: 40rem; border: 1px solid #dee2e6;"
+                    title="The file you just chose"></iframe>
+            <div class="small mt-1">Chosen: <span id="replace-photo-name"></span></div>
+            <button type="button" id="replace-photo-save" class="btn btn-primary mt-2" disabled>Use this file</button>
+          </div>
+          <p id="replace-photo-status" class="small mt-2" role="status"></p>
+        </section>
+        <% } %>
       </div>
 
       <!-- Modal -->
@@ -963,6 +997,10 @@
     <% } %>
     <%- include('footer.ejs', { useJQuery: true }) %>
     <script type="text/javascript" src="/scripts/ejs/ejs.js"></script>
+    <% if (typeof photo !== 'undefined' && photo) { %>
+    <script src="<%= assetUrl('/static/js/scorecard-upload.js') %>"></script>
+    <script src="<%= assetUrl('/static/js/scorecard-photo-replace.js') %>"></script>
+    <% } %>
 
     <script type="text/javascript">
 
