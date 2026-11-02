@@ -36,11 +36,11 @@
         if (row['Man1TeamName'] != row['teamName']){
           if (row['Man1Rank'] == null){
             Man1Status = "table-danger";
-            Man1Note = "<br />" + row['Man1TeamName']
+            Man1Note = "<br />" + (row['Man1TeamName'] || 'no team')
           }
           else{
             Man1Status = "table-warning";
-            Man1Note = "<br />" + row['Man1TeamName']
+            Man1Note = "<br />" + (row['Man1TeamName'] || 'no team')
           }
         }
         else {
@@ -52,11 +52,11 @@
         if (row['Man2TeamName'] != row['teamName']){
           if (row['Man2Rank'] == null){
             Man2Status = "table-danger";
-            Man2Note = "<br />" + row['Man2TeamName']
+            Man2Note = "<br />" + (row['Man2TeamName'] || 'no team')
           }
           else{
             Man2Status = "table-warning";
-            Man2Note = "<br />" + row['Man2TeamName']
+            Man2Note = "<br />" + (row['Man2TeamName'] || 'no team')
           }
         }
         else {
@@ -68,11 +68,11 @@
         if (row['Man3TeamName'] != row['teamName']){
           if (row['Man3Rank'] == null){
             Man3Status = "table-danger";
-            Man3Note = "<br />" + row['Man3TeamName']
+            Man3Note = "<br />" + (row['Man3TeamName'] || 'no team')
           }
           else{
             Man3Status = "table-warning";
-            Man3Note = "<br />" + row['Man3TeamName']
+            Man3Note = "<br />" + (row['Man3TeamName'] || 'no team')
           }
         }
         else {
@@ -84,11 +84,11 @@
         if (row['Man4TeamName'] != row['teamName']){
           if (row['Man4Rank'] == null){
             Man4Status = "table-danger";
-            Man4Note = "<br />" + row['Man4TeamName']
+            Man4Note = "<br />" + (row['Man4TeamName'] || 'no team')
           }
           else{
             Man4Status = "table-warning";
-            Man4Note = "<br />" + row['Man4TeamName']
+            Man4Note = "<br />" + (row['Man4TeamName'] || 'no team')
           }
         }
         else {
@@ -100,11 +100,11 @@
         if (row['Lady1TeamName'] != row['teamName']){
           if (row['Lady1Rank'] == null){
             Lady1Status = "table-danger";
-            Lady1Note = "<br />" + row['Lady1TeamName']
+            Lady1Note = "<br />" + (row['Lady1TeamName'] || 'no team')
           }
           else{
             Lady1Status = "table-warning";
-            Lady1Note = "<br />" + row['Lady1TeamName']
+            Lady1Note = "<br />" + (row['Lady1TeamName'] || 'no team')
           }
         }
         else {
@@ -116,11 +116,11 @@
         if (row['Lady2TeamName'] != row['teamName']){
           if (row['Lady2Rank'] == null){
             Lady2Status = "table-danger";
-            Lady2Note = "<br />" + row['Lady2TeamName']
+            Lady2Note = "<br />" + (row['Lady2TeamName'] || 'no team')
           }
           else{
             Lady2Status = "table-warning";
-            Lady2Note = "<br />" + row['Lady2TeamName']
+            Lady2Note = "<br />" + (row['Lady2TeamName'] || 'no team')
           }
         }
         else {
