@@ -66,7 +66,7 @@ const MAX_PIPELINE = 0
 // mode multiplexes, releasing the server connection after each transaction.
 // It can't hold session state, so prepared statements must be disabled
 // (postgres.js uses them by default); sql.begin() transactions are fine —
-// each runs start-to-finish on one server connection.
+// each runs start-to-finish on one server connection (see beginOnReserved below).
 const sql = postgres(
   `postgres://postgres.tdsvugmbkgakgbtmoajj:${encodeURIComponent(process.env.PGPASSWORD)}@aws-0-eu-west-2.pooler.supabase.com:6543/postgres`,
   {
@@ -78,6 +78,62 @@ const sql = postgres(
     max_pipeline: MAX_PIPELINE,
   }
 )
+
+// ---------------------------------------------------------------------------
+// sql.begin, on a reserved connection
+// ---------------------------------------------------------------------------
+//
+// **postgres.js's own sql.begin() does not work with max_pipeline 0.** It marks the
+// connection as reserved for the transaction from an `onexecute` hook that it only calls
+// when `sent.length < max_pipeline` (connection.js, execute) — never true at 0. So the
+// BEGIN completes on an unreserved connection and postgres.js refuses it:
+// `UNSAFE_TRANSACTION: Only use sql.begin, sql.reserved or max: 1`. Every transaction in
+// the app failed from cdac41b (2 Nov 2026) until this: roster saves, concede, the Elo
+// chain after a publish, every tool. max_pipeline 1 would let begin work again, but it
+// lets one query pipeline behind another, which is the wedge 0 exists to stop.
+//
+// sql.reserve() takes its connection without that hook, and works at 0 (checked against
+// the real pooler: BEGIN, helpers, ten transactions in parallel on a pool of five). So
+// begin is rebuilt on it, keeping the parts of postgres.js's contract our callers use:
+// an optional mode string, a callback that may return an array of queries, rollback on a
+// throw, and `tx.savepoint(fn)`.
+function beginOnReserved(pool) {
+  return async function begin(options, fn) {
+    if (!fn) { fn = options; options = ''; }
+    const tx = await pool.reserve();
+    let savepoints = 0;
+    tx.savepoint = async (name, inner) => {
+      if (!inner) { inner = name; name = null; }
+      const id = tx(name || `s${++savepoints}`);
+      await tx`savepoint ${id}`;
+      try {
+        const result = await settle(inner(tx));
+        await tx`release savepoint ${id}`;
+        return result;
+      } catch (err) {
+        await tx`rollback to savepoint ${id}`;
+        throw err;
+      }
+    };
+    try {
+      await tx.unsafe('begin ' + String(options).replace(/[^a-z ]/ig, ''));
+      let result;
+      try {
+        result = await settle(fn(tx));
+      } catch (err) {
+        await tx`rollback`.catch(() => {});
+        throw err;
+      }
+      await tx`commit`;
+      return result;
+    } finally {
+      tx.release();
+    }
+  };
+}
+const settle = x => Array.isArray(x) ? Promise.all(x) : Promise.resolve(x);
+
+sql.begin = beginOnReserved(sql);
 
 // ---------------------------------------------------------------------------
 // Retrying a read whose connection died under it
@@ -154,4 +210,4 @@ async function withRetry(run) {
 // POOL_MAX and IDLE_TIMEOUT are exported so a test can assert the two ceilings that
 // are enforced elsewhere: the pool cap against cloudbuild.yaml's --max-instances,
 // and the idle timeout against the blocklist refresh interval.
-module.exports = { sql, POOL_MAX, IDLE_TIMEOUT, MAX_PIPELINE, withRetry, isRetryable, RETRY_DELAY_MS }
+module.exports = { sql, POOL_MAX, IDLE_TIMEOUT, MAX_PIPELINE, withRetry, isRetryable, RETRY_DELAY_MS, beginOnReserved }
