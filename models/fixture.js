@@ -755,38 +755,51 @@ FROM (SELECT "fixturePlayers".*, club.name
     }
   }
 
+  /**
+   * Rearrange a fixture: no date marks it 'rearranging'; a date marks it 'rearranged'
+   * (the superseded original) and inserts a fresh 'outstanding' row on the new date.
+   *
+   * A 'rearranging' row must be matchable as well as an 'outstanding' one — "we're
+   * rearranging" followed later by "here's the date" is the normal sequence. Matching
+   * only 'outstanding' left the original stuck at 'rearranging' beside the new row
+   * (Disley A v Medlock A, fixture 6068, Oct 2026). The insert only happens if the
+   * update matched, and takes the team ids from that row, in one transaction: before,
+   * a miss still inserted, minting a duplicate fixture.
+   */
   exports.rearrangeByTeamNames = async function(updateObj,done){
-    if(typeof updateObj !== undefined){
-      let rows = await sql`
-      ${
-        (updateObj.date == null || updateObj.date == "")
-        ? sql`UPDATE fixture SET status = 'rearranging'`
-        : sql`UPDATE fixture SET status = 'rearranged'`
-      } WHERE id = ( 
-select fixture.id from fixture join 
-season on (fixture.date > season."startDate" and fixture.date < season."endDate")
-join team "homeTeam" on fixture."homeTeam" = "homeTeam".id 
-join team "awayTeam" on fixture."awayTeam" = "awayTeam".id
-where season.name like ${seasonModel.current()} and status = 'outstanding' and "homeTeam".name like ${updateObj.hometeam} and "awayTeam".name like ${updateObj.awayteam} limit 1);`.catch(err => {
-        console.log(err)
-        console.log(err.query)
-        return done(err)
-      })
-      if (updateObj.date != null && updateObj.date != "") {
-        let result = await sql`INSERT INTO fixture ("homeTeam", "awayTeam", "date", "status") VALUES ((Select id from team where name like ${updateObj.hometeam}), (SELECT id from team where name like ${updateObj.awayteam}), ${updateObj.date}, 'outstanding');`.catch(err => {
-          console.log(err)
-          console.log(err.query)
-          return done(err)
-        })
-        done(null,result);
-      }
-      else {
-        done(null,rows)
-      } 
-      
-    }
-    else {
-      return done(err);
+    const newDate = updateObj && updateObj.date ? updateObj.date : null;
+    try {
+      const result = await sql.begin(async (tx) => {
+        const [original] = await tx`
+          UPDATE fixture SET status = ${newDate ? 'rearranged' : 'rearranging'}
+          WHERE id = (
+            SELECT fixture.id FROM fixture
+            JOIN season ON (fixture.date > season."startDate" AND fixture.date < season."endDate")
+            JOIN team "homeTeam" ON fixture."homeTeam" = "homeTeam".id
+            JOIN team "awayTeam" ON fixture."awayTeam" = "awayTeam".id
+            WHERE season.name = ${seasonModel.current()}
+              AND fixture.status IN ('outstanding', 'rearranging')
+              AND "homeTeam".name = ${updateObj.hometeam}
+              AND "awayTeam".name = ${updateObj.awayteam}
+            ORDER BY fixture.date
+            LIMIT 1)
+          RETURNING id, "homeTeam", "awayTeam"`;
+        if (!original) {
+          const err = new Error('No outstanding fixture found for ' + updateObj.hometeam + ' v ' + updateObj.awayteam);
+          err.status = 404;
+          throw err;
+        }
+        if (!newDate) return { id: original.id, status: 'rearranging' };
+        const [fresh] = await tx`
+          INSERT INTO fixture ("homeTeam", "awayTeam", "date", "status")
+          VALUES (${original.homeTeam}, ${original.awayTeam}, ${newDate}, 'outstanding')
+          RETURNING id`;
+        return { id: original.id, status: 'rearranged', newFixture: fresh.id };
+      });
+      done(null, result);
+    } catch (err) {
+      if (!err.status) console.error('rearrange failed:', err.message);
+      done(err);
     }
   }
 

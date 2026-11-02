@@ -485,6 +485,10 @@
       $('#rearrangementForm > #date').hide()
       $('#emailHelp').hide()
       $('#fixtureRearange').hide();
+    }).fail(function (xhr) {
+      alert(xhr.status === 404
+        ? 'Could not find an outstanding fixture for these teams — it may already have been rearranged or played.'
+        : 'The fixture could not be rearranged. Please try again.');
     });
   })
 
