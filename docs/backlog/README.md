@@ -22,7 +22,7 @@ their open HARD and REARCH briefs.
 |---|---|---|---|
 | 1 | Publishing a result waits on the social posts **(deployed 2 Nov 2026; acceptance check due ~9 Nov: see `docs/social-posting.md`, last section)** | league-site `docs/hardening/done/HARD-47-publish-waits-on-social.md` | Read the `[timing] meta:` lines in Cloud Logging first (`utils/metaPublisher.js`). Our `_REQUEST_TIMEOUT` is 60s, and our version of their `afterCommit` is `sendResultZap`, which never calls back with an error. |
 | 2 | Load PostHog after the page has loaded; remove GA **(done 2 Nov 2026)** | — | Defer PostHog now. Removing GA follows the mid-Nov decision in `docs/analytics-posthog-vs-ga.md`, which also has the removal checklist. |
-| 3 | Migration ledger | league-site `docs/hardening/done/HARD-32-migration-tracking.md` | `tools/run-migration.js` exists, but nothing records which migrations have been applied. |
+| 3 | Migration ledger **(done 2 Nov 2026)** | league-site `docs/hardening/done/HARD-32-migration-tracking.md` | Record written in the file's own transaction; `clone-season.sql` repeatable; 18 files backfilled on schema evidence. See CLAUDE.md, *Migration ordering*. |
 | 4 | `pointsFor` → `gamesWon` | league-site `docs/hardening/2728-rearch/REARCH-03-one-record-per-fact.md`, Part C | Part C only. See Skipped for A. |
 | 5 | Social posts link to the division, not the homepage | league-site commit `c482fc3` | Captions are built in `utils/metaPublisher.js` / `utils/socialVideo.js`. |
 | 6 | Bootstrap 4 leftovers | [BL-01](BL-01-bootstrap-4-leftovers.md) | Ours alone. Their HARD-50 is a whole BS4→BS5 migration. |

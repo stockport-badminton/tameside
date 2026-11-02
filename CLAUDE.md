@@ -450,6 +450,20 @@ simple query protocol rather than splitting on semicolons — `player-auth-roles
 contains a `DO $$ … $$` block whose body has its own semicolons, and splitting mangles
 it. Applied to production 2026-08-30.
 
+**The runner keeps a ledger**, `schema_migrations` (`migrations/schema-migrations.sql`,
+Stockport's HARD-32): one row per file with a sha256 of its bytes, written **in the same
+transaction** as the file, so a row means it applied. Re-running a recorded file is a no-op;
+an edited one is **refused** — write a new migration for the difference. A database with no
+ledger refuses everything but the ledger file. `--status` lists every file against the
+record; `--record-only --commit` records a file without running it (a backfill, only on
+evidence from the schema). `clone-season.sql` is the one `REPEATABLE` file: it is
+`CREATE OR REPLACE FUNCTION`, so an edit re-runs it and updates its row.
+
+When the ledger was built (2 Nov 2026), a read-only probe of each file's effect showed 18
+of 19 on production — including `clone_season`'s body, byte-for-byte — and those were
+backfilled. The 19th, **`validate-club-contact-fks.sql`, written 17 Sep "to be applied", had
+never been run**: nothing could say so until now.
+
 **Linking is a screen, not a spreadsheet**: `/admin/link-auth-accounts` (superadmin, in
 the Admin nav) is the worklist — it lists every Tameside role-holder still needing a
 player, offers a one-click link where the login email happens to match a contact email,
