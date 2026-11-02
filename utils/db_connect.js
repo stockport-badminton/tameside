@@ -39,6 +39,26 @@ const POOL_MAX = parseInt(process.env.PG_POOL_MAX, 10) || 5
 // Verified after deploy: 0 connection opens over 4 minutes, refresh still 1/min.
 const IDLE_TIMEOUT = 180
 
+// 0 = never write a query to a connection that is still answering the previous one.
+// This MUST stay 0 while we are on the transaction pooler; test/db-pool.test.js asserts it.
+//
+// postgres.js pipelines by default (100): once every pooled connection is busy, the
+// next query is appended to a busy one in the same write. Supavisor's transaction mode
+// does not survive that. Captured on the wire 2 Nov 2026: a parameter-less query
+// (Parse/Describe/Bind/Execute/Sync) with a parameterised one queued behind it, whose
+// first step is Parse/Describe/Flush — NO Sync. Supavisor answers the first, releases
+// the backend at ReadyForQuery, and never forwards the trailing Parse/Describe/Flush.
+// That connection then waits forever, and so does everything queued behind it.
+// Session mode (5432) answers both. It is a race, not every time, and it needs all
+// POOL_MAX connections busy at once — so a quiet site never hits it, and any burst of
+// a couple of dozen page loads on one instance does: the 2 Nov outage (a tester's
+// link sweep fired beside a scorecard read), and plausibly the 2026-09-17 "pooler
+// stall". Reproduced locally against the real pooler: the full-site burst wedged the
+// pool with the default and never did with 0. Symptom: /health says db-timeout, CPU
+// idle, DB idle, pages that need no query still served. The `DataRow ... reading
+// 'length'` TypeError is the same desync seen from the other side.
+const MAX_PIPELINE = 0
+
 // Supabase transaction-mode pooler (port 6543), not session mode (5432).
 // Cloud Run scales stateless instances that each open a pool, so on a
 // low-traffic site session-mode connections churn (every reopen re-runs
@@ -55,6 +75,7 @@ const sql = postgres(
     max: POOL_MAX,
     idle_timeout: IDLE_TIMEOUT,
     connect_timeout: 10,
+    max_pipeline: MAX_PIPELINE,
   }
 )
 
@@ -133,4 +154,4 @@ async function withRetry(run) {
 // POOL_MAX and IDLE_TIMEOUT are exported so a test can assert the two ceilings that
 // are enforced elsewhere: the pool cap against cloudbuild.yaml's --max-instances,
 // and the idle timeout against the blocklist refresh interval.
-module.exports = { sql, POOL_MAX, IDLE_TIMEOUT, withRetry, isRetryable, RETRY_DELAY_MS }
+module.exports = { sql, POOL_MAX, IDLE_TIMEOUT, MAX_PIPELINE, withRetry, isRetryable, RETRY_DELAY_MS }

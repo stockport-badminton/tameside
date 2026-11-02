@@ -114,6 +114,45 @@ Its `idle_timeout`, `connect_timeout`, `max_lifetime` and `keep_alive` all conce
 connection at rest; none bounds a query already in flight. So a socket that accepts
 writes and never answers is, to this driver, indistinguishable from a slow query.
 
+## Addendum, 2 Nov 2026: a reproducible cause on our side of the wire
+
+The same signature came back twice in six minutes: `/health` reporting `db-timeout`,
+CPU and Postgres both idle, and pages that need no query still served. This time it
+followed a burst of about 25 concurrent page loads on one instance (a link sweep run
+while testing another change). **That made it reproducible**, and it is very likely what
+happened on 17 Sep as well. We can't prove the September trigger after the fact: those
+logs did not record concurrency.
+
+**What happens on the wire.** By default postgres.js pipelines: once every pooled connection
+is busy, it writes the next query onto a busy one. Captured with a socket tap against
+`:6543`, one connection, three queries queued:
+
+```
+-> P D B E S  P D H      query 2 (no parameters, ends in Sync) + query 3's describe step
+                         (Parse/Describe/Flush — no Sync until the parameter types are back)
+<- 1 t T 2 C Z           query 2 answered, ReadyForQuery
+   ... nothing, ever     query 3's Parse/Describe/Flush is never answered
+```
+
+The same sequence against `:5432` (session mode) gets `1 t T` back for query 3 and
+completes. Our reading is that transaction mode releases the backend at `ReadyForQuery`
+and loses the trailing messages that arrived in the same write. Nothing on the wire
+reports it. The connection then waits forever, and so does every query queued behind it.
+It is a race, not deterministic, and it needs all `max` connections busy at once. That is
+why a quiet site never meets it and a burst does.
+
+**Reproduced end to end**: a local server on the production database, with 25 concurrent
+page loads, wedged the pool within two bursts. That held on the current code and on a
+month-old commit alike. With postgres.js `max_pipeline: 0` (never write to a busy
+connection), six bursts of 50 completed with zero hangs.
+
+**Changed:** `max_pipeline: 0` in `utils/db_connect.js`, asserted by
+`test/db-pool.test.js`.
+
+**For Supabase**, this narrows question 2 above to something concrete: does Supavisor's
+transaction mode support a client that pipelines a Flush-terminated Parse/Describe behind
+a Sync? Other drivers pipeline the same way.
+
 ---
 
 # 2. A disabled Data API leaves PostgREST reconnecting every ~32 seconds

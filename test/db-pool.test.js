@@ -5,7 +5,7 @@ const path = require('node:path');
 
 // Requiring db_connect does not open a connection — postgres.js connects lazily on the
 // first query — so this file is safe to run alongside the rest of the suite.
-const { POOL_MAX, IDLE_TIMEOUT } = require('../utils/db_connect');
+const { sql, POOL_MAX, IDLE_TIMEOUT, MAX_PIPELINE } = require('../utils/db_connect');
 const spamControls = require('../models/spamControls');
 
 const cloudbuild = fs.readFileSync(
@@ -36,6 +36,18 @@ test('db pool ceilings', async (t) => {
       `pool max (${POOL_MAX}) x max-instances (${maxInstances}) = ${worstCase} ` +
       `clients, above the 60 backends Postgres allows. Raising either without the ` +
       `other is how Stockport hit EMAXCONNSESSION (Sentry NODE-V, 28 July).`
+    );
+  });
+
+  await t.test('pipelining stays off on the transaction pooler', () => {
+    assert.strictEqual(MAX_PIPELINE, 0);
+    // The constant is only half of it: postgres.js must actually have been given it.
+    assert.strictEqual(
+      sql.options.max_pipeline,
+      0,
+      'max_pipeline must be 0. Supavisor transaction mode drops a query pipelined ' +
+      'behind another one, and the connection then hangs forever — a burst of page ' +
+      'loads wedged the whole instance on 2 Nov 2026. See utils/db_connect.js.'
     );
   });
 

@@ -722,6 +722,15 @@ and `test/db-pool.test.js` asserts both:
   2026-08-05, i.e. up to 1,000 clients for 60 slots. Stockport took exactly that outage
   in session mode (`EMAXCONNSESSION`, Sentry NODE-V). Raise either number and you must
   check the other. `PG_POOL_MAX` overrides the pool cap without a deploy.
+- **`max_pipeline` must stay 0.** By default postgres.js writes a query onto a connection
+  still answering another one once the pool is full, and Supavisor's transaction mode
+  drops the second query's Parse/Describe/Flush. That connection then hangs forever, and
+  so does everything queued behind it. So **a burst of ~25 concurrent page loads wedged a
+  whole instance** (2 Nov 2026): `/health` reports `db-timeout`, CPU and DB are idle, and
+  `DataRow … reading 'length'` shows up in stderr. It was blamed on the OCR analyse
+  request that happened to be in the burst. It reproduces locally, and it is likely the
+  real cause of the 17 Sep "pooler stall". See the addendum in
+  `docs/incident-2026-09-17-pooler-stall.md`.
 
 #### Retrying a read whose connection died
 
@@ -865,10 +874,11 @@ have turned into a broken image on the day they swept.
   uses `URL.createObjectURL(file)`: at upload time there is no `scorecardstore` row yet,
   so `/scorecard-photo/:id` does not exist for it, and an `<img>` aimed at S3 breaks the
   day the ACLs come off.
-- **Ask before Stockport changes Object Ownership.** Their sweep only covers reads. If they
-  set Object Ownership to "bucket owner enforced", a presigned PUT that carries
-  `x-amz-acl` fails outright — that would have broken *uploads*, not just reads, which is
-  why the ACL had to come off this side first.
+- **The bucket no longer accepts ACLs (Stockport's HARD-22, 2 Nov 2026).** Object
+  Ownership is "bucket owner enforced" and Block Public Access is on. Any upload that
+  carries an ACL — a presigned PUT with `x-amz-acl`, or `ACL:` on a `PutObjectCommand` —
+  fails outright with `AccessControlListNotSupported`. Never add one back; serve through
+  a credentialed proxy instead.
 - `utils/s3.js` owns the credential choice. The default `AWS_ACCESS_KEY_ID` pair was
   rotated out at some point and everything presigned with it gets 403
   `InvalidAccessKeyId`; `S3_LOGS_STORAGE_*` is the live pair. That selection used to be
