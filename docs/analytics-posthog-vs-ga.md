@@ -1,5 +1,11 @@
 # PostHog beside Google Analytics: can GA go?
 
+> **Decided 2 Nov 2026: GA removed.** Neil judged it on the same criteria that retired it
+> on the Stockport site that morning (league-site `fac4037`), a fortnight before the
+> mid-November date below. The checklist under *Removing GA* was done in full, and
+> PostHog now starts after the `load` event. What is still open is the last section:
+> the `/rules` Maps iframe still sets Google's cookies.
+
 Started 10 Oct 2026. Ported from Stockport (league-site `f131627`, `9d5a002`), where the
 same trial started the same day.
 

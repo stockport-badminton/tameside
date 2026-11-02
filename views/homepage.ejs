@@ -119,19 +119,18 @@
 <% } }) %>
 
 <script>
-  // How far down the homepage do people get? GA4's built-in scroll event only fires at
-  // 90%, so this reports each section once per page view, the first time its heading is
-  // fully on screen. Sections visible on load count too — that's the above-the-fold
-  // baseline. Report on it via the event-scoped custom dimension `section` in GA admin.
+  // How far down the homepage do people get? This reports each section once per page
+  // view, the first time its heading is fully on screen. Sections visible on load count
+  // too — that's the above-the-fold baseline. A PostHog `section_view` event, broken down
+  // by its `section` property. (`data-ga-section` is named for GA, which this went to
+  // until Nov 2026.)
   (function () {
-    if (typeof gtag !== 'function' || !('IntersectionObserver' in window)) return;
+    if (!('IntersectionObserver' in window)) return;
     var observer = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (!entry.isIntersecting) return;
         observer.unobserve(entry.target);
         var section = entry.target.closest('[data-ga-section]').dataset.gaSection;
-        gtag('event', 'section_view', { section: section });
-        // The same event to PostHog, so the GA comparison covers this report too.
         tblTrack('section_view', { section: section });
       });
     }, { threshold: 1.0 });

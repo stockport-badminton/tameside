@@ -576,8 +576,11 @@ Sentry any more** — its 50 a month, shared with Stockport, ran out within days
 
 ### PostHog (analytics and session recordings)
 
-Ported from Stockport 10 Oct 2026. `header.ejs` loads PostHog on **every page** in
-production, for everyone except superadmins and only when served by us. It **records
+Ported from Stockport 10 Oct 2026; **the site's only analytics since 2 Nov 2026**, when
+Google Analytics was removed (Stockport `fac4037`, same day). `header.ejs` loads PostHog on
+**every page** in production, for everyone except superadmins and only when served by us,
+**after the `load` event** so `array.js` doesn't compete with the stylesheets and the LCP
+image — except on a recorded page, which starts at once. It **records
 sessions only on `/email-scorecard` and `/populated-scorecard*`** for logged-in users,
 with inputs unmasked so the scores are visible. **Unset `POSTHOG_KEY` loads nothing.**
 `test/browser-posthog.test.js` runs the emitted block in a vm.
@@ -598,16 +601,17 @@ with inputs unmasked so the scores are visible. **Unset `POSTHOG_KEY` loads noth
   OCR, the homepage `section_view`). It is always defined, so callers never check, and
   **queues** anything fired before PostHog's async script is ready (bounded at 50), sent
   once it is. It used to drop them, which lost every homepage section already on screen at
-  load — `outstanding` was never recorded — while GA's `gtag` queues and counted them.
+  load — `outstanding` was never recorded. It matters more now PostHog starts after load.
   Stockport's is `sblTrack` (still drops; they track no sections, so left alone).
   `{ leaving: true }` sends at once, for an event right before a navigation (the filter
   toolbar's `filter_applied`). Stockport's `roster_change` was **not** ported: our roster
   editor is superadmin-only and PostHog never loads for a superadmin, so it could not fire.
 - **PostHog drops events from automated browsers.** A Playwright check sees nothing unless
   it sets `opt_out_useragent_filter: true`.
-- **It is running beside Google Analytics to see whether GA can go**, and with it the need
-  for a cookie banner. Method, criteria and the removal checklist are in
-  `docs/analytics-posthog-vs-ga.md`. The `/rules` Google Maps iframe also sets cookies.
+- **Google Analytics is gone** (2 Nov 2026), so the site sets no analytics cookie and has
+  no consent banner to build. **Don't add a tracker that sets one.** The `/rules` Google
+  Maps iframe still sets Google's cookies; see `docs/analytics-posthog-vs-ga.md`.
+  `test/browser-posthog.test.js` fails if `gtag` reappears in the header or the wizards.
 
 `views/privacy.ejs` (`/privacy-policy`, footer) describes all of this. **Keep it in step
 with the header**: a new tracker or processor needs a line there.

@@ -2,8 +2,7 @@
 // results-entry pages. Ported from Stockport's __tests__/unit/browser-posthog.test.js.
 //
 // It replaced Sentry's replay because the 50-a-month quota ran out within days, mostly on
-// the stats pages, and it is running beside Google Analytics to see whether it can replace
-// that too. What matters is the gate: production, served by us, not a superadmin, nothing
+// the stats pages, and it replaced Google Analytics in Nov 2026 after a month side by side. What matters is the gate: production, served by us, not a superadmin, nothing
 // stored in the browser, and recording only where captains enter results. As in
 // browser-sentry-gate.test.js, this runs the block THE TEMPLATE ACTUALLY EMITS against a
 // fake `location`, rather than a copy of it written here.
@@ -42,20 +41,32 @@ function renderHeader(env, user) {
 
 // Run the emitted PostHog block against a fake browser. Returns null if it did not load
 // PostHog, otherwise the config it passed to init() and the properties it registered.
-function runPostHog(html, { pathname, servedByUs = true, queued }) {
+//
+// `readyState` is the document's at the time the block runs. The header runs before the
+// page has loaded, so it is 'loading' unless a test says otherwise, and PostHog is only
+// fetched once `fireLoad` is true (the default) and the load event is dispatched.
+function runPostHog(html, { pathname, servedByUs = true, queued, readyState = 'loading', fireLoad = true, out = {} }) {
   const m = html.match(/\(function \(\) \{\s*var RECORD_PATHS[\s\S]*?\}\)\(\);/);
   if (!m) throw new Error('PostHog block not found in rendered header');
   const injected = [];
+  const onLoad = [];
   const sandbox = {
-    window: { tblServedByUs: servedByUs, ...(queued ? { tblTrack: { queue: queued } } : {}) },
+    window: {
+      tblServedByUs: servedByUs, ...(queued ? { tblTrack: { queue: queued } } : {}),
+      addEventListener: (type, fn) => { if (type === 'load') onLoad.push(fn); },
+    },
     location: { pathname, hostname: 'www.tameside-badminton.co.uk' },
     document: {
+      readyState,
       createElement: () => ({}),
       head: { appendChild: (el) => injected.push(el) },
     },
   };
   vm.createContext(sandbox);
   vm.runInContext(m[0], sandbox);
+  out.injectedBeforeLoad = injected.length;
+  out.waitedForLoad = onLoad.length > 0;
+  if (fireLoad) onLoad.forEach((fn) => fn());
   const script = injected.find((el) => /posthog\.com\/static\/array\.js$/.test(el.src));
   if (!script) return null;
   const seen = { calls: [] };
@@ -223,5 +234,58 @@ describe('PostHog', () => {
     vm.runInContext(html.match(/window\.tblTrack = function[\s\S]*?window\.tblTrack\.queue = \[\];/)[0], sandbox);
     for (let i = 0; i < 200; i++) sandbox.window.tblTrack('x');
     assert.strictEqual(sandbox.window.tblTrack.queue.length, 50);
+  });
+
+  // gtag.js was the largest download on every page. Now PostHog's array.js waits for the
+  // load event, so it does not compete with the stylesheets and the LCP image.
+  describe('starts after the page has loaded', () => {
+    it('on an ordinary page, waits for the load event', () => {
+      const out = {};
+      assert.ok(runPostHog(anon, { pathname: '/tables/All', out }));
+      assert.strictEqual(out.injectedBeforeLoad, 0, 'array.js was fetched before the load event');
+      assert.strictEqual(out.waitedForLoad, true);
+    });
+
+    it('and is never fetched if the page has not finished loading', () => {
+      assert.strictEqual(runPostHog(anon, { pathname: '/tables/All', fireLoad: false }), null);
+    });
+
+    it('starts at once if the page had already loaded', () => {
+      const out = {};
+      assert.ok(runPostHog(anon, { pathname: '/', readyState: 'complete', out }));
+      assert.strictEqual(out.injectedBeforeLoad, 1);
+      assert.strictEqual(out.waitedForLoad, false);
+    });
+
+    it('starts at once on a recorded page, so the recording has the start of the session', () => {
+      const out = {};
+      assert.ok(runPostHog(captain, { pathname: '/email-scorecard', fireLoad: false, out }));
+      assert.strictEqual(out.injectedBeforeLoad, 1);
+    });
+  });
+});
+
+// Removed in Nov 2026. Left behind, any of these would throw `gtag is not defined` on the
+// page — and the homepage's `typeof gtag` guard would quietly switch off its PostHog
+// section tracking too.
+describe('Google Analytics is gone', () => {
+  const VIEWS = path.join(__dirname, '..', 'views');
+  for (const file of ['header.ejs', 'homepage.ejs', 'email-scorecard.ejs', 'populated-scorecard.ejs']) {
+    it(`${file} has no gtag, dataLayer or Google tag`, () => {
+      const src = fs.readFileSync(path.join(VIEWS, file), 'utf8');
+      assert.doesNotMatch(src, /gtag|dataLayer|googletagmanager|G-01JJPR11B6/);
+    });
+  }
+
+  it('the rendered header loads nothing from Google', () => {
+    for (const html of [renderHeader(PROD, CAPTAIN), renderHeader(PROD, undefined)]) {
+      assert.doesNotMatch(html, /googletagmanager|google-analytics|gtag\(/);
+    }
+  });
+
+  it('the privacy page no longer names it', () => {
+    const src = fs.readFileSync(path.join(VIEWS, 'privacy.ejs'), 'utf8')
+      .replace(/<%#[\s\S]*?%>/g, '');
+    assert.doesNotMatch(src, /Google Analytics/);
   });
 });

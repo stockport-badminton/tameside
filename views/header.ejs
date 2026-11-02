@@ -10,13 +10,7 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Google tag (gtag.js) -->
-    <script type="text/javascript" async src="https://www.googletagmanager.com/gtag/js?id=G-01JJPR11B6"></script>
-    
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
       // Named PostHog events (the scorecard wizard's steps and photo auto-fill, the
       // homepage's section views), so a recording or a funnel can be found by what
       // happened in it. Always defined, and a no-op wherever PostHog was not loaded —
@@ -24,8 +18,8 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
       //
       // PostHog loads async, so an event fired before it is ready is QUEUED and sent once
       // it is (the onload below). Dropping it lost every homepage section already on
-      // screen at load — the top one was never recorded at all — while GA, whose gtag
-      // queues, counted them, which skewed the very comparison PostHog is here for.
+      // screen at load — the top one was never recorded at all. It matters more now that
+      // PostHog starts after the load event (below).
       // Bounded, because where PostHog never loads nothing will ever drain it.
       //
       // `opts.leaving` is for a caller about to navigate away (a filter Apply, a save
@@ -57,8 +51,14 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
       })(window.location);
     <% if (process.env.POSTHOG_KEY) { %>
       // PostHog: web analytics on every page, and session recordings on the
-      // results-entry pages only. Running alongside Google Analytics from Oct 2026 to
-      // see whether it can replace it — docs/analytics-posthog-vs-ga.md.
+      // results-entry pages only. It replaced Google Analytics in Nov 2026, after a month
+      // running side by side (docs/analytics-posthog-vs-ga.md; Stockport fac4037).
+      //
+      // Started after the `load` event, so the ~100 KB of array.js does not share a phone's
+      // connection with the stylesheets and the LCP image. The page view is still counted,
+      // and the web vitals are read from buffered performance entries, so nothing is
+      // missed by starting late. A recorded page is the exception: the recording exists to
+      // show the start of the session, so it starts at once.
       //
       // cookieless_mode 'always' stores nothing in the browser — no cookie, no
       // localStorage — so it needs no consent. (A recorded page uses in-memory
@@ -131,7 +131,9 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
           var queued = window.tblTrack && window.tblTrack.queue;
           (queued ? queued.splice(0) : []).forEach(function (e) { window.posthog.capture(e[0], e[1]); });
         };
-        document.head.appendChild(s);
+        function start() { document.head.appendChild(s); }
+        if (record || document.readyState === 'complete') start();
+        else window.addEventListener('load', start);
       })();
     <% } %>
     <% } %>
@@ -139,14 +141,6 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
 
       <% if (typeof user !== 'undefined') { %>
     <script>
-      gtag('config', 'G-01JJPR11B6',{'cookie_prefix': 'baddersCookie',
-  'cookie_domain': 'tameside-badminton.co.uk',
-  'cookie_expires': 28 * 24 * 60 * 60 ,  // 28 days, in seconds,
-  'user_id': '<%= user.user_id %>' });
-    gtag('set', 'user_properties', { 
-    'crm_id' : '<%= user.user_id %>' 
-    });
-
     localStorage.setItem('user', JSON.stringify(<%- jsonForScript(user) %>))
     <% if (monitoringEnabled) { %>
   window.sentryOnLoad = function () {
@@ -194,15 +188,7 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
     })();
   </script>
   <% } %>
-    <% } else{ %>
-  <script>
-        gtag('config', 'G-01JJPR11B6',{
-  'cookie_prefix': 'baddersCookie',
-  'cookie_domain': 'tameside-badminton.co.uk',
-  'cookie_expires': 28 * 24 * 60 * 60  // 28 days, in seconds
-});
-  </script>    
-      <% } %> 
+    <% } %>
     
     
     

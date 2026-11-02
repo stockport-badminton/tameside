@@ -784,11 +784,6 @@
 
         })();
 
-        window.onerror = function(message, source, lineno, colno, error) {
-          if (error) message = error.stack;
-          gtag('event', message,{'event_category':'JS Error', 'event_label':navigator.userAgent});
-        }
-
         
 
         async function otherGetSignedRequest(e){

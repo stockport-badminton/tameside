@@ -5,15 +5,15 @@
     this describes what THIS site does: email goes through Mailjet, there is no inbound
     mail forwarding and no 14-day purge of unread photos, the database is in London, and
     there is no Threads account. Stockport's "analytics cookies only with your consent"
-    is left out on purpose — neither site has a consent mechanism, and this one says what
-    Google Analytics actually does. Keep this page in step with views/header.ejs: a new
+    is left out on purpose — neither site has a consent mechanism. Google Analytics went
+    in Nov 2026, so nothing here sets an analytics cookie. Keep this page in step with views/header.ejs: a new
     tracker or processor needs a line here. %>
 <div class="container my-4">
   <h1 class="mb-3">Privacy policy</h1>
   <div class="row">
     <div class="col-12 col-lg-10">
     <p>This policy explains what personal information the Tameside Badminton League holds, why, who else handles it on our behalf, and what you can ask us to do with it. The league is run by volunteers, and this site is how we organise fixtures, record results and keep in touch with clubs.</p>
-    <p><em>Last updated 10 October 2026.</em></p>
+    <p><em>Last updated 2 November 2026.</em></p>
 
     <h2 class="h4 mt-4">Who we are</h2>
     <p>The Tameside Badminton League is responsible for the information described here. To ask a question or exercise any of your rights, use the <a href="/contact-us">contact form</a> or email <a href="mailto:results@tameside-badminton.co.uk">results@tameside-badminton.co.uk</a>.</p>
@@ -44,8 +44,7 @@
 
     <h2 class="h4 mt-4">How the site is monitored and improved</h2>
     <ul>
-      <li><strong>Google Analytics</strong> tells us which pages are used and how people find them. It uses cookies. If you are logged in, it is told your account's internal id. Google keeps this data for up to 14 months.</li>
-      <li><strong>Site analytics (PostHog)</strong> counts page visits so we can see which pages are used. It stores nothing on your device and uses no cookies. If you are logged in, each visit is tagged with your account's internal id (not your name) and, for a club officer, your club.</li>
+      <li><strong>Visitor statistics (PostHog).</strong> We count which pages are visited, how fast they load, how people find the site, and the type of device and browser, so we know what is used and what is slow. This uses no cookies and stores nothing on your device. If you are logged in, the statistics carry your internal account id, your role on the site and, for a club officer, your club, but not your name. These statistics are deleted after 30 days.</li>
       <li><strong>Session recordings (PostHog).</strong> When a logged-in captain enters a result, we record how the result form is used: the pages, clicks and what is typed into it. This lets us see where the form is confusing or the scorecard photo is not read, and fix it. Recordings include the names and scores on the form. They are only made on the result-entry pages, only for logged-in users, use no cookies, and are deleted after about a month.</li>
       <li><strong>Error reports (Sentry).</strong> When something goes wrong on the site, we receive a technical report so we can fix it. It identifies your account by an internal id, not by name. Reports are deleted after 30 days.</li>
     </ul>
@@ -61,7 +60,7 @@
       <li><strong>Amazon Web Services</strong>: storing scorecard photographs (Ireland);</li>
       <li><strong>Mailjet</strong>: sending league email (EU);</li>
       <li><strong>Auth0</strong>: logins;</li>
-      <li><strong>Google Analytics</strong>, <strong>PostHog</strong> (EU) and <strong>Sentry</strong> (Germany): as described above;</li>
+      <li><strong>PostHog</strong> (EU) and <strong>Sentry</strong> (Germany): as described above;</li>
       <li><strong>Google Maps</strong> on club pages and the rules page, and <strong>Google reCAPTCHA</strong> on the contact form;</li>
       <li><strong>Meta</strong>: the league's Facebook and Instagram accounts.</li>
     </ul>
@@ -71,7 +70,7 @@
     <ul>
       <li><strong>Results</strong>, including players' names, and <strong>scorecard photographs</strong>: permanently, as the league's record.</li>
       <li><strong>Contact details</strong>: while you are registered with a club in the league. Ask us and we will remove them sooner.</li>
-      <li>Analytics, recordings and error reports: for the periods given above.</li>
+      <li>Visitor statistics, recordings and error reports: for the periods given above.</li>
     </ul>
 
     <h2 class="h4 mt-4">Junior players</h2>
