@@ -452,12 +452,13 @@ exports.buildFixturesCard = buildFixturesCard;
 // same column read "0 null null" for its own reasons.
 //
 // Note W and L are GAMES won and lost, not league points: this league ranks on games, all
-// 18 of a fixture counting, which is why a team with 6 played shows 60 and 48. The database
-// columns say "points" and mean games.
+// 18 of a fixture counting, which is why a team with 6 played shows 60 and 48. The keys were
+// `pointsFor` and `pointsAgainst` until they were named for what they hold (Stockport's
+// REARCH-03 part C); the inner columns of the league-table queries still say "points".
 function tableRowValues(row) {
   const played = Number(row.played) || 0;
-  const won = Number(row.pointsFor) || 0;
-  const lost = Number(row.pointsAgainst) || 0;
+  const won = Number(row.gamesWon) || 0;
+  const lost = Number(row.gamesLost) || 0;
   return {
     played: String(played),
     won: String(won),

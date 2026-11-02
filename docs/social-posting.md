@@ -252,9 +252,10 @@ that retiring them was a disable rather than surgery. Each step is safe to stop 
   the URL serving the picture answered 404 from anywhere but the container that drew it.
   **A broken link was hiding a broken picture.** Stockport's read `0 null null` for its own
   reasons. Look at the image, not just the status code.
-- **`pointsFor` / `pointsAgainst` are GAMES won and lost, not league points.** Both leagues
-  rank on games, all 18 of a fixture counting. A team with 6 played showing 60 and 48 is
-  correct; the column names are what mislead.
+- **W and L are GAMES won and lost, not league points.** Both leagues rank on games, all 18
+  of a fixture counting, so a team with 6 played showing 60 and 48 is correct. The table
+  rows call them `gamesWon` / `gamesLost`; until Nov 2026 they were `pointsFor` /
+  `pointsAgainst`, which misled.
 - **Two hashtag spellings are live** and neither was changed here: the result *card* draws
   `#tbl`, the result *message* posts `#tdbl`. Someone who knows which the league answers to
   should pick one.

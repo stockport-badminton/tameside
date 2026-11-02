@@ -60,7 +60,7 @@ exports.getLeagueTable = async function(division,season,done){
   // the settled rejection.
  try {
   const result = await withRetry(() => sql`
-  SELECT c."name", c."played", c."pointsFor", c."pointsAgainst"
+  SELECT c."name", c."played", c."pointsFor" AS "gamesWon", c."pointsAgainst" AS "gamesLost"
 FROM (
         SELECT team."name", b."played", b."pointsFor" - team."penalties" as "pointsFor", b."pointsAgainst", team."division"
         FROM (
@@ -74,10 +74,10 @@ FROM (
                             END AS played, CASE
                                 WHEN fixture."homeScore" > 9 THEN 1
                                 ELSE 0
-                            END AS "gamesWon", CASE
+                            END AS "matchWon", CASE
                                 WHEN fixture."homeScore" = 9 THEN 1
                                 ELSE 0
-                            END AS "gamesDrawn", "homeScore" AS "pointsFor", "awayScore" AS "pointsAgainst", fixture."homeTeam" AS "teamId"
+                            END AS "matchDrawn", "homeScore" AS "pointsFor", "awayScore" AS "pointsAgainst", fixture."homeTeam" AS "teamId"
                         FROM fixture
                             join season  
                             on (fixture."date" > season."startDate"
@@ -92,10 +92,10 @@ FROM (
                             END AS played, CASE
                                 WHEN fixture."awayScore" > 9 THEN 1
                                 ELSE 0
-                            END AS "gamesWon", CASE
+                            END AS "matchWon", CASE
                                 WHEN fixture."awayScore" = 9 THEN 1
                                 ELSE 0
-                            END AS "gamesDrawn", "awayScore" AS "pointsFor", "homeScore" AS "pointsAgainst", fixture."awayTeam" AS "teamId"
+                            END AS "matchDrawn", "awayScore" AS "pointsFor", "homeScore" AS "pointsAgainst", fixture."awayTeam" AS "teamId"
                         FROM fixture
                             join season on
                             (fixture."date" > season."startDate"
@@ -127,7 +127,7 @@ on
     where
     (division."name" = ${ division }
     AND division."league" = 1)
-ORDER BY "pointsFor" DESC
+ORDER BY "gamesWon" DESC
   `);
   // try/catch replaces the old `.catch(done)` + `if (!result) return` pair. With that
   // idiom a failure called done(err) and then fell through to done(null, undefined), so
@@ -162,7 +162,7 @@ exports.getAllLeagueTables = async function(season,done){
       when fixture."awayTeam" = team.id then fixture."awayScore"
       else 0
     end
-  ),0) as "pointsFor",
+  ),0) as "gamesWon",
   coalesce(
   sum(
     CASE
@@ -170,7 +170,7 @@ exports.getAllLeagueTables = async function(season,done){
       when fixture."awayTeam" = team.id then 18 - fixture."awayScore"
       else 0
     end
-  ),0) as "pointsAgainst",
+  ),0) as "gamesLost",
   sum(
     CASE
       WHEN fixture."homeTeam" = team.id
@@ -206,8 +206,8 @@ group by
   team.name
 order by
   "divisionName",
-  "pointsFor" desc,
-  "pointsAgainst" asc`);
+  "gamesWon" desc,
+  "gamesLost" asc`);
   // See the note on the same conversion in getLeagueTable above.
   done(null,result);
  } catch (err) { done(err); }

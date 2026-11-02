@@ -24,7 +24,7 @@
     </thead>
     <tbody>
       <% result.forEach(function(row){
-            var n = (row['pointsFor'] / row['played']);
+            var n = (row['gamesWon'] / row['played']);
             if(Number.isNaN(n)){
               var n = 0;
             }
@@ -43,10 +43,10 @@
           <%= row['played'] %>
         </td>
         <td>
-          <%= row['pointsFor'] %>
+          <%= row['gamesWon'] %>
         </td>
         <td>
-          <%= row['pointsAgainst'] %>
+          <%= row['gamesLost'] %>
         </td>
         <td>
           <%= n %>

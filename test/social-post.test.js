@@ -217,7 +217,7 @@ describe('what the table image actually says', () => {
   // Nobody had seen it because the URL serving the picture answered 404 from anywhere but
   // the container that drew it. A broken link was hiding a broken picture.
   it('prints 0, not NaN, before a team has played', () => {
-    const v = social.tableRowValues({ played: 0, pointsFor: 0, pointsAgainst: 0 });
+    const v = social.tableRowValues({ played: 0, gamesWon: 0, gamesLost: 0 });
     assert.deepStrictEqual(v, { played: '0', won: '0', lost: '0', avg: '0' });
     assert.ok(!Object.values(v).some(x => /NaN|null|undefined/.test(x)), JSON.stringify(v));
   });
@@ -225,14 +225,14 @@ describe('what the table image actually says', () => {
   // The columns are named "points" and hold GAMES: this league ranks on games won, all 18
   // of a fixture counting, which is why a team with 6 played shows 60 and 48.
   it('averages games won per match played', () => {
-    assert.strictEqual(social.tableRowValues({ played: 6, pointsFor: 60, pointsAgainst: 48 }).avg, '10.0');
+    assert.strictEqual(social.tableRowValues({ played: 6, gamesWon: 60, gamesLost: 48 }).avg, '10.0');
   });
 
   // The query coalesces these to 0, but it is one edit away from not doing so, and
   // `String(null)` is the four characters "null" — which is what the same column read on
   // the Stockport site.
   it('survives a null straight from the database', () => {
-    const v = social.tableRowValues({ played: null, pointsFor: null, pointsAgainst: null });
+    const v = social.tableRowValues({ played: null, gamesWon: null, gamesLost: null });
     assert.deepStrictEqual(v, { played: '0', won: '0', lost: '0', avg: '0' });
   });
 });
