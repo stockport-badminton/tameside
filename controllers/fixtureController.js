@@ -326,7 +326,6 @@ exports.fixture_get_summary = function(req, res,next) {
 
 
 exports.fixture_detail_byDivision = function (req, res, next) {
-  console.log(req.user);
   let divisionString = "";
   let searchObj = {};
   if (req.params.division !== undefined) {

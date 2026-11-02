@@ -488,7 +488,9 @@ app.use(filterState.middleware)
   
       try {
           const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 });
-          console.log(signedUrl);
+          // Not the URL: it carries the access key id and a live write signature, and
+          // stdout is Cloud Logging. The key is all a log reader needs.
+          console.log('[sign-s3] presigned PUT', fileName);
           res.json({ signedUrl })
       } catch (err) {
           console.error(err);
@@ -801,12 +803,12 @@ function secured(req, res, next) {
 
   app.get('/callback', function(req, res, next) {
     passport.authenticate('auth0', function(err, user, info) {
-      console.log(err);
-      console.log(user);
-      console.log(info);
+      // Never log `user`: it is the whole Auth0 profile — email, identities, role claims.
+      // `info` is passport's reason for a refusal (e.g. a lost OAuth state), which is the
+      // part worth having when a login bounces back to /login.
       if (err) { return next(err); }
       if (!user) {
-        console.log("not user")
+        console.log('[auth] callback without a user:', info && info.message ? info.message : info)
         /* res.render('failed-login', {
           static_path:'/static',
           theme:process.env.THEME || 'flatly',
