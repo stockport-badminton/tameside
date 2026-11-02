@@ -261,8 +261,14 @@ exports.getNamesClubsTeams = async function(searchTerms,done){
     done(null,result);
 }
 
+// Newest first, and the last game of a night first within it: player-game-stats reverses
+// these for the ELO chart and keeps each night's final row. The ORDER BY used to sit inside
+// the playerGames CTE, where Postgres is free to ignore it once the outer query joins — so
+// the chart plotted an arbitrary game of the night (found by Stockport, bf1e493).
 exports.getPlayerGameData = async function(id,done){
-  let result = await sql`with playerGames as (select game.*, fixture.date from game 
+  let result
+  try {
+    result = await sql`with playerGames as (select game.*, fixture.date from game 
 join fixture on game.fixture = fixture.id 
 where 
 (array["homePlayer1","homePlayer2","awayPlayer1","awayPlayer2"] && array[${id}::int]) and (
@@ -270,8 +276,7 @@ where
   "homePlayer2End" is not null and
   "awayPlayer1End" is not null and
   "awayPlayer2End" is not null
-)
-order by date desc, id),
+)),
 "allGames" as (
   select 
   id,
@@ -342,10 +347,11 @@ player on player.id = "allGames"."playerName" join
 player partner on partner.id = "allGames".partner join
 player oppo1 on oppo1.id = "allGames".oppo1  join
 player oppo2 on oppo2.id = "allGames".oppo2
-`.catch(err => {
-    console.log(`err: ${err.query}`)
-    return done(err) ;
-  })
+order by date desc, "allGames".id desc
+`
+  } catch (err) {
+    return done(err)
+  }
   done(null,result);
 }
 
