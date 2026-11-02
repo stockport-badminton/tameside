@@ -85,6 +85,13 @@ Two caveats, both learned here:
   run the suite directly and keep the whole output. (Piping it through `tail` discards the
   failure detail; that cost a re-run on 2026-09-22.)
 
+## Backlog
+
+**`docs/backlog/README.md` is the list of what is still queued**, most of it ports from
+`~/league-site`. Where Stockport already wrote a brief, a row links to it and records only
+what is different here. Briefs of our own (`BL-nn`) exist only where nothing upstream covers
+the work. When something lands, update the list in the same commit.
+
 ## Architecture
 
 **Entry points**: `server.js` → `app.js` (Express setup, all route registration, middleware).
