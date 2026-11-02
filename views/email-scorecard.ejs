@@ -948,22 +948,18 @@
             }
         }
 
+        // Says nothing itself: both callers throw on false and report through
+        // uploadFailed, and the step-13 box shows the photo it stored. It used to alert
+        // "Uploaded successfuly to <the presigned URL>" — a live upload credential, shown to
+        // the captain, on every upload — and a second "failed to upload" before the real
+        // failure message.
         async function uploadFile(file, signedRequest){
-            // const xhr = new XMLHttpRequest();
-            console.log(file)
             const uploaded = await fetch(signedRequest, {
               method: "PUT",
               body: file,
               headers:{"Content-Type":file.type},
             });
-            if (uploaded.status == 200) {
-              // Successfully uploaded image
-              alert('Uploaded successfuly to ' + signedRequest)
-              return true
-            } else {
-              alert('failed to upload')
-              return false
-            }
+            return uploaded.ok
         }
 
     // NO jQuery on this page. It came only from code.jquery.com (footer.ejs), and on
