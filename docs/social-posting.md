@@ -557,18 +557,25 @@ table must exist first, and the job must exist or nothing posts them.
 node tools/run-migration.js migrations/social-result-post.sql
 node tools/run-migration.js migrations/social-result-post.sql --commit
 
-# 2. the token (never --set-env-vars)
+# 2. the token (never --set-env-vars). Name the project and account: the default gcloud
+#    project on this machine is Stockport's, and the error then reads as a permission problem.
+#    Run this AFTER the deploy has finished: it makes a revision from whatever image is live,
+#    and on 2 Nov the job's first run hit the pre-deploy image and 404'd.
+TOKEN=$(openssl rand -hex 24)
 gcloud run services update tameside-site --region=europe-west2 \
-  --update-env-vars=SOCIAL_RESULTS_META_TOKEN=<random>
+  --project=avid-compound-429108-g9 --account=tameside.badders.results@gmail.com \
+  --update-env-vars=SOCIAL_RESULTS_META_TOKEN=$TOKEN
 
 # 3. the job: every 15 minutes, 07:00-23:45 London, same as Stockport's sbl-results-meta.
 #    No retries: a retry of a run that timed out on the way back could double-post.
 gcloud scheduler jobs create http tbl-results-meta \
+  --project=avid-compound-429108-g9 --account=tameside.badders.results@gmail.com \
   --location=europe-west2 --schedule="*/15 7-23 * * *" --time-zone="Europe/London" \
-  --uri="https://tameside-badminton.co.uk/admin/social/results/meta?t=<the same token>" \
+  --uri="https://tameside-badminton.co.uk/admin/social/results/meta?t=$TOKEN" \
   --http-method=POST --max-retry-attempts=0 --attempt-deadline=90s
 ```
 
-Then deploy. After a week, check: `POST /scorecard-beta` latency in the request log, and
+**Done 2 Nov 2026**: table applied, token set, job created, first run 200 on revision
+`tameside-site-00337-m45`. After a week, check: `POST /scorecard-beta` latency in the request log, and
 `SELECT target, state, count(*) FROM social_result_post GROUP BY 1, 2`: everything
 `posted`.
