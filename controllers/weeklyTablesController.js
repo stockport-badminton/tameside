@@ -29,7 +29,7 @@
 // background art for them. Reproducing the capability here would be building a feature
 // nobody has asked for against content that does not exist.
 
-const { absoluteUrl, canonicalFor } = require('../utils/siteUrl');
+const { absoluteUrl, canonicalFor, divisionTablePath } = require('../utils/siteUrl');
 const { leagueTableImagePath } = require('../utils/socialPaths');
 const meta = require('../utils/metaPublisher');
 const Club = require('../models/club');
@@ -39,7 +39,8 @@ const { isSuperAdmin } = require('../utils/authz');
 // has four. Matched to the division NAME by the image route.
 const DIVISIONS = ['Division 1', 'Division 2'];
 
-const SITE = 'https://tameside-badminton.co.uk';
+// Both tables, because the post shows both.
+const SITE = absoluteUrl(divisionTablePath('All'));
 const HASHTAGS = '#badmintonresults #tameside #badminton #tbl #bulutangkis';
 
 /**

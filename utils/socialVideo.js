@@ -42,6 +42,7 @@ const fs = require('fs').promises;
 const os = require('os');
 const path = require('path');
 const sharp = require('sharp');
+const { absoluteUrl, divisionTablePath } = require('./siteUrl');
 
 const execFileAsync = promisify(execFile);
 
@@ -258,7 +259,9 @@ function singleFlight() {
   };
 }
 
-const SITE = 'https://tameside-badminton.co.uk';
+// The caption says "Full tables at", so it links to the tables. Stockport's still links to
+// the homepage (c482fc3 missed it).
+const SITE = absoluteUrl(divisionTablePath('All'));
 const HASHTAGS = '#badmintonresults #tameside #badminton #tbl #bulutangkis';
 
 /**

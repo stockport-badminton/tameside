@@ -16,6 +16,12 @@
     <div class="results-header-content">
       <h1><%- icon('trophy') %> <%= division %></h1>
       <div class="header-actions">
+        <% if (typeof tablePath !== 'undefined') { %>
+        <a class="action-btn" href="<%= tablePath %>" title="League table" aria-label="League table">
+          <%- icon('ranking-star', { class: 'icon-float' }) %>
+          <span>Table</span>
+        </a>
+        <% } %>
         <a class="action-btn" href="<%= path.replace('\/results\/','\/results-grid\/') %>" 
            title="Switch to grid view">
           <%- icon('table-cells', { class: 'icon-float' }) %>

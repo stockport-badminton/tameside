@@ -7,7 +7,7 @@ find: (?!JOIN|join|oin|concat|oncat)([tamevgsortsinnplyIdhcwvuMkLfx_]{2,20})([uT
 replace: "$1$2"
 */
 const seasonModel = require('./season');
-const { absoluteUrl } = require('../utils/siteUrl');
+const { absoluteUrl, divisionResultsPath } = require('../utils/siteUrl');
 const { resultImagePath, resultStoryImagePath } = require('../utils/socialPaths');
 const SocialResultPost = require('./socialResultPost');
 
@@ -661,8 +661,12 @@ FROM (SELECT "fixturePlayers".*, club.name
   // `#tbl`, not `#tdbl`. Two spellings were live: the result CARD draws `#tbl`
   // (controllers/social_controller.js) and this message posted `#tdbl`, so the same
   // result went out hashtagged two different ways. `#tbl` is the one the league uses.
+  //
+  // Links to the division's results page, where the result sits beside the rest of its
+  // week. It linked to the homepage until Nov 2026, a page the reader then had to navigate
+  // away from to find what they came for.
   function resultMessage(r) {
-    return `Result: ${r.homeTeam} vs ${r.awayTeam} : ${r.homeScore}-${r.awayScore} #tameside #badminton #tbl #result #bulutangkis #badminton🏸 #badmintonclub https://tameside-badminton.co.uk`;
+    return `Result: ${r.homeTeam} vs ${r.awayTeam} : ${r.homeScore}-${r.awayScore} #tameside #badminton #tbl #result #bulutangkis #badminton🏸 #badmintonclub ${absoluteUrl(divisionResultsPath(r.division))}`;
   }
 
   /**

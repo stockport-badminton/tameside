@@ -59,4 +59,23 @@ function canonicalFor(req) {
   return absoluteUrl((req && req.originalUrl) || '/');
 }
 
-module.exports = { siteUrl, absoluteUrl, canonicalFor, DEFAULT_SITE_URL };
+// A division's results and table pages: /results/Division-2, /tables/Division-2, and
+// /tables/Division-2/20242025 for an archived season. The name with its spaces hyphenated,
+// because that is what Division.getIdByURLParam and getLeagueTable turn back into a name.
+// No name means every division, which is `All` on both routes. Built here so the social
+// captions and the results page's table link cannot disagree. (Stockport c482fc3.)
+function divisionSlug(name) {
+  return encodeURIComponent(String(name || 'All').trim().replace(/ /g, '-'));
+}
+
+function divisionResultsPath(name, season) {
+  return '/results/' + divisionSlug(name) + (season ? '/' + encodeURIComponent(season) : '');
+}
+
+function divisionTablePath(name, season) {
+  return '/tables/' + divisionSlug(name) + (season ? '/' + encodeURIComponent(season) : '');
+}
+
+module.exports = {
+  siteUrl, absoluteUrl, canonicalFor, divisionResultsPath, divisionTablePath, DEFAULT_SITE_URL,
+};

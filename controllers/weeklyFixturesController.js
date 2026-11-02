@@ -23,7 +23,7 @@
 // two tables because a division always has a table; a division can easily have no fixtures
 // in a week when the other one does — it happens in the very first week of this season.
 
-const { absoluteUrl, canonicalFor } = require('../utils/siteUrl');
+const { siteUrl, absoluteUrl, canonicalFor } = require('../utils/siteUrl');
 const { fixturesImagePath } = require('../utils/socialPaths');
 const meta = require('../utils/metaPublisher');
 const Club = require('../models/club');
@@ -31,7 +31,9 @@ const Fixture = require('../models/fixture');
 const { isSuperAdmin } = require('../utils/authz');
 const { DIVISIONS } = require('./weeklyTablesController');
 
-const SITE = 'https://tameside-badminton.co.uk';
+// The homepage, deliberately: its "Upcoming Fixtures" list is the full fixture list the
+// caption promises.
+const SITE = siteUrl();
 const HASHTAGS = '#badminton #tameside #tbl #fixtures #bulutangkis';
 
 /**

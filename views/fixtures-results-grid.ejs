@@ -16,6 +16,12 @@
     <div class="results-header-content">
       <h1><%- icon('table-cells') %> <%= division.replace('-',' ') %></h1>
       <div class="header-actions">
+        <% if (typeof tablePath !== 'undefined') { %>
+        <a class="action-btn" href="<%= tablePath %>" title="League table" aria-label="League table">
+          <%- icon('ranking-star', { class: 'icon-float' }) %>
+          <span>Table</span>
+        </a>
+        <% } %>
         <a class="action-btn" href="<%= path.replace('\/results-grid\/','\/results\/') %>" 
            title="Switch to list view">
           <%- icon('bars', { class: 'icon-float' }) %>

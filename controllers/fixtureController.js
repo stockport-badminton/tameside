@@ -29,7 +29,7 @@ const crypto = require('crypto');
 // rewrites Host to the Cloud Run hostname, so that produced *.a.run.app links, which
 // break the Auth0 round trip — a different origin is a different cookie jar, so the
 // session holding `returnTo` never comes back. See utils/siteUrl.js.
-const { siteUrl, absoluteUrl, canonicalFor } = require('../utils/siteUrl');
+const { siteUrl, absoluteUrl, canonicalFor, divisionTablePath } = require('../utils/siteUrl');
 const { resultImagePath } = require('../utils/socialPaths');
 // One mailer for every league email; templates compile from emails/*.mjml.
 const mailer = require('../utils/mailer');
@@ -413,6 +413,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
             jsonResult: griddedData,
             error: false,
             division: divisionString,
+            tablePath: divisionTablePath(divisionString, req.params.season),
             nearestDate: nearestFixture ? nearestFixture.date : undefined
           };
           // `admin` is "has any site role", `superadmin` is the stronger one — the
@@ -561,6 +562,8 @@ exports.fixture_detail_byDivision = function (req, res, next) {
           jsonResult: griddedData,
           error: false,
           division: divisionString,
+          // This division's table for the same season. The nav's Tables link is both.
+          tablePath: divisionTablePath(divisionString, searchObj.season),
           nearestDate: nearestFixture ? nearestFixture.date : undefined
         };
         if (req.path.search("admin") != -1 && authz.role(req) !== undefined) {
