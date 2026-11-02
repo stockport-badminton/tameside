@@ -13,6 +13,7 @@ const { sanitizeBody } = require("express-validator");
 const { hasWinner, hasValidMargin } = require("../utils/scorecardValidation");
 // Shared with every other admin-gated controller — utils/authz.js owns the claim key.
 const Sentry = require('@sentry/node');
+const eloChain = require('../utils/eloChain');
 const authz = require("../utils/authz");
 const { isSuperAdmin } = authz;
 
@@ -1664,11 +1665,24 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                   // Read back rather than written from prevScores: if this fixture is not
                   // the player's latest (a late scorecard), the in-memory value is OLDER
                   // than the rating they already have — see Player.refreshRatings.
+                  //
+                  // First, eloChain re-rates this fixture the way a backfill would — with each
+                  // player's games-played count, which getPrevRating lacks, so the K above was
+                  // always the established 32 — and then every later fixture this result
+                  // reaches, so a scorecard published out of date order no longer leaves the
+                  // matches after it rated as if it had never been played (Stockport e32f745).
+                  // The ratings computed above are only a first answer, so a chain failure
+                  // still leaves the result rated. Never fails the publish.
                   if (!isLewisFixture){
                     const ratedIds = Object.entries(prevScores)
                       .filter(([id, p]) => parseInt(id, 10) > 0 && p && typeof p.rating !== 'undefined')
                       .map(([id]) => parseInt(id, 10));
-                    Player.refreshRatings(ratedIds)
+                    eloChain.rerateFrom(FixtureIdResult[0].id)
+                      .catch(chainErr => {
+                        console.error(`[elo-chain] fixture ${FixtureIdResult[0].id} failed: ${chainErr.message}`);
+                        Sentry.captureException(chainErr, { tags: { step: 'elo chain' } });
+                      })
+                      .then(() => Player.refreshRatings(ratedIds))
                       .catch(rateErr => console.error(`elo rating refresh err: ${rateErr.message}`));
                   }
                   Fixture.getFixtureDetailsById(FixtureIdResult[0].id,function(err,getFixtureDetailsResult){

@@ -327,7 +327,9 @@ exports.getFixtureDetails = async function(searchObj, done){
       ? sql`group by fixture.id`
       : sql``
     } 
-    order by fixture.date asc`.catch(err => {
+    -- fixture.id breaks ties: the ELO backfill rates in this order, and utils/eloChain
+    -- has to agree with it about which of two fixtures on the same night came first.
+    order by fixture.date asc, fixture.id asc`.catch(err => {
       console.log(err.query)
       return done(err)
     })

@@ -610,6 +610,22 @@ published, never written from the in-memory Elo calculation — a late scorecard
 player's latest match, so writing its value moved their rating backwards. Verified
 2026-10-02: the read-back query matches all 375 stored ratings exactly.
 
+**A published result then re-rates forward** (`utils/eloChain.js`, Stockport e32f745, Nov
+2026): the fixture itself the way a backfill would, then every later fixture this season that
+holds a player whose games came out different. Without it a late scorecard left every later
+game its players had played rated as if it had never happened, and every live publish used
+K=32 for everyone, because `getPrevRating` carries no games count. It shares
+`rateFixtureGames` with `recalcSeasonElo` and must keep agreeing with it: same fixture order
+(date, then id), lifetime games counts, Lewis Shield skipped, latest 18 games of a re-entered
+card. Capped at 40 fixtures (beyond that it writes nothing and says to backfill). A failure
+never fails the publish. `node tools/elo-rerate.js` dry-runs it; **`--rehearse` is the proof**
+(re-rate the season, then a chain from every fixture must find nothing to change; rolled
+back) — run it after touching either side.
+
+- **The backfill rates the past with each player's CURRENT team's division**, so a team
+  change rewrites history at the next backfill. That is why fixtures nobody re-entered can
+  still differ from a fresh re-rate. Per-season rank was deferred on 2026-10-02.
+
 ### Superadmin Admin UI
 
 Superadmin-gated pages under `/admin/*` (session-`secured()` route + in-controller

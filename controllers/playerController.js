@@ -314,8 +314,7 @@ const promisify = fn => (...args) => new Promise((resolve, reject) =>
   fn(...args, (err, result) => err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result)))
 const getFixtureDetailsP = promisify(Fixture.getFixtureDetails)
 const getGamesByFixtureP = promisify(Game.getByFixture)
-const updateGameByIdP = promisify(Game.updateById)
-const updatePlayersBulkP = promisify(Player.updateBulk)
+const eloChain = require('../utils/eloChain')
 
 // Delegates to the shared, DB-driven season model (single source of truth).
 function currentSeasonName() {
@@ -362,13 +361,10 @@ async function recalcSeasonElo(seasonParam, carryoverRatings = {}) {
       if (pid != null && pid != 0) fixturePlayers[pid] = {}
     }
 
-    let games = await getGamesByFixtureP(fixture.id)
-    if (games.length > 18) {
-      // A re-entered scorecard appends another 18 rows to the same fixture —
-      // rate only the latest entry (getByFixture orders by id ASC). The older
-      // duplicate rows keep the End = 0 sentinel from the reset.
-      games = games.slice(-18)
-    }
+    // A re-entered scorecard appends another 18 rows to the same fixture — rate only
+    // the latest entry (getByFixture orders by id ASC). The older duplicate rows keep
+    // the End = 0 sentinel from the reset.
+    const games = eloChain.latestEntry(await getGamesByFixtureP(fixture.id))
     for (const game of games) {
       for (const pid of [game.homePlayer1, game.homePlayer2, game.awayPlayer1, game.awayPlayer2]) {
         if (pid != null && pid != 0 && !(pid in fixturePlayers)) fixturePlayers[pid] = {}
@@ -397,38 +393,23 @@ async function recalcSeasonElo(seasonParam, carryoverRatings = {}) {
       }
     }
 
+    // Shared with utils/eloChain, which re-rates forward from a late result and has to
+    // produce exactly what this does.
+    const rated = eloChain.rateFixtureGames(games, fixturePlayers, fixture)
     for (const game of games) {
-      const rateResult = Game.calculateRating(game, fixturePlayers, fixture.date, fixture.rank)
-      if (rateResult && (game.homePlayer1 != 0 || game.homePlayer2 != 0 || game.awayPlayer1 != 0 || game.awayPlayer2 != 0)) {
-        for (const [slot, endKey] of [
-          [game.homePlayer1, 'homePlayer1End'],
-          [game.homePlayer2, 'homePlayer2End'],
-          [game.awayPlayer1, 'awayPlayer1End'],
-          [game.awayPlayer2, 'awayPlayer2End'],
-        ]) {
-          if (slot != null && slot != 0 && fixturePlayers[slot]) {
-            fixturePlayers[slot].rating = rateResult.updateObj[endKey]
-            fixturePlayers[slot].date = fixture.date
-            fixturePlayers[slot].gamesCount = (fixturePlayers[slot].gamesCount || 0) + 1
-            knownRatings[slot] = { ...fixturePlayers[slot] }
-          }
-        }
-        await updateGameByIdP(rateResult.updateObj, game.id)
-        gamesProcessed++
-      } else {
-        gamesSkipped++
+      for (const pid of [game.homePlayer1, game.homePlayer2, game.awayPlayer1, game.awayPlayer2]) {
+        if (pid != null && pid != 0 && fixturePlayers[pid]) knownRatings[pid] = { ...fixturePlayers[pid] }
       }
     }
+    gamesProcessed += rated.length
+    gamesSkipped += games.length - rated.length
 
-    // updateBulk mutates its inputs, so build fresh arrays per fixture.
-    const playerUpdate = {
-      tablename: 'player',
-      data: Object.entries(fixturePlayers)
-        .filter(([id]) => parseInt(id, 10) > 0)
-        .map(([id, p]) => [parseInt(id, 10), p.rating]),
-      fields: ['id', 'rating']
-    }
-    if (playerUpdate.data.length > 0) await updatePlayersBulkP(playerUpdate)
+    // One statement per fixture for the games and one for the ratings, not one per row:
+    // each is a network round trip to production (Stockport 195de59, e1c8351).
+    await eloChain.writeElo(rated)
+    await Player.setRatings(Object.entries(fixturePlayers)
+      .filter(([id, p]) => parseInt(id, 10) > 0 && p && p.rating !== undefined)
+      .map(([id, p]) => [parseInt(id, 10), p.rating]))
   }
 
   return { fixtures: rows.length, gamesProcessed, gamesSkipped, lewisFixturesSkipped, knownRatings }

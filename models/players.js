@@ -1505,6 +1505,17 @@ exports.refreshRatings = async function(playerIds) {
   `
 }
 
+// Sets player.rating for many players in one statement: pairs are [[id, rating], ...].
+// The ELO backfill writes a fixture's players with this; updateBulk issued one UPDATE per
+// player (Stockport e1c8351).
+exports.setRatings = async function(pairs) {
+  if (!pairs || pairs.length === 0) return
+  await sql`
+    UPDATE player SET rating = v.rating::int
+    FROM (VALUES ${sql(pairs)}) AS v(id, rating)
+    WHERE player.id = v.id::int`
+}
+
 // Batched previous-rating lookup for the ELO backfill: one query for all
 // requested players instead of one round-trip each. Returns a map of
 // playerId -> { rating, date, rank, gamesCount } with 1500/rank 1 defaults
