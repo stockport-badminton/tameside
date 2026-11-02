@@ -216,6 +216,7 @@
                       <br />
                       <a data-bs-toggle="modal" 
                          data-bs-target="#reminderModal"
+                         data-fixture-id="<%= row['id'] %>"
                          class="action-link">
                         <%- icon('bell') %> Send Reminder
                       </a>
@@ -348,9 +349,9 @@
             </label>
             <input type="email" class="form-control" id="email" name="email" 
                    placeholder="captain@example.com">
-            <input type="hidden" name="reminderhometeam" id="reminderhometeam" value="" />
-            <input type="hidden" name="reminderawayteam" id="reminderawayteam" value="" />
+            <input type="hidden" name="reminderFixtureId" id="reminderFixtureId" value="" />
           </div>
+          <div class="alert alert-success d-none" id="reminderSent"><%- icon('circle-check') %> Reminder sent!</div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -462,15 +463,24 @@
     $('#awayteam')[0].value = $(this).parent().siblings()[2].innerText.trim();
   })
 
+  // Reset on every open. A send used to replace the body with "Reminder sent!" and remove
+  // the Send button, so every later popup on the page opened on that message and its
+  // handler threw on the missing email box (Stockport 3ca6069).
   $('a[data-bs-target="#reminderModal"]').click(function(){
-    $('#reminderhometeam')[0].value = $(this).parent().siblings()[1].innerText.trim();
-    $('#reminderawayteam')[0].value = $(this).parent().siblings()[2].innerText.trim();
+    $('#reminderModalBody .alert-danger').remove();
+    $('#reminderSent').addClass('d-none');
+    $('#reminderModalBody > .form-group').show();
+    $('#remindFixture').show().prop('disabled', false);
+    $('#email').val('');
+    $('#reminderFixtureId').val($(this).attr('data-fixture-id'));
     var hometeamId = this.parentElement.parentElement.children[1].getAttribute('data-hometeam').valueOf()
     var hometeamName = this.parentElement.parentElement.children[1].innerText.trim()
     $.get('/club-api/'+hometeamId, function(data){ 
       var filterTeams = data.filter(row => row.teamName == hometeamName)
+      // No matching team leaves the box empty to fill in, rather than throwing.
+      if (!filterTeams.length) return;
       let emails = filterTeams.map(row => row.teamCaptainEmail)
-      $('#reminderModalBody > div.form-group > input#email')[0].value = filterTeams[0].matchSecEmail + "," + emails.join(",")
+      $('#email').val([filterTeams[0].matchSecEmail].concat(emails).filter(Boolean).join(","))
     })
   })
 
@@ -493,16 +503,18 @@
   })
 
   $('#remindFixture').click(function(){
+    $('#remindFixture').prop('disabled', true);
     $.post('/fixture/reminder', {
-      'email':$('#email')[0].value,
-      'hometeam':$('#reminderhometeam')[0].value,
-      'awayteam':$('#reminderawayteam')[0].value 
+      'email':$('#email').val(),
+      'fixtureId':$('#reminderFixtureId').val()
     }, function (data) {
-      $('#reminderModalBody').html('<div class="alert alert-success"><%- icon('circle-check') %> Reminder sent!</div>');
-      $('#remindFixture').remove();
+      $('#reminderModalBody > .form-group').hide();
+      $('#reminderSent').removeClass('d-none');
+      $('#remindFixture').hide();
     }).fail(function (xhr) {
       // A 400 names what to fix (a mistyped address, or more than ten of them).
-      $('#reminderModalBody .alert').remove();
+      $('#remindFixture').prop('disabled', false);
+      $('#reminderModalBody .alert-danger').remove();
       $('#reminderModalBody').append($('<div class="alert alert-danger mt-2">').text(xhr.responseText || 'Reminder not sent.'));
     });
   })

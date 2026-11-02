@@ -68,6 +68,20 @@ where fixture."homeScore" is null
 order by fixture.date, home.name`);
 }
 
+// The fixture a scorecard reminder is about, so the email names the match from the row
+// rather than from whatever the request says (Stockport 83de414). The date is formatted
+// here for the same reason as getCardsDueToday's: fixture.date holds London midnight.
+exports.getReminderFixture = async function(fixtureId) {
+  const rows = await sql`select fixture.id, to_char(fixture.date, 'FMDay FMDD FMMonth') as "dateLabel",
+  home.name as "homeTeam", away.name as "awayTeam", division.name as "divisionName"
+from fixture
+  join team home on home.id = fixture."homeTeam"
+  join team away on away.id = fixture."awayTeam"
+  left join division on division.id = home.division
+where fixture.id = ${fixtureId}`;
+  return rows[0] || null;
+}
+
 // Homepage. Retried on a dead connection — see withRetry in utils/db_connect.js.
 exports.getOutstandingScorecards = async function(done){
  try {

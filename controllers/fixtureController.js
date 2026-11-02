@@ -1874,45 +1874,50 @@ exports.fixture_event_detail = function(req, res,next) {
 const REMINDER_MAX_RECIPIENTS = 10;
 const REMINDER_EMAIL_RE = /^[^\s@,<>]+@[^\s@,<>]+\.[^\s@,<>]+$/;
 
-exports.fixture_reminder_post = function(req,res,next){
+exports.fixture_reminder_post = async function(req,res,next){
   if (!isSuperAdmin(req)) return res.status(403).send('Forbidden');
   // A missing email field used to throw a TypeError here and answer 500.
   const addresses = String(req.body.email || '').split(',').map(a => a.trim()).filter(Boolean);
-  const teamOk = t => typeof t === 'string' && t.trim().length > 0 && t.length <= 100;
+  const fixtureId = /^\d+$/.test(String(req.body.fixtureId || '')) ? Number(req.body.fixtureId) : null;
   if (addresses.length === 0 || addresses.length > REMINDER_MAX_RECIPIENTS
-      || !addresses.every(a => REMINDER_EMAIL_RE.test(a))
-      || !teamOk(req.body.hometeam) || !teamOk(req.body.awayteam)) {
+      || !addresses.every(a => REMINDER_EMAIL_RE.test(a)) || fixtureId === null) {
     return res.status(400).send('Give one to ' + REMINDER_MAX_RECIPIENTS
-      + ' valid email addresses, comma separated, and both team names.');
+      + ' valid email addresses, comma separated.');
   }
-  const toField = addresses.map(a => ({ "Email": a }));
-  // The old template was scorecardReminder.ejs, which took NO variables at all — it
-  // could not name the match it was chasing, even though the subject line did, and it
-  // signed off "Thanks / Jonny" in the plain-text part only.
-  const enterUrl = absoluteUrl('/email-scorecard');
-  mailer.send({
-    template: 'fixture-reminder',
-    subject: `Scorecard still outstanding: ${req.body.hometeam} vs ${req.body.awayteam}`,
-    text: `We have not had the scorecard for ${req.body.hometeam} vs ${req.body.awayteam} yet.`
-        + `\n\nEntering it keeps the tables and the player statistics up to date, and takes`
-        + ` a couple of minutes: ${enterUrl}`
-        + `\n\nAlready sent it, or the match did not happen? Reply and say so.`,
-    to: toField,
-    bcc: true,
-    replyTo: mailer.RESULTS_MAILBOX,
-    data: {
-      homeTeamName: req.body.hometeam,
-      awayTeamName: req.body.awayteam,
-      divisionName: req.body.division || null,
-      playedOn: req.body.date || null,
-      enterUrl,
-    },
-    customId: 'FixtureReminder',
-  })
-  .then(() => {
-    res.sendStatus(200)
-  })
-  .catch((err) => next(err))
+  try {
+    // The match is named from the fixture row, never from the request. The page used to
+    // post the two team names it scraped from the table, and never the date or division,
+    // so the email could not say WHEN the match was (Stockport 83de414).
+    const fixture = await Fixture.getReminderFixture(fixtureId);
+    if (!fixture) return res.status(404).send('No such fixture.');
+    const match = `${fixture.homeTeam} vs ${fixture.awayTeam}`;
+    // The old template was scorecardReminder.ejs, which took NO variables at all — it
+    // could not name the match it was chasing, even though the subject line did, and it
+    // signed off "Thanks / Jonny" in the plain-text part only.
+    const enterUrl = absoluteUrl('/email-scorecard');
+    await mailer.send({
+      template: 'fixture-reminder',
+      subject: `Scorecard still outstanding: ${match}`,
+      text: `We have not had the scorecard for ${match}, played ${fixture.dateLabel}, yet.`
+          + `\n\nEntering it keeps the tables and the player statistics up to date, and takes`
+          + ` a couple of minutes: ${enterUrl}`
+          + `\n\nAlready sent it, or the match did not happen? Reply and say so.`,
+      to: addresses.map(a => ({ "Email": a })),
+      bcc: true,
+      replyTo: mailer.RESULTS_MAILBOX,
+      data: {
+        homeTeamName: fixture.homeTeam,
+        awayTeamName: fixture.awayTeam,
+        divisionName: fixture.divisionName || null,
+        playedOn: fixture.dateLabel,
+        enterUrl,
+      },
+      customId: 'FixtureReminder',
+    });
+    res.sendStatus(200);
+  } catch (err) {
+    next(err);
+  }
 }
 
 /* ------------------------------------------------------------------ *

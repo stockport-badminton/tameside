@@ -14,7 +14,7 @@ const { describe, it, afterEach, mock } = require('node:test');
 const assert = require('node:assert');
 const request = require('supertest');
 
-const { app, clearModels } = require('../helpers/app');
+const { app, setModel, clearModels } = require('../helpers/app');
 const mailer = require('../../utils/mailer');
 const Auth = require('../../models/auth');
 const contactus = require('../../controllers/contactusController');
@@ -52,7 +52,13 @@ function captureMail() {
 }
 const recipients = sent => sent.flatMap(p => p.Messages.flatMap(m => [...(m.To || []), ...(m.Bcc || [])].map(r => r.Email)));
 
-const REMINDER = { email: 'captain@example.com,matchsec@example.com', hometeam: 'Hyde A', awayteam: 'Glossop B' };
+const REMINDER = { email: 'captain@example.com,matchsec@example.com', fixtureId: '4321' };
+const REMINDER_FIXTURE = { id: 4321, homeTeam: 'Hyde A', awayTeam: 'Glossop B', dateLabel: 'Thursday 22 October', divisionName: 'Division 1' };
+function stubReminderFixture(row = REMINDER_FIXTURE) {
+  const asked = [];
+  setModel('Fixture', 'getReminderFixture', async id => { asked.push(id); return row; });
+  return asked;
+}
 
 describe('POST /fixture/reminder', () => {
   it('unauthenticated: redirects to login and sends nothing', asUser({}, async () => {
@@ -74,10 +80,39 @@ describe('POST /fixture/reminder', () => {
 
   it('superadmin: sends to the addresses given', asUser(SUPERADMIN, async () => {
     const sent = captureMail();
+    stubReminderFixture();
     const res = await request(app).post('/fixture/reminder').type('form').send(REMINDER);
     assert.strictEqual(res.status, 200);
     const to = recipients(sent);
     assert.ok(to.includes('captain@example.com') && to.includes('matchsec@example.com'), to.join());
+  }));
+
+  // The match is named from the fixture row (Stockport 83de414): the page used to post
+  // team names scraped from the table, and no date, so the email could not say when.
+  it('superadmin: names the match and its date from the fixture, not the request', asUser(SUPERADMIN, async () => {
+    const sent = captureMail();
+    const asked = stubReminderFixture();
+    const res = await request(app).post('/fixture/reminder').type('form')
+      .send({ ...REMINDER, hometeam: 'Forged FC', awayteam: 'Nobody' });
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(asked, [4321]);
+    const msg = sent[0].Messages[0];
+    assert.strictEqual(msg.Subject, 'Scorecard still outstanding: Hyde A vs Glossop B');
+    assert.match(msg.TextPart, /played Thursday 22 October/);
+    assert.match(msg.HTMLPart, /Thursday 22 October/);
+    assert.match(msg.HTMLPart, /Division 1/);
+    assert.doesNotMatch(JSON.stringify(msg), /Forged FC/);
+  }));
+
+  it('superadmin: a missing or unknown fixture sends nothing', asUser(SUPERADMIN, async () => {
+    const sent = captureMail();
+    stubReminderFixture(null);
+    for (const [fixtureId, status] of [[undefined, 400], ['abc', 400], ['999999', 404]]) {
+      const body = { ...REMINDER }; if (fixtureId === undefined) delete body.fixtureId; else body.fixtureId = fixtureId;
+      const res = await request(app).post('/fixture/reminder').type('form').send(body);
+      assert.strictEqual(res.status, status, String(fixtureId));
+    }
+    assert.strictEqual(sent.length, 0);
   }));
 
   it('superadmin: refuses more than ten recipients', asUser(SUPERADMIN, async () => {
