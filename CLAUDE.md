@@ -294,7 +294,8 @@ and **has no purge**, so a long cache is only safe on a URL that changes with th
 - It replaced a flat 30-day max-age on every file, versioned or not — so `main.js`, which
   wasn't versioned, could sit stale at the CDN for a month after a deploy.
 - `test/integration/static-asset-caching.test.js` renders `/privacy-policy`, not `/rules`
-  as Stockport's does: `/rules` calls Contentful and never answers under test.
+  as Stockport's does: `/rules` calls Contentful. (It used to never answer at all when
+  Contentful failed, `.catch(console.error)`; it 500s now, and `_contentfulClient` can be stubbed.)
 
 **Icons are inline SVG — there is no icon font.** `<%- icon('trophy') %>` (`utils/icons.js`,
 ported from Stockport's HARD-44) reads the Font Awesome package's `svgs/` at render time.

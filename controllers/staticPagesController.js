@@ -64,6 +64,12 @@ exports.rules = function(req, res, next) {
           static_path : "/static" 
       })
     }) 
-  .catch(console.error) 
+  // To the central error handler. `.catch(console.error)` logged the failure and never
+  // answered, so a Contentful outage held every /rules request open until the platform
+  // cut it at 60 s, and it was invisible to Sentry.
+  .catch(next)
 }
+
+// The page's one dependency, exported so a test can stand in for Contentful.
+exports._contentfulClient = client
 
