@@ -125,7 +125,12 @@ Manager, by choice); change it with `--update-env-vars`, never `--set-env-vars`.
   `DEV_ROLE=admin DEV_CLUB=Hyde` gives a club-scoped admin, `DEV_ROLE=none` an
   ordinary logged-in user. Use them: the admin branch is a materially different
   site and is the least-exercised one.
-- **JWT**: `checkJwt` middleware (RS256, JWKS from Auth0) used on API-style routes like `PATCH /club/:id` and `DELETE /club/:id`.
+- **No JWT routes.** `PATCH`/`DELETE /club/:id` were guarded by an `express-jwt` check that
+  verified the signature only — no audience, no issuer — against the tenant Stockport shares,
+  so any token it issued could rename or delete a club. Uncalled for 90 days; removed with
+  `express-jwt`/`jwks-rsa` in Nov 2026 (Stockport HARD-49 did the same). Club edits go
+  through `/admin/clubs`. If a token-authenticated route is ever needed again, it must pin
+  `audience` and `issuer`.
 - **The Auth0 tenant is shared with the Stockport league site** (`~/league-site`) —
   same `AUTH0_DOMAIN`, two applications with different client IDs and audiences. So
   the user directory and `app_metadata` are *one set of records read by both sites*.
@@ -759,7 +764,7 @@ project. postgres.js won't retry it — its only retry path is `retryRoutines` o
 |---|---|
 | Database | `postgres` v3 |
 | Templates | `ejs` |
-| Auth | `passport`, `passport-auth0`, `express-jwt`, `jwks-rsa` |
+| Auth | `passport`, `passport-auth0` |
 | Image processing | `sharp` (scorecard OCR pre-enhance), `jimp` |
 | Email | `node-mailjet` |
 | S3 uploads | `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` |

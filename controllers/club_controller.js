@@ -135,34 +135,6 @@ exports.club_detail = function(req, res,next) {
 // Handle Club create on POST
 
 
-// Display Club delete form on GET
-exports.club_delete_get = function(req, res) {
-    res.send('NOT IMPLEMENTED: Club delete GET');
-};
-
-// Handle Club delete on POST
-exports.club_delete_post = function(req, res) {
-    Club.deleteById(req.params.id,function(err,row){
-      //console.log(req.params)
-      //console.log(row);
-      res.send(row);
-    })
-};
-
-// Display Club update form on GET
-exports.club_update_get = function(req, res) {
-    res.send('NOT IMPLEMENTED: Club update GET');
-};
-
-// Handle Club update on POST
-exports.club_update_post = function(req, res) {
-    Club.updateById(req.body.name, req.body.venue, req.params.id, function(err,row){
-      //console.log(req.body);
-      //console.log(row);
-      res.send(row);
-    })
-};
-
 /* ------------------------------------------------------------------ *
  * Superadmin club admin UI (secured route + role check here).
  * ------------------------------------------------------------------ */

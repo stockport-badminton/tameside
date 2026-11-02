@@ -20,8 +20,6 @@ const Auth0Strategy = require('passport-auth0');
 const bodyParser = require('body-parser');
 const compression = require('compression');
 const {check, validationResult} = require('express-validator')
-let { expressjwt: jwt } = require("express-jwt");
-let jwksRsa = require('jwks-rsa');
 let sassMiddleware = require('express-dart-sass')
 let path = require('path')
 const {
@@ -35,27 +33,10 @@ const { siteUrl } = require('./utils/siteUrl');
 const { title } = require('process');
 const { appendFile } = require('fs/promises');
 
-if (!process.env.AUTH0_DOMAIN || !process.env.AUTH0_AUDIENCE) {
-    throw 'Make sure you have AUTH0_DOMAIN, and AUTH0_AUDIENCE in your .env file';
+if (!process.env.AUTH0_DOMAIN) {
+    throw 'Make sure you have AUTH0_DOMAIN in your .env file';
 }
 
-// Authentication middleware. When used, the
-    // Access Token must exist and be verified against
-    // the Auth0 JSON Web Key Set
-    const checkJwt = jwt({
-        // Dynamically provide a signing key
-        // based on the key in the header and
-        // the signing keys provided by the JWKS endpoint.
-        secret: jwksRsa.expressJwtSecret({
-          cache: true,
-          rateLimit: true,
-          jwksRequestsPerMinute: 5,
-          jwksUri: `https://${process.env.AUTH0_DOMAIN}/.well-known/jwks.json`
-        }),
-  
-        // Validate the audience and the issuer.
-        algorithms: ['RS256']
-      });
 
 const app = express()
 const port = 8080
@@ -558,7 +539,7 @@ app.get('/privacy-policy', static_controller.privacy_policy)
 // GET /mailjet deleted: the Mailjet getting-started sample, unauthenticated, sending a
 // hardcoded message to the league results mailbox. A curl loop was a mail bomb and
 // nothing ever linked to it. Same shape as the /SESemail endpoint Stockport removed.
-app.get('/event/:id/:date-:homeTeam-:awayTeam', fixture_controller.fixture_event_detail);
+app.get('/event/:id(\\d+)/:date-:homeTeam-:awayTeam', fixture_controller.fixture_event_detail);
 
 /* POST request for batch creating Fixture. */
 app.post('/fixture/rearrangement', secured, fixture_controller.fixture_rearrange_by_team_name);
@@ -607,18 +588,6 @@ app.get('/clubs', club_controller.club_list);
 
 /* GET request for list of all Team items. */
 app.post('/teams', team_controller.team_search);
-
-/* GET request to delete Club. */
-app.get('/club/:id(\\d+)/delete', club_controller.club_delete_get);
-
-// DELETE request to delete Club
-app.delete('/club/:id(\\d+)',checkJwt, club_controller.club_delete_post);
-
-/* GET request to update Club. */
-app.get('/club/:id(\\d+)/update', club_controller.club_update_get);
-
-// PATCH request to update Club
-app.patch('/club/:id(\\d+)',checkJwt, club_controller.club_update_post);
 
 /* GET request for one Player. */
 app.get('/eligiblePlayers/:id(\\d+)/:gender', player_controller.eligible_players_list);

@@ -190,15 +190,6 @@ exports.getById = async function(clubId,done){
 }
 
 
-// DELETE
-exports.deleteById = async function(clubId,done){
-  let result = await sql`DELETE FROM club WHERE id = ${clubId}`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
-
-
 // PATCH
 exports.updateById = async function(name, venue, clubId,done){
   let result = await sql`UPDATE club SET name = ${name}, venue = ${venue} WHERE id = ${clubId}`.catch(err => {
