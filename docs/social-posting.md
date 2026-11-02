@@ -516,3 +516,59 @@ ten minutes rather than re-encoding, so a retry or a double-clicked admin button
 - **The panel is dark at 0.80 with white centred text, and sized to its contents.** A light
   panel has to be near-opaque to be legible, at which point the artwork under it may as
   well not be there. A fixed-height panel makes a quiet week look like a rendering fault.
+
+# Results go through a queue (Stockport's HARD-47, ported Nov 2026)
+
+A published result used to be posted inside the publish request: the Page, the Instagram
+feed post, the Page story and the Instagram story, one after another. Measured from our
+request logs, 4 Oct to 30 Oct 2026: **17 publishes, median 24 s, max 48 s** against the 60 s
+cut. Where `[timing]` lines exist (22 to 30 Oct) the four targets are the whole request
+less about 0.7 s, and Instagram is ~60% of it. Three publishes (18 Oct, and two on 30 Oct)
+lost Instagram targets to *"The media is not ready to be published"*, and all three still
+returned 200.
+
+Now, under `SOCIAL_POST_DIRECT`, publishing writes one `social_result_post` row per
+configured target (`migrations/social-result-post.sql`) and returns. The `tbl-results-meta`
+job posts them through `POST /admin/social/results/meta` (`controllers/metaResultsController.js`).
+
+- **Instagram image containers are now waited on** (`IMAGE_WAIT`: check at once, then every
+  1.5 s for up to 15 s) before publishing. That is the "media is not ready" failure.
+  The weekly carousel gets the same wait. It costs one GET when the container is ready.
+- **Retry only where Meta cannot have published** (`metaPublisher.mayHavePublished`): a
+  publish step with no HTTP answer may be live, so it is `failed`, never retried. Anything
+  else is released for the next run, up to 3 attempts. A row released in a run is not
+  claimed again by that run.
+- **A time budget, not Stockport's batch of 8.** Our requests are cut at 60 s, theirs at
+  300 s. The job claims one row at a time and starts no new row after 25 s.
+- **Rows needing a person ride on the daily missing-scorecards email**: failed, stuck in
+  `posting` for 15 minutes, or `pending` for 12 hours (the job has stopped). Stockport uses
+  its audit digest; we have none.
+- **The result posted is the result as it stands when the job runs**, so a correction made
+  in the meantime is what goes out.
+- `tools/rehearse-result-queue.js` runs the model's SQL against production and rolls back.
+
+## Turning it on
+
+The order matters: the publish starts writing rows the moment this is deployed, so the
+table must exist first, and the job must exist or nothing posts them.
+
+```bash
+# 1. the table (dry run, then apply)
+node tools/run-migration.js migrations/social-result-post.sql
+node tools/run-migration.js migrations/social-result-post.sql --commit
+
+# 2. the token (never --set-env-vars)
+gcloud run services update tameside-site --region=europe-west2 \
+  --update-env-vars=SOCIAL_RESULTS_META_TOKEN=<random>
+
+# 3. the job: every 15 minutes, 07:00-23:45 London, same as Stockport's sbl-results-meta.
+#    No retries: a retry of a run that timed out on the way back could double-post.
+gcloud scheduler jobs create http tbl-results-meta \
+  --location=europe-west2 --schedule="*/15 7-23 * * *" --time-zone="Europe/London" \
+  --uri="https://tameside-badminton.co.uk/admin/social/results/meta?t=<the same token>" \
+  --http-method=POST --max-retry-attempts=0 --attempt-deadline=90s
+```
+
+Then deploy. After a week, check: `POST /scorecard-beta` latency in the request log, and
+`SELECT target, state, count(*) FROM social_result_post GROUP BY 1, 2`: everything
+`posted`.

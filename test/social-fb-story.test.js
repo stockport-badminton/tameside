@@ -7,16 +7,18 @@ const { describe, it, before, after, beforeEach, afterEach, mock } = require('no
 const assert = require('node:assert');
 const http = require('http');
 
-require('./helpers/app');
+const { app, setModel, clearModels } = require('./helpers/app');
+const { installFakeResultQueue } = require('./helpers/fakeResultQueue');
+const request = require('supertest');
 const meta = require('../utils/metaPublisher');
 const paths = require('../utils/socialPaths');
 const Fixture = require('../models/fixture');
 
 const ENV_KEYS = ['META_TAMESIDE_PAGE_ID', 'META_TAMESIDE_PAGE_TOKEN', 'META_IG_USER_ID', 'SITE_URL',
-  'META_GRAPH_ORIGIN', 'SOCIAL_POST_DIRECT', 'SOCIAL_POST_STORY', 'SOCIAL_POST_FB_STORY'];
+  'META_GRAPH_ORIGIN', 'SOCIAL_POST_DIRECT', 'SOCIAL_POST_STORY', 'SOCIAL_POST_FB_STORY', 'SOCIAL_RESULTS_META_TOKEN'];
 let saved;
 beforeEach(() => { saved = {}; for (const k of ENV_KEYS) { saved[k] = process.env[k]; delete process.env[k]; } });
-afterEach(() => { mock.restoreAll(); for (const k of ENV_KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
+afterEach(() => { clearModels(); mock.restoreAll(); for (const k of ENV_KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
 
 const PAGE = '1';
 const TOKEN = 't';
@@ -149,15 +151,21 @@ describe('the switch', () => {
 });
 
 describe('a published result', () => {
-  const zap = () => new Promise((resolve) => Fixture.sendResultZap(
-    { ...RESULT, host: 'tameside-badminton.co.uk' }, (err, r) => resolve(r)));
+  // Publishing queues the post (models/socialResultPost.js) and the results job posts it.
+  const publish = async () => {
+    installFakeResultQueue(setModel, { results: { 1: { ...RESULT, status: 'complete' } } });
+    await new Promise((resolve) => Fixture.sendResultZap(
+      { fixtureId: 1, ...RESULT, host: 'tameside-badminton.co.uk' }, (err, r) => resolve(r)));
+    const res = await request(app).post('/admin/social/results/meta?t=tok');
+    return res.body.results.filter((r) => r.outcome === 'posted').map((r) => r.target);
+  };
   const directEnv = () => Object.assign(process.env, { META_GRAPH_ORIGIN: origin, SOCIAL_POST_DIRECT: 'true',
+    SOCIAL_RESULTS_META_TOKEN: 'tok',
     META_TAMESIDE_PAGE_ID: PAGE, META_TAMESIDE_PAGE_TOKEN: TOKEN, META_IG_USER_ID: '2' });
 
   it('posts no Facebook story while SOCIAL_POST_FB_STORY is unset', async () => {
     directEnv();
-    const r = await zap();
-    assert.deepStrictEqual(r.posted, ['Tameside page', 'Instagram']);
+    assert.deepStrictEqual(await publish(), ['page', 'instagram']);
     assert.strictEqual(storyPublishes().length, 0);
   });
 
@@ -166,8 +174,7 @@ describe('a published result', () => {
   it('posts the 9:16 card as a Page story when SOCIAL_POST_FB_STORY=true', async () => {
     directEnv();
     process.env.SOCIAL_POST_FB_STORY = 'true';
-    const r = await zap();
-    assert.deepStrictEqual(r.posted, ['Tameside page', 'Instagram', 'Tameside page story']);
+    assert.deepStrictEqual(await publish(), ['page', 'instagram', 'page-story']);
     assert.strictEqual(storyPublishes().length, 1);
     assert.ok(uploads().some((c) => c.params.url === SITE + paths.resultStoryImagePath(RESULT)),
       'the story card was the one uploaded for the story');

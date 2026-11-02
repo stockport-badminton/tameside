@@ -81,9 +81,13 @@ module.exports = {
       { date: 'Wed 30 Sep 2026', homeTeam: 'Manchester Edgeley A', awayTeam: 'GHAP B' },
       { date: 'Wed 30 Sep 2026', homeTeam: 'Hyde C', awayTeam: 'Medlock A' },
     ],
+    socialPosts: [
+      { match: 'Hyde A v Shell A', target: 'instagram',
+        problem: 'the run did not finish, so it may be live' },
+    ],
     daysAgo: 6,
     whyReceiving: 'You are receiving this because you are the league&rsquo;s results secretary '
-      + 'and a scorecard is overdue.',
+      + 'and a scorecard or a result post needs attention.',
   },
   'registration-chase': {
     clubName: 'Hyde', teams: 3, firstFixtureLabel: 'Wed 2 Sep 2026',

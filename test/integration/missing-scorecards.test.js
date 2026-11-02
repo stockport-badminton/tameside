@@ -3,13 +3,16 @@
 // It sends mail and is reachable without a session, which is the shape of the deleted
 // GET /mailjet mail bomb. So the gate is pinned by what reached Mailjet, not just by status.
 
-const { describe, it, afterEach, mock } = require('node:test');
+const { describe, it, beforeEach, afterEach, mock } = require('node:test');
 const assert = require('node:assert');
 const request = require('supertest');
 
 const { app, setModel, clearModels } = require('../helpers/app');
 const mailer = require('../../utils/mailer');
 
+// The result-post queue rides on this email (models/socialResultPost.js). Empty unless a
+// test says otherwise, so nothing here reaches the database.
+beforeEach(() => setModel('SocialResultPost', 'needingAttention', async () => []));
 afterEach(() => { clearModels(); mock.restoreAll(); });
 
 function withEnv(vars, fn) {
@@ -68,7 +71,7 @@ describe('GET /tasks/missing-scorecards', () => {
       setModel('Fixture', 'getCardsDueToday', async (days) => { askedFor = days; return [ROW]; });
       const res = await request(app).get(`/tasks/missing-scorecards?t=${TOKEN}`);
       assert.strictEqual(res.status, 200);
-      assert.deepStrictEqual(res.body, { sent: true, fixtures: 1 });
+      assert.deepStrictEqual(res.body, { sent: true, fixtures: 1, socialPosts: 0 });
       assert.strictEqual(askedFor, 6);
       assert.strictEqual(sent.length, 1);
       assert.deepStrictEqual(sent[0].To, [{ Email: mailer.RESULTS_MAILBOX }]);
@@ -93,5 +96,29 @@ describe('GET /tasks/missing-scorecards', () => {
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.sent, false);
     assert.strictEqual(sent.length, 0);
+  }));
+
+  it('reports result posts that did not reach Meta, and sends for them alone', withEnv({ MISSING_SCORECARDS_TOKEN: TOKEN }, async () => {
+    const sent = captureMail();
+    setModel('Fixture', 'getCardsDueToday', async () => []);
+    setModel('SocialResultPost', 'needingAttention', async () => [
+      { fixtureId: 7, homeTeam: 'Hyde A', awayTeam: 'Shell A', target: 'instagram', state: 'failed',
+        problem: 'Meta refused the Instagram publish: nope' },
+    ]);
+    const res = await request(app).get(`/tasks/missing-scorecards?t=${TOKEN}`);
+    assert.deepStrictEqual(res.body, { sent: true, fixtures: 0, socialPosts: 1 });
+    assert.strictEqual(sent[0].Subject, '1 result post to check');
+    assert.match(sent[0].TextPart, /Hyde A v Shell A \(instagram\): Meta refused/);
+    assert.match(sent[0].HTMLPart, /1 result post to check/);
+    assert.doesNotMatch(sent[0].HTMLPart, /missing scorecard/, 'the empty half is left out');
+  }));
+
+  it('a broken queue read costs only its own section', withEnv({ MISSING_SCORECARDS_TOKEN: TOKEN }, async () => {
+    const sent = captureMail();
+    setModel('Fixture', 'getCardsDueToday', async () => [ROW]);
+    setModel('SocialResultPost', 'needingAttention', async () => { throw new Error('relation does not exist'); });
+    const res = await request(app).get(`/tasks/missing-scorecards?t=${TOKEN}`);
+    assert.deepStrictEqual(res.body, { sent: true, fixtures: 1, socialPosts: 0 });
+    assert.strictEqual(sent[0].Subject, '1 missing scorecard');
   }));
 });

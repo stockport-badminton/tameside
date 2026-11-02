@@ -738,6 +738,10 @@ and `test/db-pool.test.js` asserts both:
   request that happened to be in the burst. It reproduces locally, and it is likely the
   real cause of the 17 Sep "pooler stall". See the addendum in
   `docs/incident-2026-09-17-pooler-stall.md`.
+- **`sql.begin` is ours, not postgres.js's** (`beginOnReserved`, same file). postgres.js
+  reserves a transaction's connection from a hook it skips at `max_pipeline` 0, so its own
+  `begin` failed every transaction with `UNSAFE_TRANSACTION` for the hours between the two
+  fixes on 2 Nov 2026. Don't restore it, and don't "fix" it by setting `max_pipeline` to 1.
 
 #### Retrying a read whose connection died
 
@@ -1029,6 +1033,13 @@ that bite:
 - **`fetch`, not axios** — this repo has neither and needs neither. Note `fetch` does not
   throw on a 4xx and Meta puts its error in the *body*, not the status; missing that branch
   turns every refusal into a silent success.
+- **A published result is QUEUED, not posted** (Stockport HARD-47, Nov 2026): one
+  `social_result_post` row per target, posted by the `tbl-results-meta` job through
+  `POST /admin/social/results/meta`. Publishes took a median 24 s and up to 48 s inline.
+  Never post from the publish request, including after the response: Cloud Run throttles
+  the CPU once it is sent. The job works to a 25 s budget, not a batch size, because of our
+  60 s ceiling. Failed or stuck rows are in the daily missing-scorecards email. Setup and
+  rules: `docs/social-posting.md`, last section.
 - **`sendResultZap` never calls back with an error, deliberately.** The result is already
   committed, and its caller in `fixtureController` is a nest of `if (err) res.send(err)` with
   no `return` — an error there sent a body and then carried on to `res.render`, which throws

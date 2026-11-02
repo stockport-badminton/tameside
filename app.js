@@ -715,6 +715,14 @@ app.post('/admin/social/weekly-video',
   requireCronCaller({ envVar: 'SOCIAL_WEEKLY_VIDEO_TOKEN', callerProp: 'socialCaller' }),
   weekly_video_controller.run);
 
+/* Published results, posted to Facebook and Instagram from the queue that publishing writes
+   (controllers/metaResultsController.js). Called by `tbl-results-meta` every 15 minutes;
+   unset SOCIAL_RESULTS_META_TOKEN means nothing posts the queue, and the daily
+   missing-scorecards email reports the rows piling up. */
+app.post('/admin/social/results/meta',
+  requireCronCaller({ envVar: 'SOCIAL_RESULTS_META_TOKEN', callerProp: 'socialCaller' }),
+  require('./controllers/metaResultsController').run);
+
 app.get('/admin/spam', secured, spam_admin_controller.form);
 app.post('/admin/spam', secured, spam_admin_controller.add);
 app.post('/admin/spam/:id/active', secured, spam_admin_controller.toggle);

@@ -1687,6 +1687,8 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                   Fixture.getFixtureDetailsById(FixtureIdResult[0].id,function(err,getFixtureDetailsResult){
                     if(err) res.send(err)
                     zapObject = {
+                      // What the results queue is keyed on (models/socialResultPost.js).
+                      "fixtureId":FixtureIdResult[0].id,
                       // Canonical host, not req.headers.host — whatever consumes this
                       // webhook builds links from it.
                       "host":siteUrl().replace(/^https?:\/\//, ''),
