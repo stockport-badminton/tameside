@@ -22,9 +22,28 @@ const teamLetter = teamName => String(teamName || '').trim().slice(-1).toUpperCa
 // they can carry doubled/edge whitespace ("Alice  Cooper") — tidy for display.
 const cleanName = name => String(name || '').replace(/\s+/g, ' ').trim();
 
+// The form's font is a standard one, which encodes WinAnsi only, and pdf-lib throws on
+// anything else when it draws the field at save() — outside setField's try, so the whole
+// form 500s. Stockport hit it with the invisible bidi marks (U+202D/U+202C) a name or
+// number pasted from a phone carries (their Sentry NODE-1A, 2355a03); a Polish or Czech
+// name would do it too. Drop invisible format characters, fold accents the font lacks to
+// the base letter, and drop whatever still won't encode. A few letters have no Unicode
+// decomposition to fold through, so they are mapped by hand — without that, Stockport's
+// version turns "Łukasz" into "ukasz".
+const UNDECOMPOSABLE = { 'Ł': 'L', 'ł': 'l', 'Đ': 'D', 'đ': 'd', 'Ħ': 'H', 'ħ': 'h', 'ı': 'i', 'Ŧ': 'T', 'ŧ': 't' };
+function pdfSafe(form, text) {
+  const supported = new Set(form.getDefaultFont().getCharacterSet());
+  const ok = ch => supported.has(ch.codePointAt(0));
+  return Array.from(String(text).replace(/\p{Cf}/gu, ''), ch => {
+    if (ok(ch)) return ch;
+    const base = UNDECOMPOSABLE[ch] || ch.normalize('NFKD').replace(/\p{M}/gu, '');
+    return Array.from(base).every(ok) ? base : '';
+  }).join('');
+}
+
 function setField(form, name, value) {
   try {
-    form.getTextField(name).setText(value || '');
+    form.getTextField(name).setText(pdfSafe(form, value || ''));
   } catch (e) {
     // Field absent from this template revision — skip rather than 500.
     console.warn(`Team registration form: no field "${name}"`);
@@ -107,7 +126,7 @@ function makeRenderer(doc, form, font) {
   };
   const drawField = (x, w, value) => {
     const f = form.createTextField(`Dyn_${counter++}`);
-    f.setText(value || '');
+    f.setText(pdfSafe(form, value || ''));
     f.addToPage(page, { x, y: y - FIELD_H, width: w, height: FIELD_H, borderWidth: 0.5, borderColor: rgb(0, 0, 0) });
   };
   return {
@@ -267,3 +286,4 @@ exports.teamRegistrationFormPrefilled = async function(req, res, next) {
   }
 };
 exports._organiseRosterForTesting = organiseRoster;
+exports._pdfSafeForTesting = pdfSafe;
