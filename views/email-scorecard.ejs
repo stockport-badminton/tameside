@@ -279,6 +279,9 @@
                          file_type: f.type || f.name.split('.').pop(),
                          size_kb: Math.round(f.size / 1024)
                        });
+                       // Submit waits for this until scoresheet-url holds the photo — see
+                       // guardSubmit in static/js/scorecard-upload.js.
+                       var photoStored = window.scorecardUpload.begin();
                        try {
                          // HEIC goes with the documents: converted to a jpeg on the server, and
                          // no local preview, because only Safari can draw one.
@@ -314,11 +317,13 @@
                            uploadedUrl = conv.url;
                            preview = conv.preview;
                            document.querySelectorAll('#scoresheet-url').forEach(function (el) { el.value = uploadedUrl; });
+                           photoStored(true);
                            showScoresheet(preview, f);
                            if (!conv.converted) throw new Error(conv.reason || 'That file could not be read as a scorecard photo');
                            key = conv.key;
                          } else {
                            document.querySelectorAll('#scoresheet-url').forEach(function (el) { el.value = uploadedUrl; });
+                           photoStored(true);
                            showScoresheet(URL.createObjectURL(f), f);
                          }
                          status('Reading the card… (takes a few seconds)');
@@ -363,6 +368,7 @@
                            go.disabled = false;
                          }
                        } catch (e) {
+                         photoStored(false); // a no-op if the photo was stored before the read failed
                          tblTrack('scorecard_ocr_result', { outcome: 'refused', reason: e.message });
                          status('⚠ ' + e.message + ' — no problem, just continue entering below.');
                          go.disabled = false;
@@ -740,6 +746,7 @@
     <%- include('footer.ejs') %>
     <script type="text/javascript" src="/scripts/ejs/ejs.js"></script>
     <script src="<%= assetUrl('/static/js/scorecard-upload.js') %>"></script>
+    <script>window.scorecardUpload.guardSubmit(document.getElementById('signupForm'));</script>
 
     <script type="text/javascript">
       
@@ -902,6 +909,8 @@
               SEASON = '' + new Date().getFullYear() +''+ (new Date().getFullYear()+1);
             }
             let filename = "tameside-"+ SEASON +"-" + homeTeam + '-' + awayTeam + '.' + ext
+            // Submit waits for this — see guardSubmit in static/js/scorecard-upload.js.
+            const photoStored = window.scorecardUpload.begin()
             try {
               let getSignReq = await fetch('/sign-s3?file-name='+ encodeURIComponent(filename)+'&file-type='+ encodeURIComponent(file.type))
               if (!getSignReq.ok) {
@@ -922,6 +931,7 @@
                 for (const ssUrl of scoresheetUrls){
                   ssUrl.value = uploadedUrl
                 }
+                photoStored(true)
                 // Preview from the local file rather than the bucket — see the note
                 // at the OCR upload above. Also drops a stray console.error that was
                 // logging this URL: browser Sentry captures console at level 'error'
@@ -933,6 +943,7 @@
               }
             }
             catch (error){
+              photoStored(false);
               uploadFailed(error);
             }
         }
