@@ -37,6 +37,7 @@ their open HARD and REARCH briefs.
 |---|---|---|
 | A local database | league-site `docs/hardening/2728-rearch/done/REARCH-08-real-database-tests.md`, `docs/hardening/done/HARD-13-dev-database-guard.md` | Matters more here: we have **no** local DB, so Playwright reads production and SQL is rehearsed in a rolled-back transaction (`tools/rehearse-roster.js`, `tools/rotate-db-encode.js --rehearse`). |
 | Season history | league-site `docs/hardening/2728-rearch/REARCH-02-season-history.md` | Must land before `clone_season()` runs in June 2027. |
+| Drop `player_id_key` / `team_id_key` | — | Ours alone. Each duplicates its `_pkey`, but six FKs are bound to them (four to player's, the two `tameside_draft_fixture` team FKs to team's; see `migrations/drop-redundant-indexes.sql`). One migration: recreate those six against the pkeys (`NOT VALID`, then `VALIDATE`), then drop both keys, **never with CASCADE**. Small gain (a few kB, a duplicate btree write); off-season because `player` is read by every page. Raised 2 Nov 2026. |
 | Team strength | — | Stockport feature, not yet looked at in detail. |
 | Per-season Elo rank | league-site commit `18d1067` | Accuracy, not speed. Deferred 2 Oct 2026. The backfill rates the past with each player's *current* team's division (see CLAUDE.md, Elo). |
 
