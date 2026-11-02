@@ -3,8 +3,12 @@
 > **Decided 2 Nov 2026: GA removed.** Neil judged it on the same criteria that retired it
 > on the Stockport site that morning (league-site `fac4037`), a fortnight before the
 > mid-November date below. The checklist under *Removing GA* was done in full, and
-> PostHog now starts after the `load` event. What is still open is the last section:
-> the `/rules` Maps iframe still sets Google's cookies.
+> PostHog now starts after the `load` event.
+>
+> **The `/rules` Maps iframe described below never rendered.** `views/rules.ejs` showed it
+> only when the page title was "How to Find Us", and `/rules` is always "Tameside
+> Badminton League Rules": first-commit code from some other page. It was deleted, not
+> replaced. That leaves the Maps API on `/club/:id` and reCAPTCHA on the contact form.
 
 Started 10 Oct 2026. Ported from Stockport (league-site `f131627`, `9d5a002`), where the
 same trial started the same day.

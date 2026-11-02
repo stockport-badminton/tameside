@@ -609,8 +609,9 @@ with inputs unmasked so the scores are visible. **Unset `POSTHOG_KEY` loads noth
 - **PostHog drops events from automated browsers.** A Playwright check sees nothing unless
   it sets `opt_out_useragent_filter: true`.
 - **Google Analytics is gone** (2 Nov 2026), so the site sets no analytics cookie and has
-  no consent banner to build. **Don't add a tracker that sets one.** The `/rules` Google
-  Maps iframe still sets Google's cookies; see `docs/analytics-posthog-vs-ga.md`.
+  no consent banner to build. **Don't add a tracker that sets one.** (A "Maps iframe on
+  `/rules`" in older notes never rendered: it was gated on a title the page never has, and
+  was deleted.) Google Maps on `/club/:id` and reCAPTCHA on the contact form remain.
   `test/browser-posthog.test.js` fails if `gtag` reappears in the header or the wizards.
 
 `views/privacy.ejs` (`/privacy-policy`, footer) describes all of this. **Keep it in step
