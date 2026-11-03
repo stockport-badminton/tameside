@@ -21,13 +21,9 @@ their open HARD and REARCH briefs.
 | # | What | Brief | Different here |
 |---|---|---|---|
 | 1 | Publishing a result waits on the social posts **(deployed 2 Nov 2026; acceptance check due ~9 Nov: see `docs/social-posting.md`, last section)** | league-site `docs/hardening/done/HARD-47-publish-waits-on-social.md` | Read the `[timing] meta:` lines in Cloud Logging first (`utils/metaPublisher.js`). Our `_REQUEST_TIMEOUT` is 60s, and our version of their `afterCommit` is `sendResultZap`, which never calls back with an error. |
-| 2 | Load PostHog after the page has loaded; remove GA **(done 2 Nov 2026)** | — | Defer PostHog now. Removing GA follows the mid-Nov decision in `docs/analytics-posthog-vs-ga.md`, which also has the removal checklist. |
-| 3 | Migration ledger **(done 2 Nov 2026)** | league-site `docs/hardening/done/HARD-32-migration-tracking.md` | Record written in the file's own transaction; `clone-season.sql` repeatable; 18 files backfilled on schema evidence. See CLAUDE.md, *Migration ordering*. |
-| 4 | `pointsFor` → `gamesWon` **(done 2 Nov 2026)** | league-site `docs/hardening/2728-rearch/REARCH-03-one-record-per-fact.md`, Part C | Part C only. See Skipped for A. All 50 `/tables` pages and table images byte-identical before and after; `test/integration/league-tables.test.js`. |
-| 5 | Social posts link to the division, not the homepage **(done 2 Nov 2026)** | league-site commit `c482fc3` | Helpers in `utils/siteUrl.js`. Also fixed the results video's "Full tables at" link, which theirs still sends to the homepage. No Premier-regex fix: we have no Premier. `test/integration/division-links.test.js`. |
-| 6 | Bootstrap 4 leftovers | [BL-01](BL-01-bootstrap-4-leftovers.md) | Ours alone. Their HARD-50 is a whole BS4→BS5 migration. |
-| 7 | Basic security headers | league-site `docs/hardening/done/HARD-12-security-headers.md` | We send none. Start with the cheap headers; CSP is a separate job (their HARD-15, absorbed by REARCH-07). |
-| 8 | Route access declarations | league-site `docs/hardening/2728-rearch/done/REARCH-04-route-access.md` | Our routes are all in `app.js`. `secured`, `requireSuperAdmin`, `requireCronCaller` and the in-controller `isSuperAdmin` checks are the four shapes it would replace. |
+| 2 | Bootstrap 4 leftovers | [BL-01](BL-01-bootstrap-4-leftovers.md) | Ours alone. Their HARD-50 is a whole BS4→BS5 migration. |
+| 3 | Basic security headers | league-site `docs/hardening/done/HARD-12-security-headers.md` | We send none. Start with the cheap headers; CSP is a separate job (their HARD-15, absorbed by REARCH-07). |
+| 4 | Route access declarations | league-site `docs/hardening/2728-rearch/done/REARCH-04-route-access.md` | Our routes are all in `app.js`. `secured`, `requireSuperAdmin`, `requireCronCaller` and the in-controller `isSuperAdmin` checks are the four shapes it would replace. |
 | — | `/sign-s3` lets the client choose the key | [BL-02](BL-02-sign-s3-server-keys.md) | Parked 30 Oct 2026. |
 | — | Build social cards from layers | [BL-03](BL-03-social-card-layers.md) | Parked 2 Oct 2026. |
 
