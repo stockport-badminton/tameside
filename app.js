@@ -899,9 +899,12 @@ function secured(req, res, next) {
   app.get('/admin/results/*', secured,fixture_controller.fixture_detail_byDivision);
   app.get('/admin/results/:division/:season',  secured,fixture_controller.fixture_detail_byDivision);
   // Fixture generator (secured — admin only)
-  app.get('/fixture-gen', secured, fixture_gen_controller.renderFixtures);
-  app.post('/fixture-gen/regenerate', secured, fixture_gen_controller.regenerateFixtures);
-  app.post('/fixture-gen/publish', secured, fixture_gen_controller.publishFixtures);
+  // Superadmin only. These were `secured` alone, so any logged-in member could publish,
+  // and publish targets the LIVE season: it deletes every unplayed fixture and
+  // re-inserts the whole draft, played matches included. GET writes a draft too.
+  app.get('/fixture-gen', secured, requireSuperAdmin, fixture_gen_controller.renderFixtures);
+  app.post('/fixture-gen/regenerate', secured, requireSuperAdmin, fixture_gen_controller.regenerateFixtures);
+  app.post('/fixture-gen/publish', secured, requireSuperAdmin, fixture_gen_controller.publishFixtures);
 
   app.get('/club/:id', secured,club_controller.club_detail);
   
@@ -964,7 +967,7 @@ function secured(req, res, next) {
   // would otherwise land here with 'batch-update' as the id and reach a bigint query.
   app.post('/player/:id(\\d+)',secured, player_controller.player_update_post);
   app.get('/club-api/:id', secured,club_controller.club_detail_api);
-  app.get('/admin/info/clubs', secured,club_controller.club_list_detail);
+  app.get('/admin/info/clubs', secured, requireSuperAdmin, club_controller.club_list_detail);
 
 app.use(function(req, res) {
   // Never let the CDN cache error pages: the domain fronts Cloud Run through
