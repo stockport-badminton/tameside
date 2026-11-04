@@ -79,9 +79,11 @@ describe('the fixture generator is superadmin only', () => {
   }));
 });
 
-describe('/admin/info/clubs is superadmin only', () => {
-  it('refuses a club admin', asUser({ role: 'admin', club: 'Hyde' }, async () => {
+// It rendered the same page as the public /info/clubs, and was deleted with the
+// route-access work. Club editing is /admin/clubs.
+describe('/admin/info/clubs is gone', () => {
+  it('is a 404, even for a superadmin', asUser({ role: 'superadmin' }, async () => {
     const res = await request(app).get('/admin/info/clubs');
-    assert.strictEqual(res.status, 403);
+    assert.strictEqual(res.status, 404);
   }));
 });

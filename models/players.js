@@ -1091,42 +1091,6 @@ exports.getEmails = async function(searchTerms, done){
   done(null, emails);
 }
 
-exports.search = async function(searchTerms,done){
-  console.log(searchTerms);
-  var sql = 'SELECT * FROM player';
-  var whereTerms = [];
-  if (!searchTerms.teamid){
-    console.log("no team id");
-  }
-  else {
-    whereTerms.push('team = '+searchTerms.teamid);
-  }
-  if (!searchTerms.gender){
-    console.log("no gender");
-  }
-  else {
-    whereTerms.push('gender = "'+searchTerms.gender + '"');
-  }
-  if (!searchTerms.clubid){
-    console.log("no club id");
-  }
-  else {
-    whereTerms.push('club = '+searchTerms.clubid);
-  }
-  console.log(whereTerms)
-
-  if (whereTerms.length > 0) {
-    var conditions = whereTerms.join(' AND ');
-    conditions = ' WHERE ' + conditions + ' order by teamName,gender,rank';
-    // console.log(conditions);
-    sql = sql + conditions
-  }
-  db.get().query(sql, function (err, rows){
-    if (err) return done(err);
-    done(null, rows);
-  })
-}
-
 exports.findElgiblePlayersFromTeamId = async function(id,gender,done){
   let result = await sql`select player.id, player.first_name, player.family_name, b.rank as "teamRank", player.rank as "playerRank" from (select team.id, team.name, team.rank from (SELECT club.id, club.name, team.rank as "originalRank" FROM team JOIN club on team.club = club.id AND team.id = ${id}) as a join team on a.id = team.club AND team.rank >= "originalRank") as b join player on player.team = b.id AND player.gender like ${gender} order by b.rank asc,player.rank asc, player.first_name`.catch(err => {
     console.log(err.query)

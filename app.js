@@ -117,6 +117,9 @@ const filterState = require('./middleware/filterState');
 // Auth0Strategy verify callback below. utils/authz.js owns the claim key strings.
 const Player = require('./models/players');
 const authz = require('./utils/authz');
+// Who may call each route: every registration below starts with one of these (REARCH-04).
+// docs/routes.md is the resulting table.
+const access = require('./middleware/access');
 
 app.locals.pastSeasons = [];
 seasonModel.init()
@@ -236,8 +239,8 @@ function healthCheck(req, res) {
     res.status(result.ok ? 200 : 503).json(result);
   });
 }
-app.get('/health', healthCheck);
-app.get('/healthz', healthCheck);
+app.get('/health', access.public, healthCheck);
+app.get('/healthz', access.public, healthCheck);
 
 
 // Compress text responses. Registered ahead of the static mounts and all routes so
@@ -252,7 +255,7 @@ app.use(bodyParser.urlencoded({extended:false}));
 // Must be registered before the `rootfiles` static mount below, or that
 // mount shadows this route and the service worker never gets a fresh
 // per-deploy cache version.
-app.get('/sw.js', function(req, res) {
+app.get('/sw.js', access.public, function(req, res) {
   res.set('Content-Type', 'application/javascript');
   res.set('Cache-Control', 'no-cache');
   res.render('sw', { cacheVersion: process.env.K_REVISION || 'dev-local' });
@@ -472,7 +475,7 @@ app.use(filterState.middleware)
     // global body parsers sit. See controllers/mailjetWebhookController.js for why this
     // exists: a spam complaint silently and permanently suppresses an address, and there
     // is otherwise nothing to look at afterwards.
-    app.post('/webhooks/mailjet', express.json({ limit: '512kb' }), mailjet_webhook_controller.receive);
+    app.post('/webhooks/mailjet', access.token('MAILJET_WEBHOOK_TOKEN'), express.json({ limit: '512kb' }), mailjet_webhook_controller.receive);
 
     // The daily registration digest, for Cloud Scheduler.
     //
@@ -480,13 +483,13 @@ app.use(filterState.middleware)
     // shared secret as the Mailjet callback above and 404s without one, so an unconfigured
     // or probed endpoint gives nothing away. GET because that is what Cloud Scheduler
     // sends by default, and it writes nothing — it reports.
-    app.get('/tasks/registration-digest', registration_reminder_controller.digestTask);
+    app.get('/tasks/registration-digest', access.token('REGISTRATION_DIGEST_TOKEN'), registration_reminder_controller.digestTask);
 
     // The daily missing-scorecards email, for Cloud Scheduler. Same rules as the digest:
     // not `secured` (a scheduler following the /login redirect records a green run), `?t=`
     // or a superadmin session, 404 otherwise. Unset MISSING_SCORECARDS_TOKEN means inert.
     app.get('/tasks/missing-scorecards',
-      requireCronCaller({ envVar: 'MISSING_SCORECARDS_TOKEN', callerProp: 'cronCaller' }),
+      access.cron(requireCronCaller({ envVar: 'MISSING_SCORECARDS_TOKEN', callerProp: 'cronCaller' })),
       missing_scorecards_controller.run);
 
     // `secured`, and no longer `ACL: 'public-read'`.
@@ -505,7 +508,7 @@ app.use(filterState.middleware)
     // Objects already in the bucket keep the ACL they were written with — that half is
     // the sweep's job, on their side, and nothing here depends on which way it has gone:
     // GET /scorecard-photo/:id reads with credentials either way.
-    app.get('/sign-s3', secured, async (req, res, next) => {
+    app.get('/sign-s3', access.member, async (req, res, next) => {
       const fileName = req.query['file-name'];
       const fileType = req.query['file-type'];
       // Our own objects only. `secured` stopped strangers, but any logged-in member could
@@ -540,26 +543,26 @@ app.use(filterState.middleware)
       }
   });
 
-  app.post('/new-users-v2',contactus_controller.new_user)
+  app.post('/new-users-v2', access.public, contactus_controller.new_user)
 
   // Approving a signup grants login access and can grant a site role, so both halves
   // are `secured` plus a superadmin check in the handler. The GET was previously open
   // to anyone who knew an Auth0 user_id — and, being a GET with side effects, to any
   // scanner that prefetched the link in the notification email. The GET now only
   // renders; the POST does the work.
-  app.get('/approve-user/:userId', secured, auth_controller.approve_signup_get);
-  app.post('/approve-user/:userId', secured, auth_controller.approve_signup_post);
+  app.get('/approve-user/:userId', access.superadmin, auth_controller.approve_signup_get);
+  app.post('/approve-user/:userId', access.superadmin, auth_controller.approve_signup_post);
 
 
 // The social images. Public and unauthenticated on purpose: **Meta fetches these URLs
 // itself, from its own servers, minutes after we hand them over**, so anything behind
 // `secured` can never work. See controllers/social_controller.js.
-app.get('/resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division',social_controller.social_get_result)
+app.get('/resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division', access.public, social_controller.social_get_result)
 // The 9:16 Instagram Story card. Six segments, so it can never match the five-segment route above.
-app.get('/resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division/story.jpg', social_controller.social_get_result_story)
-app.get('/league-table-image/:division', social_controller.league_table_image)
-app.get('/fixtures-image/:division', social_controller.fixtures_image)
-app.get('/tables-social',social_controller.social_get_tables)
+app.get('/resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division/story.jpg', access.public, social_controller.social_get_result_story)
+app.get('/league-table-image/:division', access.public, social_controller.league_table_image)
+app.get('/fixtures-image/:division', access.public, social_controller.fixtures_image)
+app.get('/tables-social', access.public, social_controller.social_get_tables)
 
 /* The weekly results video, streamed from S3 through our own domain.
 
@@ -568,25 +571,25 @@ app.get('/tables-social',social_controller.social_get_tables)
    fixed map and never used to build an S3 key: this bucket is shared with the Stockport
    league and holds its scorecards, so a route that streams any object anyone can name
    would have moved the problem rather than solved it. */
-app.get('/social-video/:aspect', social_video_controller.serve)
+app.get('/social-video/:aspect', access.public, social_video_controller.serve)
 
-app.get('/', fixture_controller.fixture_get_summary)
-app.get('/contact-us', contactus_controller.contactus_get)
+app.get('/', access.public, fixture_controller.fixture_get_summary)
+app.get('/contact-us', access.public, contactus_controller.contactus_get)
 // spamGate runs the honeypot and timing-floor checks before validation, and answers a
 // bland success to anything it rejects (see middleware/spamGate.js for why). Any new
 // public form needs this on its POST route *and* views/spam-fields.ejs inside its <form>.
-app.post('/contact-us', spamGate({ endpoint: '/contact-us' }), contactus_controller.validateContactUs, contactus_controller.contactus);
-app.get('/info/clubs', club_controller.club_list_detail)
-app.get('/rules', static_controller.rules)
-app.get('/history', static_controller.history)
-app.get('/privacy-policy', static_controller.privacy_policy)
+app.post('/contact-us', access.public, spamGate({ endpoint: '/contact-us' }), contactus_controller.validateContactUs, contactus_controller.contactus);
+app.get('/info/clubs', access.public, club_controller.club_list_detail)
+app.get('/rules', access.public, static_controller.rules)
+app.get('/history', access.public, static_controller.history)
+app.get('/privacy-policy', access.public, static_controller.privacy_policy)
 // GET /mailjet deleted: the Mailjet getting-started sample, unauthenticated, sending a
 // hardcoded message to the league results mailbox. A curl loop was a mail bomb and
 // nothing ever linked to it. Same shape as the /SESemail endpoint Stockport removed.
-app.get('/event/:id(\\d+)/:date-:homeTeam-:awayTeam', fixture_controller.fixture_event_detail);
+app.get('/event/:id(\\d+)/:date-:homeTeam-:awayTeam', access.public, fixture_controller.fixture_event_detail);
 
 /* POST request for batch creating Fixture. */
-app.post('/fixture/rearrangement', secured, fixture_controller.fixture_rearrange_by_team_name);
+app.post('/fixture/rearrangement', access.member, fixture_controller.fixture_rearrange_by_team_name);
 
 // Filters are path segments in the shared grammar (season positional, everything
 // else `key-value`) that views/filtersJs.ejs and middleware/filterState.js both
@@ -599,126 +602,125 @@ app.post('/fixture/rearrangement', secured, fixture_controller.fixture_rearrange
 // `/fixture-players/20252026/club-Hyde` and 404'd. Those legacy URLs still work:
 // filterState's parser reads `club-`, `team-`, `season-` and a bare 8-digit season
 // in any order.
-app.get('/fixture-players', fixture_controller.get_fixture_players_details);
-app.get('/fixture-players/*', fixture_controller.get_fixture_players_details);
+app.get('/fixture-players', access.public, fixture_controller.get_fixture_players_details);
+app.get('/fixture-players/*', access.public, fixture_controller.get_fixture_players_details);
 // Sends to addresses taken from the request body, so it was an open mail relay until
 // 2026-10-02: no session, no token, caller-chosen recipients and subject text, sent as the
 // league. The only UI is the superadmin Send Reminder button on the results grid, so the
 // handler also checks the role — see fixture_reminder_post.
-app.post('/fixture/reminder', secured, fixture_controller.fixture_reminder_post);
+app.post('/fixture/reminder', access.superadmin, fixture_controller.fixture_reminder_post);
 
 
-app.get('/fixtures/*', fixture_controller.fixture_detail_byDivision);
-app.get('/results/*', fixture_controller.fixture_detail_byDivision);
-app.get('/calendars/*', fixture_controller.fixture_calendars);
-app.get('/results-grid/*', fixture_controller.fixture_detail_byDivision);
-
-/* GET request for list of all League items. */
-app.get('/tables/All', league_controller.all_league_tables);
-app.get('/tables/All/:season', league_controller.all_league_tables);
+app.get('/fixtures/*', access.public, fixture_controller.fixture_detail_byDivision);
+app.get('/results/*', access.public, fixture_controller.fixture_detail_byDivision);
+app.get('/calendars/*', access.public, fixture_controller.fixture_calendars);
+app.get('/results-grid/*', access.public, fixture_controller.fixture_detail_byDivision);
 
 /* GET request for list of all League items. */
-app.get('/tables/:division', league_controller.league_table);
-app.get('/tables/:division/:season', league_controller.league_table);
+app.get('/tables/All', access.public, league_controller.all_league_tables);
+app.get('/tables/All/:season', access.public, league_controller.all_league_tables);
 
-app.get('/team/:id(\\d+)', team_controller.team_detail);
+/* GET request for list of all League items. */
+app.get('/tables/:division', access.public, league_controller.league_table);
+app.get('/tables/:division/:season', access.public, league_controller.league_table);
+
+app.get('/team/:id(\\d+)', access.public, team_controller.team_detail);
 
 /* GET request for list of all Team items.
     router.get('/teams/:clubid/:venue/:matchDay', team_controller.team_list); */
 
 /* GET request for list of all Team items. */
-app.get('/teams', team_controller.team_list);
-app.get('/clubs', club_controller.club_list);
+app.get('/teams', access.public, team_controller.team_list);
+app.get('/clubs', access.public, club_controller.club_list);
 
 /* GET request for list of all Team items. */
-app.post('/teams', team_controller.team_search);
+app.post('/teams', access.public, team_controller.team_search);
 
 /* GET request for one Player. */
-app.get('/eligiblePlayers/:id(\\d+)/:gender', player_controller.eligible_players_list);
+app.get('/eligiblePlayers/:id(\\d+)/:gender', access.public, player_controller.eligible_players_list);
 
 /* GET request for list of all Player items. */
-app.get('/players/club-:clubid?/team-:teamid?/gender-:gender?', player_controller.player_list);
-app.post('/player/create', secured, player_controller.player_create);
+app.post('/player/create', access.member, player_controller.player_create);
 
 /* ELO ratings: chart page (login required), public JSON APIs, admin backfill
    (secured + superadmin check in controller), DEV_MODE-only diagnostics. */
-app.get('/elo-chart', secured, player_controller.player_elo_chart);
-app.get('/api/player-elo', player_controller.player_elo_history_api);
-app.get('/api/players/search', player_controller.player_search_api);
-app.get('/api/seasons', player_controller.get_seasons_api);
-app.get('/players/eloBackfillAdmin', secured, player_controller.player_elo_backfill_admin);
-app.get('/players/eloBackfillAll', secured, player_controller.player_elo_backfill_all);
-app.get('/players/eloFullRecalc', secured, player_controller.player_elo_full_recalc);
-app.get('/dev/elo-audit', player_controller.player_elo_audit);
-app.get('/dev/elo-raw/:playerId(\\d+)', player_controller.player_elo_raw);
+app.get('/elo-chart', access.member, player_controller.player_elo_chart);
+app.get('/api/player-elo', access.public, player_controller.player_elo_history_api);
+app.get('/api/players/search', access.public, player_controller.player_search_api);
+app.get('/api/seasons', access.public, player_controller.get_seasons_api);
+app.get('/players/eloBackfillAdmin', access.superadmin, player_controller.player_elo_backfill_admin);
+app.get('/players/eloBackfillAll', access.superadmin, player_controller.player_elo_backfill_all);
+app.get('/players/eloFullRecalc', access.superadmin, player_controller.player_elo_full_recalc);
+app.get('/dev/elo-audit', access.devOnly, player_controller.player_elo_audit);
+app.get('/dev/elo-raw/:playerId(\\d+)', access.devOnly, player_controller.player_elo_raw);
 
 /* GET request to update Player. */
 // `secured` because this form shows decrypted contact details (email and phone) and
 // now the site-role controls too. It had no auth gate of any kind: the page was
 // readable by anyone who guessed a player id.
-app.get('/player/:id(\\d+)/update', secured, player_controller.player_update_get);
+app.get('/player/:id(\\d+)/update', access.memberThen('own club\'s player, or superadmin'), player_controller.player_update_get);
 
-app.get('/player/:id(\\d+)', player_controller.player_detail);
+app.get('/player/:id(\\d+)', access.public, player_controller.player_detail);
 
 /* GET request for one Player. */
-app.get('/playerStats/:id(\\d+)/:fullName', player_controller.player_game_data);
+app.get('/playerStats/:id(\\d+)/:fullName', access.public, player_controller.player_game_data);
 
 /* player stats routes and filters. */
 
 
 
 /* GET request for one Player. */
-// app.get('/player-stats', player_controller.all_player_stats);
-app.get('/lewis-shield', team_controller.lewis_draw);
-app.get('/lewis-shield/:season', team_controller.lewis_draw);
+// app.get('/player-stats', access.public, player_controller.all_player_stats);
+app.get('/lewis-shield', access.public, team_controller.lewis_draw);
+app.get('/lewis-shield/:season', access.public, team_controller.lewis_draw);
 
 
 
-app.get('/populated-scorecard/:division/:home_team/:away_team/:home_man_1/:home_man_2/:home_man_3/:home_man_4/:home_lady_1/:home_lady_2/:away_man_1/:away_man_2/:away_man_3/:away_man_4/:away_lady_1/:away_lady_2/:Game1homeScore/:Game1awayScore/:Game2homeScore/:Game2awayScore/:Game3homeScore/:Game3awayScore/:Game4homeScore/:Game4awayScore/:Game5homeScore/:Game5awayScore/:Game6homeScore/:Game6awayScore/:Game7homeScore/:Game7awayScore/:Game8homeScore/:Game8awayScore/:Game9homeScore/:Game9awayScore/:Game10homeScore/:Game10awayScore/:Game11homeScore/:Game11awayScore/:Game12homeScore/:Game12awayScore/:Game13homeScore/:Game13awayScore/:Game14homeScore/:Game14awayScore/:Game15homeScore/:Game15awayScore/:Game16homeScore/:Game16awayScore/:Game17homeScore/:Game17awayScore/:Game18homeScore/:Game18awayScore', secured, (req,res,next) => {
+app.get('/populated-scorecard/:division/:home_team/:away_team/:home_man_1/:home_man_2/:home_man_3/:home_man_4/:home_lady_1/:home_lady_2/:away_man_1/:away_man_2/:away_man_3/:away_man_4/:away_lady_1/:away_lady_2/:Game1homeScore/:Game1awayScore/:Game2homeScore/:Game2awayScore/:Game3homeScore/:Game3awayScore/:Game4homeScore/:Game4awayScore/:Game5homeScore/:Game5awayScore/:Game6homeScore/:Game6awayScore/:Game7homeScore/:Game7awayScore/:Game8homeScore/:Game8awayScore/:Game9homeScore/:Game9awayScore/:Game10homeScore/:Game10awayScore/:Game11homeScore/:Game11awayScore/:Game12homeScore/:Game12awayScore/:Game13homeScore/:Game13awayScore/:Game14homeScore/:Game14awayScore/:Game15homeScore/:Game15awayScore/:Game16homeScore/:Game16awayScore/:Game17homeScore/:Game17awayScore/:Game18homeScore/:Game18awayScore', access.member, (req,res,next) => {
   console.log(req.params)
   fixture_controller.fixture_populate_scorecard_fromUrl(req,res,next)
 })
 
-app.get('/scorecard/fixture/:id(\\d+)', fixture_controller.getScorecard);
+app.get('/scorecard/fixture/:id(\\d+)', access.public, fixture_controller.getScorecard);
 
 
 
 
 /* Homepage content management (announcements + site settings) — secured,
    with a superadmin check inside each controller handler. */
-app.get('/admin/homepage-content', secured, homepage_content_controller.list);
-app.get('/admin/homepage-content/create', secured, homepage_content_controller.createForm);
-app.post('/admin/homepage-content', secured, homepage_content_controller.create);
-app.get('/admin/homepage-content/:id', secured, homepage_content_controller.editForm);
-app.post('/admin/homepage-content/:id', secured, homepage_content_controller.update);
-app.post('/admin/homepage-content/:id/delete', secured, homepage_content_controller.remove);
-app.get('/admin/site-settings', secured, site_settings_controller.form);
-app.post('/admin/site-settings', secured, site_settings_controller.update);
+app.get('/admin/homepage-content', access.superadmin, homepage_content_controller.list);
+app.get('/admin/homepage-content/create', access.superadmin, homepage_content_controller.createForm);
+app.post('/admin/homepage-content', access.superadmin, homepage_content_controller.create);
+app.get('/admin/homepage-content/:id', access.superadmin, homepage_content_controller.editForm);
+app.post('/admin/homepage-content/:id', access.superadmin, homepage_content_controller.update);
+app.post('/admin/homepage-content/:id/delete', access.superadmin, homepage_content_controller.remove);
+app.get('/admin/site-settings', access.superadmin, site_settings_controller.form);
+app.post('/admin/site-settings', access.superadmin, site_settings_controller.update);
 
 // Blocklists and the submission log. `secured` proves someone is logged in; the controller
 // checks superadmin, same as the other /admin screens.
 // One-time worklist for the Auth0 -> player-table authorization migration. Superadmin
 // check is in the controller, as with every other /admin page.
-app.get('/admin/link-auth-accounts', secured, auth_link_controller.list);
-app.post('/admin/link-auth-accounts', secured, auth_link_controller.link);
+app.get('/admin/link-auth-accounts', access.superadmin, auth_link_controller.list);
+app.post('/admin/link-auth-accounts', access.superadmin, auth_link_controller.link);
 
 /* Chasing clubs for their team registration forms. Superadmin check is in the
    controller, as with every other /admin page. Status is per season and resets itself —
    a new season simply has no club_registration rows. */
-app.get('/admin/registration-reminders', secured, registration_reminder_controller.index);
-app.post('/admin/registration-reminders/:club(\\d+)/received', secured, registration_reminder_controller.setReceived);
-app.post('/admin/registration-reminders/:club(\\d+)/chase', secured, registration_reminder_controller.chase);
+app.get('/admin/registration-reminders', access.superadmin, registration_reminder_controller.index);
+app.post('/admin/registration-reminders/:club(\\d+)/received', access.superadmin, registration_reminder_controller.setReceived);
+app.post('/admin/registration-reminders/:club(\\d+)/chase', access.superadmin, registration_reminder_controller.chase);
 
 /* Missed three (rule 18) — superadmin. The notice is derived server-side from the player id
    alone; nothing in the POST body is read. See models/missedThree.js. */
 /* The admin hub — every superadmin tool, grouped (utils/adminTools.js). */
-app.get('/admin', secured, requireSuperAdmin, require(__dirname + '/controllers/adminHubController').hub);
+app.get('/admin', access.superadmin, require(__dirname + '/controllers/adminHubController').hub);
 
 const missed_three_controller = require(__dirname + '/controllers/missedThreeController');
-app.get('/admin/missed-three', secured, requireSuperAdmin, missed_three_controller.list);
-app.get('/admin/missed-three/:playerId(\\d+)/notice', secured, requireSuperAdmin, missed_three_controller.preview);
-app.get('/admin/missed-three/:playerId(\\d+)/notice/email', secured, requireSuperAdmin, missed_three_controller.previewEmail);
-app.post('/admin/missed-three/:playerId(\\d+)/notice', secured, requireSuperAdmin, missed_three_controller.send);
+app.get('/admin/missed-three', access.superadmin, missed_three_controller.list);
+app.get('/admin/missed-three/:playerId(\\d+)/notice', access.superadmin, missed_three_controller.preview);
+app.get('/admin/missed-three/:playerId(\\d+)/notice/email', access.superadmin, missed_three_controller.previewEmail);
+app.post('/admin/missed-three/:playerId(\\d+)/notice', access.superadmin, missed_three_controller.send);
 
 /* The weekly league-tables post to Facebook and Instagram.
 
@@ -728,16 +730,16 @@ app.post('/admin/missed-three/:playerId(\\d+)/notice', secured, requireSuperAdmi
    refusing every request looks green the whole time. `requireCronCaller` takes the shared
    secret in `?t=` or a superadmin session, and refuses with a 404 rather than a redirect.
    Unset SOCIAL_WEEKLY_TABLES_TOKEN means the scheduled half is inert. */
-app.get('/admin/social/weekly-tables', secured, weekly_tables_controller.preview);
+app.get('/admin/social/weekly-tables', access.superadmin, weekly_tables_controller.preview);
 app.post('/admin/social/weekly-tables',
-  requireCronCaller({ envVar: 'SOCIAL_WEEKLY_TABLES_TOKEN', callerProp: 'socialCaller' }),
+  access.cron(requireCronCaller({ envVar: 'SOCIAL_WEEKLY_TABLES_TOKEN', callerProp: 'socialCaller' })),
   weekly_tables_controller.run);
 
 /* The weekly fixtures post — the coming week, one card per division. Same gating rules as
    the tables post above, on its own token so either half can be turned off alone. */
-app.get('/admin/social/weekly-fixtures', secured, weekly_fixtures_controller.preview);
+app.get('/admin/social/weekly-fixtures', access.superadmin, weekly_fixtures_controller.preview);
 app.post('/admin/social/weekly-fixtures',
-  requireCronCaller({ envVar: 'SOCIAL_WEEKLY_FIXTURES_TOKEN', callerProp: 'socialCaller' }),
+  access.cron(requireCronCaller({ envVar: 'SOCIAL_WEEKLY_FIXTURES_TOKEN', callerProp: 'socialCaller' })),
   weekly_fixtures_controller.run);
 
 /* The weekly results video. TWO scheduled steps, not one: generate writes the mp4 to S3,
@@ -750,11 +752,11 @@ app.post('/admin/social/weekly-fixtures',
    is gated for the same reason the posts are: ungated it lets anyone on the internet start
    an ffmpeg encode on Cloud Run, repeatedly. */
 app.get('/api/social/generate-weekly-video',
-  requireCronCaller({ envVar: 'SOCIAL_WEEKLY_VIDEO_TOKEN', callerProp: 'socialCaller' }),
+  access.cron(requireCronCaller({ envVar: 'SOCIAL_WEEKLY_VIDEO_TOKEN', callerProp: 'socialCaller' })),
   social_video_controller.generate);
-app.get('/admin/social/weekly-video', secured, weekly_video_controller.preview);
+app.get('/admin/social/weekly-video', access.superadmin, weekly_video_controller.preview);
 app.post('/admin/social/weekly-video',
-  requireCronCaller({ envVar: 'SOCIAL_WEEKLY_VIDEO_TOKEN', callerProp: 'socialCaller' }),
+  access.cron(requireCronCaller({ envVar: 'SOCIAL_WEEKLY_VIDEO_TOKEN', callerProp: 'socialCaller' })),
   weekly_video_controller.run);
 
 /* Published results, posted to Facebook and Instagram from the queue that publishing writes
@@ -762,51 +764,51 @@ app.post('/admin/social/weekly-video',
    unset SOCIAL_RESULTS_META_TOKEN means nothing posts the queue, and the daily
    missing-scorecards email reports the rows piling up. */
 app.post('/admin/social/results/meta',
-  requireCronCaller({ envVar: 'SOCIAL_RESULTS_META_TOKEN', callerProp: 'socialCaller' }),
+  access.cron(requireCronCaller({ envVar: 'SOCIAL_RESULTS_META_TOKEN', callerProp: 'socialCaller' })),
   require('./controllers/metaResultsController').run);
 
-app.get('/admin/spam', secured, spam_admin_controller.form);
-app.post('/admin/spam', secured, spam_admin_controller.add);
-app.post('/admin/spam/:id/active', secured, spam_admin_controller.toggle);
+app.get('/admin/spam', access.superadmin, spam_admin_controller.form);
+app.post('/admin/spam', access.superadmin, spam_admin_controller.add);
+app.post('/admin/spam/:id/active', access.superadmin, spam_admin_controller.toggle);
 
 /* League structure admin (superadmin only — secured route + role check in the
    controller). Clubs, teams, and one-click promotion/relegation. */
-app.get('/admin/clubs', secured, club_controller.admin_club_list);
-app.get('/admin/clubs/create', secured, club_controller.admin_club_createForm);
-app.post('/admin/clubs', secured, club_controller.admin_club_create);
-app.get('/admin/clubs/:id(\\d+)', secured, club_controller.admin_club_editForm);
-app.post('/admin/clubs/:id(\\d+)', secured, club_controller.admin_club_update);
-app.get('/admin/teams', secured, team_controller.admin_team_list);
-app.get('/admin/teams/create', secured, team_controller.admin_team_createForm);
-app.post('/admin/teams', secured, team_controller.admin_team_create);
-app.post('/admin/teams/:id(\\d+)/move', secured, team_controller.admin_team_move);
-app.get('/admin/teams/:id(\\d+)', secured, team_controller.admin_team_editForm);
-app.post('/admin/teams/:id(\\d+)', secured, team_controller.admin_team_update);
-app.post('/admin/fixture/:id(\\d+)/date', secured, fixture_controller.admin_fixture_date_update);
-app.post('/admin/fixture/:id(\\d+)/concede', secured, fixture_controller.admin_fixture_concede);
-app.get('/admin/lewis', secured, team_controller.admin_lewis_form);
-app.post('/admin/lewis/:drawPos(\\d+)/result', secured, team_controller.admin_lewis_result);
+app.get('/admin/clubs', access.superadmin, club_controller.admin_club_list);
+app.get('/admin/clubs/create', access.superadmin, club_controller.admin_club_createForm);
+app.post('/admin/clubs', access.superadmin, club_controller.admin_club_create);
+app.get('/admin/clubs/:id(\\d+)', access.superadmin, club_controller.admin_club_editForm);
+app.post('/admin/clubs/:id(\\d+)', access.superadmin, club_controller.admin_club_update);
+app.get('/admin/teams', access.superadmin, team_controller.admin_team_list);
+app.get('/admin/teams/create', access.superadmin, team_controller.admin_team_createForm);
+app.post('/admin/teams', access.superadmin, team_controller.admin_team_create);
+app.post('/admin/teams/:id(\\d+)/move', access.superadmin, team_controller.admin_team_move);
+app.get('/admin/teams/:id(\\d+)', access.superadmin, team_controller.admin_team_editForm);
+app.post('/admin/teams/:id(\\d+)', access.superadmin, team_controller.admin_team_update);
+app.post('/admin/fixture/:id(\\d+)/date', access.superadmin, fixture_controller.admin_fixture_date_update);
+app.post('/admin/fixture/:id(\\d+)/concede', access.superadmin, fixture_controller.admin_fixture_concede);
+app.get('/admin/lewis', access.superadmin, team_controller.admin_lewis_form);
+app.post('/admin/lewis/:drawPos(\\d+)/result', access.superadmin, team_controller.admin_lewis_result);
 
 /* Scorecard OCR (superadmin): read an uploaded scorecard photo with Google
    Vision, match players against the rosters, review, then hand off into the
    existing prefilled-scorecard entry flow. */
 let scorecard_ocr_controller = require(__dirname + '/controllers/scorecardOcrController');
-app.get('/admin/scorecard-ocr', secured, scorecard_ocr_controller.list);
-app.get('/admin/scorecard-ocr/review', secured, scorecard_ocr_controller.review);
-app.get('/admin/scorecard-ocr/image', secured, scorecard_ocr_controller.image);
+app.get('/admin/scorecard-ocr', access.superadmin, scorecard_ocr_controller.list);
+app.get('/admin/scorecard-ocr/review', access.superadmin, scorecard_ocr_controller.review);
+app.get('/admin/scorecard-ocr/image', access.superadmin, scorecard_ocr_controller.image);
 /* Entry-wizard integration: any logged-in user uploads a photo (sign-s3), then
    posts the key here to get the prefilled-form URL. */
-app.post('/scorecard-ocr/analyse', secured, scorecard_ocr_controller.analyse);
+app.post('/scorecard-ocr/analyse', access.member, scorecard_ocr_controller.analyse);
 /* Pull the photo out of an uploaded pdf/docx and store it, WITHOUT reading the card.
    The plain photo box uses this; the auto-fill box gets the same conversion for free
    inside /scorecard-ocr/analyse. Both take an S3 key, because the browser has already
    PUT the file through the presigned url from /sign-s3. */
-app.post('/scorecard-document/convert', secured, scorecard_ocr_controller.convert_document);
+app.post('/scorecard-document/convert', access.member, scorecard_ocr_controller.convert_document);
 
 /* Distribution lists (superadmin — role check in controller). */
-app.get('/admin/distribution', secured, contactus_controller.admin_distribution_form);
-app.post('/admin/distribution/preview', secured, contactus_controller.admin_distribution_preview);
-app.post('/admin/distribution/send', secured, contactus_controller.admin_distribution_send);
+app.get('/admin/distribution', access.superadmin, contactus_controller.admin_distribution_form);
+app.post('/admin/distribution/preview', access.superadmin, contactus_controller.admin_distribution_preview);
+app.post('/admin/distribution/send', access.superadmin, contactus_controller.admin_distribution_send);
 
 // Publishing a result, and the draft confirmation page that leads to it, are the results
 // secretary's job. Both were `secured` only — i.e. any of ~160 logged-in members could
@@ -815,43 +817,17 @@ app.post('/admin/distribution/send', secured, contactus_controller.admin_distrib
 // sequential ids. Both links are only ever handed out in the results-secretary email.
 // Ported from Stockport's HARD-24, minus their per-draft token, which Tameside decided
 // against on 2026-09-02. Mounted before validation so a refusal costs no lookups.
-app.post('/scorecard-beta', secured, requireSuperAdmin, fixture_controller.validateScorecard, fixture_controller.full_fixture_post);
+app.post('/scorecard-beta', access.superadmin, fixture_controller.validateScorecard, fixture_controller.full_fixture_post);
 
-app.get('/populated-scorecard-beta/:id(\\d+)', secured, requireSuperAdmin, fixture_controller.fixture_populate_scorecard_fromId)
+app.get('/populated-scorecard-beta/:id(\\d+)', access.superadmin, fixture_controller.fixture_populate_scorecard_fromId)
 
-// A logged-in user without the role gets a 403 through the central handler, which answers
-// an err.status 4xx without spending a Sentry event.
-function requireSuperAdmin(req, res, next) {
-  if (authz.isSuperAdmin(req)) return next();
-  const err = new Error('Forbidden');
-  err.status = 403;
-  next(err);
-}
-
-// For routes a page's script calls with fetch: a 401 it can read, not `secured`'s redirect
-// to /login, which fetch follows silently into an HTML page. (Stockport's /api routes sit
-// behind plain `secured`, so an expired session there surfaces as a network-style error.)
-function securedApi(req, res, next) {
-  if (req.isAuthenticated()) return next();
-  res.set('Cache-Control', 'private, no-store');
-  res.status(401).json({ ok: false, error: 'Your login has expired. Reload the page to log in again.' });
-}
-
-function secured(req, res, next) {
-    if (req.isAuthenticated()) {
-      return next();
-    }
-    req.session.returnTo = req.originalUrl;
-    res.redirect('/login');
-  }
-
-  app.get('/login', function(req, res, next) {
+  app.get('/login', access.public, function(req, res, next) {
     passport.authenticate('auth0', {
       scope: 'openid email profile'
     })(req, res, next);
   });
 
-  app.get('/callback', function(req, res, next) {
+  app.get('/callback', access.public, function(req, res, next) {
     passport.authenticate('auth0', function(err, user, info) {
       // Never log `user`: it is the whole Auth0 profile — email, identities, role claims.
       // `info` is passport's reason for a refusal (e.g. a lost OAuth state), which is the
@@ -880,7 +856,7 @@ function secured(req, res, next) {
     })(req, res, next);
   });
 
-  app.get('/logout', function(req, res, next) {
+  app.get('/logout', access.public, function(req, res, next) {
     req.logout(function(err) {
       if (err) { return next(err); }
       // returnTo must be the canonical domain: req.headers.host is the Cloud Run
@@ -890,54 +866,53 @@ function secured(req, res, next) {
     });
   });
 
-  app.get('/player-stats/*',  secured, player_controller.all_player_stats);
-  app.get('/player-stats',  secured, player_controller.all_player_stats);
+  app.get('/player-stats/*', access.member, player_controller.all_player_stats);
+  app.get('/player-stats', access.member, player_controller.all_player_stats);
 
-  app.get('/pair-stats/*',  secured, player_controller.all_pair_stats);
-  app.get('/pair-stats',  secured, player_controller.all_pair_stats);
+  app.get('/pair-stats/*', access.member, player_controller.all_pair_stats);
+  app.get('/pair-stats', access.member, player_controller.all_pair_stats);
 
-  app.get('/admin/results/*', secured,fixture_controller.fixture_detail_byDivision);
-  app.get('/admin/results/:division/:season',  secured,fixture_controller.fixture_detail_byDivision);
+  app.get('/admin/results/*', access.member, fixture_controller.fixture_detail_byDivision);
   // Fixture generator (secured — admin only)
   // Superadmin only. These were `secured` alone, so any logged-in member could publish,
   // and publish targets the LIVE season: it deletes every unplayed fixture and
   // re-inserts the whole draft, played matches included. GET writes a draft too.
-  app.get('/fixture-gen', secured, requireSuperAdmin, fixture_gen_controller.renderFixtures);
-  app.post('/fixture-gen/regenerate', secured, requireSuperAdmin, fixture_gen_controller.regenerateFixtures);
-  app.post('/fixture-gen/publish', secured, requireSuperAdmin, fixture_gen_controller.publishFixtures);
+  app.get('/fixture-gen', access.superadmin, fixture_gen_controller.renderFixtures);
+  app.post('/fixture-gen/regenerate', access.superadmin, fixture_gen_controller.regenerateFixtures);
+  app.post('/fixture-gen/publish', access.superadmin, fixture_gen_controller.publishFixtures);
 
-  app.get('/club/:id', secured,club_controller.club_detail);
+  app.get('/club/:id', access.member, club_controller.club_detail);
   
-  app.get('/players/club-:club?/team-:team?/gender-:gender?', secured,player_controller.player_list_clubs_teams);
-  app.get('/players/club-:club?', secured,player_controller.player_list_clubs_teams);
-  app.get('/players/team-:team?', secured,player_controller.player_list_clubs_teams);
-  app.get('/players/gender-:gender?', secured,player_controller.player_list_clubs_teams);
-  app.get('/players', secured,player_controller.player_list_clubs_teams);
-  app.get('/played-up-counts', secured,player_controller.player_played_up_counts);
+  app.get('/players/club-:club?/team-:team?/gender-:gender?', access.member, player_controller.player_list_clubs_teams);
+  app.get('/players/club-:club?', access.member, player_controller.player_list_clubs_teams);
+  app.get('/players/team-:team?', access.member, player_controller.player_list_clubs_teams);
+  app.get('/players/gender-:gender?', access.member, player_controller.player_list_clubs_teams);
+  app.get('/players', access.member, player_controller.player_list_clubs_teams);
+  app.get('/played-up-counts', access.member, player_controller.player_played_up_counts);
   // Team management (controllers/rosterController.js, ported from Stockport). A club admin
   // may VIEW their own club's roster; every change is superadmin only.
-  app.get('/manage-players', secured, roster_controller.club_picker);
-  app.get('/manage-players/club-:club', secured, roster_controller.club_roster);
-  app.get('/manage-players/club-:club/edit', secured, requireSuperAdmin, roster_controller.club_roster_edit);
-  app.post('/api/teams/:id/order', securedApi, requireSuperAdmin, roster_controller.api_team_order);
-  app.post('/api/players/:id/move', securedApi, requireSuperAdmin, roster_controller.api_player_move);
-  app.post('/api/players/:id/release', securedApi, requireSuperAdmin, roster_controller.api_player_release);
-  app.get('/api/roster/club-:club/candidates', securedApi, requireSuperAdmin, roster_controller.api_candidates);
-  app.post('/api/roster/club-:club/players', securedApi, requireSuperAdmin, roster_controller.api_player_create);
-  app.post('/api/roster/club-:club/attach', securedApi, requireSuperAdmin, roster_controller.api_player_attach);
-  app.post('/api/roster/club-:club/transfer', securedApi, requireSuperAdmin, roster_controller.api_transfer);
+  app.get('/manage-players', access.memberThen('own club, or superadmin'), roster_controller.club_picker);
+  app.get('/manage-players/club-:club', access.memberThen('club access'), roster_controller.club_roster);
+  app.get('/manage-players/club-:club/edit', access.superadmin, roster_controller.club_roster_edit);
+  app.post('/api/teams/:id/order', access.superadminApi, roster_controller.api_team_order);
+  app.post('/api/players/:id/move', access.superadminApi, roster_controller.api_player_move);
+  app.post('/api/players/:id/release', access.superadminApi, roster_controller.api_player_release);
+  app.get('/api/roster/club-:club/candidates', access.superadminApi, roster_controller.api_candidates);
+  app.post('/api/roster/club-:club/players', access.superadminApi, roster_controller.api_player_create);
+  app.post('/api/roster/club-:club/attach', access.superadminApi, roster_controller.api_player_attach);
+  app.post('/api/roster/club-:club/transfer', access.superadminApi, roster_controller.api_transfer);
   // Team registration form, prefilled with a club's current registrations
   // (auth check in controller). Blank template is served statically from
   // /static/docs/Team Registration.pdf.
-  app.get('/forms/team-registration/:club/prefilled', secured, documents_controller.teamRegistrationFormPrefilled);
+  app.get('/forms/team-registration/:club/prefilled', access.memberThen('club access'), documents_controller.teamRegistrationFormPrefilled);
   // The same form as a .docx, which is the format most clubs actually edit and return.
   // Generated on demand — it used to be written into static/docs as a side effect of
   // rendering the team-admin page, so the link 404'd unless that page had been served on
   // this container first.
-  app.get('/forms/team-registration/:club/docx', secured, documents_controller.teamRegistrationFormDocx);
-  app.get('/email-scorecard', secured,fixture_controller.email_scorecard);
-  app.post('/email-scorecard', secured, fixture_controller.validateScorecard, fixture_controller.fixture_populate_scorecard_errors);
-  app.post('/add-scorecard-photo/:id(\\d+)', secured, fixture_controller.add_scorecard_photo)
+  app.get('/forms/team-registration/:club/docx', access.memberThen('club access'), documents_controller.teamRegistrationFormDocx);
+  app.get('/email-scorecard', access.member, fixture_controller.email_scorecard);
+  app.post('/email-scorecard', access.member, fixture_controller.validateScorecard, fixture_controller.fixture_populate_scorecard_errors);
+  app.post('/add-scorecard-photo/:id(\\d+)', access.memberThen('own scorecard, or superadmin'), fixture_controller.add_scorecard_photo)
   // Registration-form import: upload the .docx or PDF a club sent back, see it diffed
   // against the current roster, tick what to apply. Superadmin or a club admin for their
   // own club — checked in the controller, and the write path enforces club scope again
@@ -948,26 +923,24 @@ function secured(req, res, next) {
   // sized for the PDF, whose template alone is ~1MB before a club fills it in — the .docx
   // is about 8KB. express.raw is mounted on this one route, not globally, so nothing else
   // starts buffering bodies.
-  app.get('/admin/team-registrations', secured, team_registration_controller.index);
-  app.post('/admin/team-registrations/review', secured,
-    express.raw({ type: () => true, limit: '12mb' }),
+  app.get('/admin/team-registrations', access.memberThen('club access'), team_registration_controller.index);
+  app.post('/admin/team-registrations/review', access.memberThen('club access'), express.raw({ type: () => true, limit: '12mb' }),
     team_registration_controller.review);
-  app.post('/admin/team-registrations/apply', secured, team_registration_controller.apply);
+  app.post('/admin/team-registrations/apply', access.memberThen('club access'), team_registration_controller.apply);
 
   // The only way a scorecard photo is read. Keyed by scorecardstore id, never by object
   // key — see controllers/fixtureController.js and utils/scorecardPhoto.js for why that
   // matters when the bucket is shared with the other league. `(\\d+)` so a non-numeric id
   // is a routing 404 rather than a Postgres type error rendered as a 500.
-  app.get('/scorecard-photo/:id(\\d+)', secured, fixture_controller.scorecard_photo)
+  app.get('/scorecard-photo/:id(\\d+)', access.member, fixture_controller.scorecard_photo)
 
 
   /* GET request for creating a Player. NOTE This must come before routes that display Player (uses id) */
-  app.get('/player/create', secured,player_controller.player_create_get);
+  app.get('/player/create', access.member, player_controller.player_create_get);
   // Numeric ids only. POST /player/batch-update (retired with the team-admin page, Oct 2026)
   // would otherwise land here with 'batch-update' as the id and reach a bigint query.
-  app.post('/player/:id(\\d+)',secured, player_controller.player_update_post);
-  app.get('/club-api/:id', secured,club_controller.club_detail_api);
-  app.get('/admin/info/clubs', secured, requireSuperAdmin, club_controller.club_list_detail);
+  app.post('/player/:id(\\d+)', access.memberThen('own club\'s player, or superadmin'), player_controller.player_update_post);
+  app.get('/club-api/:id', access.superadmin, club_controller.club_detail_api);
 
 app.use(function(req, res) {
   // Never let the CDN cache error pages: the domain fronts Cloud Run through

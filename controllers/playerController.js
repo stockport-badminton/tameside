@@ -13,13 +13,6 @@ const authz = require('../utils/authz');
 const { validationResult } = require('express-validator');
 
 
-// Display list of all Players
-exports.player_list = function(req, res) {
-    Player.search(req.params,function(err,rows){
-      // console.log(rows);
-      res.send(rows);
-    })
-};
 
 // Display list of all Players
 // `next` was missing from the signature, so the error branch below threw a ReferenceError

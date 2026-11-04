@@ -53,7 +53,7 @@ function tokenOk(envVar, req, param = 't') {
 function requireCronCaller(opts) {
   const { envVar, param = 't', callerProp } = opts;
 
-  return function (req, res, next) {
+  const gate = function (req, res, next) {
     if (tokenOk(envVar, req, param)) {
       req[callerProp] = 'scheduler';
       return next();
@@ -64,6 +64,9 @@ function requireCronCaller(opts) {
     }
     return res.status(404).end();
   };
+  // So access.cron() can refuse anything that is not one of these (REARCH-04).
+  gate.cronEnvVar = envVar;
+  return gate;
 }
 
 module.exports = requireCronCaller;

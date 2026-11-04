@@ -332,6 +332,30 @@ source of scripts, styles or images, so it cannot blank a page.
   custom domain.
 - `test/integration/security-headers.test.js`.
 
+### Route access declarations
+
+**Every route's first middleware says who may call it** — `access.public`, `member`,
+`memberThen('…')`, `superadmin`, `superadminApi`, `cron(requireCronCaller(…))`,
+`token('…')`, `devOnly` (`middleware/access.js`, ported from Stockport's REARCH-04, Nov
+2026). The gates themselves live in `middleware/secured.js`. **`docs/routes.md` is the
+generated table** and the review signal: a route that opens shows up as a one-line diff.
+After adding or changing a route, run
+`UPDATE_ROUTE_TABLE=1 node --test test/integration/route-access.test.js` and read the diff.
+`test/integration/route-shadowing.test.js` fails if one route hides another.
+
+- **`memberThen('…')` enforces the login only.** The rest (own club, own scorecard) is
+  still checked in the handler, and the label is there so the table doesn't overstate it.
+- **The `/admin/*` routes moved from `secured` + an in-handler `isSuperAdmin` to
+  `access.superadmin`**, with the handler checks left in as a second line. So a refusal
+  is now the central handler's 403, before the handler runs. The exceptions are
+  `/admin/results/*`, which captains use ("Results Detail"), and
+  `/admin/team-registrations`, which is `memberThen('club access')`.
+- Found and fixed by doing this: `/fixture-gen` and its publish action were `secured` only,
+  and publish rewrites the live season's fixtures. A public route shadowing a `secured` one
+  (`/players/club-…`) was deleted with its string-concatenated SQL. So were the unreachable
+  duplicate `/admin/results/:division/:season` and `/admin/info/clubs`, a copy of
+  `/info/clubs`.
+
 ### Sessions
 
 `express-session`, cookie name `__session`, **stored in Postgres** —
