@@ -311,6 +311,27 @@ Font Awesome's CSS and webfonts are out of `style.css` (339 KB → 236 KB raw) a
   header icons that relied on it. Style an icon with `.icon`, never `i`.
 - Output is double-quoted, no newlines: safe inside a single-quoted JS string.
 
+### Security headers
+
+`helmet` is mounted first in `app.js`, so every response gets the headers: pages, static
+assets, 404s and `/health`. The policy and its reasons are in `utils/securityHeaders.js`.
+It is ported from Stockport's HARD-12, Nov 2026, but **only the enforced CSP baseline**:
+`frame-ancestors`, `base-uri`, `object-src` and `form-action`. Nothing in it names a
+source of scripts, styles or images, so it cannot blank a page.
+
+- **The resource allowlist (`script-src` and the rest) is not here yet.** It is the part
+  that can break the scorecard wizard. Stockport ran theirs report-only, with a
+  `/csp-report` collector, before enforcing it. Their findings are in league-site
+  `docs/hardening/done/HARD-12-security-headers.md`, including the quilljs redirect
+  trap and S3 needing `connect-src`.
+- **`form-action` includes the Auth0 domain, unlike Stockport's.** Chrome checks it on
+  every redirect a submission follows, so a POST from an expired session (→ `/login` →
+  Auth0) would otherwise be blocked.
+- CORP is `cross-origin` because our images are shown elsewhere (emails, link previews).
+  HSTS is set without `includeSubDomains`. Firebase sends HSTS too, but only on the
+  custom domain.
+- `test/integration/security-headers.test.js`.
+
 ### Sessions
 
 `express-session`, cookie name `__session`, **stored in Postgres** —

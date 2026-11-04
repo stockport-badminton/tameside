@@ -41,6 +41,48 @@ if (!process.env.AUTH0_DOMAIN) {
 const app = express()
 const port = 8080
 
+// ---------------------------------------------------------------------------
+// Security response headers
+// ---------------------------------------------------------------------------
+//
+// Mounted first, above the static handlers and /health. The requirement is that every
+// response carries them, and a header missing from the one response an attacker cares
+// about is no control at all. utils/securityHeaders.js has the policy and the reasons.
+const helmet = require('helmet');
+const securityHeaders = require('./utils/securityHeaders');
+
+app.use(helmet({
+  // Set explicitly below. It is a baseline only: the resource allowlist is still to come.
+  contentSecurityPolicy: false,
+
+  // helmet defaults to no-referrer, which also strips the referrer from links out to
+  // the clubs' own websites. strict-origin-when-cross-origin keeps the full path for
+  // same-origin requests and sends only the origin outward. It is also the modern
+  // browser default.
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+
+  strictTransportSecurity: securityHeaders.strictTransportSecurity(),
+
+  // Our images are meant to be shown elsewhere: the result cards in emails, og:image in
+  // link previews, the social cards. With helmet's same-origin default, browsers would
+  // render them only on our own pages.
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+
+  // Keeps window.opener for popups we open. Login is a redirect flow, so nothing
+  // depends on it today. Same choice as Stockport.
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+
+  // Off, which is also helmet's default. Requiring CORP on every cross-origin
+  // subresource would block Cloudinary, Google Maps tiles and Auth0 avatars, none of
+  // which send it.
+  crossOriginEmbedderPolicy: false,
+}));
+
+app.use(helmet.contentSecurityPolicy({
+  useDefaults: false,
+  directives: securityHeaders.enforcedDirectives(),
+}));
+
 // Whether views/pwa-head.ejs registers the service worker.
 //
 // Off outside production on purpose. sw.js caches /static/** cache-first, keyed on
