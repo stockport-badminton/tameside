@@ -21,6 +21,7 @@ const Club = require('../models/club');
 const authz = require('../utils/authz');
 const { classifyLeague } = require('../utils/authMigration');
 const { matchName } = require('../utils/nameMatch');
+const authCull = require('./authCullController');
 
 const promisify = fn => (...args) => new Promise((resolve, reject) =>
   fn(...args, (err, result) => err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(result)));
@@ -162,12 +163,23 @@ exports.list = async function(req, res, next) {
   if (!authz.isSuperAdmin(req)) return next(httpError(403, 'Forbidden'));
   try {
     const data = await buildWorklist({ refresh: req.query.refresh === '1' });
+    // The cull's half fails soft: the linking screen must not depend on it.
+    let cull = null;
+    let cullError = null;
+    try {
+      cull = await authCull.buildCull();
+    } catch (err) {
+      console.error(`[login-cull] could not build the review list: ${err.message}`);
+      cullError = err.message;
+    }
     res.render('admin/link-auth-accounts', {
       static_path: '/static',
       theme: process.env.THEME || 'flatly',
       title: 'Link Logins to Players',
       pageDescription: 'Which player each login belongs to',
       data,
+      cull,
+      cullError,
       staleYears: STALE_DAYS / 365,
       flash: req.query.done ? String(req.query.done).slice(0, 200) : null,
     });

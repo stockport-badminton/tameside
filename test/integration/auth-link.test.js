@@ -56,6 +56,8 @@ const PLAYER = (id, first, family, clubName, teamName) =>
 function stubTenant() {
   mock.method(Auth, 'listUsers', async () => TENANT);
   setModel('Club', 'getAll', (cb) => cb(null, CLUBS));
+  // The page also shows the login cull (controllers/authCullController.js).
+  setModel('AuthCull', 'getAll', async () => new Map());
   setModel('Player', 'getAuthAccountIndex', async () => ([
     { userId: 'auth0|linked', ...PLAYER(1, 'Lin', 'Ked', 'Hyde') },
   ]));

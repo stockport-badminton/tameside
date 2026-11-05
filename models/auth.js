@@ -87,6 +87,29 @@ exports.listUsers = async function({ refresh = false } = {}) {
 
 exports._clearUserCacheForTesting = function() { _userCache = null; _userCacheAt = 0; };
 
+// Delete an account from the SHARED tenant: it is gone from Stockport's site too. Only the
+// login cull calls this (controllers/authCullController.js). Here the id goes in the path,
+// unlike getUserByAuthId, because DELETE has no query form; encodeURIComponent covers the `|`.
+//
+// The Management API rate-limits, so a 429 waits and tries again. 404 means already gone,
+// which is the outcome wanted. Anything else throws.
+exports.deleteUser = async function(userId, { apiKey, sleep = ms => new Promise(r => setTimeout(r, ms)) } = {}) {
+  apiKey = apiKey || await module.exports.getManagementAPIKey();
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const res = await fetch(`https://${process.env.AUTH0_DOMAIN}/api/v2/users/${encodeURIComponent(userId)}`,
+      { method: 'DELETE', headers: { Authorization: 'Bearer ' + apiKey } });
+    if (res.status === 204 || res.status === 404) {
+      _userCache = null;
+      return res.status === 204 ? 'deleted' : 'already gone';
+    }
+    if (res.status !== 429) {
+      throw new Error(`Auth0 delete of ${userId} failed: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+    }
+    await sleep(1000 * (attempt + 1));
+  }
+  throw new Error(`Auth0 delete of ${userId} still rate-limited after 4 attempts`);
+};
+
 // GET /approve-user/:userId — pure display, no side effects.
 //
 // This used to be the whole flow: one unauthenticated GET that PATCHed Auth0, emailed

@@ -89,6 +89,20 @@ module.exports = {
     whyReceiving: 'You are receiving this because you are the league&rsquo;s results secretary '
       + 'and a scorecard or a result post needs attention.',
   },
+  'login-inactive': {
+    firstName: 'Dave', email: 'dave@example.com',
+    lastActive: '3 Oct 2025', deadline: '5 Dec 2026',
+    keepUrl: 'https://tameside-badminton.co.uk/login/keep/abc123',
+    whyReceiving: 'You are receiving this because you have a login to the Tameside '
+      + 'Badminton League website.',
+  },
+  'login-cull-digest': {
+    warned: [{ name: 'Dave Lee', email: 'dave@example.com' }],
+    due: 2,
+    reviewUrl: 'https://tameside-badminton.co.uk/admin/link-auth-accounts#cull',
+    whyReceiving: 'You are receiving this because you are the league&rsquo;s results '
+      + 'secretary and the monthly login cull ran.',
+  },
   'registration-chase': {
     clubName: 'Hyde', teams: 3, firstFixtureLabel: 'Wed 2 Sep 2026',
     dueSentence: 'That has already been played, so this is overdue — please send the form '

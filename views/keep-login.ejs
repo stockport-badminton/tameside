@@ -1,0 +1,29 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<%# The "keep my login" link in the monthly cull's warning (controllers/authCullController.js).
+    The GET only shows the button: mail scanners prefetch links, so a GET that kept the
+    login would keep every one of them. Needs no login: the token is the credential. %>
+<div class="container my-4" style="max-width: 40rem;">
+  <% if (state === 'confirm') { %>
+    <h1 class="h4">Keep your login?</h1>
+    <p>Your login to this site has not been used for a year. Press the button to keep it for another year.</p>
+    <form method="post">
+      <button type="submit" class="btn btn-primary">Keep my login</button>
+    </form>
+  <% } else if (state === 'kept') { %>
+    <h1 class="h4">Thanks, your login is kept</h1>
+    <p>Nothing else to do. We'll only ask again if it goes unused for another year.</p>
+  <% } else { %>
+    <h1 class="h4">This link has expired</h1>
+    <p>
+      It has already been used, or a newer email replaced it. If your login still works,
+      <a href="/login">logging in</a> keeps it too. Otherwise ask the results secretary through
+      the <a href="/contact-us">contact form</a>.
+    </p>
+  <% } %>
+</div>
+
+<%- include('footer.ejs') %>
+</body>
+</html>

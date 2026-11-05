@@ -1,0 +1,53 @@
+<mjml>
+  <mj-head>
+    <mj-include path="./_theme.mjml" />
+    <mj-title>Login cull</mj-title>
+    <mj-preview><%= warned.length %> warned, <%= due %> due for deletion</mj-preview>
+  </mj-head>
+  <mj-body background-color="#eef0f4" width="600px">
+    <mj-include path="./_header.mjml" />
+
+    <mj-section padding="28px 0 0">
+      <mj-column>
+        <mj-text mj-class="h1">Monthly login cull</mj-text>
+        <mj-text mj-class="lede" padding="10px 24px 0">
+          <%= warned.length %> login<%= warned.length === 1 ? '' : 's' %> unused for a year
+          <%= warned.length === 1 ? 'was' : 'were' %> warned today.
+          <%= due %> <%= due === 1 ? 'is' : 'are' %> due for deletion and waiting for you.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-raw><% if (warned.length) { %></mj-raw>
+    <mj-section padding="22px 24px 0">
+      <mj-column background-color="#f4f6f9" padding="18px 20px" border-radius="6px">
+        <mj-text mj-class="label" text-transform="uppercase" padding="0">Warned today</mj-text>
+        <mj-table padding="8px 0 0" font-size="14px" color="#22303f" cellpadding="0">
+          <% for (const w of warned) { %>
+          <tr>
+            <td style="padding:4px 10px 4px 0;font-weight:bold;"><%= w.name %></td>
+            <td style="padding:4px 0;color:#68758a;"><%= w.email %></td>
+          </tr>
+          <% } %>
+        </mj-table>
+      </mj-column>
+    </mj-section>
+    <mj-raw><% } %></mj-raw>
+
+    <mj-section>
+      <mj-column>
+        <mj-button href="<%= reviewUrl %>" css-class="cta">Review on Link Logins</mj-button>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="0 0 26px">
+      <mj-column>
+        <mj-text mj-class="muted">
+          Nothing is deleted until you press Delete on that page. Deleting removes the login
+          from the Stockport league&rsquo;s site as well.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-include path="./_footer.mjml" />
+  </mj-body>
+</mjml>

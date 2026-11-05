@@ -120,12 +120,75 @@
     <% if (data.otherLeague.length) worklistTable(data.otherLeague) %>
   </details>
 
+  <div id="cull" class="mt-4" style="scroll-margin-top: 0.5rem;">
+    <h6 class="text-muted">Login cull</h6>
+    <% if (!cull) { %>
+      <p class="small text-danger">Could not build the cull list: <%= cullError %></p>
+    <% } else { %>
+      <p class="small text-muted mb-2">
+        Once a month, our logins (linked to a player here, or signed up on this site) that have
+        gone a year without being used get an email. Logging in to either site, or the link in
+        the email, keeps them. A month after the email they are listed here.
+        <% if (cull.notify.length) { %>
+          <strong><%= cull.notify.length %></strong> will get the email at the next run.
+        <% } %>
+      </p>
+
+      <% if (cull.due.length) { %>
+        <form method="post" action="/admin/link-auth-accounts/delete-due">
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead><tr><th>Due for deletion (<%= cull.due.length %>)</th><th>Player</th><th>Last used</th><th>Why</th><th></th></tr></thead>
+              <tbody>
+                <% cull.due.forEach(function (e) { %>
+                  <tr>
+                    <td><code><%= e.user.email || e.user.user_id %></code>
+                      <input type="hidden" name="userId" value="<%= e.user.user_id %>"></td>
+                    <td><%= e.player ? (e.player.first_name + ' ' + e.player.family_name) : '—' %>
+                      <span class="small text-muted"><%= e.player ? (e.player.clubName || '') + (e.player.role ? ', ' + e.player.role : '') : '' %></span></td>
+                    <td class="small"><%= e.lastActive %></td>
+                    <td class="small text-muted"><%= e.reason %><%= e.notified ? ' (emailed ' + e.notified + ')' : '' %></td>
+                    <td><button type="submit" class="btn btn-link btn-sm p-0" form="keep-<%= e.user.user_id %>">keep</button></td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+          <button type="submit" class="btn btn-sm btn-danger"
+                  onclick="return confirm('Delete <%= cull.due.length %> login(s) from Auth0? They are gone from Stockport\'s site too.')">
+            Delete <%= cull.due.length %> <%= cull.due.length === 1 ? 'login' : 'logins' %>
+          </button>
+          <span class="small text-muted ms-2">From Auth0, which Stockport's site shares, and their link to a player here. Results are untouched.</span>
+        </form>
+        <% cull.due.forEach(function (e) { %>
+          <form id="keep-<%= e.user.user_id %>" method="post" action="/admin/link-auth-accounts/keep">
+            <input type="hidden" name="userId" value="<%= e.user.user_id %>">
+          </form>
+        <% }); %>
+      <% } else { %>
+        <p class="small text-success">Nothing due for deletion.</p>
+      <% } %>
+
+      <% if (cull.waiting.length) { %>
+        <details class="mt-2">
+          <summary><strong>Emailed, waiting (<%= cull.waiting.length %>)</strong></summary>
+          <ul class="small mt-2">
+            <% cull.waiting.forEach(function (e) { %>
+              <li><code><%= e.user.email %></code>
+                <%= e.player ? '→ ' + e.player.first_name + ' ' + e.player.family_name : '' %>,
+                emailed <%= e.notified %>, listed here from <%= e.expires %></li>
+            <% }); %>
+          </ul>
+        </details>
+      <% } %>
+    <% } %>
+  </div>
+
   <details class="mt-3">
-    <summary><strong>No login in <%= staleYears %> years (<%= data.stale.length %>)</strong></summary>
+    <summary><strong>Unlinked, no login in <%= staleYears %> years (<%= data.stale.length %>)</strong></summary>
     <p class="small text-muted mt-2">
-      Candidates for deleting from Auth0, along with <%= data.staleNotApproved %> of the
-      <%= data.notApproved %> accounts that were never approved. The tenant is shared, so
-      deleting one removes it from Stockport's site too.
+      Not linked to anyone here, so not ours to cull unless they signed up on this site (those
+      are in the cull above). Stockport's monthly cull covers the rest. Link one if it's ours.
     </p>
     <% if (data.stale.length) worklistTable(data.stale) %>
   </details>

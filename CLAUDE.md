@@ -546,6 +546,15 @@ address. Linking **never writes a role**, and the account comes from the tenant 
 from the form (`test/integration/auth-link.test.js`). Until Nov 2026 it was the August
 role-migration worklist and copied roles from the frozen Auth0 claims.
 
+**Unused logins are culled monthly** (`docs/login-cull.md`, Nov 2026). `GET /tasks/login-cull`
+emails our logins unused for a year; logging in to either site or the email's keep link
+keeps them; a month later the rest are listed on the Link Logins page for a superadmin to
+delete, from the shared tenant and from their player link. **Nothing is deleted
+automatically, by decision.** "Ours" is linked here, or unlinked and signed up here
+(`league = 'tameside'`); Stockport culls the rest and must skip anything in
+`player_auth_account`. The keep link is a GET showing a button and a POST doing it, because
+mail scanners prefetch.
+
 The classification rules live in `utils/authMigration.js` — committed, unlike the
 scripts, because the cross-league rule is the part worth keeping.
 
@@ -1792,6 +1801,8 @@ MAILJET_WEBHOOK_TOKEN  # Shared secret in the Mailjet event-callback URL
 SOCIAL_WEEKLY_FIXTURES_TOKEN  # Shared secret for the weekly fixtures post's scheduler job.
 SOCIAL_POST_FB_STORY  # 'true' also posts every Facebook Page post as a Page story. Unset
                    # posts none. See "Facebook Page stories" above.
+LOGIN_CULL_TOKEN   # Shared secret for the monthly login cull (/tasks/login-cull?t=...).
+                   # Unset means the route 404s. See docs/login-cull.md.
 SOCIAL_WEEKLY_VIDEO_TOKEN     # Shared secret for BOTH weekly-video routes (generate and
                    # post). Unset means that post is inert. One token per post rather than
                    # a shared one, so a post can be turned off on its own.

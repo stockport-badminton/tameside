@@ -1,0 +1,46 @@
+<mjml>
+  <mj-head>
+    <mj-include path="./_theme.mjml" />
+    <mj-title>Do you still use your league login?</mj-title>
+    <mj-preview>It has not been used for a year. Keep it with one click, or let it go.</mj-preview>
+  </mj-head>
+  <mj-body background-color="#eef0f4" width="600px">
+    <mj-include path="./_header.mjml" />
+    <mj-section padding="28px 0 0">
+      <mj-column>
+        <mj-text mj-class="h1">Do you still use your login?</mj-text>
+        <mj-text mj-class="lede" padding="10px 24px 0">
+          Hello<%= firstName ? ' ' + firstName : '' %>. Your login to the Tameside Badminton
+          League website (<%= email %>) has not been used since <%= lastActive %>. We delete
+          logins nobody uses, so that the list of people who can reach club contact details
+          and results entry stays short.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section padding="22px 24px 0">
+      <mj-column background-color="#f4f6f9" padding="18px 20px" border-radius="6px">
+        <mj-text mj-class="label" text-transform="uppercase" padding="0">To keep it</mj-text>
+        <mj-text padding="8px 0 0" font-size="14px">
+          Press the button below, or simply log in, before <%= deadline %>. Logging in to the
+          Stockport league&rsquo;s website counts too: it is the same login.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-section>
+      <mj-column>
+        <mj-button href="<%= keepUrl %>" css-class="cta">Keep my login</mj-button>
+      </mj-column>
+    </mj-section>
+    <mj-section><mj-column><mj-divider /></mj-column></mj-section>
+    <mj-section padding="0 0 26px">
+      <mj-column>
+        <mj-text mj-class="muted">
+          If you do nothing, the login will be deleted after <%= deadline %>, from this site
+          and from the Stockport league&rsquo;s. Your results stay where they are: they are the
+          league&rsquo;s record, not part of your login. You can sign up again at any time.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-include path="./_footer.mjml" />
+  </mj-body>
+</mjml>

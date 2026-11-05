@@ -465,6 +465,7 @@ let weekly_video_controller = require(__dirname + '/controllers/weeklyVideoContr
 let social_video_controller = require(__dirname + '/controllers/socialVideoController');
 const requireCronCaller = require(__dirname + '/middleware/requireCronCaller');
 let auth_link_controller = require(__dirname + '/controllers/authLinkController');
+let auth_cull_controller = require(__dirname + '/controllers/authCullController');
 const spamGate = require(__dirname + '/middleware/spamGate');
 let player_controller = require(__dirname + '/controllers/playerController');
 const roster_controller = require(__dirname + '/controllers/rosterController');
@@ -508,6 +509,17 @@ app.use(filterState.middleware)
     app.get('/tasks/missing-scorecards',
       access.cron(requireCronCaller({ envVar: 'MISSING_SCORECARDS_TOKEN', callerProp: 'cronCaller' })),
       missing_scorecards_controller.run);
+
+    // The monthly login cull: warns logins unused for a year (controllers/authCullController.js).
+    // Same gate as above. Unset LOGIN_CULL_TOKEN means inert. It deletes nothing.
+    app.get('/tasks/login-cull',
+      access.cron(requireCronCaller({ envVar: 'LOGIN_CULL_TOKEN', callerProp: 'cronCaller' })),
+      auth_cull_controller.run);
+
+    // The keep link in the cull's warning. Public because the person may not be able to log
+    // in; the token is the credential. The GET only shows a button: mail scanners prefetch.
+    app.get('/keep-login/:token', access.token('keep-login link'), auth_cull_controller.keepGet);
+    app.post('/keep-login/:token', access.token('keep-login link'), auth_cull_controller.keepPost);
 
     // `secured`, and no longer `ACL: 'public-read'`.
     //
@@ -714,12 +726,14 @@ app.post('/admin/site-settings', access.superadmin, site_settings_controller.upd
 
 // Blocklists and the submission log. `secured` proves someone is logged in; the controller
 // checks superadmin, same as the other /admin screens.
-// One-time worklist for the Auth0 -> player-table authorization migration. Superadmin
-// check is in the controller, as with every other /admin page.
+// Which player each login is, and the monthly login cull's review (controllers/
+// authLinkController.js, controllers/authCullController.js).
 app.get('/admin/link-auth-accounts', access.superadmin, auth_link_controller.list);
 app.post('/admin/link-auth-accounts', access.superadmin, auth_link_controller.link);
 app.post('/admin/link-auth-accounts/unlink', access.superadmin, auth_link_controller.unlink);
 app.post('/admin/link-auth-accounts/record-email-links', access.superadmin, auth_link_controller.recordEmailLinks);
+app.post('/admin/link-auth-accounts/keep', access.superadmin, auth_cull_controller.adminKeep);
+app.post('/admin/link-auth-accounts/delete-due', access.superadmin, auth_cull_controller.deleteDue);
 
 /* Chasing clubs for their team registration forms. Superadmin check is in the
    controller, as with every other /admin page. Status is per season and resets itself —
