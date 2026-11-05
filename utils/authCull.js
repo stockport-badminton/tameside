@@ -9,8 +9,9 @@
 //             'tameside', minus anything in our player_auth_account.
 //
 // `league` records where someone signed up, not whose they are: 15 accounts tagged
-// 'stockport' are linked to Tameside players, and Google signups carry no tag at all (the
-// pre-user-registration Action does not run for social logins). So the link decides, and
+// 'stockport' are linked to Tameside players, and Google signups before 5 Nov 2026 carry no
+// tag at all (the pre-user-registration Action does not run for social logins; a post-login
+// one tags them at signup since). So the link decides, and
 // the tag only covers the unlinked.
 //
 // Last-login is tenant-wide, so a login used on either site is not inactive here.

@@ -32,8 +32,10 @@ leaves none in both and none in neither (`utils/authCull.js`):
 
 `league` is where someone signed up, not whose they are. Measured 5 Nov 2026: 15 accounts
 tagged `stockport` are linked to Tameside players (people in both leagues), and Google
-signups carry no tag at all, because a pre-user-registration Action does not run for social
-logins. So the link decides, and the tag only covers the unlinked.
+signups before that date carry no tag at all, because a pre-user-registration Action does not
+run for social logins. A post-login Action now tags new social signups (an account created in
+the last hour), but older untagged ones stay untagged. So the link decides, and the tag only
+covers the unlinked.
 
 An account linked on both sides is idle only if it is idle on both, and then both sites
 may email it. Whichever deletes first wins; the other side's link becomes a dead row.

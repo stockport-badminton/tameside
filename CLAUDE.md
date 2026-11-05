@@ -469,8 +469,12 @@ That's what kept a ~46-call-site change small. Consequences worth knowing:
 - **`app_metadata.betaAccess` looks dead and is not.** Nothing in either repo reads it;
   a separate Auth0 **Action gates real login on it**, and the tenant is shared. The
   PATCH in `models/auth.js` must stay.
-- Auth0-side cleanup (dropping the Action/Rule that injects `role`/`club`/`stats`) is
-  **still outstanding** and is a two-site change — don't do it until both are stable.
+- **The "add metadata" post-login Action is detached (5 Nov 2026).** It copied
+  `app_metadata` `role`/`club`/`stats`/`messeradmin` into the ID token; both sites
+  overwrite all of those at login (league-site `app.js` fails the login instead of falling
+  back), and no other application in the tenant reads them. Delete it after a quiet week.
+  Still to do, as a two-site change: strip the stale `role`/`club`/`stats` keys from
+  `app_metadata` itself. Keep `betaAccess`, `league`, and Stockport's `messeradmin`/`team`.
 
 Approving a new signup and assigning a role are one step: `GET /approve-user/:userId`
 renders `views/approve-signup.ejs` (superadmin only, pure display), and the POST does
@@ -600,7 +604,10 @@ concrete argument for `player_auth_email`.
 
 **`app_metadata.league` is not an authorization signal.** It records which site someone
 signed up on (`stockport` | `tameside`, set on 51 of 203) and was an abandoned attempt
-at differentiating the two experiences. It was briefly used here as a second
+at differentiating the two experiences. The pre-user-registration Action that sets it never
+runs for social signups, so Google accounts had none; a post-login Action added 5 Nov 2026
+tags an account created in the last hour, i.e. at signup, never an old one. The login cull
+uses it for unlinked accounts only (`docs/login-cull.md`). It was briefly used here as a second
 cross-league test, which wrongly held back **8 genuine Tameside admins** whose accounts
 happened to carry `league=stockport` (Alderley Park, College Green, Disley — all real
 Tameside clubs). The club claim is the only signal;
