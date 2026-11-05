@@ -646,6 +646,21 @@
             </div>
              <div class="modal-body step step-14">
 
+                 <%# Shown on the summary whenever no photo is attached, and the first Submit
+                      without one only arms the button (see noPhotoGuard below). The photo was
+                      optional and said so only on failure, so a captain who typed the card in
+                      and never reached for the camera filed it without noticing: row 2320,
+                      5 Nov 2026. Still optional: a second press sends it. -%>
+                 <div id="no-photo-warning" class="alert alert-warning" role="alert" hidden>
+                   <strong>No scorecard photo attached.</strong>
+                   Every result is checked against the card, so please add a photo of it.
+                   If you can't right now, you can still submit and send the card to the
+                   results secretary later.
+                   <div class="mt-2">
+                     <button type="button" class="btn btn-sm btn-warning" id="no-photo-add">Add the photo</button>
+                   </div>
+                 </div>
+
                  <div class="form-group step-14">
                    <div id="FirstMensSummary" class="row">
                      <div class="col-4"></div>
@@ -1155,7 +1170,7 @@
           (alreadyUploaded ? show : hide)(byId('scoresheet-already-uploaded-msg'));
         }
         if (step > 4 && step < 14) summarise(step - 1);
-        if (step === 14) totals();
+        if (step === 14) { totals(); if (window.noPhotoGuard) window.noPhotoGuard.refresh(); }
         toShow.forEach(show);
         var focus = firstFocusable(toShow);
         if (focus) focus.focus();
@@ -1237,6 +1252,57 @@
       tblTrack('scorecard_step', { from: currentStep, to: targetStep, blocked: false });
       window.scorecardGoToStep(page);
     }
+    // Submitting with no photo takes two presses: the first arms the button and puts the
+    // summary's warning in front of the captain, the second sends. Not a confirm(): a
+    // native dialog on a phone reads as an error, and its OK is pressed without reading.
+    // An upload still running is guardSubmit's case (static/js/scorecard-upload.js), so
+    // this stands aside while one is, and counts guardSubmit's failed-upload message as
+    // the warning.
+    window.noPhotoGuard = (function () {
+      var form = document.getElementById('signupForm');
+      var button = document.getElementById('signup');
+      var warning = document.getElementById('no-photo-warning');
+      var label = button ? button.innerHTML : 'Submit';
+      var armed = false;
+
+      function hasPhoto() {
+        var url = document.getElementById('scoresheet-url');
+        return !!(url && url.value);
+      }
+
+      // Called on every arrival at the summary, so going back and adding a photo clears it.
+      function refresh() {
+        armed = false;
+        if (button) { button.innerHTML = label; button.classList.replace('btn-warning', 'btn-primary'); }
+        if (warning) { warning.hidden = hasPhoto(); warning.classList.remove('border-danger', 'border-3'); }
+      }
+
+      if (form) form.addEventListener('submit', function (e) {
+        if (hasPhoto() || window.scorecardUpload.busy()) return;
+        // A failed upload already said "press Submit to send it without the photo".
+        if (armed || window.scorecardUpload.warnedNoPhoto()) {
+          tblTrack('scorecard_submitted_without_photo', {}, { leaving: true });
+          return;
+        }
+        e.preventDefault();
+        armed = true;
+        button.textContent = 'Submit without a photo';
+        button.classList.replace('btn-primary', 'btn-warning');
+        warning.hidden = false;
+        warning.classList.add('border-danger', 'border-3');
+        warning.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+        tblTrack('scorecard_no_photo_warned', {});
+      });
+
+      var add = document.getElementById('no-photo-add');
+      if (add) add.addEventListener('click', function () {
+        tblTrack('scorecard_step', { from: 14, to: 13, blocked: false, reason: 'add_photo' });
+        window.scorecardGoToStep(13);
+      });
+
+      return { refresh: refresh };
+    })();
+
     document.addEventListener('click', function (e) {
       if (!e.target.closest || !e.target.closest('#signup')) return;
       var url = document.getElementById('scoresheet-url');

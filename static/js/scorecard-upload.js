@@ -56,8 +56,12 @@
   // once `scoresheet-url` holds its final value (ok) or the store has failed (not ok).
   // Settling twice is harmless, so a catch can always settle(false).
   var pending = [];
+  // guardSubmit has told the captain their upload failed and that Submit sends without it.
+  // Cleared by the next upload.
+  var toldNoPhoto = false;
 
   function begin() {
+    toldNoPhoto = false;
     var settle;
     var p = new Promise(function (resolve) { settle = resolve; });
     pending.push(p);
@@ -115,6 +119,7 @@
           HTMLFormElement.prototype.submit.call(form);
           return;
         }
+        toldNoPhoto = true;
         note.className = 'upload-wait-note d-block mt-2 text-danger';
         note.textContent = 'The photo did not upload, so nothing has been sent yet. Choose '
           + 'the photo again, or press Submit to send the scorecard without it.';
@@ -122,9 +127,15 @@
     });
   }
 
+  // Whether a photo is still being stored. The wizard's no-photo check stands aside while
+  // one is: guardSubmit owns that case.
+  function busy() { return pending.length > 0; }
+  // And it needs no second warning after this one.
+  function warnedNoPhoto() { return toldNoPhoto; }
+
   window.scorecardUpload = {
     signAndPut: signAndPut, convertIfDocument: convertIfDocument, CONVERTIBLE: CONVERTIBLE,
-    begin: begin, whenIdle: whenIdle, guardSubmit: guardSubmit,
+    begin: begin, whenIdle: whenIdle, guardSubmit: guardSubmit, busy: busy, warnedNoPhoto: warnedNoPhoto,
   };
   // The wizard's inline scripts call it by its bare name.
   window.convertIfDocument = convertIfDocument;
