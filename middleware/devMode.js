@@ -11,7 +11,8 @@
 // The mock defaults to a superadmin, but DEV_ROLE / DEV_CLUB / DEV_STATS override it:
 //
 //   DEV_MODE=true NODE_ENV=development DEV_ROLE=admin DEV_CLUB=Hyde npm run dev
-//   DEV_MODE=true NODE_ENV=development DEV_ROLE=none npm run dev
+//   DEV_MODE=true NODE_ENV=development DEV_ROLE=none npm run dev              (unlinked)
+//   DEV_MODE=true NODE_ENV=development DEV_ROLE=none DEV_CLUB=Hyde npm run dev (member)
 //
 // Worth having as env vars rather than a source edit, because the club-scoped admin
 // branch is a genuinely different site — different nav, different scoping, different
@@ -40,7 +41,13 @@ module.exports = function devMode(req, res, next) {
       statsAccess: process.env.DEV_STATS === 'false' ? 0 : 1,
     };
 
-    req.user = {
+    // DEV_ROLE=none with a DEV_CLUB is a member linked to a player at that club; without
+    // one, an unlinked login (what a Stockport account looks like here).
+    const linkRow = authRow || (process.env.DEV_CLUB
+      ? { id: 0, clubName: process.env.DEV_CLUB }
+      : null);
+
+    req.user = authz.applyPlayerLink({
       id: 'dev|local',
       displayName: 'Dev User',
       user_id: 'dev|local',
@@ -49,7 +56,7 @@ module.exports = function devMode(req, res, next) {
       // read undefined in production. Read the address through authz.userEmail().
       emails: [{ value: 'dev@local.test' }],
       _json: authz.applyRoleClaims({ email: 'dev@local.test' }, authRow),
-    };
+    }, linkRow);
   }
   next();
 };

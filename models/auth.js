@@ -70,7 +70,7 @@ exports.listUsers = async function({ refresh = false } = {}) {
     const res = await fetch(
       `https://${process.env.AUTH0_DOMAIN}/api/v2/users` +
       `?per_page=100&page=${page}&include_fields=true` +
-      `&fields=user_id,email,app_metadata,logins_count,last_login`,
+      `&fields=user_id,email,name,given_name,family_name,app_metadata,logins_count,last_login,created_at`,
       { headers: { Authorization: 'Bearer ' + apiKey } }
     );
     const batch = await res.json();
@@ -173,6 +173,9 @@ exports.approve_signup_post = async function(req, res, next){
       statsAccess: req.body.statsAccess == 1,
       authEmail: user.email
     });
+    // And the account itself, which is what a member's login is matched on
+    // (migrations/player-auth-account.sql).
+    await Player.linkAuthAccount(playerId, { userId: user.user_id });
 
     // Was a one-line "i've approved your access" with no indication of what to do next.
     // From was `website@` here and `results@` everywhere else; utils/mailer.js settles that.

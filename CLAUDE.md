@@ -509,16 +509,45 @@ of 19 on production — including `clone_season`'s body, byte-for-byte — and t
 backfilled. The 19th, **`validate-club-contact-fks.sql`, written 17 Sep "to be applied", had
 never been run**: nothing could say so until now.
 
-**Linking is a screen, not a spreadsheet**: `/admin/link-auth-accounts` (superadmin, in
-the Admin nav) is the worklist — it lists every Tameside role-holder still needing a
-player, offers a one-click link where the login email happens to match a contact email,
-and a search-and-link for the rest. The role it writes comes from the **tenant**, never
-from the form body, so a tampered POST can't mint a superadmin;
-`test/integration/auth-link.test.js` guards that. It also surfaces "roles with no
-matching Auth0 account", which is how a drifted link shows up.
+#### Which player is a login (Nov 2026)
+
+**Stockport approving someone lets them log in here.** `betaAccess` is one flag in the
+shared tenant, set by either site's approve page. Measured 5 Nov 2026: of 135 accounts able
+to log in, 83 had no player row here, 46 of them Stockport's. So "logged in" says nothing
+about being a Tameside player, and every `member` route is open to the other league.
+
+- **`player_auth_account`** (`migrations/player-auth-account.sql`) links an Auth0
+  `user_id` to a player. Keyed by account because the address is encrypted and can't be
+  indexed: matching every player by address would decrypt the table on every login (that
+  is why `getAuthRoleByEmail` stays limited to role-holders). The role lookup is unchanged.
+- **Login records the player on the profile as `req.user.tameside`** (`{ playerId, club }`,
+  `authz.applyPlayerLink`), NOT in the club claim — `hasClubAccess` reads the claim, so a
+  member carrying it would get a club admin's roster and form access. `club` is null at No
+  Club. The link lookup has its own catch in `app.js`: a failure costs the link, never the
+  role.
+- **Stats pages: superadmin sees all, a linked member their own club, nobody else**
+  (`authz.scopeStats`, `test/integration/stats-scoping.test.js`). The `statsAccess` flag is
+  no longer read for them. A session from before this has no `tameside`; a club admin's
+  falls back to their claim.
+- **A superadmin makes every link. No self-service claim, by decision**: anyone can pick
+  "Dave Lee from Hyde", and a login address often says nothing about who someone is.
+- **The `member` gate itself is still "logged in".** Narrowing it to "linked to a player"
+  would lock out captains with unlinked logins mid-season, so it waits until the screen
+  below has cleared them. Backlog.
+
+**Linking is a screen, not a spreadsheet**: `/admin/link-auth-accounts` (superadmin, "Link
+Logins" on `/admin`) lists every account that can log in: needs a player, probably
+Stockport's, no login in two years (deletion candidates — the tenant is shared, so deleting
+one removes it from Stockport too), and linked. Hints are the contact-address match and
+name matches; a match at No Club is labelled "parked", because the October seed clean-up
+parked ~200 Stockport rows there, so a Stockport account matching one is usually a
+namesake. Most accounts have no usable name at all: a password signup's `name` is its
+address. Linking **never writes a role**, and the account comes from the tenant by id, not
+from the form (`test/integration/auth-link.test.js`). Until Nov 2026 it was the August
+role-migration worklist and copied roles from the frozen Auth0 claims.
 
 The classification rules live in `utils/authMigration.js` — committed, unlike the
-scripts, because the two-signal cross-league rule is the part worth keeping.
+scripts, because the cross-league rule is the part worth keeping.
 
 Backfill (one-off, `scripts/` is gitignored). `audit-auth-roles.js` is read-only and
 runs on either side of the migration, reporting which mode it's in; `backfill` refuses

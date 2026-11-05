@@ -88,6 +88,17 @@ exports.player_detail = function(req, res) {
   })
 };
 
+// The stats pages' answer to a login that is not linked to a player at a club: the
+// Stockport accounts the shared Auth0 tenant lets in, and our own unlinked ones.
+function renderStatsNotLinked(res) {
+  res.status(403).render('stats-not-linked', {
+    static_path: '/static',
+    theme: process.env.THEME || 'flatly',
+    title: 'Stats',
+    pageDescription: 'Player and pair stats',
+  });
+}
+
 exports.all_player_stats = function (req, res,next){
   // console.log(Object.entries(req.params))
   const pattern = /(\bPremier(?!\s|-\d)|Division(?:-|\s))(\d+)/g;
@@ -135,11 +146,8 @@ exports.all_player_stats = function (req, res,next){
     divisionString = replacedMatches[0]
   }
   
-    // A club admin only sees their own club here; superadmins and no-role users see
-    // everything. Read off req.user rather than the session copy — same object after
-    // deserialize, and it drops a per-request log line that printed the whole
-    // identity into Cloud Run.
-    authz.scopeToAdminClub(req, searchObj);
+  // Superadmins see every club, a linked member their own club, nobody else anything.
+  if (!authz.scopeStats(req, searchObj)) return renderStatsNotLinked(res);
 
   // console.log(regexParams)
   console.log(searchObj)
@@ -207,18 +215,13 @@ exports.all_pair_stats = function (req, res,next){
       const [key, value] = str.split("-");
       return { ...acc, [key]: value };
     }, {});
-    // console.log(searchObj)
-    // console.log(req.session.user)
-    // A club admin only sees their own club here; superadmins and no-role users see
-    // everything. Read off req.user rather than the session copy — same object after
-    // deserialize, and it drops a per-request log line that printed the whole
-    // identity into Cloud Run.
-    authz.scopeToAdminClub(req, searchObj);
-    
   }
   else {
     searchObj = {}
   }
+  // After the filters, never inside their branch: it sat in the branch until Nov 2026,
+  // so the unfiltered /pair-stats was not scoped even for a club admin.
+  if (!authz.scopeStats(req, searchObj)) return renderStatsNotLinked(res);
   let divisionString = "All"
   if (replacedMatches.length > 0){
     divisionString = replacedMatches[0]

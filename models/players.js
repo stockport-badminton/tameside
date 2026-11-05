@@ -1263,6 +1263,118 @@ exports.getAuthRoleByEmail = async function(email) {
   return result[0];
 }
 
+// Which player this Auth0 account is, by account id (migrations/player-auth-account.sql).
+// Indexed, so unlike getAuthRoleByEmail it can cover every player, not just role-holders.
+// undefined when the account has not been linked.
+exports.getLinkedPlayerByAuthId = async function(userId) {
+  if (!userId) return undefined;
+  const result = await sql`
+    SELECT player.id::int AS id,
+           player.first_name,
+           player.family_name,
+           player.role,
+           player."statsAccess",
+           club.name AS "clubName"
+    FROM player_auth_account paa
+    JOIN player ON player.id = paa.player
+    LEFT JOIN club ON club.id = player.club
+    WHERE paa.user_id = ${userId}`;
+  return result[0];
+}
+
+// Link an Auth0 account to a player. Never touches the role: that is granted on the
+// player edit form or the approve page, from the player row, not from whoever links.
+//
+// Re-linking an account moves it (a correction). The address goes into
+// player_auth_email as well, because that is still what the role lookup matches on.
+exports.linkAuthAccount = async function(playerId, { userId, email }) {
+  return sql.begin(async (tx) => {
+    // A move, not a second link: the address leaves the previous player too, or the role
+    // lookup (which matches on it) would still find them.
+    const [prev] = await tx`SELECT player FROM player_auth_account WHERE user_id = ${userId}`;
+    if (prev && Number(prev.player) !== Number(playerId) && email) {
+      await tx`
+        DELETE FROM player_auth_email
+        WHERE player = ${prev.player}
+          AND LOWER(pgp_sym_decrypt(email, ${process.env.DB_ENCODE})::text) = LOWER(${email})`;
+    }
+    await tx`
+      INSERT INTO player_auth_account (user_id, player)
+      VALUES (${userId}, ${playerId})
+      ON CONFLICT (user_id) DO UPDATE SET player = EXCLUDED.player, created_at = now()`;
+    if (email) {
+      await tx`
+        INSERT INTO player_auth_email (player, email)
+        SELECT ${playerId}, pgp_sym_encrypt(${email}, ${process.env.DB_ENCODE})
+        WHERE NOT EXISTS (
+          SELECT 1 FROM player_auth_email
+          WHERE player = ${playerId}
+            AND LOWER(pgp_sym_decrypt(email, ${process.env.DB_ENCODE})::text) = LOWER(${email})
+        )`;
+    }
+    return [{ id: playerId }];
+  });
+}
+
+// Undo a link: the account id, and that address on that player. For a link made in
+// error, typically a Stockport account attached to a namesake here.
+exports.unlinkAuthAccount = async function(userId, email) {
+  return sql.begin(async (tx) => {
+    const [row] = await tx`DELETE FROM player_auth_account WHERE user_id = ${userId} RETURNING player`;
+    if (row && email) {
+      await tx`
+        DELETE FROM player_auth_email
+        WHERE player = ${row.player}
+          AND LOWER(pgp_sym_decrypt(email, ${process.env.DB_ENCODE})::text) = LOWER(${email})`;
+    }
+    return row ? [{ id: Number(row.player) }] : [];
+  });
+}
+
+// Every linked account, for the linking screen: account id -> player.
+exports.getAuthAccountIndex = async function() {
+  return sql`
+    SELECT paa.user_id AS "userId",
+           player.id::int AS id,
+           player.first_name,
+           player.family_name,
+           player.role,
+           club.name AS "clubName"
+    FROM player_auth_account paa
+    JOIN player ON player.id = paa.player
+    LEFT JOIN club ON club.id = player.club`;
+}
+
+// Every login address a superadmin has recorded, decrypted, with its player. The linking
+// screen treats these as links (they were written by the approve page, the August
+// backfill or this screen) and can copy them across as account-id links.
+exports.getAuthEmailIndex = async function() {
+  return sql`
+    SELECT LOWER(pgp_sym_decrypt(pae.email, ${process.env.DB_ENCODE})::text) AS email,
+           player.id::int AS id,
+           player.first_name,
+           player.family_name,
+           player.role,
+           club.name AS "clubName"
+    FROM player_auth_email pae
+    JOIN player ON player.id = pae.player
+    LEFT JOIN club ON club.id = player.club`;
+}
+
+// Name candidates for the linking screen's hints: every player bar "No Player" (id 0).
+exports.getNameIndex = async function() {
+  return sql`
+    SELECT player.id::int AS id,
+           player.first_name,
+           player.family_name,
+           club.name AS "clubName",
+           team.name AS "teamName"
+    FROM player
+    LEFT JOIN club ON club.id = player.club
+    LEFT JOIN team ON team.id = player.team
+    WHERE player.id <> 0`;
+}
+
 // Every login address recorded for a player, decrypted. For the linking screen, so it
 // can show what is already attached rather than implying a row holds only one.
 exports.getAuthEmails = async function(playerId) {

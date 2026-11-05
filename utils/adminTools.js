@@ -30,7 +30,7 @@ const GROUPS = [
       { href: '/static/docs/Team Registration.pdf', label: 'Team Registration (blank)', blurb: 'The empty form.', newTab: true, staticFile: true },
       { href: '/admin/clubs', label: 'Club Admin', blurb: 'Add and edit clubs.' },
       { href: '/admin/teams', label: 'Team Admin', blurb: 'Teams and their divisions — promote and relegate.' },
-      { href: '/admin/link-auth-accounts', label: 'Link Auth0 Accounts', blurb: 'Connect logins to players, so roles take effect.' },
+      { href: '/admin/link-auth-accounts', label: 'Link Logins', blurb: 'Which player each login is: roles, and own-club stats, depend on it.' },
     ],
   },
   {

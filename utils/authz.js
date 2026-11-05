@@ -96,6 +96,48 @@ function scopeToAdminClub(req, searchObj) {
   return searchObj;
 }
 
+// The player this login is, recorded on the profile at login (app.js verify callback)
+// alongside the claims. A separate field rather than CLUB_CLAIM on purpose: that claim
+// is what hasClubAccess reads, so a member carrying it would get the club admin's roster
+// and registration-form access too. `club` is null for a player at the No Club
+// placeholder, which is the league's archive and not a club anyone belongs to.
+//
+// `row` is what Player.getLinkedPlayerByAuthId returns; null/undefined means unlinked.
+const NO_CLUB = 'No Club';
+
+function applyPlayerLink(user, row) {
+  user.tameside = row
+    ? { playerId: row.id, club: row.clubName && row.clubName !== NO_CLUB ? row.clubName : null }
+    : null;
+  return user;
+}
+
+// The club whose stats this login may see: the linked player's club. A session from
+// before linking existed carries no `tameside`, so a club admin falls back to their claim
+// rather than losing access until they next log in. undefined for everyone else.
+function memberClub(req) {
+  const user = req && req.user;
+  if (!user) return undefined;
+  // null means looked up and unlinked (or at No Club); only a missing field is old.
+  if (user.tameside !== undefined) return (user.tameside && user.tameside.club) || undefined;
+  const club = isAdmin(req) ? userClub(req) : undefined;
+  return club && club !== 'All' && club !== NO_CLUB ? club : undefined;
+}
+
+// Who may see /player-stats and /pair-stats, and how much (Nov 2026): a superadmin sees
+// every club; anyone linked to a player at a club sees that club; nobody else, including
+// the Stockport accounts the shared Auth0 tenant lets log in here. Overwrites any club
+// in the filters, because the model matches it with LIKE and `club-%25` is a filter.
+//
+// Returns false when the caller may see nothing.
+function scopeStats(req, searchObj) {
+  if (isSuperAdmin(req)) return true;
+  const club = memberClub(req);
+  if (!club) return false;
+  searchObj.club = club;
+  return true;
+}
+
 // The logged-in user's email address, for "who did this" fields.
 //
 // A passport-auth0 profile has NO `email` property — the address is in `emails[0].value`
@@ -117,6 +159,9 @@ module.exports = {
   hasClubAccess,
   hasStatsAccess,
   scopeToAdminClub,
+  applyPlayerLink,
+  memberClub,
+  scopeStats,
   SUPERADMIN_CLAIM,
   ROLE_CLAIM,
   CLUB_CLAIM,

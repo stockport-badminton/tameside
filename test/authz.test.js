@@ -185,3 +185,52 @@ describeUE('userEmail', () => {
     assertUE.deepStrictEqual(hits, []);
   });
 });
+
+// Own-club stats for members (Nov 2026). The player link is a separate field from the
+// club claim on purpose: hasClubAccess reads the claim, so a member carrying it would
+// get a club admin's roster and registration-form access too.
+describe('the player link and own-club stats', () => {
+  const linked = (club, json = {}) => ({ user: authz.applyPlayerLink({ _json: json }, club === undefined ? null : { id: 7, clubName: club }) });
+
+  it('records the linked player\'s club, and nothing for No Club', () => {
+    assert.deepStrictEqual(linked('Hyde').user.tameside, { playerId: 7, club: 'Hyde' });
+    assert.deepStrictEqual(linked('No Club').user.tameside, { playerId: 7, club: null });
+    assert.strictEqual(linked(undefined).user.tameside, null);
+  });
+
+  it('does not touch the club claim', () => {
+    const req = linked('Hyde');
+    assert.strictEqual(authz.userClub(req), undefined);
+    assert.strictEqual(authz.hasClubAccess(req, 'Hyde'), false);
+  });
+
+  it('memberClub: the linked club, or nothing', () => {
+    assert.strictEqual(authz.memberClub(linked('Hyde')), 'Hyde');
+    assert.strictEqual(authz.memberClub(linked('No Club')), undefined);
+    assert.strictEqual(authz.memberClub(linked(undefined)), undefined);
+    assert.strictEqual(authz.memberClub({}), undefined);
+  });
+
+  it('memberClub: a club admin\'s session from before linking falls back to the claim', () => {
+    assert.strictEqual(authz.memberClub(reqWith({ [ROLE]: 'admin', [CLUB]: 'Hyde' })), 'Hyde');
+    assert.strictEqual(authz.memberClub(reqWith({ [ROLE]: 'admin', [CLUB]: 'No Club' })), undefined);
+    assert.strictEqual(authz.memberClub(reqWith({ [ROLE]: 'superadmin', [CLUB]: 'All' })), undefined);
+    // A lookup that found no player is an answer, not a missing field: no fallback.
+    assert.strictEqual(authz.memberClub(linked(undefined, { [ROLE]: 'admin', [CLUB]: 'Hyde' })), undefined);
+  });
+
+  it('scopeStats: superadmin unscoped, member forced to own club, unlinked refused', () => {
+    const all = {};
+    assert.strictEqual(authz.scopeStats(reqWith({ [ROLE]: 'superadmin', [CLUB]: 'All' }), all), true);
+    assert.strictEqual(all.club, undefined);
+
+    // The model matches club with LIKE, so a filter of '%' would be every club.
+    const filters = { club: '%' };
+    assert.strictEqual(authz.scopeStats(linked('Hyde'), filters), true);
+    assert.strictEqual(filters.club, 'Hyde');
+
+    const none = {};
+    assert.strictEqual(authz.scopeStats(linked(undefined), none), false);
+    assert.strictEqual(authz.scopeStats(reqWith({}), none), false);
+  });
+});

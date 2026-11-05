@@ -1,11 +1,10 @@
-// /admin/link-auth-accounts — the worklist that moves site roles from Auth0
-// app_metadata onto the player table.
+// /admin/link-auth-accounts — which player is each login (controllers/authLinkController.js).
 //
-// The classification rule under test took a live tenant dump to get right: the Auth0
-// tenant is shared with the Stockport league site, so most accounts in it are not ours.
-// "Not ours" is decided solely by whether the claimed club exists in this league —
-// app_metadata.league looks like it should help and must not be used, see
-// utils/authMigration.js.
+// Widened in Nov 2026 from the August role-migration worklist to every account that can
+// log in. The Auth0 tenant is shared with the Stockport league site, so most accounts in
+// it are not ours, and Stockport approving someone lets them log in here. The properties
+// that matter: a superadmin makes every link, the account comes from the tenant rather
+// than the form, and linking never writes a role.
 const { describe, it, before, after, afterEach, mock } = require('node:test');
 const assert = require('node:assert');
 const request = require('supertest');
@@ -15,246 +14,234 @@ const Auth = require('../../models/auth');
 
 afterEach(() => { clearModels(); mock.restoreAll(); });
 
-const CLUBS = [{ id: 1, name: 'Hyde' }, { id: 2, name: 'Aerospace' }, { id: 3, name: 'College Green' }];
+const NOW = Date.parse('2026-11-05T12:00:00Z');
+const RECENT = '2026-10-01T00:00:00Z';
+const LONG_AGO = '2023-09-01T00:00:00Z';
 
-// A tenant sample with one of each interesting shape.
+const CLUBS = [{ id: 1, name: 'Hyde' }, { id: 2, name: 'Aerospace' }, { id: 63, name: 'No Club' }];
+
 const TENANT = [
-  // Ours: club is a Tameside club, no league key.
-  { user_id: 'auth0|1', email: 'ours@example.com', logins_count: 5, last_login: '2026-08-01T00:00:00Z',
-    app_metadata: { role: 'admin', club: 'Hyde' } },
-  // Ours, and matchable by playerEmail — should come through as a proposal.
-  { user_id: 'auth0|2', email: 'matched@example.com', logins_count: 9, last_login: '2026-08-02T00:00:00Z',
-    app_metadata: { role: 'admin', club: 'Aerospace', stats: true } },
-  // Other league: club Tameside has never heard of.
-  { user_id: 'auth0|3', email: 'stockport@example.com', logins_count: 3, last_login: null,
-    app_metadata: { role: 'admin', club: 'Cheadle Hulme' } },
-  // Ours, despite league=stockport: that key recorded which site someone signed up on,
-  // not who administers what, so it is deliberately ignored. Treating it as an
-  // authorization signal held back 8 genuine Tameside admins.
-  { user_id: 'auth0|4', email: 'both@example.com', logins_count: 76, last_login: '2026-08-27T00:00:00Z',
-    app_metadata: { role: 'admin', club: 'College Green', league: 'stockport' } },
-  // Not a role-holder at all — must not appear anywhere.
-  { user_id: 'auth0|5', email: 'nobody@example.com', logins_count: 1, last_login: null,
+  // Linked by account id.
+  { user_id: 'auth0|linked', email: 'linked@example.com', logins_count: 5, last_login: RECENT,
+    app_metadata: { betaAccess: true } },
+  // Linked by address only: approve page or the August backfill.
+  { user_id: 'google-oauth2|addr', email: 'addr@example.com', logins_count: 2, last_login: RECENT,
+    app_metadata: { betaAccess: true } },
+  // Ours, unlinked, and the login address is a player's contact address.
+  { user_id: 'auth0|contact', email: 'contact@example.com', logins_count: 9, last_login: RECENT,
+    app_metadata: { betaAccess: true, role: 'admin', club: 'Hyde' } },
+  // Unlinked, with a real name in Auth0.
+  { user_id: 'auth0|named', email: 'dl@example.com', given_name: 'Dave', family_name: 'Lee',
+    logins_count: 3, last_login: RECENT, app_metadata: { betaAccess: true } },
+  // Stockport: an old claim over a club we don't have.
+  { user_id: 'auth0|stockport', email: 'stockport@example.com', logins_count: 3, last_login: RECENT,
+    app_metadata: { betaAccess: true, role: 'admin', club: 'Cheadle Hulme' } },
+  // Stockport: signed up on their site, no claim.
+  { user_id: 'auth0|signup', email: 'signup@example.com', logins_count: 1, last_login: RECENT,
+    app_metadata: { betaAccess: true, league: 'stockport' } },
+  // No login for three years.
+  { user_id: 'auth0|stale', email: 'stale@example.com', logins_count: 4, last_login: LONG_AGO,
+    app_metadata: { betaAccess: true } },
+  // Never approved, never logged in, long ago.
+  { user_id: 'auth0|pending', email: 'pending@example.com', logins_count: 0, last_login: null,
+    created_at: LONG_AGO, app_metadata: {} },
+  // Its address is recorded against two different players: not a link.
+  { user_id: 'auth0|dup', email: 'dup@example.com', logins_count: 1, last_login: RECENT,
     app_metadata: { betaAccess: true } },
 ];
 
-// The worklist resolves every account from two bulk indexes rather than a query per
-// account — that difference is what took the page from 12s to 0.09s, so the stubs are
-// the bulk shape.
-function stubTenant({ roleIndex = [] } = {}) {
+const PLAYER = (id, first, family, clubName, teamName) =>
+  ({ id, first_name: first, family_name: family, clubName, teamName, role: null });
+
+function stubTenant() {
   mock.method(Auth, 'listUsers', async () => TENANT);
   setModel('Club', 'getAll', (cb) => cb(null, CLUBS));
-  setModel('Player', 'getSiteRoleEmailIndex', async () => roleIndex);
+  setModel('Player', 'getAuthAccountIndex', async () => ([
+    { userId: 'auth0|linked', ...PLAYER(1, 'Lin', 'Ked', 'Hyde') },
+  ]));
+  setModel('Player', 'getAuthEmailIndex', async () => ([
+    { email: 'addr@example.com', ...PLAYER(2, 'Ad', 'Dress', 'Aerospace') },
+    { email: 'dup@example.com', ...PLAYER(3, 'One', 'Person', 'Hyde') },
+    { email: 'dup@example.com', ...PLAYER(4, 'Other', 'Person', 'Hyde') },
+  ]));
   setModel('Player', 'getContactEmailIndex', async () => ([
-    { id: 77, first_name: 'Match', family_name: 'Ed', clubName: 'Aerospace',
-      teamName: 'Aerospace A', playerEmail: 'matched@example.com' },
+    { ...PLAYER(77, 'Con', 'Tact', 'Hyde', 'Hyde A'), playerEmail: 'contact@example.com' },
+  ]));
+  setModel('Player', 'getNameIndex', async () => ([
+    PLAYER(10, 'Dave', 'Lee', 'Hyde', 'Hyde B'),
+    // A parked namesake, as the October seed clean-up left ~200 of.
+    PLAYER(11, 'Dave', 'Lee', 'No Club', 'No Team'),
+    PLAYER(12, 'Someone', 'Else', 'Hyde', 'Hyde A'),
   ]));
 }
 
+function asUser(env, fn) {
+  return async () => {
+    const keys = ['DEV_MODE', 'DEV_ROLE', 'DEV_CLUB'];
+    const saved = Object.fromEntries(keys.map(k => [k, process.env[k]]));
+    for (const k of keys) delete process.env[k];
+    Object.assign(process.env, env);
+    try { await fn(); } finally {
+      for (const k of keys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
+    }
+  };
+}
+const SUPERADMIN = { DEV_MODE: 'true', DEV_ROLE: 'superadmin' };
+const CLUB_ADMIN = { DEV_MODE: 'true', DEV_ROLE: 'admin', DEV_CLUB: 'Hyde' };
+
+function noWrites() {
+  for (const m of ['linkAuthAccount', 'unlinkAuthAccount', 'setAuthRole']) {
+    setModel('Player', m, async () => { throw new Error(m + ' must not be called'); });
+  }
+}
+
+async function worklist() {
+  const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
+  return _buildWorklistForTesting({ now: NOW });
+}
+
 describe('gating', () => {
-  it('unauthenticated -> 302 /login', async () => {
-    delete process.env.DEV_MODE;
+  it('unauthenticated -> 302 /login', asUser({}, async () => {
     const res = await request(app).get('/admin/link-auth-accounts');
     assert.strictEqual(res.status, 302);
     assert.match(res.headers.location, /\/login/);
-  });
+  }));
 
-  it('a club admin gets 403, not the worklist', async () => {
-    process.env.DEV_MODE = 'true';
-    process.env.DEV_ROLE = 'admin';
-    process.env.DEV_CLUB = 'Hyde';
-    try {
-      const res = await request(app).get('/admin/link-auth-accounts');
+  for (const [method, url] of [
+    ['get', '/admin/link-auth-accounts'],
+    ['post', '/admin/link-auth-accounts'],
+    ['post', '/admin/link-auth-accounts/unlink'],
+    ['post', '/admin/link-auth-accounts/record-email-links'],
+  ]) {
+    it(`a club admin gets 403 from ${method.toUpperCase()} ${url}, and nothing is written`, asUser(CLUB_ADMIN, async () => {
+      stubTenant();
+      noWrites();
+      const res = await request(app)[method](url).type('form').send({ userId: 'auth0|named', playerId: '10' });
       assert.strictEqual(res.status, 403);
-    } finally {
-      delete process.env.DEV_MODE;
-      delete process.env.DEV_ROLE;
-      delete process.env.DEV_CLUB;
-    }
-  });
+    }));
+  }
 });
 
-describe('worklist classification', () => {
+describe('worklist', () => {
   before(() => { process.env.DEV_MODE = 'true'; });
   after(() => { delete process.env.DEV_MODE; });
 
-  it('splits ours from the other league, and ignores non-role-holders', async () => {
+  it('sorts every approved account into exactly one group', async () => {
     stubTenant();
-    const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
-    const data = await _buildWorklistForTesting();
-
-    assert.deepStrictEqual(data.ours.map(e => e.email).sort(),
-      ['both@example.com', 'matched@example.com', 'ours@example.com']);
-    // Only signal: the claimed club is not one of ours.
-    assert.deepStrictEqual(data.otherLeague.map(e => e.email), ['stockport@example.com']);
-    // betaAccess alone is not authorization.
-    const all = [...data.ours, ...data.otherLeague].map(e => e.email);
-    assert.ok(!all.includes('nobody@example.com'));
+    const data = await worklist();
+    const ids = list => list.map(e => e.userId).sort();
+    assert.deepStrictEqual(ids(data.linked), ['auth0|linked']);
+    assert.deepStrictEqual(ids(data.emailOnly), ['google-oauth2|addr']);
+    assert.deepStrictEqual(ids(data.needsPlayer), ['auth0|contact', 'auth0|dup', 'auth0|named']);
+    assert.deepStrictEqual(ids(data.otherLeague), ['auth0|signup', 'auth0|stockport']);
+    assert.deepStrictEqual(ids(data.stale), ['auth0|stale']);
+    assert.strictEqual(data.canLogIn, 8);
+    // Not approved: counted, never listed. It can't log in.
+    assert.strictEqual(data.notApproved, 1);
+    assert.strictEqual(data.staleNotApproved, 1);
   });
 
-  it('ignores app_metadata.league entirely', async () => {
-    // It recorded signup origin, was set on only a quarter of accounts, and says
-    // nothing about who administers what — a person can sign up on one site and run a
-    // team in the other. Classifying on it wrongly excluded 8 real Tameside admins.
+  it('an address recorded against two players is not a link', async () => {
     stubTenant();
-    const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
-    const data = await _buildWorklistForTesting();
-
-    const flagged = data.ours.find(e => e.email === 'both@example.com');
-    assert.ok(flagged, 'league=stockport must not exclude an account whose club is ours');
-    assert.strictEqual(flagged.target.role, 'admin');
+    const data = await worklist();
+    assert.ok(data.needsPlayer.some(e => e.userId === 'auth0|dup'));
   });
 
-  it('proposes a link where the login email matches a contact email', async () => {
+  it('offers the contact-address match first', async () => {
     stubTenant();
-    const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
-    const data = await _buildWorklistForTesting();
-
-    const matched = data.ours.find(e => e.email === 'matched@example.com');
-    assert.strictEqual(matched.proposed.id, 77);
-    // The proposal's club agrees with the claim, which is the strong case.
-    assert.strictEqual(matched.proposed.clubMatchesClaim, true);
-
-    const unmatched = data.ours.find(e => e.email === 'ours@example.com');
-    assert.strictEqual(unmatched.proposed, null);
+    const data = await worklist();
+    const e = data.needsPlayer.find(x => x.userId === 'auth0|contact');
+    assert.strictEqual(e.contactMatch.id, 77);
   });
 
-  it('recognises an account already linked via authEmail', async () => {
-    // authEmail is the link the login lookup matches on, and it is usually NOT the
-    // player's contact address — so a linked account must be recognised by it alone.
-    stubTenant({ roleIndex: [
-      { id: 5, first_name: 'Al', family_name: 'Ready', role: 'admin', statsAccess: 0,
-        clubName: 'Hyde', authEmails: ['ours@example.com'], playerEmail: 'something.else@example.com' },
-    ] });
-    const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
-    const data = await _buildWorklistForTesting();
-
-    const linked = data.ours.find(e => e.email === 'ours@example.com');
-    assert.strictEqual(linked.linked.id, 5);
-    assert.strictEqual(linked.linked.name, 'Al Ready');
-    assert.strictEqual(data.linkedCount, 1);
-    // Already linked, so no proposal should be computed for it.
-    assert.strictEqual(linked.proposed, null);
+  it('hints by name, and labels a parked namesake', async () => {
+    stubTenant();
+    const data = await worklist();
+    const e = data.needsPlayer.find(x => x.userId === 'auth0|named');
+    assert.deepStrictEqual(e.hints.map(h => [h.id, h.parked]), [[10, false], [11, true]]);
   });
 
-  it('resolves every login address a player holds, not just the first', async () => {
-    // One person, several Auth0 identities: the league results mailbox exists as both
-    // stockport.badders.results@ and tameside.badders.results@, and both are superadmin.
-    // The single-column version could only record one, so the other silently lost its
-    // role — see migrations/player-auth-email.sql.
-    stubTenant({ roleIndex: [
-      { id: 9, first_name: 'Multi', family_name: 'Login', role: 'superadmin', statsAccess: 0,
-        clubName: 'Hyde',
-        authEmails: ['ours@example.com', 'both@example.com'],
-        playerEmail: null },
-    ] });
-    const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
-    const data = await _buildWorklistForTesting();
-
-    for (const email of ['ours@example.com', 'both@example.com']) {
-      const entry = data.ours.find(e => e.email === email);
-      assert.strictEqual(entry.linked.id, 9, `${email} must resolve to the same player`);
-      assert.strictEqual(entry.linked.authEmails.length, 2);
-    }
-    // Both addresses reach one player, so only one of the three is left pending.
-    assert.strictEqual(data.linkedCount, 2);
+  it('gives no hints when Auth0 has no real name (a password signup\'s name is its address)', async () => {
+    stubTenant();
+    const data = await worklist();
+    const e = data.needsPlayer.find(x => x.userId === 'auth0|dup');
+    assert.strictEqual(e.name, null);
+    assert.deepStrictEqual(e.hints, []);
   });
 
-  it('queries a fixed number of times, not once per account', async () => {
-    // The regression this guards: resolving each account with its own pair of queries
-    // made ~180 sequential round-trips for 90 accounts and a 12-second render. The
-    // query count must not scale with the tenant.
-    let roleCalls = 0, contactCalls = 0;
-    mock.method(Auth, 'listUsers', async () => TENANT);
-    setModel('Club', 'getAll', (cb) => cb(null, CLUBS));
-    setModel('Player', 'getSiteRoleEmailIndex', async () => { roleCalls++; return []; });
-    setModel('Player', 'getContactEmailIndex', async () => { contactCalls++; return []; });
-    // Would be called once per account by the old implementation.
-    setModel('Player', 'getAuthRoleByEmail', async () => {
-      throw new Error('per-account query — the bulk index should be used instead');
-    });
-
-    const { _buildWorklistForTesting } = require('../../controllers/authLinkController');
-    const data = await _buildWorklistForTesting();
-
-    assert.strictEqual(roleCalls, 1);
-    assert.strictEqual(contactCalls, 1);
-    assert.ok(data.ours.length >= 3, 'sanity: the sample has accounts to resolve');
-  });
-
-  it('renders with the real counts', async () => {
+  it('renders', asUser(SUPERADMIN, async () => {
     stubTenant();
     const res = await request(app).get('/admin/link-auth-accounts');
     assert.strictEqual(res.status, 200);
-    assert.match(res.text, /0 of 3 linked/);
-    assert.match(res.text, /Other league — not our work \(1\)/);
-  });
+    assert.match(res.text, /2 of 8 logins linked/);
+    assert.match(res.text, /Needs a player \(3\)/);
+    assert.match(res.text, /Probably Stockport&#39;s \(2\)|Probably Stockport's \(2\)/);
+    assert.match(res.text, /Record 1 account links/);
+  }));
 });
 
 describe('linking', () => {
-  before(() => { process.env.DEV_MODE = 'true'; });
-  after(() => { delete process.env.DEV_MODE; });
-
-  it('writes the role from the TENANT, not from the form body', async () => {
-    // The security property that matters here. The form is a worklist; if it were also
-    // the authority on what role to grant, a tampered POST could mint a superadmin.
+  it('links the account the TENANT names, and never writes a role', asUser(SUPERADMIN, async () => {
     stubTenant();
+    noWrites();
     let seen;
-    setModel('Player', 'setAuthRole', async (id, opts) => { seen = { id, opts }; return [{ id }]; });
+    setModel('Player', 'linkAuthAccount', async (id, opts) => { seen = { id, opts }; return [{ id }]; });
 
-    const res = await request(app)
-      .post('/admin/link-auth-accounts')
-      .type('form')
-      .send({ email: 'ours@example.com', playerId: '42', role: 'superadmin', statsAccess: '1' });
+    const res = await request(app).post('/admin/link-auth-accounts').type('form')
+      .send({ userId: 'auth0|named', playerId: '10', email: 'forged@example.com', role: 'superadmin' });
 
     assert.strictEqual(res.status, 302);
-    assert.strictEqual(seen.id, 42);
-    assert.strictEqual(seen.opts.role, 'admin');        // tenant says admin
-    assert.strictEqual(seen.opts.statsAccess, false);   // tenant has no stats flag
-    // The whole point: record the address this identity logs in with.
-    assert.strictEqual(seen.opts.authEmail, 'ours@example.com');
-  });
+    assert.strictEqual(seen.id, 10);
+    assert.deepStrictEqual(seen.opts, { userId: 'auth0|named', email: 'dl@example.com' });
+  }));
 
-  it('carries the stats flag when the tenant has it', async () => {
+  it('404s an account that is not in the tenant', asUser(SUPERADMIN, async () => {
     stubTenant();
-    let seen;
-    setModel('Player', 'setAuthRole', async (id, opts) => { seen = { id, opts }; return [{ id }]; });
-
-    await request(app).post('/admin/link-auth-accounts').type('form')
-      .send({ email: 'matched@example.com', playerId: '77' });
-    assert.strictEqual(seen.opts.statsAccess, true);
-  });
-
-  it('refuses an other-league account even if posted directly', async () => {
-    stubTenant();
-    setModel('Player', 'setAuthRole', async () => { throw new Error('must not write'); });
+    noWrites();
     const res = await request(app).post('/admin/link-auth-accounts').type('form')
-      .send({ email: 'stockport@example.com', playerId: '42' });
-    assert.strictEqual(res.status, 400);
-  });
-
-  it('accepts an account carrying league=stockport whose club is ours', async () => {
-    stubTenant();
-    let seen;
-    setModel('Player', 'setAuthRole', async (id, opts) => { seen = { id, opts }; return [{ id }]; });
-    const res = await request(app).post('/admin/link-auth-accounts').type('form')
-      .send({ email: 'both@example.com', playerId: '2026' });
-    assert.strictEqual(res.status, 302);
-    assert.strictEqual(seen.opts.role, 'admin');
-  });
-
-  it('404s an email that is not in the tenant', async () => {
-    stubTenant();
-    setModel('Player', 'setAuthRole', async () => { throw new Error('must not write'); });
-    const res = await request(app).post('/admin/link-auth-accounts').type('form')
-      .send({ email: 'invented@example.com', playerId: '42' });
+      .send({ userId: 'auth0|invented', playerId: '10' });
     assert.strictEqual(res.status, 404);
-  });
+  }));
 
-  it('400s without a player', async () => {
+  it('400s without a player', asUser(SUPERADMIN, async () => {
     stubTenant();
+    noWrites();
     const res = await request(app).post('/admin/link-auth-accounts').type('form')
-      .send({ email: 'ours@example.com' });
+      .send({ userId: 'auth0|named' });
     assert.strictEqual(res.status, 400);
-  });
+  }));
+
+  it('400s a player id that does not exist', asUser(SUPERADMIN, async () => {
+    stubTenant();
+    setModel('Player', 'linkAuthAccount', async () => {
+      const err = new Error('insert or update violates foreign key constraint');
+      err.code = '23503';
+      throw err;
+    });
+    const res = await request(app).post('/admin/link-auth-accounts').type('form')
+      .send({ userId: 'auth0|named', playerId: '999999' });
+    assert.strictEqual(res.status, 400);
+  }));
+
+  it('unlinks with the tenant\'s address for that account', asUser(SUPERADMIN, async () => {
+    stubTenant();
+    noWrites();
+    let seen;
+    setModel('Player', 'unlinkAuthAccount', async (userId, email) => { seen = [userId, email]; return []; });
+    const res = await request(app).post('/admin/link-auth-accounts/unlink').type('form')
+      .send({ userId: 'auth0|linked', email: 'forged@example.com' });
+    assert.strictEqual(res.status, 302);
+    assert.deepStrictEqual(seen, ['auth0|linked', 'linked@example.com']);
+  }));
+
+  it('records account ids for exactly the address-only links, whatever the form says', asUser(SUPERADMIN, async () => {
+    stubTenant();
+    noWrites();
+    const seen = [];
+    setModel('Player', 'linkAuthAccount', async (id, opts) => { seen.push([id, opts.userId]); return [{ id }]; });
+    const res = await request(app).post('/admin/link-auth-accounts/record-email-links').type('form')
+      .send({ userId: 'auth0|named', playerId: '1' });
+    assert.strictEqual(res.status, 302);
+    assert.deepStrictEqual(seen, [[2, 'google-oauth2|addr']]);
+  }));
 });
