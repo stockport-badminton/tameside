@@ -1367,12 +1367,6 @@ exports.setAuthRole = async function(playerId, { role, statsAccess, authEmail } 
     RETURNING id`;
 }
 
-exports.getPlayerClubandTeamById = async function(playerId,done){
-  let result = await sql`select "playerId", "playerName", "clubName", team.name as "teamName", date_of_registration from (select "playerId", "playerName", club.name as "clubName", "teamId", date_of_registration from (select player.id as "playerId", concat(player.first_name, ' ', player.family_name) as "playerName", player.club as "clubId", player.team as "teamId", player.date_of_registration from player where id = ${playerId}) as a join club where "clubId" = club.id) as b join team where "teamId" = team.id`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
-}
 
 // GET
 

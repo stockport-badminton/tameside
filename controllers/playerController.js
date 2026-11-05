@@ -255,20 +255,6 @@ exports.all_pair_stats = function (req, res,next){
   })
 }
 
-// Display Player create form on GET
-exports.player_create_get = function(req, res, next) {
-  async.parallel({
-    clubs:function(callback){
-      Club.getAll(callback);
-    },
-  }, function(err,results){
-    if(err){return next(err)};
-    // console.log(results);
-    res.render('player_form', { title: 'Create Player', pageDescription: 'Create a Player', static_path:'/static', theme:'flatly',club_list:results.clubs });
-  })
-
-};
-
 /* retrospectively populating game ranking scores. 
 * for each fixture (ordered by date)
 * for each game of that fixture
@@ -679,29 +665,6 @@ exports.player_elo_audit = async function(req, res, next) {
   }
 }
 
-// Handle Player create on POST
-exports.player_create = function(req,res){
-  Player.create(req.body.first_name, req.body.family_name, req.body.team, req.body.club, req.body.gender, function(err,row){
-    if (err){
-      res.send(err);
-    }
-    else {
-      // console.log(row);
-      Player.getPlayerClubandTeamById(row.insertId,function(err,rows){
-        if (err){
-          res.send(err)
-        }
-        else{
-          res.render('player_form', { title: 'Create Player', pageDescription: 'Create a Player', static_path:'/static', theme:'flatly',result:req.body, row:rows });
-          // console.log(req.body);
-          // console.log(rows);
-        }
-      })
-
-    }
-  })
-
-}
 
 
 

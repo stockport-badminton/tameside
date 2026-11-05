@@ -588,8 +588,9 @@ app.get('/privacy-policy', access.public, static_controller.privacy_policy)
 // nothing ever linked to it. Same shape as the /SESemail endpoint Stockport removed.
 app.get('/event/:id(\\d+)/:date-:homeTeam-:awayTeam', access.public, fixture_controller.fixture_event_detail);
 
-/* POST request for batch creating Fixture. */
-app.post('/fixture/rearrangement', access.member, fixture_controller.fixture_rearrange_by_team_name);
+// Superadmin only, which is all the results grid has ever offered the Rearrange link to.
+// It was any logged-in member, so anyone could rearrange any outstanding fixture by POST.
+app.post('/fixture/rearrangement', access.superadmin, fixture_controller.fixture_rearrange_by_team_name);
 
 // Filters are path segments in the shared grammar (season positional, everything
 // else `key-value`) that views/filtersJs.ejs and middleware/filterState.js both
@@ -638,9 +639,6 @@ app.post('/teams', access.public, team_controller.team_search);
 
 /* GET request for one Player. */
 app.get('/eligiblePlayers/:id(\\d+)/:gender', access.public, player_controller.eligible_players_list);
-
-/* GET request for list of all Player items. */
-app.post('/player/create', access.member, player_controller.player_create);
 
 /* ELO ratings: chart page (login required), public JSON APIs, admin backfill
    (secured + superadmin check in controller), DEV_MODE-only diagnostics. */
@@ -888,7 +886,7 @@ app.get('/populated-scorecard-beta/:id(\\d+)', access.superadmin, fixture_contro
   app.get('/players/team-:team?', access.member, player_controller.player_list_clubs_teams);
   app.get('/players/gender-:gender?', access.member, player_controller.player_list_clubs_teams);
   app.get('/players', access.member, player_controller.player_list_clubs_teams);
-  app.get('/played-up-counts', access.member, player_controller.player_played_up_counts);
+  app.get('/played-up-counts', access.superadmin, player_controller.player_played_up_counts);
   // Team management (controllers/rosterController.js, ported from Stockport). A club admin
   // may VIEW their own club's roster; every change is superadmin only.
   app.get('/manage-players', access.memberThen('own club, or superadmin'), roster_controller.club_picker);
@@ -935,8 +933,8 @@ app.get('/populated-scorecard-beta/:id(\\d+)', access.superadmin, fixture_contro
   app.get('/scorecard-photo/:id(\\d+)', access.member, fixture_controller.scorecard_photo)
 
 
-  /* GET request for creating a Player. NOTE This must come before routes that display Player (uses id) */
-  app.get('/player/create', access.member, player_controller.player_create_get);
+  // GET/POST /player/create deleted (Nov 2026): any member could create a player at any
+  // club, and nothing linked to the form once the roster editor replaced it.
   // Numeric ids only. POST /player/batch-update (retired with the team-admin page, Oct 2026)
   // would otherwise land here with 'batch-update' as the id and reach a bigint query.
   app.post('/player/:id(\\d+)', access.memberThen('own club\'s player, or superadmin'), player_controller.player_update_post);
