@@ -139,7 +139,10 @@ describe('forwarding', () => {
     assert.strictEqual(m.Subject, 'Fixture changes this week');
     assert.strictEqual(m.TextPart, 'bcc field test\n');
     assert.match(m.HTMLPart, /bcc field test/);
-    assert.strictEqual(m.Headers['List-Id'], 'hydeteamcaptains <hydeteamcaptains.tameside-badminton.co.uk>');
+    assert.strictEqual(m.Headers['X-Tameside-List'], 'hydeteamcaptains');
+    // Mailjet refuses the whole send if Headers sets one it reserves (send-0011). List-Id is
+    // one, found live 7 Nov 2026; the other two below were checked in its sandbox mode.
+    assert.deepStrictEqual(Object.keys(m.Headers).sort(), ['List-Unsubscribe', 'X-Original-From', 'X-Tameside-List']);
     assert.strictEqual(m.Headers['X-Original-From'], 'captain@example.com');
     assert.match(m.Headers['List-Unsubscribe'], /^<mailto:results@tameside-badminton\.co\.uk\?subject=unsubscribe%20hydeteamcaptains>$/);
     assert.strictEqual(rows.get('e1').outcome, 'forwarded');
@@ -220,7 +223,7 @@ describe('refusals reach nobody', () => {
     ['an unknown sender', { knownSenders: [], emails: { e1: message() } }, 'unknown-sender'],
     ['SPF pass with DKIM and DMARC failing', { emails: { e1: message('hydeteamcaptains', { authentication: { spf: 'pass', dkim: 'fail', dmarc: 'fail' } }) } }, 'unauthenticated'],
     ['a DKIM pass with DMARC failing', { emails: { e1: message('hydeteamcaptains', { authentication: { spf: 'pass', dkim: 'pass', dmarc: 'fail' } }) } }, 'unauthenticated'],
-    ['our own forward coming back', { emails: { e1: message('hydeteamcaptains', { headers: { ...message().headers, 'list-id': 'hyde <hyde.tameside-badminton.co.uk>' } }) } }, 'loop'],
+    ['our own forward coming back', { emails: { e1: message('hydeteamcaptains', { headers: { ...message().headers, 'x-tameside-list': 'hyde' } }) } }, 'loop'],
     ['no league address recorded', { emails: { e1: message('hydeteamcaptains', { received_for: ['inbound@example.resend.app'] }) } }, 'no-league-address'],
     ['a list with nobody on it', { emails: { e1: message('mellortreasurers') } }, 'empty-list'],
   ];

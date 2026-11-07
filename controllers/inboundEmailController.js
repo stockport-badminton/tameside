@@ -130,7 +130,11 @@ async function handle(emailId) {
     replyTo: { Email: List.extractAddress(replyTo) || sender },
     headers: {
       'X-Original-From': sender,
-      'List-Id': `${list.label} <${list.label}.${List.DOMAIN}>`,
+      // Not List-Id: Mailjet reserves it and refuses the whole send ("Header cannot be
+      // customized using the Headers collection", send-0011), with no property to set it
+      // instead. Found on the first live forward, 7 Nov 2026. Our own header carries the
+      // list, and is what the loop guard looks for.
+      [List.LIST_HEADER]: list.label,
       'List-Unsubscribe': `<mailto:${UNSUBSCRIBE_MAILBOX}?subject=${encodeURIComponent('unsubscribe ' + list.label)}>`,
     },
     attachments: files,

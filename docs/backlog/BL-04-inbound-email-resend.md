@@ -23,6 +23,8 @@ Differences from the plan below, decided while building:
   Measured on production: 63 addresses for every role-holder, 37 within the two
   divisions. The rest are role flags left on players parked at No Club.
 - `leaguecomms@` (the otherComms flag) is accepted too, as Stockport's is.
+- **No `List-Id`**: Mailjet refuses it in `Headers` and fails the send. The first live
+  forward did exactly that. `X-Tameside-List` carries the list instead, for the loop guard.
 - Rehearsed against production in a rolled-back transaction: the migration, claim and
   retry-after-failure, per-recipient dedupe, the vocabulary (12 clubs, 2 divisions; No
   Club excluded), and the known-sender check (superadmin login yes, a Hyde contact yes, a

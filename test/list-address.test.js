@@ -115,7 +115,7 @@ describe('isGenuineSender', () => {
 
 describe('loop guard and test subject', () => {
   it('drops our own forward coming back round', () => {
-    const ours = { ...forwarded, headers: { ...forwarded.headers, 'list-id': 'hyde <hyde.tameside-badminton.co.uk>' } };
+    const ours = { ...forwarded, headers: { ...forwarded.headers, 'x-tameside-list': 'hyde' } };
     assert.strictEqual(List.isLoop(ours, 'example.resend.app'), true);
     assert.strictEqual(List.isLoop(forwarded, 'example.resend.app'), false);
     assert.strictEqual(List.isLoop({ ...forwarded, from: 'x@example.resend.app' }, 'example.resend.app'), true);

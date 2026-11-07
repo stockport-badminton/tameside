@@ -268,6 +268,9 @@ resolves the list with `Player.getEmails`, checks the sender, and forwards with
   signature 404s.
 - **Resend's free plan receives 100 a day, spam included.** The admin page counts per day.
   An address that attracts spam gets its own Namecheap forward, out of the catch-all.
+- **Mailjet refuses `List-Id` in `Headers`** (send-0011, the whole send fails) and has no
+  property for it, so forwards carry `X-Tameside-List` instead, which the loop guard reads.
+  Check a new header with Mailjet's `SandboxMode: true` before shipping it.
 - `test` as a word in the subject sends only to the results mailbox, listing the recipients.
 - `migrations/inbound-email.sql` must be applied before the webhook is enabled.
 - Rehearsal of the SQL (rolled back) and the real list sizes: see the BL-04 brief.

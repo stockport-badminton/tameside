@@ -153,10 +153,14 @@ function isGenuineSender(auth) {
   return dkim === 'pass';
 }
 
-// Ours, coming back round: every forward carries our List-Id. Or a message sent from the
+// Every forward carries this, naming the list. Not List-Id, which Mailjet refuses to let us
+// set (see the controller).
+const LIST_HEADER = 'X-Tameside-List';
+
+// Ours, coming back round: every forward carries LIST_HEADER. Or a message sent from the
 // Resend receiving domain itself, which nobody should be doing.
 function isLoop(email, inboundDomain) {
-  if (headerValues(email && email.headers, 'list-id').some(v => v.toLowerCase().includes('.' + DOMAIN))) return true;
+  if (headerValues(email && email.headers, LIST_HEADER.toLowerCase()).length) return true;
   const from = extractAddress(email && email.from);
   return !!(inboundDomain && from && from.endsWith('@' + String(inboundDomain).toLowerCase()));
 }
@@ -170,6 +174,7 @@ function isTestSubject(subject) {
 
 module.exports = {
   DOMAIN,
+  LIST_HEADER,
   ROLES,
   normalise,
   headerValues,
