@@ -57,6 +57,7 @@ const MODELS = {
   ClubRegistration: require('../../models/clubRegistration'),
   SocialResultPost: require('../../models/socialResultPost'),
   AuthCull: require('../../models/authCull'),
+  InboundEmail: require('../../models/inboundEmail'),
 };
 for (const [name, mod] of Object.entries(MODELS)) {
   for (const key of Object.keys(mod)) {

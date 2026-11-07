@@ -152,7 +152,7 @@ Manager, by choice); change it with `--update-env-vars`, never `--set-env-vars`.
 
 ### Emails
 
-Twelve emails, one pipeline. `emails/*.mjml` → `npm run build:email` → committed
+Twelve emails, one pipeline (plus `mailer.forward` for list mail, which has no template). `emails/*.mjml` → `npm run build:email` → committed
 `views/emails/*.ejs` → sent by `utils/mailer.js`.
 
 Before this there were nine send sites across three files: seven inline HTML string
@@ -226,6 +226,51 @@ Other things worth not rediscovering:
 - The `scorecard received` send also sat **outside** its `else` (closed off early by a stray
   `};`, working only because `msg` was an implicit global), so on a create error it called
   `next(err)` and then sent anyway. It `return`s now.
+
+### Inbound list email (Resend)
+
+Mail to a list address (`division1@`, `hyde@`, `teamcaptains@`, `hydeteamcaptains@`,
+`division1teamcaptains@`) reaches everyone on it. Built 7 Nov 2026 from
+`docs/backlog/BL-04-inbound-email-resend.md`, which has the design and Gate 0. **Resend
+receives; Mailjet still sends everything.**
+
+Namecheap's catch-all forwards every address without its own forward to
+`inbound@<id>.resend.app`; Resend calls `POST /webhooks/resend`;
+`controllers/inboundEmailController.js` reads the message back, recovers the league address,
+resolves the list with `Player.getEmails`, checks the sender, and forwards with
+`mailer.forward`. `/admin/inbound-email` shows every arrival and its outcome.
+
+- **The named mailboxes (`results@`, `dmarc@`, `info@`…) must keep explicit Namecheap
+  forwards.** Explicit beats the catch-all; an address without one now goes to Resend, and
+  Resend drops anything that isn't a list. **Never switch Namecheap's Mail Settings
+  dropdown** away from Email Forwarding: every other option replaces it.
+- **The list comes from the TOPMOST `X-Original-To`**, which Namecheap adds even for Bcc,
+  and it must also be in `received_for`. A lower one was written by the sender. Resend's
+  `headers` gives a repeated header as a JSON-array string, topmost first.
+- **The local part must parse EXACTLY** (`utils/listAddress.js`): club, division and role,
+  each at most once, any order, consuming the whole thing. Stockport's `indexOf` match lets
+  `xhyde@` reach Hyde. No match is a drop, which is also what registrations@ is for now.
+- **Nothing unrecognised is relayed through Mailjet**, not even to the results mailbox:
+  spam relayed from our domain spends the sending reputation. Refusals are logged only.
+- **A sender must be known AND authenticated.** Known: a `player_auth_email` login, or the
+  contact address of a player at a real club (not No Club, where Stockport's seed rows are
+  parked). Authenticated: DMARC pass, or DKIM pass where the domain has no DMARC policy.
+  **SPF proves nothing** after a forward (it's checked against Namecheap, which our SPF
+  includes), and DKIM with DMARC failing is somebody else's domain signing.
+- **Each league address on a message is a separate Resend email.** A person on two of the
+  lists is deduped by `Message-ID` + sha256(address) in `inbound_email_delivery`, never by
+  `email_id`. A Mailjet failure releases its claims and answers 500 so Resend retries.
+- **`getEmails({ inDivision: true })`**: without it a role-only list also reaches
+  role-holders parked at No Team (63 addresses against 37, Nov 2026). The admin
+  `/admin/distribution` page does not set it.
+- **The Svix signature covers the raw bytes**, so `app.js` mounts `express.raw` on
+  `/webhooks/resend` *above* the global JSON parser. Unset `RESEND_WEBHOOK_SECRET` or a bad
+  signature 404s.
+- **Resend's free plan receives 100 a day, spam included.** The admin page counts per day.
+  An address that attracts spam gets its own Namecheap forward, out of the catch-all.
+- `test` as a word in the subject sends only to the results mailbox, listing the recipients.
+- `migrations/inbound-email.sql` must be applied before the webhook is enabled.
+- Rehearsal of the SQL (rolled back) and the real list sizes: see the BL-04 brief.
 
 ### Absolute URLs — never from `req.headers.host`
 
@@ -1805,6 +1850,9 @@ MISSING_SCORECARDS_TO      # Comma-separated recipients. Defaults to the results
 MAILJET_WEBHOOK_TOKEN  # Shared secret in the Mailjet event-callback URL
                    # (/webhooks/mailjet?t=...). Unset means the route 404s, i.e. inert.
                    # See docs/email-deliverability.md.
+RESEND_API_KEY     # Reads received mail back from Resend (receiving only). See Inbound list email.
+RESEND_WEBHOOK_SECRET  # whsec_… signing secret of the email.received webhook. Unset: 404s.
+RESEND_INBOUND_DOMAIN  # <id>.resend.app, the catch-all's target; used by the loop guard.
 SOCIAL_WEEKLY_FIXTURES_TOKEN  # Shared secret for the weekly fixtures post's scheduler job.
 SOCIAL_POST_FB_STORY  # 'true' also posts every Facebook Page post as a Page story. Unset
                    # posts none. See "Facebook Page stories" above.

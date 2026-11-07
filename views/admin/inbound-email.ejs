@@ -1,0 +1,71 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<div class="col-12">
+  <h1>Inbound list email</h1>
+  <p class="text-muted">
+    Mail sent to a list address such as <code>division1@</code>, <code>hyde@</code> or
+    <code>hydeteamcaptains@</code>. Only a known sender whose address checks out is forwarded.
+    Everything else is dropped and listed here. Resend keeps every message for 30 days; this
+    log keeps <%= logDays %>.
+  </p>
+
+  <h2 class="h4 mt-4">Arrivals per day</h2>
+  <p class="text-muted">
+    Resend's free plan receives 100 a day, and every arrival counts against it, spam included.
+    Once the cap is reached, list mail is lost for the rest of that day. If an address attracts
+    spam, give it its own forward in Namecheap so it no longer reaches the catch-all.
+  </p>
+  <div class="table-responsive">
+    <table class="table table-sm" style="max-width:30rem">
+      <thead><tr><th>Day</th><th>Arrived</th><th>Forwarded</th></tr></thead>
+      <tbody>
+        <% if (!days.length) { %>
+          <tr><td colspan="3" class="text-muted">Nothing received yet.</td></tr>
+        <% } %>
+        <% days.forEach(function(d){ %>
+        <tr class="<%= d.total >= 80 ? 'table-warning' : '' %>">
+          <td><%= d.day %></td><td><%= d.total %></td><td><%= d.forwarded %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="h4 mt-4">Recent <span class="text-muted">(latest <%= rows.length %>)</span></h2>
+  <dl class="small text-muted row">
+    <dt class="col-sm-3">unknown-sender</dt><dd class="col-sm-9">The From address isn't a login linked to a player, or the contact address of a player at a club. To let them post, link their login (Link Logins) or add the address to their player.</dd>
+    <dt class="col-sm-3">unauthenticated</dt><dd class="col-sm-9">The From address couldn't be verified (DMARC failed, or no DKIM). Usually forged.</dd>
+    <dt class="col-sm-3">not-a-list</dt><dd class="col-sm-9">The address isn't a list. Usually spam guessing at addresses.</dd>
+    <dt class="col-sm-3">empty-list</dt><dd class="col-sm-9">A real list with nobody on it who has an email address.</dd>
+    <dt class="col-sm-3">test</dt><dd class="col-sm-9">"test" was in the subject, so it went only to the results mailbox, with the list it would have reached.</dd>
+  </dl>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped">
+      <thead>
+        <tr><th>When</th><th>To</th><th>From</th><th>Subject</th><th>Outcome</th><th>Sent to</th><th>Checks</th></tr>
+      </thead>
+      <tbody>
+        <% if (!rows.length) { %>
+          <tr><td colspan="7" class="text-muted">Nothing received yet.</td></tr>
+        <% } %>
+        <% rows.forEach(function(r){ %>
+        <tr class="<%= attention.has(r.outcome) ? 'table-warning' : '' %>">
+          <td style="white-space:nowrap;"><%= r.created_at ? new Date(r.created_at).toISOString().replace('T',' ').slice(0,16) : '' %></td>
+          <td style="word-break:break-all;"><%= r.league_address || '' %></td>
+          <td style="word-break:break-all;"><%= r.sender || '' %></td>
+          <td style="word-break:break-word;"><%= r.subject || '' %></td>
+          <td>
+            <%= r.outcome || 'in progress' %>
+            <% if (r.detail) { %><div class="small text-muted" style="word-break:break-word;"><%= r.detail %></div><% } %>
+          </td>
+          <td><%= r.recipients == null ? '' : r.recipients %></td>
+          <td class="small" style="white-space:nowrap;"><%= r.auth || '' %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../footer.ejs') %>

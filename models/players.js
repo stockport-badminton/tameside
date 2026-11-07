@@ -1078,6 +1078,10 @@ exports.getEmails = async function(searchTerms, done){
   if (searchTerms.division)  conds.push(sql`b.division = ${searchTerms.division}`);
   if (searchTerms.club)      conds.push(sql`b.id = ${searchTerms.club}`);
   if (searchTerms.teamName)  conds.push(sql`b."teamName" = ${searchTerms.teamName}`);
+  // Only teams in a real division. Without it a role-only list also reaches role-holders
+  // parked at No Club / No Team (division 0): 63 addresses for "everyone" against 40 for
+  // the two divisions together, Nov 2026. The inbound list forwarder always sets it.
+  if (searchTerms.inDivision) conds.push(sql`b.division IN (SELECT id FROM division)`);
   let whereFrag = sql``;
   conds.forEach((c, i) => { whereFrag = i === 0 ? sql`WHERE ${c}` : sql`${whereFrag} AND ${c}`; });
 

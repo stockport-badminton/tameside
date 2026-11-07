@@ -58,6 +58,7 @@ const GROUPS = [
       { href: '/admin/site-settings', label: 'Site Settings', blurb: 'Site-wide settings.' },
       { href: '/admin/distribution', label: 'Distribution Lists', blurb: 'Email a group of players or officers.' },
       { href: '/admin/spam', label: 'Spam Controls', blurb: 'Block an address, IP or phrase; see what the filters caught.' },
+      { href: '/admin/inbound-email', label: 'Inbound List Email', blurb: 'Mail sent to division1@, hyde@ and the other lists: what was forwarded, what was refused.' },
     ],
   },
 ];

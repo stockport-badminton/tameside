@@ -1,0 +1,43 @@
+{
+  "object": "email",
+  "id": "1f5a3f3e-275c-4681-a3fe-730b4d390cbb",
+  "to": [
+    "inbound@example.resend.app"
+  ],
+  "from": "captain@example.com",
+  "created_at": "2026-11-07T13:18:51.586Z",
+  "subject": "just checking bcc test",
+  "message_id": "<CAHGs2SObB0VNzkoXExZY=8ikZq6hUD-J_wApjpicGcMRL-ZwNw@mail.gmail.com>",
+  "bcc": [],
+  "cc": [],
+  "reply_to": [],
+  "html": "<div dir=\"ltr\">bcc field test</div>\n",
+  "html_format": "data_uri",
+  "text": "bcc field test\n",
+  "headers": {
+    "received": "[\"from eforward1b-1.registrar-servers.com (198.54.122.6) by receive.forge.rmta.net (KumoMTA 10.1.1.96)  with ESMTPS (TLSv1_3:TLS13_AES_256_GCM_SHA384)  id c5bf2224daad11f189d00affdec5e183 for <inbound@example.resend.app>; Sat, 7 Nov 2026 13:18:50 +0000\",\"from asp-relay.et.namecheap.tech (unknown [10.51.8.247]) (using TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits) key-exchange X25519MLKEM768 server-signature RSA-PSS (2048 bits) server-digest SHA256) (No client certificate requested) by eforward.registrar-servers.com (Postfix) with ESMTPS id 4jMGpK5jGyz2mGxS for <hydeteamcaptains@tameside-badminton.co.uk>; Sat, 07 Nov 2026 13:18:49 +0000 (UTC)\",\"from mail-yx1-f43.google.com (mail-yx1-f43.google.com [74.125.224.43]) (using TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits) key-exchange x25519 server-signature RSA-PSS (2048 bits) server-digest SHA256) (No client certificate requested) by asp-relay.et.namecheap.tech (Postfix) with ESMTPS id 4jMGpK3qkkzCqkB for <hydeteamcaptains@tameside-badminton.co.uk>; Sat, 07 Nov 2026 13:18:49 +0000 (UTC)\",\"by mail-yx1-f43.google.com with SMTP id 956f58d0204a3-6767d92cde6so1488878d50.0 for <hydeteamcaptains@tameside-badminton.co.uk>; Sat, 07 Nov 2026 05:18:49 -0800 (PST)\"]",
+    "authentication-results": "asp-relay.et.namecheap.tech; dkim=pass header.d=gmail.com header.s=20260707 header.b=redacted; spf=pass (asp-relay.et.namecheap.tech: domain of captain@example.com designates 74.125.224.43 as permitted sender) smtp.mailfrom=captain@example.com; arc=pass (\"google.com:s=arc-20260327:i=1\"); dmarc=pass (policy=none) header.from=gmail.com",
+    "x-original-to": "<hydeteamcaptains@tameside-badminton.co.uk>",
+    "mime-version": "1.0",
+    "from": "\"Test Captain\" <captain@example.com>",
+    "date": "\"2026-11-07T13:18:37.000Z\"",
+    "message-id": "<CAHGs2SObB0VNzkoXExZY=8ikZq6hUD-J_wApjpicGcMRL-ZwNw@mail.gmail.com>",
+    "subject": "just checking bcc test",
+    "to": "\"Test Captain\" <captain@example.com>",
+    "content-type": "multipart/alternative"
+  },
+  "received_for": [
+    "inbound@example.resend.app",
+    "hydeteamcaptains@tameside-badminton.co.uk"
+  ],
+  "authentication": {
+    "spf": "pass",
+    "dkim": "pass",
+    "dmarc": "pass"
+  },
+  "raw": {
+    "download_url": "https://cdn.resend.app/receiving/raw/redacted",
+    "expires_at": "2026-11-07T14:31:36.748Z"
+  },
+  "attachments": []
+}

@@ -139,8 +139,92 @@ async function send({ template, data, subject, text, to, bcc, replyTo, customId,
   }
 }
 
+// Mailjet takes 50 recipients a message, To, Cc and Bcc together, and 50 messages a call.
+const RECIPIENTS_PER_MESSAGE = 50;
+
+// Crude, but only ever a fallback: for a forwarded message that arrived with html and no
+// plain-text part, so the forward still has one.
+function htmlToText(html) {
+  return String(html || '')
+    .replace(/<(style|script)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|h\d)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * Pass someone else's message on, unchanged, to a list. For the inbound list forwarder
+ * (controllers/inboundEmailController.js), which is the one sender that has no template:
+ * the body is the original author's.
+ *
+ * The From stays OURS, with the author's name on it. Sending as `someone@gmail.com` from our
+ * Mailjet account would fail their domain's DMARC, and a domain on p=reject would have the
+ * forward binned. That is why mailing lists say "Name via List" and put the author in
+ * Reply-To. The "every email needs a text part" rule still holds: one is made from the html
+ * when the original had none.
+ *
+ * `bcc` is chunked into as many messages as Mailjet's per-message limit needs, all in one
+ * API call. Returns the number of messages sent.
+ */
+async function forward({ fromName, subject, html, text, to, bcc, replyTo, headers, attachments, customId }) {
+  if (!subject) throw new Error('forward() needs a subject');
+  const plain = text && String(text).trim() ? String(text) : htmlToText(html);
+  if (!plain) throw new Error('forward() has neither text nor html to send');
+  const toList = asRecipients(to);
+  if (!toList.length) throw new Error('forward() has no To');
+  const bccList = asRecipients(bcc);
+
+  const files = (attachments || []).filter(f => !f.contentId);
+  const inline = (attachments || []).filter(f => f.contentId);
+  const total = [...files, ...inline].reduce((n, f) => n + Math.ceil(f.content.length * 4 / 3), 0);
+  if (total > MAX_ATTACHMENT_BYTES) {
+    throw new Error(`forward() attachments total ${total} bytes, over the ${MAX_ATTACHMENT_BYTES} limit`);
+  }
+
+  const base = {
+    From: { Email: FROM.Email, Name: fromName ? `${fromName} via Tameside Badminton` : FROM.Name },
+    To: toList,
+    Subject: subject,
+    TextPart: plain,
+    HTMLPart: html || textToHtml(plain),
+  };
+  if (replyTo) base.ReplyTo = asRecipients(replyTo)[0];
+  if (headers && Object.keys(headers).length) base.Headers = headers;
+  if (customId) base.CustomID = customId;
+  if (files.length) base.Attachments = asAttachments(files);
+  if (inline.length) {
+    base.InlinedAttachments = inline.map(f => ({ ...asAttachments([f])[0], ContentID: f.contentId }));
+  }
+
+  const perMessage = RECIPIENTS_PER_MESSAGE - toList.length;
+  const messages = [];
+  if (!bccList.length) messages.push(base);
+  for (let i = 0; i < bccList.length; i += perMessage) {
+    messages.push({ ...base, Bcc: bccList.slice(i, i + perMessage) });
+  }
+
+  const started = Date.now();
+  let outcome = 'ok';
+  try {
+    await mailjet.post('send', { version: 'v3.1' }).request({ Messages: messages });
+    return messages.length;
+  } catch (err) {
+    outcome = 'failed';
+    throw err;
+  } finally {
+    console.log(`[timing] mail: forward x${messages.length} ${Date.now() - started}ms ${outcome}`);
+  }
+}
+
 module.exports = {
   send,
+  forward,
+  htmlToText,
+  RECIPIENTS_PER_MESSAGE,
   MAX_ATTACHMENT_BYTES,
   renderTemplate,
   textToHtml,

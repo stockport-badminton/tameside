@@ -5,6 +5,34 @@ SNS-signed, `middleware/verifySns.js`), and we have no AWS mail account. The *wh
 theirs and is the reference: league-site `controllers/contactusController.js`
 (`distribution_list`) and `controllers/playerRequestController.js` (`registrations@`).
 
+## Status (7 Nov 2026)
+
+**Steps 1-5 and 7 are built**: `POST /webhooks/resend`, `utils/listAddress.js`,
+`utils/svixSignature.js`, `utils/resendInbound.js`, `models/inboundEmail.js`,
+`mailer.forward`, `/admin/inbound-email`, `migrations/inbound-email.sql`; CLAUDE.md has the
+rules. **Step 6 (`registrations@`) is not**: until it is, mail to it is `not-a-list` and
+dropped, so give it an explicit Namecheap forward if anybody uses it.
+
+Differences from the plan below, decided while building:
+- **Authenticated means DMARC pass, or DKIM pass only when DMARC is not `fail`.** "DKIM
+  pass" alone lets anyone sign with their own domain and put a captain's address in From.
+- **The visible To is the results mailbox, plus-tagged with the list**
+  (`tameside.badders.results+hyde@gmail.com`), as Stockport's is. Sending To the list
+  address itself would come straight back through the catch-all and spend the quota.
+- **List mail reaches teams in a real division only** (`getEmails({ inDivision: true })`).
+  Measured on production: 63 addresses for every role-holder, 37 within the two
+  divisions. The rest are role flags left on players parked at No Club.
+- `leaguecomms@` (the otherComms flag) is accepted too, as Stockport's is.
+- Rehearsed against production in a rolled-back transaction: the migration, claim and
+  retry-after-failure, per-recipient dedupe, the vocabulary (12 clubs, 2 divisions; No
+  Club excluded), and the known-sender check (superadmin login yes, a Hyde contact yes, a
+  No Club contact no).
+
+**Go-live, in order:** apply `migrations/inbound-email.sql`; set `RESEND_API_KEY`,
+`RESEND_WEBHOOK_SECRET` and `RESEND_INBOUND_DOMAIN` on Cloud Run (`--update-env-vars`);
+deploy; enable webhook `b80ef776…` in Resend; send a mail with `test` in the subject to
+`hydeteamcaptains@` and check the results mailbox.
+
 ## Goal
 
 Mail to a list address reaches everyone on that list. After that, `registrations@` feeds a

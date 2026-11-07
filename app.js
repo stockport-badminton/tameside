@@ -249,6 +249,11 @@ app.get('/healthz', access.public, healthCheck);
 // uncached visit (it gzips to ~57KB). Cloud Run does not compress for you.
 app.use(compression());
 
+// The Resend webhook is verified against the exact bytes Resend signed, so its body is
+// read raw HERE, ahead of the JSON parser below; that parser then sees it already read and
+// leaves it alone. Parsed and re-serialised, it would not verify. The route is further down.
+app.use('/webhooks/resend', express.raw({ type: () => true, limit: '1mb' }));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended:false}));
 
@@ -478,6 +483,7 @@ let site_settings_controller = require(__dirname + '/controllers/siteSettingsCon
 let documents_controller = require(__dirname + '/controllers/documentsController')
 let team_registration_controller = require(__dirname + '/controllers/teamRegistrationController')
 let mailjet_webhook_controller = require(__dirname + '/controllers/mailjetWebhookController')
+const inbound_email_controller = require(__dirname + '/controllers/inboundEmailController')
 
 app.use(userInViews())
 
@@ -494,6 +500,11 @@ app.use(filterState.middleware)
     // exists: a spam complaint silently and permanently suppresses an address, and there
     // is otherwise nothing to look at afterwards.
     app.post('/webhooks/mailjet', access.token('MAILJET_WEBHOOK_TOKEN'), express.json({ limit: '512kb' }), mailjet_webhook_controller.receive);
+
+    // Mail to a league list address, from Resend (docs/backlog/BL-04-inbound-email-resend.md).
+    // Svix-signed with RESEND_WEBHOOK_SECRET, checked in the controller against the raw body
+    // read near the top of this file; unset or a bad signature 404s.
+    app.post('/webhooks/resend', access.token('RESEND_WEBHOOK_SECRET'), inbound_email_controller.receive);
 
     // The daily registration digest, for Cloud Scheduler.
     //
@@ -801,6 +812,7 @@ app.post('/admin/social/results/meta',
 app.get('/admin/spam', access.superadmin, spam_admin_controller.form);
 app.post('/admin/spam', access.superadmin, spam_admin_controller.add);
 app.post('/admin/spam/:id/active', access.superadmin, spam_admin_controller.toggle);
+app.get('/admin/inbound-email', access.superadmin, inbound_email_controller.adminList);
 
 /* League structure admin (superadmin only — secured route + role check in the
    controller). Clubs, teams, and one-click promotion/relegation. */
