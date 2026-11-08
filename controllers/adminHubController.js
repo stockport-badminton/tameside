@@ -8,6 +8,7 @@ const Sentry = require('@sentry/node');
 const { GROUPS } = require('../utils/adminTools');
 const ClubRegistration = require('../models/clubRegistration');
 const MissedThree = require('../models/missedThree');
+const RegistrationRequest = require('../models/registrationRequest');
 const seasonModel = require('../models/season');
 
 async function safely(label, fn) {
@@ -22,17 +23,18 @@ async function safely(label, fn) {
 
 exports.hub = async function (req, res, next) {
   try {
-    const [formsOutstanding, missedThree] = await Promise.all([
+    const [formsOutstanding, missedThree, playerRequests] = await Promise.all([
       safely('formsOutstanding', async () =>
         (await ClubRegistration.getStatus(seasonModel.current())).filter(c => !c.received).length),
       safely('missedThree', async () => (await MissedThree.getPlayers()).length),
+      safely('playerRequests', () => RegistrationRequest.countPending()),
     ]);
     res.render('admin/hub', {
       static_path: '/static',
       title: 'Admin',
       pageDescription: 'Every league admin tool',
       groups: GROUPS,
-      counts: { formsOutstanding, missedThree },
+      counts: { formsOutstanding, missedThree, playerRequests },
     });
   } catch (err) {
     next(err);

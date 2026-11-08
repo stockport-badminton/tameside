@@ -25,6 +25,7 @@ const mailer = require('../utils/mailer');
 const List = require('../utils/listAddress');
 const InboundEmail = require('../models/inboundEmail');
 const Player = require('../models/players');
+const PlayerRequests = require('./playerRequestController');
 const { isSuperAdmin } = require('../utils/authz');
 // A module, called through, so tests can stub it (as scorecardVision is).
 const resendInbound = require('../utils/resendInbound');
@@ -60,6 +61,11 @@ function withNotice(notice, html, text) {
   return { html: h, text: `${notice}\n\n${t}` };
 }
 
+// Queue addresses, by local part. Each returns `{ outcome, detail? }`.
+const QUEUES = {
+  [PlayerRequests.LOCAL]: (email) => PlayerRequests.queueFromEmail(email),
+};
+
 /**
  * Everything after the signature and the claim. Returns the fields to record, `outcome`
  * among them. Throws only for something that should be retried.
@@ -83,9 +89,19 @@ async function handle(emailId) {
   if (!target) return { ...out, outcome: 'no-league-address' };
   out.leagueAddress = target.address;
 
+  // A queue, not a list: the email is stored for a superadmin page instead of forwarded.
+  // Same sender gate as a list. A refusal is listed on the queue's page, never relayed.
+  const queue = QUEUES[String(target.local).toLowerCase()];
+  if (queue) {
+    out.list = target.local.toLowerCase();
+    if (!List.isGenuineSender(email.authentication)) return { ...out, outcome: 'unauthenticated' };
+    if (!await InboundEmail.isKnownSender(sender)) return { ...out, outcome: 'unknown-sender' };
+    return { ...out, ...await queue(email) };
+  }
+
   const vocab = List.buildVocabulary(await InboundEmail.vocabulary());
   const list = List.parseLocalPart(target.local, vocab);
-  // Not a list. Also what registrations@ and every spammer's guess look like.
+  // Not a list. Also what every spammer's guess looks like.
   if (!list) return { ...out, outcome: 'not-a-list' };
   out.list = list.label;
 

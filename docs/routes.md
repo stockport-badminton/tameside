@@ -104,67 +104,73 @@ that is its first middleware. See `middleware/access.js` for what each level mea
 | 93 | POST | `/admin/spam` | superadmin |
 | 94 | POST | `/admin/spam/:id/active` | superadmin |
 | 95 | GET | `/admin/inbound-email` | superadmin |
-| 96 | GET | `/admin/clubs` | superadmin |
-| 97 | GET | `/admin/clubs/create` | superadmin |
-| 98 | POST | `/admin/clubs` | superadmin |
-| 99 | GET | `/admin/clubs/:id(\d+)` | superadmin |
-| 100 | POST | `/admin/clubs/:id(\d+)` | superadmin |
-| 101 | GET | `/admin/teams` | superadmin |
-| 102 | GET | `/admin/teams/create` | superadmin |
-| 103 | POST | `/admin/teams` | superadmin |
-| 104 | POST | `/admin/teams/:id(\d+)/move` | superadmin |
-| 105 | GET | `/admin/teams/:id(\d+)` | superadmin |
-| 106 | POST | `/admin/teams/:id(\d+)` | superadmin |
-| 107 | POST | `/admin/fixture/:id(\d+)/date` | superadmin |
-| 108 | POST | `/admin/fixture/:id(\d+)/concede` | superadmin |
-| 109 | GET | `/admin/lewis` | superadmin |
-| 110 | POST | `/admin/lewis/:drawPos(\d+)/result` | superadmin |
-| 111 | GET | `/admin/scorecard-ocr` | superadmin |
-| 112 | GET | `/admin/scorecard-ocr/review` | superadmin |
-| 113 | GET | `/admin/scorecard-ocr/image` | superadmin |
-| 114 | POST | `/scorecard-ocr/analyse` | member |
-| 115 | POST | `/scorecard-document/convert` | member |
-| 116 | GET | `/admin/distribution` | superadmin |
-| 117 | POST | `/admin/distribution/preview` | superadmin |
-| 118 | POST | `/admin/distribution/send` | superadmin |
-| 119 | POST | `/scorecard-beta` | superadmin |
-| 120 | GET | `/populated-scorecard-beta/:id(\d+)` | superadmin |
-| 121 | GET | `/login` | public |
-| 122 | GET | `/callback` | public |
-| 123 | GET | `/logout` | public |
-| 124 | GET | `/player-stats/*` | member |
-| 125 | GET | `/player-stats` | member |
-| 126 | GET | `/pair-stats/*` | member |
-| 127 | GET | `/pair-stats` | member |
-| 128 | GET | `/admin/results/*` | member |
-| 129 | GET | `/fixture-gen` | superadmin |
-| 130 | POST | `/fixture-gen/regenerate` | superadmin |
-| 131 | POST | `/fixture-gen/publish` | superadmin |
-| 132 | GET | `/club/:id` | member |
-| 133 | GET | `/players/club-:club?/team-:team?/gender-:gender?` | member |
-| 134 | GET | `/players/club-:club?` | member |
-| 135 | GET | `/players/team-:team?` | member |
-| 136 | GET | `/players/gender-:gender?` | member |
-| 137 | GET | `/players` | member |
-| 138 | GET | `/played-up-counts` | superadmin |
-| 139 | GET | `/manage-players` | member, then own club, or superadmin |
-| 140 | GET | `/manage-players/club-:club` | member, then club access |
-| 141 | GET | `/manage-players/club-:club/edit` | superadmin |
-| 142 | POST | `/api/teams/:id/order` | superadmin (api) |
-| 143 | POST | `/api/players/:id/move` | superadmin (api) |
-| 144 | POST | `/api/players/:id/release` | superadmin (api) |
-| 145 | GET | `/api/roster/club-:club/candidates` | superadmin (api) |
-| 146 | POST | `/api/roster/club-:club/players` | superadmin (api) |
-| 147 | POST | `/api/roster/club-:club/attach` | superadmin (api) |
-| 148 | POST | `/api/roster/club-:club/transfer` | superadmin (api) |
-| 149 | GET | `/forms/team-registration/:club/prefilled` | member, then club access |
-| 150 | GET | `/forms/team-registration/:club/docx` | member, then club access |
-| 151 | GET | `/email-scorecard` | member |
-| 152 | POST | `/email-scorecard` | member |
-| 153 | POST | `/add-scorecard-photo/:id(\d+)` | member, then own scorecard, or superadmin |
-| 154 | GET | `/admin/team-registrations` | member, then club access |
-| 155 | POST | `/admin/team-registrations/review` | member, then club access |
-| 156 | POST | `/admin/team-registrations/apply` | member, then club access |
-| 157 | GET | `/scorecard-photo/:id(\d+)` | member |
-| 158 | POST | `/player/:id(\d+)` | member, then own club's player, or superadmin |
-| 159 | GET | `/club-api/:id` | superadmin |
+| 96 | GET | `/admin/player-requests` | superadmin |
+| 97 | GET | `/admin/player-requests/match` | superadmin |
+| 98 | GET | `/admin/player-requests/:id` | superadmin |
+| 99 | POST | `/admin/player-requests/:id/candidates/:index` | superadmin |
+| 100 | POST | `/admin/player-requests/:id/candidates` | superadmin |
+| 101 | POST | `/admin/player-requests/:id/status` | superadmin |
+| 102 | GET | `/admin/clubs` | superadmin |
+| 103 | GET | `/admin/clubs/create` | superadmin |
+| 104 | POST | `/admin/clubs` | superadmin |
+| 105 | GET | `/admin/clubs/:id(\d+)` | superadmin |
+| 106 | POST | `/admin/clubs/:id(\d+)` | superadmin |
+| 107 | GET | `/admin/teams` | superadmin |
+| 108 | GET | `/admin/teams/create` | superadmin |
+| 109 | POST | `/admin/teams` | superadmin |
+| 110 | POST | `/admin/teams/:id(\d+)/move` | superadmin |
+| 111 | GET | `/admin/teams/:id(\d+)` | superadmin |
+| 112 | POST | `/admin/teams/:id(\d+)` | superadmin |
+| 113 | POST | `/admin/fixture/:id(\d+)/date` | superadmin |
+| 114 | POST | `/admin/fixture/:id(\d+)/concede` | superadmin |
+| 115 | GET | `/admin/lewis` | superadmin |
+| 116 | POST | `/admin/lewis/:drawPos(\d+)/result` | superadmin |
+| 117 | GET | `/admin/scorecard-ocr` | superadmin |
+| 118 | GET | `/admin/scorecard-ocr/review` | superadmin |
+| 119 | GET | `/admin/scorecard-ocr/image` | superadmin |
+| 120 | POST | `/scorecard-ocr/analyse` | member |
+| 121 | POST | `/scorecard-document/convert` | member |
+| 122 | GET | `/admin/distribution` | superadmin |
+| 123 | POST | `/admin/distribution/preview` | superadmin |
+| 124 | POST | `/admin/distribution/send` | superadmin |
+| 125 | POST | `/scorecard-beta` | superadmin |
+| 126 | GET | `/populated-scorecard-beta/:id(\d+)` | superadmin |
+| 127 | GET | `/login` | public |
+| 128 | GET | `/callback` | public |
+| 129 | GET | `/logout` | public |
+| 130 | GET | `/player-stats/*` | member |
+| 131 | GET | `/player-stats` | member |
+| 132 | GET | `/pair-stats/*` | member |
+| 133 | GET | `/pair-stats` | member |
+| 134 | GET | `/admin/results/*` | member |
+| 135 | GET | `/fixture-gen` | superadmin |
+| 136 | POST | `/fixture-gen/regenerate` | superadmin |
+| 137 | POST | `/fixture-gen/publish` | superadmin |
+| 138 | GET | `/club/:id` | member |
+| 139 | GET | `/players/club-:club?/team-:team?/gender-:gender?` | member |
+| 140 | GET | `/players/club-:club?` | member |
+| 141 | GET | `/players/team-:team?` | member |
+| 142 | GET | `/players/gender-:gender?` | member |
+| 143 | GET | `/players` | member |
+| 144 | GET | `/played-up-counts` | superadmin |
+| 145 | GET | `/manage-players` | member, then own club, or superadmin |
+| 146 | GET | `/manage-players/club-:club` | member, then club access |
+| 147 | GET | `/manage-players/club-:club/edit` | superadmin |
+| 148 | POST | `/api/teams/:id/order` | superadmin (api) |
+| 149 | POST | `/api/players/:id/move` | superadmin (api) |
+| 150 | POST | `/api/players/:id/release` | superadmin (api) |
+| 151 | GET | `/api/roster/club-:club/candidates` | superadmin (api) |
+| 152 | POST | `/api/roster/club-:club/players` | superadmin (api) |
+| 153 | POST | `/api/roster/club-:club/attach` | superadmin (api) |
+| 154 | POST | `/api/roster/club-:club/transfer` | superadmin (api) |
+| 155 | GET | `/forms/team-registration/:club/prefilled` | member, then club access |
+| 156 | GET | `/forms/team-registration/:club/docx` | member, then club access |
+| 157 | GET | `/email-scorecard` | member |
+| 158 | POST | `/email-scorecard` | member |
+| 159 | POST | `/add-scorecard-photo/:id(\d+)` | member, then own scorecard, or superadmin |
+| 160 | GET | `/admin/team-registrations` | member, then club access |
+| 161 | POST | `/admin/team-registrations/review` | member, then club access |
+| 162 | POST | `/admin/team-registrations/apply` | member, then club access |
+| 163 | GET | `/scorecard-photo/:id(\d+)` | member |
+| 164 | POST | `/player/:id(\d+)` | member, then own club's player, or superadmin |
+| 165 | GET | `/club-api/:id` | superadmin |

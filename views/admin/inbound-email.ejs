@@ -18,7 +18,7 @@
   </p>
   <div class="table-responsive">
     <table class="table table-sm" style="max-width:30rem">
-      <thead><tr><th>Day</th><th>Arrived</th><th>Forwarded</th></tr></thead>
+      <thead><tr><th>Day</th><th>Arrived</th><th>Forwarded or queued</th></tr></thead>
       <tbody>
         <% if (!days.length) { %>
           <tr><td colspan="3" class="text-muted">Nothing received yet.</td></tr>
@@ -38,6 +38,7 @@
     <dt class="col-sm-3">unauthenticated</dt><dd class="col-sm-9">The From address couldn't be verified (DMARC failed, or no DKIM). Usually forged.</dd>
     <dt class="col-sm-3">not-a-list</dt><dd class="col-sm-9">The address isn't a list. Usually spam guessing at addresses.</dd>
     <dt class="col-sm-3">empty-list</dt><dd class="col-sm-9">A real list with nobody on it who has an email address.</dd>
+    <dt class="col-sm-3">queued</dt><dd class="col-sm-9">Mail to <code>registrations@</code>, stored on <a href="/admin/player-requests">Registration Requests</a> rather than forwarded.</dd>
     <dt class="col-sm-3">test</dt><dd class="col-sm-9">"test" was in the subject, so it went only to the results mailbox, with the list it would have reached.</dd>
   </dl>
   <div class="table-responsive">

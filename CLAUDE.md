@@ -273,6 +273,17 @@ resolves the list with `Player.getEmails`, checks the sender, and forwards with
   Check a new header with Mailjet's `SandboxMode: true` before shipping it.
 - `test` as a word in the subject sends only to the results mailbox, listing the recipients.
 - `migrations/inbound-email.sql` must be applied before the webhook is enabled.
+- **`registrations@` is a queue, not a list** (BL-04 step 6, Nov 2026; Stockport's
+  `90cb07f`). `controllers/playerRequestController.js` stores the mail in
+  `registration_request` with the names `utils/registrationEmail.js` (verbatim port) reads
+  out of it, for `/admin/player-requests`, whose buttons write through the roster API. The
+  `QUEUES` map in the inbound controller catches it **before** the list parser. Same sender
+  gate as a list, unlike Stockport's allowlist + `dkim || spf`, so a secretary can write
+  directly; a refusal is listed on the queue page, never forwarded (Stockport forwards it).
+  `migrations/registration-request.sql` first.
+- **Write jsonb with `sql.json(value)`, never `${JSON.stringify(v)}::jsonb`.** postgres.js
+  JSON-encodes a parameter the server types as jsonb, so the stringified form is stored as
+  a jsonb *string*, and every mock-backed test still passes. Found by rehearsal.
 - Rehearsal of the SQL (rolled back) and the real list sizes: see the BL-04 brief.
 
 ### Absolute URLs — never from `req.headers.host`

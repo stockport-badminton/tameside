@@ -1,0 +1,95 @@
+<%- include('../header.ejs', { useRosterCss: true }) %>
+<%- include('../nav.ejs') %>
+
+<%# Ported from Stockport's views/admin/player-request.ejs (Bootstrap 5 here). %>
+<div class="roster-page text-start player-request">
+
+  <p class="mb-1"><a href="/admin/player-requests">&larr; All requests</a></p>
+  <h1 class="h3"><%= request.subject || '(no subject)' %></h1>
+
+  <% if (request.status !== 'pending') { %>
+    <div class="alert alert-secondary">
+      Marked <strong><%= request.status %></strong><% if (request.closedBy) { %> by <%= request.closedBy %><% } %>.
+    </div>
+  <% } %>
+
+  <div class="row">
+    <div class="col-lg-5 mb-3">
+      <div class="card">
+        <div class="card-body">
+          <dl class="mb-2 small">
+            <dt>From</dt><dd><%= request.originalFrom || request.forwardedBy %></dd>
+            <% if (request.originalFrom && request.forwardedBy && request.originalFrom !== request.forwardedBy) { %>
+              <dt>Forwarded by</dt><dd><%= request.forwardedBy %></dd>
+            <% } %>
+            <dt>Received</dt>
+            <dd><%= new Date(request.receivedAt).toLocaleString('en-GB', { timeZone: 'Europe/London', dateStyle: 'medium', timeStyle: 'short' }) %></dd>
+            <% if (request.attachments && request.attachments.length) { %>
+              <dt>Attachments</dt>
+              <dd>
+                <%= request.attachments.join(', ') %><br>
+                <span class="text-muted">Not read here &mdash; open them from the original email
+                (Resend keeps it for 30 days), or ask the sender. A returned registration form
+                goes through Team Registration (import returned).</span>
+              </dd>
+            <% } %>
+          </dl>
+          <pre class="request-body"><%= request.bodyText %></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <p class="text-muted small mb-2">
+        Each person the email seems to name, matched against every player on file. Check the
+        reading, pick a team, then register an existing player or create a new one.
+        Nothing is changed until you press a button.
+      </p>
+
+      <div id="request-people" aria-live="polite"></div>
+
+      <form id="request-add" class="row g-2 align-items-center mt-3 mb-4" autocomplete="off">
+        <div class="col-auto">
+          <label class="visually-hidden" for="addFirst">First name</label>
+          <input class="form-control form-control-sm" id="addFirst" placeholder="First name" maxlength="60">
+        </div>
+        <div class="col-auto">
+          <label class="visually-hidden" for="addFamily">Family name</label>
+          <input class="form-control form-control-sm" id="addFamily" placeholder="Family name" maxlength="60">
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-sm btn-outline-secondary" type="submit">Add someone the email names</button>
+        </div>
+      </form>
+
+      <div class="d-flex flex-wrap">
+        <% if (request.status === 'pending') { %>
+          <form method="post" action="/admin/player-requests/<%= request.id %>/status" class="me-2 mb-2">
+            <input type="hidden" name="status" value="done">
+            <button class="btn btn-primary" type="submit">Mark done</button>
+          </form>
+          <form method="post" action="/admin/player-requests/<%= request.id %>/status" class="me-2 mb-2">
+            <input type="hidden" name="status" value="dismissed">
+            <button class="btn btn-outline-secondary" type="submit">Dismiss &mdash; not a registration</button>
+          </form>
+        <% } else { %>
+          <form method="post" action="/admin/player-requests/<%= request.id %>/status" class="mb-2">
+            <input type="hidden" name="status" value="pending">
+            <button class="btn btn-outline-secondary" type="submit">Reopen</button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# Data for the page script. `<` is escaped so a name or subject containing "</script>"
+    cannot end the block: the content is other people's email. %>
+<script type="application/json" id="request-data"><%- JSON.stringify({
+  id: request.id,
+  candidates: candidates,
+  teams: teams
+}).replace(/</g, '\\u003c') %></script>
+
+<script src="<%= assetUrl('/static/js/player-request.js') %>" defer></script>
+<%- include('../footer.ejs') %>

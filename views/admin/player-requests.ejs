@@ -1,0 +1,86 @@
+<%- include('../header.ejs', { useRosterCss: true }) %>
+<%- include('../nav.ejs') %>
+
+<%# Ported from Stockport's views/admin/player-requests.ejs (Bootstrap 5 here). %>
+<div class="roster-page text-start">
+
+  <h1>Registration requests</h1>
+
+  <p class="text-muted">
+    Mail to <strong><%= address %></strong> appears here, with the names it contains already
+    read out and matched against the players on file. A club secretary can write to it
+    directly, or you can forward a registration email to it. Only a known sender whose
+    address checks out is queued, the same rule as the list addresses.
+  </p>
+
+  <ul class="nav nav-tabs mb-3">
+    <% ['pending', 'done', 'dismissed'].forEach(function (s) { %>
+      <li class="nav-item">
+        <a class="nav-link <%= s === status ? 'active' : '' %>" href="/admin/player-requests?status=<%= s %>"><%= s[0].toUpperCase() + s.slice(1) %></a>
+      </li>
+    <% }); %>
+  </ul>
+
+  <% if (!requests.length) { %>
+    <p class="text-muted">Nothing <%= status %>.</p>
+  <% } else { %>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Received</th>
+            <th>From</th>
+            <th>Subject</th>
+            <th>People</th>
+            <% if (status !== 'pending') { %><th>Closed by</th><% } %>
+          </tr>
+        </thead>
+        <tbody>
+          <% requests.forEach(function (r) { %>
+            <tr>
+              <td class="text-nowrap"><%= new Date(r.receivedAt).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %></td>
+              <td style="word-break:break-all;"><%= r.originalFrom || r.forwardedBy %></td>
+              <td><a href="/admin/player-requests/<%= r.id %>"><%= r.subject || '(no subject)' %></a></td>
+              <td>
+                <% if (!r.total) { %>
+                  <span class="text-muted">none found &mdash; open to add</span>
+                <% } else { %>
+                  <%= r.handled %> of <%= r.total %> done
+                <% } %>
+              </td>
+              <% if (status !== 'pending') { %><td><%= r.closedBy %></td><% } %>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <% if (refused.length) { %>
+    <h2 class="h5 mt-4">Refused</h2>
+    <p class="text-muted small">
+      Mail to <%= address %> that was not queued, and went nowhere else. <em>unknown-sender</em>:
+      the address is not a login linked to a player, nor a player's contact address at a club;
+      link their login (Link Logins) or add the address to their player, then ask them to
+      resend. <em>unauthenticated</em>: the From could not be verified, usually forged.
+    </p>
+    <div class="table-responsive">
+      <table class="table table-sm small">
+        <thead><tr><th>When</th><th>From</th><th>Subject</th><th>Why</th></tr></thead>
+        <tbody>
+          <% refused.forEach(function (r) { %>
+            <tr>
+              <td class="text-nowrap"><%= new Date(r.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %></td>
+              <td style="word-break:break-all;"><%= r.sender %></td>
+              <td><%= r.subject %></td>
+              <td><%= r.outcome %> <span class="text-muted">(<%= r.auth %>)</span></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+</div>
+
+<%- include('../footer.ejs') %>

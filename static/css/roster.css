@@ -483,3 +483,15 @@
 }
 .admin-hub-group li { margin-bottom: 10px; }
 .admin-hub-group li > a { font-weight: 500; }
+
+/* /admin/player-requests/:id — the email being worked through. Kept as the sender wrote it
+   (line breaks and all, since a pasted list is the thing being read), but scrollable so a
+   long thread does not push the people off the screen. Ported from Stockport. */
+.player-request .request-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85rem;
+  max-height: 70vh;
+  overflow-y: auto;
+  margin-bottom: 0;
+}

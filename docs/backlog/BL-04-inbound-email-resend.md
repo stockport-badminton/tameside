@@ -10,8 +10,16 @@ theirs and is the reference: league-site `controllers/contactusController.js`
 **Steps 1-5 and 7 are built**: `POST /webhooks/resend`, `utils/listAddress.js`,
 `utils/svixSignature.js`, `utils/resendInbound.js`, `models/inboundEmail.js`,
 `mailer.forward`, `/admin/inbound-email`, `migrations/inbound-email.sql`; CLAUDE.md has the
-rules. **Step 6 (`registrations@`) is not**: until it is, mail to it is `not-a-list` and
-dropped, so give it an explicit Namecheap forward if anybody uses it.
+rules. **Step 6: `registrations@` is built (8 Nov 2026)**, `rearrangements@` is not: until
+it is, mail to it is `not-a-list` and dropped.
+
+registrations@, decided while building: same sender gate as a list (known + authenticated),
+not Stockport's `REGISTRATION_INBOX_SENDERS` allowlist, so no new env var and a club
+secretary can write to it directly. A refusal shows on `/admin/player-requests`. Teams on
+offer are those in a real division (Stockport's "not No Club" would also offer the other
+league's club rows here). No e2e spec yet: Stockport's runs on their local DB fixtures, and
+ours reads production, which has no request rows. Go-live: apply
+`migrations/registration-request.sql`, deploy, mail `registrations@` from a login address.
 
 Differences from the plan below, decided while building:
 - **Authenticated means DMARC pass, or DKIM pass only when DMARC is not `fail`.** "DKIM

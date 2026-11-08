@@ -128,10 +128,21 @@ async function dailyCounts(days = 14) {
   return sql`
     SELECT (created_at AT TIME ZONE 'Europe/London')::date::text AS day,
            COUNT(*)::int AS total,
-           COUNT(*) FILTER (WHERE outcome IN ('forwarded', 'test'))::int AS forwarded
+           COUNT(*) FILTER (WHERE outcome IN ('forwarded', 'test', 'queued', 'already-queued'))::int AS forwarded
     FROM inbound_email
     WHERE created_at > now() - make_interval(days => ${days})
     GROUP BY 1 ORDER BY 1 DESC`;
+}
+
+// Mail to a queue address (registrations@) that the sender gate refused, for that queue's
+// page. Nothing refused is relayed anywhere, so this is where a real secretary who was
+// refused shows up.
+async function refusedFor(leagueAddress, limit = 20) {
+  return sql`
+    SELECT created_at, sender, subject, auth, outcome
+    FROM inbound_email
+    WHERE league_address = ${leagueAddress} AND outcome IN ('unknown-sender', 'unauthenticated')
+    ORDER BY created_at DESC LIMIT ${limit}`;
 }
 
 module.exports = {
@@ -144,6 +155,7 @@ module.exports = {
   isKnownSender,
   recent,
   dailyCounts,
+  refusedFor,
   hashAddress,
   LOG_DAYS,
 };

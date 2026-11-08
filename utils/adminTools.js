@@ -24,6 +24,7 @@ const GROUPS = [
     title: 'Players & teams',
     tools: [
       { href: '/manage-players', label: 'Team Management', blurb: 'Every club\'s squads — reorder, move, add, transfer and release players.' },
+      { href: '/admin/player-requests', label: 'Registration Requests', blurb: 'Mail to registrations@: the players it names, matched against the table, one button each.', count: 'playerRequests' },
       { href: '/admin/registration-reminders', label: 'Registration Reminders', blurb: 'Which clubs have returned this season\'s registration form; chase the rest.', count: 'formsOutstanding' },
       { href: '/admin/team-registrations', label: 'Team Registration (import returned)', blurb: 'Diff a returned form against the database and apply the changes.' },
       { href: '/forms/team-registration/Aerospace/prefilled', label: 'Team Registration (prefilled)', blurb: 'A club\'s form filled in from its current roster.', newTab: true },

@@ -813,6 +813,15 @@ app.get('/admin/spam', access.superadmin, spam_admin_controller.form);
 app.post('/admin/spam', access.superadmin, spam_admin_controller.add);
 app.post('/admin/spam/:id/active', access.superadmin, spam_admin_controller.toggle);
 app.get('/admin/inbound-email', access.superadmin, inbound_email_controller.adminList);
+// registrations@, queued from the inbound mail above (controllers/playerRequestController.js).
+// The page's writes go through the roster API (/api/roster/...), not through these routes.
+const player_request_controller = require('./controllers/playerRequestController');
+app.get('/admin/player-requests', access.superadmin, player_request_controller.list_page);
+app.get('/admin/player-requests/match', access.superadmin, player_request_controller.api_match);
+app.get('/admin/player-requests/:id', access.superadmin, player_request_controller.detail_page);
+app.post('/admin/player-requests/:id/candidates/:index', access.superadmin, player_request_controller.api_set_candidate);
+app.post('/admin/player-requests/:id/candidates', access.superadmin, player_request_controller.api_add_candidate);
+app.post('/admin/player-requests/:id/status', access.superadmin, player_request_controller.set_status);
 
 /* League structure admin (superadmin only — secured route + role check in the
    controller). Clubs, teams, and one-click promotion/relegation. */
