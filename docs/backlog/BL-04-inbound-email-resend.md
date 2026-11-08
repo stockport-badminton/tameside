@@ -216,7 +216,9 @@ The resend.app address costs two things:
    requires a template, so a forward needs a passthrough path for the original `html`/`text`
    that still keeps the "every email needs a text part" rule. Loop guard: drop anything
    carrying our own `List-Id`, or sent from `RESEND_INBOUND_DOMAIN`.
-6. **Then `registrations@`**, as a separate step: port Stockport's player-requests queue
+6. **Then `registrations@` and `rearrangements@`** (the second added 8 Nov 2026: Stockport
+   queues it the same way, `controllers/rearrangementRequestController.js`, for
+   `/admin/rearrangements`; same rules as registrations@ below). Each is a separate step: port Stockport's player-requests queue
    (`playerRequestController`, `models/registrationRequest`, `utils/registrationEmail`).
    `nameMatch` is already ported. It arrives by the catch-all like any list. Stockport
    falls back to forwarding when an email can't be queued; here a refusal shows on the
