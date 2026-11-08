@@ -7,6 +7,7 @@ const { app, clearModels } = require('../helpers/app');
 const ClubRegistration = require('../../models/clubRegistration');
 const MissedThree = require('../../models/missedThree');
 const RegistrationRequest = require('../../models/registrationRequest');
+const RearrangementRequest = require('../../models/rearrangementRequest');
 const { GROUPS } = require('../../utils/adminTools');
 
 afterEach(() => { clearModels(); mock.restoreAll(); });
@@ -36,18 +37,21 @@ describe('GET /admin', () => {
     mock.method(ClubRegistration, 'getStatus', async () => [{ received: false }, { received: true }, { received: false }]);
     mock.method(MissedThree, 'getPlayers', async () => [{}, {}, {}, {}]);
     mock.method(RegistrationRequest, 'countPending', async () => 3);
+    mock.method(RearrangementRequest, 'countPending', async () => 2);
     const res = await request(app).get('/admin');
     assert.strictEqual(res.status, 200);
     for (const t of GROUPS.flatMap(g => g.tools)) assert.ok(res.text.includes(`href="${t.href}"`), t.href);
     assert.match(res.text, /2 outstanding/);
     assert.match(res.text, /4 to review/);
     assert.match(res.text, /3 pending/);
+    assert.match(res.text, /2 pending/);
   }));
 
   it('a count that fails shows nothing, and the page still renders', asUser({ role: 'superadmin' }, async () => {
     mock.method(ClubRegistration, 'getStatus', async () => { throw new Error('db down'); });
     mock.method(MissedThree, 'getPlayers', async () => { throw new Error('db down'); });
     mock.method(RegistrationRequest, 'countPending', async () => { throw new Error('db down'); });
+    mock.method(RearrangementRequest, 'countPending', async () => { throw new Error('db down'); });
     const res = await request(app).get('/admin');
     assert.strictEqual(res.status, 200);
     assert.doesNotMatch(res.text, /outstanding|to review|all in|pending/);
@@ -59,6 +63,7 @@ describe('the superadmin Admin menu', () => {
     mock.method(ClubRegistration, 'getStatus', async () => []);
     mock.method(MissedThree, 'getPlayers', async () => []);
     mock.method(RegistrationRequest, 'countPending', async () => 0);
+    mock.method(RearrangementRequest, 'countPending', async () => 0);
     const res = await request(app).get('/admin');
     const menu = res.text.slice(res.text.indexOf('dropdown-menu-end'), res.text.indexOf('/logout'));
     assert.match(menu, /href="\/admin">All admin tools/);

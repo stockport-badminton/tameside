@@ -17,6 +17,7 @@ const GROUPS = [
     tools: [
       { href: '/admin/scorecard-ocr', label: 'Scorecard OCR', blurb: 'Read a scorecard photo and prefill the entry form.' },
       { href: '/fixture-players', label: 'Fixture Players', blurb: 'Who played in each fixture.' },
+      { href: '/admin/rearrangements', label: 'Rearrangement Requests', blurb: 'Mail to rearrangements@: the fixture and new date it points at, checked, one Apply.', count: 'rearrangementRequests' },
       { href: '/admin/lewis', label: 'Lewis Results', blurb: 'Enter and correct Lewis Shield results.' },
     ],
   },

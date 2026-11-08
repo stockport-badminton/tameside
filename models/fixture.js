@@ -837,6 +837,60 @@ FROM (SELECT "fixturePlayers".*, club.name
     }
   }
 
+  /**
+   * The same rearrangement for a fixture already identified: /admin/rearrangements, where a
+   * person has picked it from the candidates an email pointed at. By id because by name is
+   * exactly where an email's "Racketeers B" for Racketeers A would go wrong. Ported from
+   * Stockport's rearrangeById (league-site 679e460).
+   *
+   * Only a fixture still to be played can move: one already played, conceded or rearranged
+   * is refused with 409, which is also what stops a second press of Apply (or a second tab)
+   * archiving the replacement's predecessor twice. The row is locked first, so two presses
+   * cannot both pass that check. A Lewis Shield fixture is refused too: its replacement
+   * would lose its `lewis_round`, and the bracket has its own page.
+   *
+   * `withinTransaction(tx, result)` runs after the write in the same transaction, so the
+   * caller's record of it commits or rolls back with it. Resolves
+   * { action: 'rearranged' | 'rearranging', fixtureId, replacementId, date }.
+   */
+  exports.rearrangeById = async function (fixtureId, date, withinTransaction) {
+    const fail = (status, message) => Object.assign(new Error(message), { status });
+    if (!Number.isInteger(fixtureId) || fixtureId <= 0) throw fail(400, 'fixture id must be a positive integer');
+    const newDate = date == null ? '' : String(date).trim();
+    if (newDate && !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) throw fail(400, 'invalid date — expected YYYY-MM-DD');
+
+    return sql.begin(async (tx) => {
+      const [fixture] = await tx`
+        SELECT id::int AS id, "homeTeam", "awayTeam", status, "homeScore", lewis_round,
+               to_char(date, 'YYYY-MM-DD') AS day
+        FROM fixture WHERE id = ${fixtureId} FOR UPDATE`;
+      if (!fixture) throw fail(404, `no fixture ${fixtureId}`);
+      const status = fixture.status || 'outstanding';
+      if (fixture.homeScore != null || !['outstanding', 'rearranging'].includes(status)) {
+        throw fail(409, `fixture ${fixtureId} is already ${fixture.homeScore != null ? 'played' : status}`);
+      }
+      if (fixture.lewis_round != null) throw fail(409, `fixture ${fixtureId} is a Lewis Shield match; move it on the Lewis page`);
+      if (newDate && newDate === fixture.day) throw fail(400, 'the new date is the date it already has');
+
+      let result;
+      if (!newDate) {
+        await tx`UPDATE fixture SET status = 'rearranging' WHERE id = ${fixtureId}`;
+        result = { action: 'rearranging', fixtureId, replacementId: null, date: null };
+      } else {
+        await tx`UPDATE fixture SET status = 'rearranged' WHERE id = ${fixtureId}`;
+        // A wall-clock string, as rearrangeByTeamNames inserts: a JS Date would be converted
+        // through the process's zone and could land a day early over BST.
+        const [fresh] = await tx`
+          INSERT INTO fixture ("homeTeam", "awayTeam", "date", "status")
+          VALUES (${fixture.homeTeam}, ${fixture.awayTeam}, ${newDate}, 'outstanding')
+          RETURNING id::int AS id`;
+        result = { action: 'rearranged', fixtureId, replacementId: fresh.id, date: newDate };
+      }
+      if (withinTransaction) await withinTransaction(tx, result);
+      return result;
+    });
+  };
+
 
   // NOTE: this INNER JOINs `game`, so it returns nothing for a fixture whose individual
   // games were never recorded — 366 of 652 fixtures at the time of writing. Most are the

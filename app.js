@@ -822,6 +822,13 @@ app.get('/admin/player-requests/:id', access.superadmin, player_request_controll
 app.post('/admin/player-requests/:id/candidates/:index', access.superadmin, player_request_controller.api_set_candidate);
 app.post('/admin/player-requests/:id/candidates', access.superadmin, player_request_controller.api_add_candidate);
 app.post('/admin/player-requests/:id/status', access.superadmin, player_request_controller.set_status);
+// rearrangements@, queued the same way (controllers/rearrangementRequestController.js).
+// Apply is the one write, through Fixture.rearrangeById.
+const rearrangement_request_controller = require('./controllers/rearrangementRequestController');
+app.get('/admin/rearrangements', access.superadmin, rearrangement_request_controller.list_page);
+app.get('/admin/rearrangements/:id', access.superadmin, rearrangement_request_controller.detail_page);
+app.post('/admin/rearrangements/:id/apply', access.superadmin, rearrangement_request_controller.apply);
+app.post('/admin/rearrangements/:id/status', access.superadmin, rearrangement_request_controller.set_status);
 
 /* League structure admin (superadmin only — secured route + role check in the
    controller). Clubs, teams, and one-click promotion/relegation. */

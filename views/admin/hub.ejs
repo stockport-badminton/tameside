@@ -10,7 +10,7 @@
     if (n === null || n === undefined) return null;
     if (key === 'formsOutstanding') return n ? { text: n + ' outstanding', warn: true } : { text: 'all in', warn: false };
     if (key === 'missedThree') return n ? { text: n + ' to review', warn: true } : null;
-    if (key === 'playerRequests') return n ? { text: n + ' pending', warn: true } : null;
+    if (key === 'playerRequests' || key === 'rearrangementRequests') return n ? { text: n + ' pending', warn: true } : null;
     return null;
   }
 %>

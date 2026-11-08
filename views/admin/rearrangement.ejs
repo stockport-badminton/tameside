@@ -1,0 +1,156 @@
+<%- include('../header.ejs', { useRosterCss: true }) %>
+<%- include('../nav.ejs') %>
+
+<%# Ported from Stockport's views/admin/rearrangement.ejs (Bootstrap 5 here).
+    No page script: Check re-renders with the form's choices (GET), Apply posts them. %>
+<div class="roster-page text-start player-request rearrangement-request">
+
+  <p class="mb-1"><a href="/admin/rearrangements">&larr; All rearrangement requests</a></p>
+  <h1 class="h3"><%= request.subject || '(no subject)' %></h1>
+
+  <% if (applied && outcome) { %>
+    <div class="alert alert-success">
+      <% if (outcome.action === 'rearranged') { %>
+        Done: fixture <%= outcome.fixtureId %> is marked rearranged and the match is now on
+        <strong><%= outcome.date %></strong> (fixture <%= outcome.replacementId %>).
+      <% } else { %>
+        Done: fixture <%= outcome.fixtureId %> is marked <strong>rearranging</strong>. When the
+        new date is agreed, it can be sent to rearrangements@ too.
+      <% } %>
+      Reply to the clubs to confirm.
+    </div>
+  <% } else if (request.status !== 'pending') { %>
+    <div class="alert alert-secondary">
+      Marked <strong><%= request.status %></strong><% if (request.closedBy) { %> by <%= request.closedBy %><% } %><% if (outcome) { %>:
+        fixture <%= outcome.fixtureId %> <%= outcome.action === 'rearranged' ? 'moved to ' + outcome.date : 'marked rearranging' %><% } %>.
+    </div>
+  <% } %>
+  <% if (error) { %>
+    <div class="alert alert-danger">Not applied: <%= error %></div>
+  <% } %>
+
+  <div class="row">
+    <div class="col-lg-5 mb-3">
+      <div class="card">
+        <div class="card-body">
+          <dl class="mb-2 small">
+            <dt>From</dt>
+            <dd>
+              <%= request.originalFrom || request.forwardedBy %>
+              <% senders.forEach(function (s) { %>
+                <br><span class="text-muted"><%= s.name %>, <%= s.club %><% if (s.offices.length) { %> &middot; <%= s.offices.join(', ') %><% } %></span>
+              <% }); %>
+            </dd>
+            <% if (request.originalFrom && request.forwardedBy && request.originalFrom !== request.forwardedBy) { %>
+              <dt>Forwarded by</dt><dd><%= request.forwardedBy %></dd>
+            <% } %>
+            <dt>Received</dt>
+            <dd><%= new Date(request.receivedAt).toLocaleString('en-GB', { timeZone: 'Europe/London', dateStyle: 'medium', timeStyle: 'short' }) %></dd>
+            <dt>Read from it</dt>
+            <dd>
+              <% if (reading.clubIds.length) { %>
+                Clubs: <%= reading.clubIds.map(function (id) { return clubNames.get(id) || id; }).join(', ') %><br>
+              <% } %>
+              <% if (reading.dates.length) { %>
+                Dates: <%= reading.dates.map(function (d) { return d.ymd + (d.role ? ' (' + d.role + ')' : ''); }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(', ') %><br>
+              <% } %>
+              <% if (reading.noDateYet) { %>Says no new date is agreed yet.<% } %>
+              <% if (!reading.clubIds.length && !reading.dates.length) { %><span class="text-muted">Nothing recognised &mdash; pick a team below.</span><% } %>
+            </dd>
+          </dl>
+          <pre class="request-body"><%= request.bodyText %></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <form method="get" action="/admin/rearrangements/<%= request.id %>" id="rearrangement-form" autocomplete="off">
+        <input type="hidden" name="check" value="1">
+        <h2 class="h5">Which fixture?</h2>
+        <% if (!candidates.length) { %>
+          <p class="text-muted">No fixture matched what the email names. Pick a team below to list its fixtures.</p>
+        <% } else { %>
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <tbody>
+                <% candidates.forEach(function (f) {
+                     var status = f.homeScore != null ? 'played' : (f.status || 'outstanding'); %>
+                  <tr class="<%= ['outstanding', 'rearranging'].indexOf(status) < 0 ? 'text-muted' : '' %>">
+                    <td>
+                      <input class="form-check-input" type="radio" name="fixture" value="<%= f.id %>" id="fixture-<%= f.id %>" <%= f.id === selectedId ? 'checked' : '' %>>
+                    </td>
+                    <td><label for="fixture-<%= f.id %>" class="mb-0"><%= f.homeTeam %> v <%= f.awayTeam %></label></td>
+                    <td class="text-nowrap"><%= f.dayLabel %></td>
+                    <td><%= f.division || '' %></td>
+                    <td>
+                      <%= status %>
+                      <% if (f.id === proposedFixtureId) { %><span class="badge text-bg-info">best match</span><% } %>
+                    </td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+
+        <div class="mb-3">
+          <label for="team" class="form-label small mb-1">Not listed? Add a team's remaining fixtures:</label>
+          <select class="form-select form-select-sm" id="team" name="team">
+            <option value="">&mdash;</option>
+            <% teams.forEach(function (t) { %>
+              <option value="<%= t.id %>" <%= t.id === teamId ? 'selected' : '' %>><%= t.name %></option>
+            <% }); %>
+          </select>
+        </div>
+
+        <h2 class="h5 mt-4">New date</h2>
+        <div class="mb-3">
+          <label for="date" class="visually-hidden">New date</label>
+          <input type="date" class="form-control w-auto" id="date" name="date" value="<%= newDate || '' %>">
+        </div>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="nodate" name="nodate" value="1" <%= noDate ? 'checked' : '' %>>
+          <label class="form-check-label" for="nodate">No date agreed yet &mdash; mark it <em>rearranging</em></label>
+        </div>
+
+        <% if (warnings.length) { %>
+          <div class="alert alert-warning">
+            <ul class="mb-0 ps-3">
+              <% warnings.forEach(function (w) { %><li><%= w %></li><% }); %>
+            </ul>
+          </div>
+        <% } else if (selectedId && request.status === 'pending') { %>
+          <p class="text-success small">Nothing to flag: their usual night, no clash, within the season.</p>
+        <% } %>
+
+        <div class="d-flex flex-wrap">
+          <button class="btn btn-outline-secondary me-2 mb-2" type="submit">Check</button>
+          <% if (request.status === 'pending') { %>
+            <button class="btn btn-primary me-2 mb-2" type="submit" formmethod="post"
+                    formaction="/admin/rearrangements/<%= request.id %>/apply">Apply</button>
+          <% } %>
+        </div>
+      </form>
+
+      <div class="d-flex flex-wrap mt-3">
+        <% if (request.status === 'pending') { %>
+          <form method="post" action="/admin/rearrangements/<%= request.id %>/status" class="me-2 mb-2">
+            <input type="hidden" name="status" value="done">
+            <button class="btn btn-sm btn-outline-secondary" type="submit">Mark done without applying</button>
+          </form>
+          <form method="post" action="/admin/rearrangements/<%= request.id %>/status" class="me-2 mb-2">
+            <input type="hidden" name="status" value="dismissed">
+            <button class="btn btn-sm btn-outline-secondary" type="submit">Dismiss &mdash; not a rearrangement</button>
+          </form>
+        <% } else { %>
+          <form method="post" action="/admin/rearrangements/<%= request.id %>/status" class="mb-2">
+            <input type="hidden" name="status" value="pending">
+            <button class="btn btn-sm btn-outline-secondary" type="submit">Reopen</button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../footer.ejs') %>

@@ -281,6 +281,16 @@ resolves the list with `Player.getEmails`, checks the sender, and forwards with
   gate as a list, unlike Stockport's allowlist + `dkim || spf`, so a secretary can write
   directly; a refusal is listed on the queue page, never forwarded (Stockport forwards it).
   `migrations/registration-request.sql` first.
+- **`rearrangements@` is the same kind of queue** (Stockport's `679e460`):
+  `controllers/rearrangementRequestController.js`, `rearrangement_request`,
+  `/admin/rearrangements`. `utils/rearrangementEmail.js` (verbatim) reads the dates and
+  clubs; the page proposes a fixture and new date, flags a non-home night, a clash, a
+  past or out-of-season date, an already-moved fixture and a refusal, and **Apply** is the
+  one write: `Fixture.rearrangeById`, row-locked, 409 for anything not
+  outstanding/rearranging, **Lewis Shield refused** (its replacement would lose
+  `lewis_round`), with the request's outcome recorded in the same transaction. Unlike
+  Stockport's queue, a captain can write directly, so an email may be a proposal rather
+  than a settled change. `migrations/rearrangement-request.sql` first.
 - **Write jsonb with `sql.json(value)`, never `${JSON.stringify(v)}::jsonb`.** postgres.js
   JSON-encodes a parameter the server types as jsonb, so the stringified form is stored as
   a jsonb *string*, and every mock-backed test still passes. Found by rehearsal.

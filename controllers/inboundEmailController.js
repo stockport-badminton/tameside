@@ -26,6 +26,7 @@ const List = require('../utils/listAddress');
 const InboundEmail = require('../models/inboundEmail');
 const Player = require('../models/players');
 const PlayerRequests = require('./playerRequestController');
+const RearrangementRequests = require('./rearrangementRequestController');
 const { isSuperAdmin } = require('../utils/authz');
 // A module, called through, so tests can stub it (as scorecardVision is).
 const resendInbound = require('../utils/resendInbound');
@@ -64,6 +65,7 @@ function withNotice(notice, html, text) {
 // Queue addresses, by local part. Each returns `{ outcome, detail? }`.
 const QUEUES = {
   [PlayerRequests.LOCAL]: (email) => PlayerRequests.queueFromEmail(email),
+  [RearrangementRequests.LOCAL]: (email) => RearrangementRequests.queueFromEmail(email),
 };
 
 /**

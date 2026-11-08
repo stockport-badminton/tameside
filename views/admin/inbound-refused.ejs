@@ -1,0 +1,27 @@
+<%# Mail to a queue address (registrations@, rearrangements@) that the sender gate refused.
+    Shared by both queue pages. Nothing refused is relayed anywhere, so this is where a real
+    captain or secretary who was refused shows up. %>
+<% if (refused.length) { %>
+  <h2 class="h5 mt-4">Refused</h2>
+  <p class="text-muted small">
+    Mail to <%= address %> that was not queued, and went nowhere else. <em>unknown-sender</em>:
+    the address is not a login linked to a player, nor a player's contact address at a club;
+    link their login (Link Logins) or add the address to their player, then ask them to
+    resend. <em>unauthenticated</em>: the From could not be verified, usually forged.
+  </p>
+  <div class="table-responsive">
+    <table class="table table-sm small">
+      <thead><tr><th>When</th><th>From</th><th>Subject</th><th>Why</th></tr></thead>
+      <tbody>
+        <% refused.forEach(function (r) { %>
+          <tr>
+            <td class="text-nowrap"><%= new Date(r.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %></td>
+            <td style="word-break:break-all;"><%= r.sender %></td>
+            <td><%= r.subject %></td>
+            <td><%= r.outcome %> <span class="text-muted">(<%= r.auth %>)</span></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
