@@ -1,7 +1,7 @@
 // POST /webhooks/resend: mail to a league list address, forwarded to the list.
 // GET /admin/inbound-email: what arrived and what happened to it.
 //
-// docs/backlog/BL-04-inbound-email-resend.md is the design. In one line: a Namecheap
+// docs/backlog/done/BL-04-inbound-email-resend.md is the design. In one line: a Namecheap
 // catch-all forwards every address with no forward of its own to Resend, which calls this;
 // we read the message back, recover which league address it was for, resolve that to a
 // list, check the sender, and send it on through Mailjet. Resend RECEIVES ONLY.

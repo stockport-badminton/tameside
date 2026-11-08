@@ -501,7 +501,7 @@ app.use(filterState.middleware)
     // is otherwise nothing to look at afterwards.
     app.post('/webhooks/mailjet', access.token('MAILJET_WEBHOOK_TOKEN'), express.json({ limit: '512kb' }), mailjet_webhook_controller.receive);
 
-    // Mail to a league list address, from Resend (docs/backlog/BL-04-inbound-email-resend.md).
+    // Mail to a league list address, from Resend (docs/backlog/done/BL-04-inbound-email-resend.md).
     // Svix-signed with RESEND_WEBHOOK_SECRET, checked in the controller against the raw body
     // read near the top of this file; unset or a bad signature 404s.
     app.post('/webhooks/resend', access.token('RESEND_WEBHOOK_SECRET'), inbound_email_controller.receive);

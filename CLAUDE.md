@@ -231,7 +231,7 @@ Other things worth not rediscovering:
 
 Mail to a list address (`division1@`, `hyde@`, `teamcaptains@`, `hydeteamcaptains@`,
 `division1teamcaptains@`) reaches everyone on it. Built 7 Nov 2026 from
-`docs/backlog/BL-04-inbound-email-resend.md`, which has the design and Gate 0. **Resend
+`docs/backlog/done/BL-04-inbound-email-resend.md`, which has the design and Gate 0. **Resend
 receives; Mailjet still sends everything.**
 
 Namecheap's catch-all forwards every address without its own forward to

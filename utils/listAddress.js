@@ -1,7 +1,7 @@
 // Which league list an inbound email was for, and whether to believe who sent it.
 // Pure: no DB, no network. controllers/inboundEmailController.js does the I/O.
 //
-// See docs/backlog/BL-04-inbound-email-resend.md for the whole design. The short version:
+// See docs/backlog/done/BL-04-inbound-email-resend.md for the whole design. The short version:
 // list addresses COMBINE a club, a division and a role, as Stockport's do (`division1@`,
 // `hyde@`, `teamcaptains@`, `hydeteamcaptains@`, `division1teamcaptains@`), and are resolved
 // here rather than kept as one Namecheap forward each.

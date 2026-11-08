@@ -5,6 +5,11 @@ SNS-signed, `middleware/verifySns.js`), and we have no AWS mail account. The *wh
 theirs and is the reference: league-site `controllers/contactusController.js`
 (`distribution_list`) and `controllers/playerRequestController.js` (`registrations@`).
 
+## Status: DONE (8 Nov 2026)
+
+Every step is live. The queues were tested end to end on 8 Nov 2026, after both
+migrations were applied.
+
 ## Status (7 Nov 2026)
 
 **Steps 1-5 and 7 are built**: `POST /webhooks/resend`, `utils/listAddress.js`,

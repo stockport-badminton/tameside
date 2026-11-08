@@ -1,5 +1,5 @@
 // utils/listAddress.js: which list an inbound email was for, and whether to believe who
-// sent it. See docs/backlog/BL-04-inbound-email-resend.md.
+// sent it. See docs/backlog/done/BL-04-inbound-email-resend.md.
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
 
