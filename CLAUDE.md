@@ -917,6 +917,12 @@ and `test/db-pool.test.js` asserts both:
   request that happened to be in the burst. It reproduces locally, and it is likely the
   real cause of the 17 Sep "pooler stall". See the addendum in
   `docs/incident-2026-09-17-pooler-stall.md`.
+- **A connect timeout is an outage, not a wedge** (`utils/dbHealth.js`). On 8 Nov 2026 the
+  pooler stopped completing NEW connections for ten minutes. The 10s `connect_timeout`
+  outlasts the probe's 4s deadline, so `/health` read it as a hang and liveness killed five
+  instances in turn. Once the probe's own query has failed `CONNECT_TIMEOUT`, a timeout now
+  answers 200 `db-unreachable` for 60s. In a `CONNECT_TIMEOUT` message, `undefined:undefined`
+  as the host means TCP connected and TLS or auth stalled. Addendum in the incident doc.
 - **`sql.begin` is ours, not postgres.js's** (`beginOnReserved`, same file). postgres.js
   reserves a transaction's connection from a hook it skips at `max_pipeline` 0, so its own
   `begin` failed every transaction with `UNSAFE_TRANSACTION` for the hours between the two

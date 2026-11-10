@@ -27,11 +27,29 @@ const TIMEOUT_MS = parseInt(process.env.DB_HEALTH_TIMEOUT_MS, 10) || 4000
 // pages that need no query. Only silence means this container is the broken part.
 let pending = null
 
+// ...AND A CONNECT TIMEOUT IS AN ERROR, even though it arrives as silence. Observed
+// 2026-11-08, 09:42-09:52 UTC: the pooler stopped completing new connections for ten
+// minutes. postgres.js waits connect_timeout (10s, utils/db_connect.js) before it says
+// so, and the probe's deadline is 4s, so every check timed out first and read as a
+// wedged container. Each instance was killed ~90s in, and each replacement ran its boot
+// queries into the same stall: five instances restarted for an outage none of them
+// could fix. That is exactly the loop the rule above exists to prevent.
+//
+// So when the probe's own query has recently failed with CONNECT_TIMEOUT, a check that
+// times out is reported healthy, reason 'db-unreachable'. During a sustained stall each
+// probe's query fails 10s after it is issued, so the record never ages past ~20s
+// between 30s probes; the window is two probe periods. Only the probe's OWN query
+// counts: it is the one this module can see, and a query hung on an established socket
+// (the 2026-09-17 / 2026-11-02 wedges) never produces CONNECT_TIMEOUT, so those still
+// fail the probe and restart the container.
+const UNREACHABLE_WINDOW_MS = 60000
+let lastConnectTimeoutAt = 0
+
 // Test seam. The three behaviours worth pinning — a hang is unhealthy, a fast error is
 // not, and concurrent checks share one query — are all about what this module does with
 // the answer, so tests supply the answer rather than a database.
 let runQuery = function () { return sql`select 1` }
-function _setProbeQueryForTests(fn) { runQuery = fn || function () { return sql`select 1` }; pending = null }
+function _setProbeQueryForTests(fn) { runQuery = fn || function () { return sql`select 1` }; pending = null; lastConnectTimeoutAt = 0 }
 
 function currentProbe() {
   // One outstanding query at a time. A poisoned connection never settles, so issuing a
@@ -39,7 +57,10 @@ function currentProbe() {
   // the very pool it is meant to be reporting on.
   if (!pending) {
     const done = function (answered) { pending = null; return answered }
-    pending = Promise.resolve().then(runQuery).then(function () { return done(true) }, function () { return done(true) })
+    pending = Promise.resolve().then(runQuery).then(function () { return done(true) }, function (err) {
+      if (err && err.code === 'CONNECT_TIMEOUT') lastConnectTimeoutAt = Date.now()
+      return done(true)
+    })
   }
   return pending
 }
@@ -53,7 +74,11 @@ function check(timeoutMs) {
     const timer = setTimeout(function () {
       if (settled) return
       settled = true
-      resolve({ ok: false, reason: 'db-timeout', ms: ms })
+      if (Date.now() - lastConnectTimeoutAt < UNREACHABLE_WINDOW_MS) {
+        resolve({ ok: true, reason: 'db-unreachable', ms: ms })
+      } else {
+        resolve({ ok: false, reason: 'db-timeout', ms: ms })
+      }
     }, ms)
     // Deliberately NOT unref'd. It is bounded at a few seconds and the server's own
     // listening socket keeps the process alive anyway, so unref buys nothing — while
@@ -68,4 +93,4 @@ function check(timeoutMs) {
   })
 }
 
-module.exports = { check, TIMEOUT_MS, _setProbeQueryForTests }
+module.exports = { check, TIMEOUT_MS, UNREACHABLE_WINDOW_MS, _setProbeQueryForTests }
