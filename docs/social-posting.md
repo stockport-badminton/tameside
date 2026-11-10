@@ -580,3 +580,12 @@ gcloud scheduler jobs create http tbl-results-meta \
 `tameside-site-00337-m45`. After a week, check: `POST /scorecard-beta` latency in the request log, and
 `SELECT target, state, count(*) FROM social_result_post GROUP BY 1, 2`: everything
 `posted`.
+
+**Checked 10 Nov 2026, passed.** `POST /scorecard-beta` went from a median of ~36s (max 48s,
+6 publishes 22-30 Oct) to ~0.8s (max 0.96s, 6 publishes 3-10 Nov). All 24 queue rows
+(6 fixtures x 4 targets) `posted`; median ~14 min from publish to post, and a result published
+after 23:45 waits for the 07:00 run, as designed. Of 582 job runs, three were not 200: a 404
+during the deploy, a **502 that is the job working** (Instagram's "media not ready" on one
+target, the other three posted and the next run posted Instagram), and a 503 during a pooler
+`CONNECT_TIMEOUT` episode on 8 Nov. Runs of up to 34s are expected: `START_BUDGET_MS` stops a
+run *starting* another fixture after 25s, it does not cut one short.
