@@ -918,7 +918,8 @@ and `test/db-pool.test.js` asserts both:
   real cause of the 17 Sep "pooler stall". See the addendum in
   `docs/incident-2026-09-17-pooler-stall.md`.
 - **A connect timeout is an outage, not a wedge** (`utils/dbHealth.js`). On 8 Nov 2026 the
-  pooler stopped completing NEW connections for ten minutes. The 10s `connect_timeout`
+  pooler stopped completing NEW connections for ten minutes (Supabase's own eu-west-2
+  Supavisor incident, posted afterwards). The 10s `connect_timeout`
   outlasts the probe's 4s deadline, so `/health` read it as a hang and liveness killed five
   instances in turn. Once the probe's own query has failed `CONNECT_TIMEOUT`, a timeout now
   answers 200 `db-unreachable` for 60s. In a `CONNECT_TIMEOUT` message, `undefined:undefined`

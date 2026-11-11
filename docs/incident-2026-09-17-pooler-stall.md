@@ -161,9 +161,13 @@ transaction pooler stopped completing. Every attempt ran to postgres.js's 10s
 TAMESIDE-NODE-B, 6 events). It hit every instance that existed in the window, including
 fresh ones on their first boot query. There was no deploy, no burst (5 requests in the 20
 minutes before), and no scheduled job. It cleared by itself after about ten minutes.
-Visitors got 500s and 503s on `GET /` for most of that time. Stockport's Sentry shows
-nothing for that morning, which is weak evidence that only our tenant was affected; we
-could not read their Cloud Run logs.
+Visitors got 500s and 503s on `GET /` for most of that time.
+
+**Confirmed as Supabase's**: their status page has "Interruption in connections to
+Supavisor in eu-west-2", **09:42 to 09:52 GMT, 8 Nov 2026**, to the minute what our logs show
+(https://status.supabase.com/incidents/01M6XCPARB0V5QQ23RKW273S1F). It was posted
+after the fact, at Monitoring, with no Investigating stage and no cause given. So during an
+episode like this, the status page may well say nothing yet; check it afterwards.
 
 **Which stage stalled.** The error text names the host only until the TLS upgrade, because
 postgres.js swaps in a TLS socket that has no `.host`. Early errors read
@@ -183,8 +187,8 @@ the next 60s, a check that times out answers 200 with `reason: 'db-unreachable'`
 `503 db-timeout`. A hang on an established connection (17 Sep, 2 Nov) never produces
 `CONNECT_TIMEOUT`, so it still restarts the container. Pinned in `test/db-health.test.js`.
 
-**For Supabase**, add to question 4 above (still unanswered): pooler metrics and our
-tenant's pool size for 8 Nov, 09:35 to 09:55 UTC.
+Nothing further to ask Supabase about this one. Question 4 above (our tenant's pool size)
+is still unanswered.
 
 ---
 
