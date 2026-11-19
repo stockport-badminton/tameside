@@ -335,10 +335,39 @@ from an older handler.
 - The `.replace('.com', '.co.uk')` chains that used to decorate the canonical-url code were
   earlier attempts at the same problem; they could never work, because a run.app hostname
   contains no `.com` to replace.
-- **Nothing renders `canonical`.** Several controllers pass it as a view local and no view
-  reads it, so it is dead — worth knowing before "fixing" it again.
+- **`header.ejs` renders `rel=canonical` and `og:url` on every page** (Nov 2026), from
+  `res.locals.canonical`, which `app.js` sets per request with `canonicalFor(req)` (tracking
+  params stripped). Before that nothing rendered it and every page's `og:url` was the
+  homepage. It matters more than it looks: the run.app host serves the whole site too.
 - `AUTH0_CALLBACK_URL` is `https://tameside-badminton.co.uk/callback`, which is correct and
   should stay on the custom domain.
+
+### Crawlers: robots.txt, sitemap.xml, llms.txt
+
+All three are generated per request (`controllers/crawlerController.js`), cached an hour.
+Built Nov 2026 to make the site findable by search engines and AI assistants, which answer
+from the same indexes. **The rule: anything that needs a login is neither crawlable nor
+indexable; everything public is both.**
+
+- **robots.txt is derived from the route table** (`utils/robots.js`): every GET whose
+  `access.*` declaration isn't `public` becomes a `Disallow`, so a new `member` route is
+  blocked without anyone editing a list. Parameters become `*`, never a bare prefix —
+  `/player/:id/update` needs a login but `/player/:id` is public. Public routes that are
+  still not for crawlers (`/login`, `/api/`…) are in `EXTRA_DISALLOW` with a reason.
+  `test/integration/crawlers.test.js` checks the real router both ways.
+- **Every non-public access level also sends `X-Robots-Tag: noindex, nofollow`**
+  (`declare()` in `middleware/access.js`), redirects to `/login` included.
+- **It replaced a 3,548-line copied per-bot blocklist that disallowed CCBot** (Common Crawl,
+  a main AI training corpus). The AI crawlers are now named in the one `*` group on
+  purpose. Don't bring a blocklist back: the bots that matter ignore it.
+- **The sitemap lists public HTML pages only.** Not `/teams`, `/clubs`, `/team/:id`,
+  `/player/:id` or `/fixtures/*` (they answer JSON), not player stats pages (a page per
+  named person isn't something to push at crawlers), not past seasons' events (they 404).
+  `Fixture.getForSitemap` uses the event page's own inner joins, so a listed event renders.
+- **`eventPath()` (`utils/siteUrl.js`) is the one builder of `/event/…` URLs**: homepage
+  link, SportsEvent markup, sitemap. Three spellings would be three URLs for one page.
+- **`/llms.txt`** (llmstxt.org) is built from `Club.clubDetail`, the same query as
+  `/info/clubs`, so club nights and venues can't drift. Keep it to facts the data holds.
 
 ### Static assets and caching
 

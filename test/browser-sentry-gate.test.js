@@ -14,7 +14,8 @@ before(async () => {
   html = await ejs.renderFile(path.join(__dirname, '../views/header.ejs'), {
     user: { user_id: 'auth0|test' }, siteHostname: 'tameside-badminton.co.uk',
     static_path: '/static', title: 't', pageDescription: 'd',
-    assetUrl: p => p, pastSeasons: [], jsonForScript: JSON.stringify,
+    assetUrl: p => p, absoluteUrl: p => 'https://tameside-badminton.co.uk' + p,
+    pastSeasons: [], jsonForScript: JSON.stringify,
   }, { async: false }).catch(err => { throw err; });
 });
 after(() => { delete process.env.K_SERVICE; });

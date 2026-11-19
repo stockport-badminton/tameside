@@ -266,6 +266,15 @@ app.get('/sw.js', access.public, function(req, res) {
   res.render('sw', { cacheVersion: process.env.K_REVISION || 'dev-local' });
 });
 
+// robots.txt, sitemap.xml and llms.txt are generated (controllers/crawlerController.js) —
+// robots.txt from the route table, so anything behind a login is disallowed without a
+// hand-kept list. Registered above the `rootfiles` mount so a stray file there can't
+// shadow them.
+const crawler_controller = require(__dirname + '/controllers/crawlerController');
+app.get('/robots.txt', access.public, crawler_controller.robots);
+app.get('/sitemap.xml', access.public, crawler_controller.sitemap);
+app.get('/llms.txt', access.public, crawler_controller.llms);
+
 app.use(express.static('rootfiles'));
 // Cache-Control for everything below comes from assets.cacheHeaders, so the mounts set
 // none of their own (`cacheControl: false`). Firebase's CDN applies max-age=600 to any
@@ -330,6 +339,16 @@ app.locals.adminNavShortlist = require(__dirname + '/utils/adminTools').shortlis
 // The site's own hostname, for the browser-Sentry runtime check in views/header.ejs —
 // from SITE_URL, so it is not hardcoded a second time.
 app.locals.siteHostname = new URL(require(__dirname + '/utils/siteUrl').siteUrl()).hostname;
+// The canonical and og:url header.ejs renders on every page, always on the configured
+// domain: the run.app host serves the whole site too, and this is what says which copy is
+// the real one. A controller can still pass its own `canonical`, which wins.
+const siteUrlHelpers = require(__dirname + '/utils/siteUrl');
+app.locals.absoluteUrl = siteUrlHelpers.absoluteUrl;
+app.locals.eventPath = siteUrlHelpers.eventPath;
+app.use(function (req, res, next) {
+  res.locals.canonical = siteUrlHelpers.canonicalFor(req);
+  next();
+});
 
 app.locals.spamHoneypotField = spamChecks.HONEYPOT_FIELD;
 app.use(function (req, res, next) {

@@ -27,7 +27,8 @@ function renderHeader(env, user) {
   try {
     return ejs.render(fs.readFileSync(HEADER, 'utf8'), {
       static_path: '/static', title: 't', pageDescription: 'd',
-      assetUrl: (p) => p, pastSeasons: [], jsonForScript,
+      assetUrl: (p) => p, absoluteUrl: (p) => 'https://tameside-badminton.co.uk' + p,
+      pastSeasons: [], jsonForScript,
       siteHostname: 'tameside-badminton.co.uk',
       ...(user ? { user } : {}),
     }, { filename: HEADER });

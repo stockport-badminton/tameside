@@ -198,8 +198,12 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
     <meta name="author" content="">
     <meta property="og:title" content="Tameside Badminton League - <%= title %>">
     <meta property="og:description" content="Tameside Badminton Association. <%= pageDescription %>">
-    <meta property="og:image" content="/static/images/Logo.png">
-    <meta property="og:url" content="https://tameside-badminton.co.uk">
+    <%# Absolute, and from SITE_URL: a relative og:image is ignored by most link previews,
+        and og:url was the homepage on every page. `canonical` is set for every request in
+        app.js (res.locals), never from the Host header — see utils/siteUrl.js. %>
+    <meta property="og:image" content="<%= absoluteUrl('/static/images/Logo.png') %>">
+    <meta property="og:url" content="<%= locals.canonical || absoluteUrl('/') %>">
+    <% if (locals.canonical) { %><link rel="canonical" href="<%= locals.canonical %>"><% } %>
     <meta name="twitter:card" content="summary_large_image">
     <meta property="og:site_name" content="Tameside Badminton League">
     <meta name="twitter:image:alt" content="Tameside Badminton League">
@@ -274,7 +278,7 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
               "name": "<%= fixtureDetails.homeTeam %> vs <%= fixtureDetails.awayTeam %>",
               "startDate": "<%= OtherDateStringStartTime %>",
               "endDate": "<%= OtherDateStringEndTime %>",
-              "url": "https://tameside-badminton.co.uk/event/<%= fixtureDetails.id %>/<%= MyDateString.replaceAll("/","") %>-<%= fixtureDetails.homeTeam %>-<%= fixtureDetails.awayTeam %>",
+              "url": "<%= absoluteUrl(eventPath(fixtureDetails)) %>",
               "sport":"badminton",
               "competitor":[{
                 "@type":"SportsTeam",
@@ -337,7 +341,7 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
               "name": "<%= fixtureDetails.homeTeam %> vs <%= fixtureDetails.awayTeam %>",
               "startDate": "<%= OtherDateStringStartTime %>",
               "endDate": "<%= OtherDateStringEndTime %>",
-              "url": "https://tameside-badminton.co.uk/event/<%= fixtureDetails.id %>/<%= MyDateString.replaceAll("/","") %>-<%= fixtureDetails.homeTeam %>-<%= fixtureDetails.awayTeam %>",
+              "url": "<%= absoluteUrl(eventPath(fixtureDetails)) %>",
               "sport":"badminton",
               "competitor":[{
                 "@type":"SportsTeam",

@@ -6,7 +6,6 @@
   // "Sat 4 Oct" label for the compact lists.
   var DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  function ddmmyyyy(d){ return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth()+1)).slice(-2) + '/' + d.getFullYear(); }
   function shortDate(d){ return DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; }
   var HOME_LIST_MAX = 8;
   var recentList = (typeof result !== 'undefined' ? result : []).slice().reverse().slice(0, HOME_LIST_MAX);
@@ -77,10 +76,10 @@
         </div>
         <% if (upcomingList.length > 0) { %>
         <ul class="home-list">
-            <% upcomingList.forEach(function(f){ var d = new Date(f['date']); var ds = ddmmyyyy(d); %>
+            <% upcomingList.forEach(function(f){ var d = new Date(f['date']); %>
             <li>
                 <span class="home-list-date"><%= shortDate(d) %></span>
-                <a class="home-list-fixture" href="<%= '/event/' + f.id + '/' + ds.replaceAll("/","") + '-' + f.homeTeam + '-' + f.awayTeam %>">
+                <a class="home-list-fixture" href="<%= eventPath(f) %>">
                     <%= f['homeTeam'] %> <span class="home-list-v">v</span> <%= f['awayTeam'] %>
                 </a>
             </li>

@@ -529,6 +529,27 @@ exports.getOutstandingFixtureId = async function(obj,done){
   // Sentry TAMESIDE-NODE-2, 308 events). Making the archive render properly means
   // resolving the season from fixture.date and joining the suffixed tables; LEFT JOINing
   // instead would only produce an event page with blank team and venue names.
+  // GET /sitemap.xml: this season's event pages. The INNER joins are getFixtureEventById's
+  // own, so every fixture listed is one whose page renders — a sitemap entry that 404s is a
+  // soft error to a search engine. Superseded (`rearranged`) and `void` rows are left out:
+  // they render, but they are not the match. Past seasons are left out because their teams
+  // are in snapshot tables those joins don't reach (see the note below).
+  exports.getForSitemap = async function(){
+    return sql`SELECT fixture.id, fixture.date, fixture.status,
+        "homeTeam".name AS "homeTeam", "awayTeam".name AS "awayTeam"
+      FROM fixture
+        JOIN team "homeTeam" ON fixture."homeTeam" = "homeTeam".id
+        JOIN club "homeClub" ON "homeTeam".club = "homeClub".id
+        JOIN venue ON "homeTeam".venue = venue.id
+        JOIN team "awayTeam" ON fixture."awayTeam" = "awayTeam".id
+        JOIN club "awayClub" ON "awayTeam".club = "awayClub".id
+        JOIN division ON "homeTeam".division = division.id
+        JOIN season ON (fixture.date > season."startDate" AND fixture.date < season."endDate")
+      WHERE season.name = ${seasonModel.current()}
+        AND fixture.status NOT IN ('rearranged', 'void')
+      ORDER BY fixture.date, fixture.id`;
+  }
+
   exports.getFixtureEventById = async function(fixtureId,done){
     let rows = await sql`SELECT 
     "fixture".id,

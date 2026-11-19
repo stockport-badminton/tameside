@@ -21,9 +21,19 @@
 
 const { secured, securedApi, requireSuperAdmin } = require('./secured');
 
+// Every level but `public` also marks the response `X-Robots-Tag: noindex, nofollow`, so
+// nothing behind a login, a token or devOnly can be indexed, whatever it answers (a login
+// redirect, a 403, or the page itself to a logged-in crawler). robots.txt disallows the same
+// routes — utils/robots.js derives it from these declarations — but a disallowed URL that is
+// linked from elsewhere can still be listed by its address; the header is what a crawler
+// that does fetch it is told.
 function declare(level, fn) {
-  fn.access = level;
-  return fn;
+  const gated = level === 'public' ? fn : function (req, res, next) {
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+    return fn(req, res, next);
+  };
+  gated.access = level;
+  return gated;
 }
 
 // Runs `mws` in order as one middleware. next(err), next('route') and next('router')

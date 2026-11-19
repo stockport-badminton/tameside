@@ -53,10 +53,39 @@ function absoluteUrl(pathname) {
   return siteUrl() + (p.startsWith('/') ? p : '/' + p);
 }
 
-// For `rel=canonical`. Uses req.originalUrl for the PATH only — the host comes from the
-// configuration, which is the whole point.
+// Params that identify a click, not a page (Stockport's list). Left in the canonical they
+// split one page into many URLs. Anything not listed is kept: the filter toolbar's params
+// do change what a page shows.
+const TRACKING_PARAMS = [
+  'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'utm_id',
+  'fbclid', 'gclid', 'gbraid', 'wbraid', 'msclkid', 'twclid', 'igshid',
+  'mc_cid', 'mc_eid', 'ref', 'source',
+];
+
+// For `rel=canonical` and og:url, which header.ejs renders on every page (res.locals,
+// set in app.js). Uses req.originalUrl for the PATH only — the host comes from the
+// configuration, which is the whole point: the run.app host serves the whole site too,
+// and the canonical is what tells a search engine which copy is the real one.
 function canonicalFor(req) {
-  return absoluteUrl((req && req.originalUrl) || '/');
+  const raw = (req && req.originalUrl) || '/';
+  const cut = raw.indexOf('?');
+  if (cut === -1) return absoluteUrl(raw);
+  const params = new URLSearchParams(raw.slice(cut + 1));
+  for (const p of TRACKING_PARAMS) params.delete(p);
+  const kept = params.toString();
+  return absoluteUrl(raw.slice(0, cut) + (kept ? '?' + kept : ''));
+}
+
+// /event/:id/DDMMYYYY-Home-Away (Stockport's utils/canonical.js eventPath). Only :id is
+// read; the rest is decorative, which is exactly why it is built in one place — the
+// homepage links it, the SportsEvent markup names it and the sitemap lists it, and three
+// spellings of one page are three URLs. Local-time getters, like the old inline template
+// code, so the date in the URL is the fixture's own day.
+function eventPath(fixture) {
+  const dt = new Date(fixture.date);
+  const slug = ('0' + dt.getDate()).slice(-2) + ('0' + (dt.getMonth() + 1)).slice(-2) + dt.getFullYear()
+    + '-' + fixture.homeTeam + '-' + fixture.awayTeam;
+  return '/event/' + fixture.id + '/' + encodeURIComponent(slug).replace(/%2F/g, '-');
 }
 
 // A division's results and table pages: /results/Division-2, /tables/Division-2, and
@@ -77,5 +106,5 @@ function divisionTablePath(name, season) {
 }
 
 module.exports = {
-  siteUrl, absoluteUrl, canonicalFor, divisionResultsPath, divisionTablePath, DEFAULT_SITE_URL,
+  siteUrl, absoluteUrl, canonicalFor, eventPath, divisionSlug, divisionResultsPath, divisionTablePath, DEFAULT_SITE_URL,
 };
