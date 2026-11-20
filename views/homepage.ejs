@@ -53,7 +53,7 @@
             <a class="home-more" href="/results/All">All results <%- icon('arrow-right') %></a>
         </div>
         <% if (recentList.length > 0) { %>
-        <ul class="home-list">
+        <ul class="home-list home-list-recent">
             <% recentList.forEach(function(r){ var d = new Date(r['date']); %>
             <li>
                 <span class="home-list-date"><%= shortDate(d) %></span>

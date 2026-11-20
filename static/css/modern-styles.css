@@ -2200,4 +2200,9 @@ table.colsearch-on .dt-colsearch-row {
     .home-list li { grid-template-columns: 1fr auto 1fr; row-gap: 0.15rem; }
     .home-list-date { grid-column: 1 / -1; }
     .home-list-fixture { grid-column: 1 / -1; }
+    /* Recent Results is always full (8 of 15-22 results in the last 30 days) and sits
+       above Upcoming on a phone, so only 37% of mobile sessions reached Upcoming (PostHog
+       section_view, Oct-Nov 2026). Four here; "All results" is in the panel header. */
+    .home-list-recent li:nth-child(n+5) { display: none; }
+    .home-list-recent li:nth-child(4) { border-bottom: 0; }
 }
