@@ -191,9 +191,12 @@
                 </td>
                 <% if (typeof admin !== 'undefined') { %>
                   <td>
+                    <%# Only where this viewer may open it: a superadmin, or either club. %>
+                    <% if (typeof mayOpenScorecard === 'function' && mayOpenScorecard(row)) { %>
                     <a href="/scorecard/fixture/<%= row['id'] %>" class="details-link">
                       <%- icon('file-lines') %> Details
                     </a>
+                    <% } %>
                   </td>
                 <% } %>
               <% } else { %>

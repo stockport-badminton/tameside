@@ -423,6 +423,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
             renderObject.admin = true;
             renderObject.superadmin = authz.isSuperAdmin(req);
             renderObject.user = req.user;
+            renderObject.mayOpenScorecard = mayOpenScorecard(req);
           }
           res.render("fixtures-results" + type, renderObject);
         }
@@ -570,6 +571,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
           renderObject.admin = true;
           renderObject.superadmin = authz.isSuperAdmin(req);
           renderObject.user = req.user;
+          renderObject.mayOpenScorecard = mayOpenScorecard(req);
         }
         if (req.path.indexOf("fixtures") > -1) {
           res.status(200);
@@ -1232,6 +1234,14 @@ exports.fixture_populate_scorecard_fromId = function (req, res, next) {
 
   //TODO tidy the chain below up
 };
+
+// The results grid's "Details" link goes to /scorecard/fixture/:id, which only a
+// superadmin or either club may open; show it only on the rows this viewer can open,
+// rather than a link to a 403. Rows come from Fixture.getFixtureDetails, which carries
+// both club names.
+function mayOpenScorecard(req) {
+  return (row) => authz.mayViewClubs(req, [row.homeClub, row.awayClub]);
+}
 
 // Display detail page for a specific Fixture
 // GET /scorecard/fixture/:id

@@ -214,3 +214,33 @@ describe('ELO APIs', () => {
     assert.strictEqual(res.status, 200);
   }));
 });
+
+// The captains' results grid links each played match to its scorecard. Since the
+// scorecard is either club's only, the link is drawn only on the rows this viewer can
+// open — not a link to a 403 on every other club's match.
+describe('the results grid\'s Details link', () => {
+  const ROWS = [
+    { id: 101, date: new Date(2026, 9, 6), homeTeam: 'Hyde A', awayTeam: 'Medlock A',
+      homeClub: 'Hyde', awayClub: 'Medlock', status: 'complete', homeScore: 10, awayScore: 8 },
+    { id: 102, date: new Date(2026, 9, 7), homeTeam: 'Aerospace A', awayTeam: 'Medlock A',
+      homeClub: 'Aerospace', awayClub: 'Medlock', status: 'complete', homeScore: 12, awayScore: 6 },
+  ];
+
+  function links(text) {
+    return [...text.matchAll(/\/scorecard\/fixture\/(\d+)/g)].map(m => Number(m[1]));
+  }
+
+  it('a club admin sees it only on their own club\'s matches', asUser(HYDE_ADMIN, async () => {
+    setModel('Fixture', 'getFixtureDetails', (obj, cb) => cb(null, ROWS));
+    const res = await request(app).get('/admin/results/All');
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(links(res.text), [101]);
+  }));
+
+  it('a superadmin sees it on every match', asUser(SUPERADMIN, async () => {
+    setModel('Fixture', 'getFixtureDetails', (obj, cb) => cb(null, ROWS));
+    const res = await request(app).get('/admin/results/All');
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(links(res.text), [101, 102]);
+  }));
+});
