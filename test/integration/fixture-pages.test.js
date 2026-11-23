@@ -13,13 +13,13 @@
 // Both handlers also used to `res.send(err)` on failure, answering 200 with a serialised
 // error object — so a genuine fault looked like a success to the browser and to Sentry.
 
-const { describe, it, afterEach } = require('node:test');
+const { describe, it, afterEach, beforeEach, mock } = require('node:test');
 const assert = require('node:assert');
 const request = require('supertest');
 
 const { app, setModel, clearModels } = require('../helpers/app');
 
-afterEach(() => { clearModels(); });
+afterEach(() => { clearModels(); mock.restoreAll(); });
 
 // /scorecard/fixture/:id needs a login since Nov 2026 (superadmin or either club); these
 // tests are about rendering, so they run as a superadmin. The gating has its own file,
@@ -119,6 +119,13 @@ describe('GET /scorecard/fixture/:id', () => {
 });
 
 describe('GET /event/:id/:date-:homeTeam-:awayTeam', () => {
+  // The page's extras (form, forecast, table) must not reach the database in a test.
+  // Their behaviour is covered in event-page.test.js.
+  beforeEach(() => {
+    mock.method(require('../../models/fixture'), 'getMatchContext', async () => ({ season: null, form: [], meetings: [], games: [] }));
+    mock.method(require('../../models/teamStrength'), 'forecastFor', async () => null);
+    mock.method(require('../../models/league'), 'getRunIn', async () => []);
+  });
   const EVENT_ROW = {
     id: 6171, date: new Date(2026, 4, 5),
     homeTeam: 'Hyde A', awayTeam: 'Medlock A',

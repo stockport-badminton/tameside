@@ -345,6 +345,12 @@ app.locals.siteHostname = new URL(require(__dirname + '/utils/siteUrl').siteUrl(
 const siteUrlHelpers = require(__dirname + '/utils/siteUrl');
 app.locals.absoluteUrl = siteUrlHelpers.absoluteUrl;
 app.locals.eventPath = siteUrlHelpers.eventPath;
+// JSON-LD for the homepage's upcoming fixtures (views/header.ejs); the event pages build
+// their own in the controller. See utils/structuredData.js.
+const structuredData = require(__dirname + '/utils/structuredData');
+app.locals.sportsEventJsonLd = f => structuredData.jsonLd(structuredData.sportsEvent(f));
+// UK dates formatted by hand, for views (utils/ukDate.js).
+app.locals.ukDate = require(__dirname + '/utils/ukDate');
 app.use(function (req, res, next) {
   res.locals.canonical = siteUrlHelpers.canonicalFor(req);
   next();

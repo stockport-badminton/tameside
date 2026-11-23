@@ -29,7 +29,13 @@ const crypto = require('crypto');
 // rewrites Host to the Cloud Run hostname, so that produced *.a.run.app links, which
 // break the Auth0 round trip — a different origin is a different cookie jar, so the
 // session holding `returnTo` never comes back. See utils/siteUrl.js.
-const { siteUrl, absoluteUrl, canonicalFor, divisionTablePath } = require('../utils/siteUrl');
+const { siteUrl, absoluteUrl, canonicalFor, divisionTablePath, divisionResultsPath, eventPath } = require('../utils/siteUrl');
+const League = require('../models/league');
+const TeamStrength = require('../models/teamStrength');
+const structuredData = require('../utils/structuredData');
+const { buildPreview } = require('../utils/fixturePreview');
+const { CATEGORY_GAMES } = require('../utils/teamStrength');
+const { shortDate } = require('../utils/ukDate');
 const { resultImagePath } = require('../utils/socialPaths');
 // One mailer for every league email; templates compile from emails/*.mjml.
 const mailer = require('../utils/mailer');
@@ -1872,27 +1878,87 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
 //     snapshot tables that this query's INNER joins don't reach. 98 fixtures, all
 //     2023-24. Those 404 for now rather than crashing; rendering them properly needs
 //     the season-aware query described on the model.
-exports.fixture_event_detail = function(req, res,next) {
-  Fixture.getFixtureEventById(req.params.id, function(err,row){
-    if (err){
-      // Was res.send(err), which answered 200 with a serialised error object — a real
-      // failure looked like a success to the browser and to monitoring.
-      next(err);
+// The event page's extras, each allowed to fail on its own: the match context (form,
+// meetings, games), the nightly forecast's public block, and this season's table. A failure
+// is logged and leaves its section out; it never costs the page.
+async function eventExtras(f) {
+  const settle = async (what, work) => {
+    try { return await work(); } catch (err) {
+      console.log(`[event] ${what} unavailable`, JSON.stringify({ fixtureId: f.id, err: err.message }));
+      return null;
     }
-    else if (!row.length){
-      return render404(req, res);
-    }
-    else{
-      res.render('viewEventDetails', {
-          static_path: '/static',
-          title : 'Event Details: '+ row[0].homeTeam + " vs " + row[0].awayTeam,
-          pageDescription : "View scorecard for this match",
-          fixtureDetails: row[0],
-          mapsApiKey:process.env.GMAPSAPIKEY,
-          canonical: canonicalFor(req)
-      });
-    }
-  })
+  };
+  const cup = f.lewisRound != null;
+  const [context, forecast] = await Promise.all([
+    settle('match context', () => Fixture.getMatchContext(f)),
+    // A Lewis Shield tie is not in the forecast: the rating does not model the handicap.
+    cup ? null : settle('forecast', () => TeamStrength.forecastFor(f.id, f.homeTeamId, f.awayTeamId)),
+  ]);
+  // The table as it stands, for a league fixture still to play in the current season.
+  let standings = null;
+  if (!cup && f.homeScore == null && context && context.season === seasonModel.current()) {
+    const rows = await settle('standings', () => League.getRunIn());
+    if (rows) standings = rows.filter(r => r.divisionName === f.divisionName);
+  }
+  return { context, forecast, standings };
+}
+
+// GET /event/:id/... — a fixture's public page: a preview before the match, a report after
+// (utils/fixturePreview.js), the forecast, form, meetings and the venue. Ported from
+// Stockport's 6801d52 (backlog rows 3 and 4). Names no player: the forecast's public block
+// holds none, and the scorecard link shows only to those who may open it (authz.mayViewClubs,
+// the rule /scorecard/fixture/:id enforces).
+exports.fixture_event_detail = async function(req, res, next) {
+  try {
+    const row = await promisify(Fixture.getFixtureEventById)(req.params.id);
+    if (!row || !row.length) return render404(req, res);
+    const f = row[0];
+    const { context, forecast, standings } = await eventExtras(f);
+    const preview = buildPreview({ fixture: f, forecast, context, standings });
+
+    const archived = context && context.season && context.season !== seasonModel.current() ? context.season : undefined;
+    const matchup = `${f.homeTeam} vs ${f.awayTeam}`;
+    const competition = f.lewisRound != null ? 'Lewis Shield' : f.divisionName;
+    const kind = preview.state === 'result' ? `${f.homeScore}–${f.awayScore} result`
+      : preview.state === 'upcoming' ? (preview.forecast ? 'preview & prediction' : 'preview') : 'fixture';
+    // A finished match's social card, which exists on demand for every result.
+    const ogImage = preview.state === 'result'
+      ? absoluteUrl(resultImagePath({ homeTeam: f.homeTeam, awayTeam: f.awayTeam, homeScore: f.homeScore, awayScore: f.awayScore, division: f.divisionName }))
+      : null;
+    const links = {
+      results: divisionResultsPath(f.divisionName, archived),
+      table: divisionTablePath(f.divisionName, archived),
+      lewis: f.lewisRound != null ? '/lewis-shield' : null,
+      scorecard: preview.state === 'result' && authz.mayViewClubs(req, [f.homeClub, f.awayClub]) ? `/scorecard/fixture/${f.id}` : null,
+    };
+    // A page with the scorecard link is that viewer's page: never let a cache hand it on.
+    if (links.scorecard) res.set('Cache-Control', 'private, no-store');
+
+    res.render('viewEventDetails', {
+      static_path: '/static',
+      title: matchup,
+      pageDescription: preview.summary,
+      documentTitle: `${matchup} – ${competition ? competition + ' ' : ''}${kind}, ${shortDate(f.date)} | Tameside Badminton League`,
+      metaDescription: preview.summary,
+      ogImage,
+      fixtureDetails: f,
+      preview,
+      links,
+      categoryGames: CATEGORY_GAMES,
+      mapsApiKey: process.env.GMAPSAPIKEY,
+      jsonLd: [
+        structuredData.jsonLd(structuredData.sportsEvent(f, { description: preview.summary, image: ogImage })),
+        structuredData.jsonLd(structuredData.breadcrumbs([
+          { name: 'Home', path: '/' },
+          { name: f.divisionName ? `${f.divisionName} results` : 'Results', path: links.results },
+          { name: matchup, path: eventPath(f) },
+        ])),
+      ],
+      canonical: canonicalFor(req),
+    });
+  } catch (err) {
+    next(err);
+  }
 };
 
 // The recipients stay editable — the modal prefills the match secretary and captains from

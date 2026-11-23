@@ -554,6 +554,48 @@ exports.getOutstandingFixtureId = async function(obj,done){
       ORDER BY fixture.date, fixture.id`;
   }
 
+  // What an event page says about a fixture beyond the fixture itself (utils/fixturePreview.js,
+  // ported from Stockport's getMatchContext, 6801d52): each team's league results this season
+  // before this date, their last four league meetings, and this fixture's games by type.
+  // Lewis Shield ties are left out of form and meetings: a handicapped cup tie is not form.
+  // `f` is a getFixtureEventById row. Promise-returning, unlike its neighbours.
+  exports.getMatchContext = async function(f) {
+    const before = new Date(f.date)
+    const ids = [Number(f.homeTeamId), Number(f.awayTeamId)]
+    const [season] = await sql`
+      SELECT name, "startDate" FROM season
+      WHERE "startDate" < ${before} AND "endDate" > ${before}
+      ORDER BY "startDate" DESC LIMIT 1`
+    const scored = () => sql`
+      SELECT fixture.id::int AS id, fixture.date, fixture."homeTeam"::int AS "homeTeam", fixture."awayTeam"::int AS "awayTeam",
+             fixture."homeScore", fixture."awayScore", h.name AS "homeName", a.name AS "awayName"
+      FROM fixture
+      JOIN team h ON h.id = fixture."homeTeam"
+      JOIN team a ON a.id = fixture."awayTeam"
+      WHERE fixture."homeScore" IS NOT NULL AND fixture."awayScore" IS NOT NULL
+        AND fixture.lewis_round IS NULL
+        AND (fixture.status IS NULL OR fixture.status NOT IN ('void', 'rearranged', 'rearranging'))
+        AND fixture.date < ${before}`
+    const [form, meetings, games] = await Promise.all([
+      // No season holds the date: no season's form to speak of.
+      season ? sql`${scored()}
+        AND fixture.date > ${season.startDate}
+        AND (fixture."homeTeam" IN ${sql(ids)} OR fixture."awayTeam" IN ${sql(ids)})
+        ORDER BY fixture.date DESC, fixture.id DESC` : [],
+      sql`${scored()}
+        AND ((fixture."homeTeam" = ${ids[0]} AND fixture."awayTeam" = ${ids[1]})
+          OR (fixture."homeTeam" = ${ids[1]} AND fixture."awayTeam" = ${ids[0]}))
+        ORDER BY fixture.date DESC, fixture.id DESC
+        LIMIT 4`,
+      // The latest entry only, if the scorecard was re-entered: its 18 rows are one insert.
+      sql`SELECT "gameType", "homeScore", "awayScore" FROM game
+          WHERE fixture = ${f.id} AND "homeScore" IS NOT NULL AND "awayScore" IS NOT NULL
+            AND id > (SELECT max(id) - 18 FROM game WHERE fixture = ${f.id})
+          ORDER BY id`,
+    ])
+    return { season: season ? season.name : null, form: [...form], meetings: [...meetings], games: [...games] }
+  }
+
   exports.getFixtureEventById = async function(fixtureId,done){
     let rows = await sql`SELECT 
     "fixture".id,
@@ -575,6 +617,9 @@ exports.getOutstandingFixtureId = async function(obj,done){
     "fixture"."status",
     "fixture"."homeScore",
     "fixture"."awayScore",
+    "fixture".lewis_round AS "lewisRound",
+    "homeTeam".id::int AS "homeTeamId",
+    "awayTeam".id::int AS "awayTeamId",
     concat("teamCaptain"."first_name",' ',"teamCaptain"."family_name") as "teamCaptain",
     "teamCaptain".id as "teamCaptainId",
     concat("matchSecretary"."first_name",' ',"matchSecretary"."family_name") as "matchSecretary",

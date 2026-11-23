@@ -1,86 +1,262 @@
 <%- include('header.ejs') %>
 <%- include('nav.ejs') %>
+<%#
+  A fixture's public page: /event/:id. Ported from Stockport's (6801d52), backlog rows 3 and
+  4. The words come from utils/fixturePreview.js and name no player; the forecast is the
+  nightly team-strength run's public block. The JSON-LD (SportsEvent + breadcrumbs) is built
+  in the controller, never here. Dates are formatted by hand in UK time (utils/ukDate.js).
+%>
 <%
+  var f = fixtureDetails;
+  var p = preview;
+  var pctOf = function (x) { return Math.round(100 * x) + '%'; };
+  var isoDay = ukDate.isoDay(f.date);
+  var longDay = ukDate.longDate(f.date);
+  var cup = f.lewisRound != null;
+  var STATE = { upcoming: 'Preview', result: 'Result', rearranged: 'Being rearranged', void: 'Void' };
+  var art = f.divisionName
+    ? 'https://res.cloudinary.com/hvunsveuh/image/upload/f_auto/q_auto/w_1400/social-' + encodeURIComponent(f.divisionName) + '.png'
+    : null;
+  var LABEL = { mens: 'Men’s doubles', ladies: 'Ladies’ doubles', mixed: 'Mixed doubles' };
+%>
+<style>
+  .ev { width: 100%; max-width: 1100px; margin: 0 auto; text-align: left; }
+  .ev .breadcrumb { background: rgba(255,255,255,.85); margin-bottom: .75rem; padding: .4rem .75rem; border-radius: .35rem; }
+  .ev-card { background: #fff; color: #212529; border-radius: .5rem; box-shadow: 0 2px 10px rgba(0,0,0,.12); padding: 1.25rem; margin-bottom: 1rem; }
+  .ev-card h2 { font-size: 1.25rem; font-weight: 600; color: #1e3c72; margin: 0 0 .75rem; }
+  .ev-card p:last-child { margin-bottom: 0; }
 
-var MyDate = new Date(fixtureDetails.date);
-var MyDateString;
-MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
-             + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
-             + MyDate.getFullYear(); %>
+  .ev-hero { position: relative; border-radius: .5rem; overflow: hidden; margin-bottom: 1rem; color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+  .ev-hero--plain { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); }
+  .ev-hero--art { background-color: #1e3c72; background-size: cover; background-position: center 30%; }
+  .ev-hero--art::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15,30,60,.55) 0%, rgba(15,30,60,.85) 100%); }
+  .ev-hero-inner { position: relative; padding: 1.25rem 1.25rem 1.5rem; }
+  .ev-meta { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; font-size: .9rem; opacity: .95; }
+  .ev-badge { display: inline-block; font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    padding: .2rem .55rem; border-radius: 1rem; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.45); }
+  .ev-badge--result { background: #fff; color: #1e3c72; }
+  .ev-teams { display: grid; grid-template-columns: 1fr 6.5rem 1fr; align-items: center; gap: 1rem; }
+  h1.ev-teams { margin: 1rem 0 0; font-size: 1.85rem; font-weight: 700; line-height: 1.15; color: #fff; }
+  h1.ev-teams .ev-name { text-align: center; }
+  h1.ev-teams .ev-vs { text-align: center; font-size: 1rem; font-weight: 600; opacity: .75; text-transform: uppercase; letter-spacing: .08em; }
+  .ev-sub { margin-top: .35rem; align-items: start; }
+  .ev-team { text-align: center; }
+  .ev-team .ev-club, .ev-team .ev-pos { font-size: .85rem; opacity: .85; }
+  .ev-mid { text-align: center; font-weight: 700; }
+  .ev-mid .ev-score { font-size: 2.75rem; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ev-mid .ev-score small, .ev-mid .ev-time small { font-size: .75rem; display: block; font-weight: 400; opacity: .85; margin-top: .25rem; text-transform: uppercase; letter-spacing: .06em; }
+  .ev-mid .ev-time { font-size: 1.5rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  .ev-actions { margin-top: 1rem; text-align: center; }
+  .ev-actions .btn { margin: .15rem; }
+  .ev-actions .btn-light { color: #1e3c72; font-weight: 600; }
 
-<h1 class="w-100"><%= fixtureDetails.homeTeam + " vs " + fixtureDetails.awayTeam %></h1>
-<div class="row g-0 w-100 align-self-start">
-    <div class="col-auto">
-      Date : <%= MyDateString %>
+  .ev-bar { display: flex; height: 2rem; border-radius: .35rem; overflow: hidden; font-size: .8rem; font-weight: 600; color: #fff; line-height: 2rem; }
+  .ev-bar > div { text-align: center; white-space: nowrap; overflow: hidden; min-width: 0; }
+  .ev-home { background: #1e3c72; } .ev-draw { background: #8a8f94; } .ev-away { background: #1f6f8b; }
+  .ev-bar-legend { display: flex; justify-content: space-between; gap: .5rem; font-size: .85rem; margin-top: .35rem; }
+  .ev-likely { font-size: 1.05rem; margin: .75rem 0 0; }
+  .ev-split { display: grid; grid-template-columns: 7.5rem 1fr; gap: .4rem .75rem; align-items: center; font-size: .85rem; margin-top: 1rem; }
+  .ev-split .ev-bar { height: 1.25rem; line-height: 1.25rem; font-size: .7rem; }
+  .ev-note { font-size: .8rem; color: #6c757d; margin-top: .75rem; }
+
+  .ev-form { display: flex; gap: .3rem; flex-wrap: wrap; }
+  .ev-chip { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; width: 2.6rem; height: 2.6rem;
+    border-radius: .35rem; color: #fff; font-weight: 700; font-size: .9rem; line-height: 1; text-decoration: none !important; }
+  .ev-chip small { font-size: .62rem; font-weight: 500; margin-top: .15rem; opacity: .95; }
+  .ev-chip:hover { color: #fff; filter: brightness(1.1); }
+  .ev-W { background: #2e7d32; } .ev-D { background: #8a8f94; } .ev-L { background: #c62828; }
+  .ev-form-team + .ev-form-team { margin-top: .9rem; }
+  .ev-form-team .ev-form-name { font-weight: 600; margin-bottom: .3rem; }
+  .ev-h2h { list-style: none; padding: 0; margin: .5rem 0 0; font-size: .9rem; }
+  .ev-h2h li { display: flex; justify-content: space-between; gap: .5rem; border-top: 1px solid #eee; padding: .35rem 0; }
+
+  .ev-venue dt { font-weight: 600; margin-top: .5rem; }
+  .ev-venue dd { margin-bottom: 0; }
+  #eventMap { height: 260px; border-radius: .35rem; margin-top: .75rem; background: #eef0f2; }
+  .ev-links { list-style: none; padding: 0; margin: 0; }
+  .ev-links li { padding: .25rem 0; }
+
+  @media (max-width: 575.98px) {
+    h1.ev-teams { font-size: 1.25rem; }
+    .ev-teams { grid-template-columns: 1fr 4.5rem 1fr; gap: .5rem; }
+    .ev-mid .ev-score { font-size: 2rem; }
+    .ev-card, .ev-hero-inner { padding: 1rem; }
+  }
+</style>
+
+<article class="ev">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="/">Home</a></li>
+      <li class="breadcrumb-item"><a href="<%= links.results %>"><%= f.divisionName ? f.divisionName + ' results' : 'Results' %></a></li>
+      <li class="breadcrumb-item active" aria-current="page"><%= f.homeTeam %> vs <%= f.awayTeam %></li>
+    </ol>
+  </nav>
+
+  <header class="ev-hero <%= art ? 'ev-hero--art' : 'ev-hero--plain' %>"<% if (art) { %> style="background-image: url('<%= art %>')"<% } %>>
+    <div class="ev-hero-inner">
+      <div class="ev-meta">
+        <span class="ev-badge <%= p.state === 'result' ? 'ev-badge--result' : '' %>"><%= STATE[p.state] %></span>
+        <% if (cup) { %><span>Lewis Shield</span><% } else if (f.divisionName) { %><span><%= f.divisionName %></span><% } %>
+        <span><time datetime="<%= isoDay %>"><%= longDay %></time><% if (f.startTime) { %>, <%= f.startTime %><% } %></span>
+        <% if (f.venueName) { %><span><%= f.venueName %></span><% } %>
+      </div>
+      <%# The h1 is exactly "Home vs Away", what the page is searched for. %>
+      <h1 class="ev-teams">
+        <span class="ev-name"><%= f.homeTeam %></span>
+        <span class="ev-vs">vs</span>
+        <span class="ev-name"><%= f.awayTeam %></span>
+      </h1>
+      <div class="ev-teams ev-sub">
+        <div class="ev-team">
+          <div class="ev-club">Home<% if (f.homeClub) { %> · <%= f.homeClub %><% } %></div>
+          <% if (p.home.position) { %><div class="ev-pos"><%= p.home.position.label %> in the table</div><% } %>
+        </div>
+        <div class="ev-mid">
+          <% if (p.state === 'result') { %>
+            <div class="ev-score"><%= f.homeScore %>–<%= f.awayScore %><small>games won</small></div>
+          <% } else if (f.startTime && p.state === 'upcoming') { %>
+            <div class="ev-time"><%= f.startTime %><small>start</small></div>
+          <% } %>
+        </div>
+        <div class="ev-team">
+          <div class="ev-club">Away<% if (f.awayClub) { %> · <%= f.awayClub %><% } %></div>
+          <% if (p.away.position) { %><div class="ev-pos"><%= p.away.position.label %> in the table</div><% } %>
+        </div>
+      </div>
+      <div class="ev-actions">
+        <% if (links.scorecard) { %><a class="btn btn-light btn-sm" href="<%= links.scorecard %>">View the scorecard</a><% } %>
+        <% if (links.lewis) { %><a class="btn btn-outline-light btn-sm" href="<%= links.lewis %>">Lewis Shield draw</a><% } %>
+        <a class="btn btn-outline-light btn-sm" href="<%= links.table %>"><%= f.divisionName || 'League' %> table</a>
+        <a class="btn btn-outline-light btn-sm" href="<%= links.results %>">Fixtures &amp; results</a>
+      </div>
     </div>
-    <div class="col-1"></div>
-    <div class="col-auto">Start Time: <%= fixtureDetails.startTime %></div>
-</div>
-<div class="row w-100 align-self-start">
-    <div class="col-auto text-left"><%= fixtureDetails.homeTeam %></div>
-    <div class="col-auto text-left">vs</div>
-    <div class="col-auto text-left"><%= fixtureDetails.awayTeam %></div>
-</div>
-<div class="row w-100 align-self-start">
-    <div class="col text-left">Venue: <%= fixtureDetails.venueName + " @ " + fixtureDetails.venueAddress %></div>
-</div>
-<div class="row align-self-start w-100">
-    <div class="col-auto text-left">Team Captain: <%= fixtureDetails.teamCaptain %></div>
-    <div class="col-1"></div>
-    <div class="col-auto text-left">Match Secretary: <%= fixtureDetails.matchSecretary %></div>
-</div>
-<div class="row  g-0 w-100">
-    <div id="eventMap" class="col-12 col-md-6"></div>
-    <div class="col-12 col-md-6">
-        <img src="https://res.cloudinary.com/hvunsveuh/image/upload/co_rgb:000,l_text:Roboto_110_bold:<%= fixtureDetails.homeTeam %>vs/fl_layer_apply,g_south_west,x_10,y_140/co_rgb:000,l_text:Roboto_110_bold:<%= fixtureDetails.awayTeam %>/fl_layer_apply,g_south_west,x_10,y_30/f_auto/q_auto/w_auto:breakpoints_200_1920_30_10:300/social-<%= fixtureDetails.divisionName %>.png" class="img-fluid" alt="<%= fixtureDetails.homeTeam + " vs " + fixtureDetails.awayTeam %>" />
-    </div>
-</div>
+  </header>
 
+  <div class="row">
+    <div class="col-12 col-lg-7">
+      <% p.sections.forEach(function (s) { %>
+      <% if (s.heading !== 'Prediction' || !p.forecast) { %>
+      <section class="ev-card">
+        <h2><%= s.heading %></h2>
+        <% s.paragraphs.forEach(function (text) { %><p><%= text %></p><% }) %>
+      </section>
+      <% } else { var fc = p.forecast; %>
+      <section class="ev-card" aria-labelledby="ev-prediction">
+        <h2 id="ev-prediction">Prediction</h2>
+        <div class="ev-bar" role="img" aria-label="<%= f.homeTeam %> win <%= pctOf(fc.pHome) %>, draw <%= pctOf(fc.pDraw) %>, <%= f.awayTeam %> win <%= pctOf(fc.pAway) %>">
+          <div class="ev-home" style="width: <%= (100 * fc.pHome).toFixed(1) %>%"><%= fc.pHome >= 0.12 ? pctOf(fc.pHome) : '' %></div>
+          <div class="ev-draw" style="width: <%= (100 * fc.pDraw).toFixed(1) %>%"><%= fc.pDraw >= 0.12 ? pctOf(fc.pDraw) : '' %></div>
+          <div class="ev-away" style="width: <%= (100 * fc.pAway).toFixed(1) %>%"><%= fc.pAway >= 0.12 ? pctOf(fc.pAway) : '' %></div>
+        </div>
+        <div class="ev-bar-legend">
+          <span><strong><%= f.homeTeam %></strong> win</span><span>Draw</span><span><strong><%= f.awayTeam %></strong> win</span>
+        </div>
+        <p class="ev-likely">Most likely score: <strong><%= fc.likely.home %>–<%= fc.likely.away %></strong></p>
+        <div class="ev-split" aria-label="Expected games won, by type">
+          <% ['mens', 'ladies', 'mixed'].forEach(function (k) { var n = categoryGames[k], h = fc.edges[k]; %>
+            <span><%= LABEL[k] %> <small class="text-muted">(<%= n %>)</small></span>
+            <div class="ev-bar" title="<%= f.homeTeam %> <%= h.toFixed(1) %>, <%= f.awayTeam %> <%= (n - h).toFixed(1) %> of <%= n %> games">
+              <div class="ev-home" style="width: <%= (100 * h / n).toFixed(1) %>%"><%= h.toFixed(1) %></div>
+              <div class="ev-away" style="width: <%= (100 * (n - h) / n).toFixed(1) %>%"><%= (n - h).toFixed(1) %></div>
+            </div>
+          <% }) %>
+        </div>
+        <% s.paragraphs.forEach(function (text) { %><p class="mt-3"><%= text %></p><% }) %>
+        <p class="ev-note">
+          How this works: every player is rated from their results in this league, and each team is assumed to field
+          its usual line-up of four men and two ladies. Thousands of simulated matches give the chances above.
+          <% if (p.forecastAt) { %>Updated <%= ukDate.shortDate(p.forecastAt) %>.<% } %> It is a guide, not a promise.
+        </p>
+      </section>
+      <% } %>
+      <% }) %>
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <% if (p.home.form.length || p.away.form.length) { %>
+      <section class="ev-card" aria-labelledby="ev-form">
+        <h2 id="ev-form"><%= p.state === 'result' ? 'Form going in' : 'Recent form' %></h2>
+        <% [p.home, p.away].forEach(function (t) { %>
+        <div class="ev-form-team">
+          <div class="ev-form-name"><%= t.name %></div>
+          <% if (t.form.length) { %>
+          <div class="ev-form">
+            <% t.form.slice(0, 6).reverse().forEach(function (r) { %>
+              <a class="ev-chip ev-<%= r.result %>" href="<%= eventPath({ id: r.id, date: r.date, homeTeam: r.home ? t.name : r.opponent, awayTeam: r.home ? r.opponent : t.name }) %>"
+                 title="<%= r.result === 'W' ? 'Won' : r.result === 'L' ? 'Lost' : 'Drew' %> <%= r.won %>–<%= r.lost %> <%= r.home ? 'v' : 'at' %> <%= r.opponent %>, <%= ukDate.shortDate(r.date) %>"><%= r.result %><small><%= r.won %>–<%= r.lost %></small></a>
+            <% }) %>
+          </div>
+          <% } else { %><div class="text-muted small">No results yet this season.</div><% } %>
+        </div>
+        <% }) %>
+        <div class="ev-note">Oldest to newest, this season, league matches only. Games won–lost; select one for that match.</div>
+      </section>
+      <% } %>
+
+      <% if (p.meetings.length) { %>
+      <section class="ev-card" aria-labelledby="ev-h2h">
+        <h2 id="ev-h2h">Previous meetings</h2>
+        <ul class="ev-h2h">
+          <% p.meetings.forEach(function (m) { %>
+          <li>
+            <a href="<%= eventPath({ id: m.id, date: m.date, homeTeam: m.homeName, awayTeam: m.awayName }) %>"><time datetime="<%= ukDate.isoDay(m.date) %>"><%= ukDate.shortDate(m.date) %></time></a>
+            <span><%= m.homeName %> <strong><%= m.venue === 'home' ? m.home : m.away %>–<%= m.venue === 'home' ? m.away : m.home %></strong> <%= m.awayName %></span>
+          </li>
+          <% }) %>
+        </ul>
+      </section>
+      <% } %>
+
+      <section class="ev-card ev-venue" aria-labelledby="ev-venue">
+        <h2 id="ev-venue">Venue</h2>
+        <dl class="mb-0">
+          <% var address = f.venueAddress && f.venueName && f.venueAddress.toLowerCase().indexOf(f.venueName.toLowerCase()) === 0
+               ? f.venueAddress.slice(f.venueName.length).replace(/^[\s,]+/, '') : f.venueAddress; %>
+          <% if (f.venueName || address) { %><dt>Where</dt><dd><%= [f.venueName, address].filter(Boolean).join(', ') %></dd><% } %>
+          <dt>When</dt><dd><%= longDay %><% if (f.startTime) { %>, starting <%= f.startTime %><% } %></dd>
+          <% if (f.teamCaptain && f.teamCaptain.trim()) { %><dt>Team Captain</dt><dd><%= f.teamCaptain %></dd><% } %>
+          <% if (f.matchSecretary && f.matchSecretary.trim()) { %><dt>Match Secretary</dt><dd><%= f.matchSecretary %></dd><% } %>
+        </dl>
+        <% if (f.venueLink) { %><p class="mt-2 mb-0"><a href="<%= f.venueLink %>" target="_blank" rel="noopener">Open in Google Maps</a></p><% } %>
+        <% if (f.placeId) { %><div id="eventMap" aria-label="Map of <%= f.venueName %>"></div><% } %>
+      </section>
+
+      <section class="ev-card" aria-labelledby="ev-more">
+        <h2 id="ev-more">More from <%= f.divisionName || 'the league' %></h2>
+        <ul class="ev-links">
+          <li><a href="<%= links.table %>"><%= f.divisionName || 'League' %> table</a></li>
+          <li><a href="<%= links.results %>"><%= f.divisionName || 'All' %> fixtures and results</a></li>
+          <% if (links.lewis) { %><li><a href="<%= links.lewis %>">The Lewis Shield draw</a></li><% } %>
+          <li><a href="/info/clubs">The league's clubs</a></li>
+          <% if (links.scorecard) { %><li><a href="<%= links.scorecard %>">Full scorecard</a></li><% } %>
+        </ul>
+      </section>
+    </div>
+  </div>
+</article>
 
 <%- include('footer.ejs') %>
+<% if (f.placeId) { %>
 <script>
     (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
       key: "<%= mapsApiKey %>",
       v: "weekly",
-      // Use the 'v' parameter to indicate the version to use (weekly, beta, alpha, etc.).
-      // Add other bootstrap parameters as needed, using camel case.
     });
-  </script>
-
+</script>
 <script>
-let map;
-
 async function initMap() {
   const { Map } = await google.maps.importLibrary("maps");
-const { Place } = await google.maps.importLibrary("places");
-  const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
-
-const place = new Place({
-    id: "<%= fixtureDetails.placeId %>",
-    requestedLanguage: "en", // optional
-  });
-await place.fetchFields({
-    fields: ["displayName", "formattedAddress", "location"],
-  });
-  console.log(place.location)
-
-  map = new Map(document.getElementById("eventMap"), {
-    center: place.location,
-    zoom: 15,
-    mapId: "DEMO_MAP_ID",
-  });
-  const marker = new google.maps.marker.AdvancedMarkerElement({
-      position: place.location,
-      map: map,
-    });
+  const { Place } = await google.maps.importLibrary("places");
+  await google.maps.importLibrary("marker");
+  const place = new Place({ id: <%- JSON.stringify(String(f.placeId)).replace(/</g, '\\u003c') %>, requestedLanguage: "en" });
+  await place.fetchFields({ fields: ["displayName", "formattedAddress", "location"] });
+  const map = new Map(document.getElementById("eventMap"), { center: place.location, zoom: 15, mapId: "DEMO_MAP_ID" });
+  new google.maps.marker.AdvancedMarkerElement({ position: place.location, map: map });
 }
-  
-  initMap()
-  </script>
-  
-  
-  
-  
+initMap();
+</script>
+<% } %>
 
 </body>
 </html>

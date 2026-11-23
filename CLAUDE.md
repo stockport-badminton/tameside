@@ -296,6 +296,32 @@ resolves the list with `Player.getEmails`, checks the sender, and forwards with
   a jsonb *string*, and every mock-backed test still passes. Found by rehearsal.
 - Rehearsal of the SQL (rolled back) and the real list sizes: see the BL-04 brief.
 
+### Event pages (`/event/:id`)
+
+A fixture's public page: a preview before the match (table places, form, how settled each
+line-up is, previous meetings, the forecast) and a short report after. Ported from
+Stockport's `6801d52` as backlog rows 3 and 4 (Nov 2026). The copy is
+`utils/fixturePreview.js`, the JSON-LD `utils/structuredData.js`, the forecast the nightly
+team-strength run's nameless `public` block (`TeamStrength.forecastFor`).
+
+- **No player is ever named**, in the copy or the forecast. The scorecard link shows only to
+  those `/scorecard/fixture/:id` admits (`authz.mayViewClubs`), and that page is then
+  `private, no-store`.
+- **JSON-LD is passed as `jsonLd`, never keyed off the title.** `header.ejs` used to emit
+  the SportsEvent only when the title contained "Event" (with invented property names), so
+  the page's new match-first `documentTitle` would have dropped it silently. The homepage's
+  fixtures use the same builder (`app.locals.sportsEventJsonLd`).
+- `header.ejs` takes `documentTitle`, `metaDescription` and `ogImage` overrides; a played
+  match's `og:image` is its result card.
+- **Our card is 8 men's, 2 ladies' and 8 mixed games**, so "the edge" in a type is 60% of
+  that type's games, not Stockport's 3.6 of 6. A Lewis Shield tie gets no table places and
+  no forecast, and form and meetings count league matches only.
+- Each extra (context, forecast, table) fails on its own and leaves its section out; a test
+  that renders the page must stub `Fixture.getMatchContext`, `TeamStrength.forecastFor` and
+  `League.getRunIn`, or it opens a DB connection.
+- Dates are `utils/ukDate.js`: by hand, in Europe/London. `fixture.date` is UK midnight, so
+  a summer fixture read with the server's clock is the evening before.
+
 ### Absolute URLs — never from `req.headers.host`
 
 `utils/siteUrl.js` owns the site's public address. Anything that must be absolute — links

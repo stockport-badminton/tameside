@@ -194,21 +194,27 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
     
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <meta name="description" content="Tameside Badminton Association. <%= pageDescription %>">
+    <%# Three optional overrides, for a page whose subject should lead its title and snippet
+        rather than the league's name (the event pages, Stockport 6801d52): `documentTitle`
+        replaces the whole <title>, `metaDescription` the whole description, and `ogImage`
+        (absolute) the logo. %>
+    <% var _title = (typeof documentTitle !== 'undefined' && documentTitle) ? documentTitle : 'Tameside Badminton League - ' + title;
+       var _description = (typeof metaDescription !== 'undefined' && metaDescription) ? metaDescription : 'Tameside Badminton Association. ' + pageDescription; %>
+    <meta name="description" content="<%= _description %>">
     <meta name="author" content="">
-    <meta property="og:title" content="Tameside Badminton League - <%= title %>">
-    <meta property="og:description" content="Tameside Badminton Association. <%= pageDescription %>">
+    <meta property="og:title" content="<%= _title %>">
+    <meta property="og:description" content="<%= _description %>">
     <%# Absolute, and from SITE_URL: a relative og:image is ignored by most link previews,
         and og:url was the homepage on every page. `canonical` is set for every request in
         app.js (res.locals), never from the Host header — see utils/siteUrl.js. %>
-    <meta property="og:image" content="<%= absoluteUrl('/static/images/Logo.png') %>">
+    <meta property="og:image" content="<%= (typeof ogImage !== 'undefined' && ogImage) ? ogImage : absoluteUrl('/static/images/Logo.png') %>">
     <meta property="og:url" content="<%= locals.canonical || absoluteUrl('/') %>">
     <% if (locals.canonical) { %><link rel="canonical" href="<%= locals.canonical %>"><% } %>
     <meta name="twitter:card" content="summary_large_image">
     <meta property="og:site_name" content="Tameside Badminton League">
     <meta name="twitter:image:alt" content="Tameside Badminton League">
 
-    <title>Tameside Badminton League - <%= title %></title>
+    <title><%= _title %></title>
 
 <!-- Webfonts used by modern-styles.css: self-hosted, @font-face inline. Why: webfonts.ejs. -->
 <%- include('webfonts.ejs') %>
@@ -252,136 +258,17 @@ var monitoringEnabled = process.env.NODE_ENV === 'production' || !!process.env.K
 
      } %>
 
-     <% if (title.indexOf("Homepage") >= 0){ 
-
-      for (fixtureDetails of row){
-    
-      
-      var MyDate = new Date(fixtureDetails.date);
-      var MyDateString;
-    
-      // MyDate.setDate(MyDate.getDate() + 20);
-    
-      MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
-                   + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
-                   + MyDate.getFullYear();
-      let offset = (new Date(MyDate.getFullYear() + '-' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-' +('0' + MyDate.getDate()).slice(-2)).getTimezoneOffset())/60
-      let DSTOffset = offset < 0 ? '+01:00' : ''
-      OtherDateStringStartTime = MyDate.getFullYear() + '-' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-' +('0' + MyDate.getDate()).slice(-2) + 'T' + fixtureDetails.startTime + DSTOffset
-      OtherDateStringEndTime = MyDate.getFullYear() + '-' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-' +('0' + MyDate.getDate()).slice(-2) + 'T' + fixtureDetails.endTime + DSTOffset
-    %>
-      
-        <script type="application/ld+json">
-          {
-            "@context": "http://schema.org",
-              "@type": "SportsEvent",
-              "name": "<%= fixtureDetails.homeTeam %> vs <%= fixtureDetails.awayTeam %>",
-              "startDate": "<%= OtherDateStringStartTime %>",
-              "endDate": "<%= OtherDateStringEndTime %>",
-              "url": "<%= absoluteUrl(eventPath(fixtureDetails)) %>",
-              "sport":"badminton",
-              "competitor":[{
-                "@type":"SportsTeam",
-                "homeTeam":"<%= fixtureDetails.homeTeam %>"
-              },{
-                "@type":"SportsTeam",
-                "awayTeam":"<%= fixtureDetails.awayTeam %>"
-              }],
-              "location":{
-                "@type":"Place",
-                "name":"<%= fixtureDetails.venueName %>",
-                "hasMap":"<%= fixtureDetails.venueLink %>",
-                "Lat":"<%= fixtureDetails.Lat %>",
-                "Lng":"<%= fixtureDetails.Lng %>",
-                "address":{
-                  "type":"PostalAddress",
-                  "streetAddress":"<%= fixtureDetails.venueAddress %>"
-                }
-              },
-              "description":"Badminton match: <%= fixtureDetails.homeTeam%> vs <%= fixtureDetails.awayTeam%>",
-              "eventAttendanceMode":"https://schema.org/OfflineEventAttendanceMode",
-              "eventStatus": "https://schema.org/EventScheduled",
-              "performer":{
-                "@type":"Organization",
-                "name":"<%= fixtureDetails.homeClub %>",
-                "url":"<%= typeof fixtureDetails.clubWebsite !== 'undefined' ? fixtureDetails.clubWebsite : 'https://tameside-badminton.co.uk' %>"
-              },
-              "organizer":{
-                "@type":"Organization",
-                "name":"<%= fixtureDetails.homeClub %>",
-                "url":"<%= typeof fixtureDetails.clubWebsite !== 'undefined' ? fixtureDetails.clubWebsite : 'https://tameside-badminton.co.uk' %>"
-              }
-            }
-          </script>
-    
-    <%}  }
-     %>
-
-     <% if (title.indexOf("Event") >= 0){ 
-
-  
-      var MyDate = new Date(fixtureDetails.date);
-      var MyDateString;
-    
-      // MyDate.setDate(MyDate.getDate() + 20);
-    
-      MyDateString = ('0' + MyDate.getDate()).slice(-2) + '/'
-                   + ('0' + (MyDate.getMonth()+1)).slice(-2) + '/'
-                   + MyDate.getFullYear();
-      let offset = (new Date(MyDate.getFullYear() + '-' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-' +('0' + MyDate.getDate()).slice(-2)).getTimezoneOffset())/60
-      let DSTOffset = offset < 0 ? '+01:00' : ''
-      OtherDateStringStartTime = MyDate.getFullYear() + '-' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-' +('0' + MyDate.getDate()).slice(-2) + 'T' + fixtureDetails.startTime + DSTOffset
-      OtherDateStringEndTime = MyDate.getFullYear() + '-' + ('0' + (MyDate.getMonth()+1)).slice(-2) + '-' +('0' + MyDate.getDate()).slice(-2) + 'T' + fixtureDetails.endTime + DSTOffset
-    %>
-      
-        <script type="application/ld+json">
-          {
-            "@context": "http://schema.org",
-              "@type": "SportsEvent",
-              "name": "<%= fixtureDetails.homeTeam %> vs <%= fixtureDetails.awayTeam %>",
-              "startDate": "<%= OtherDateStringStartTime %>",
-              "endDate": "<%= OtherDateStringEndTime %>",
-              "url": "<%= absoluteUrl(eventPath(fixtureDetails)) %>",
-              "sport":"badminton",
-              "competitor":[{
-                "@type":"SportsTeam",
-                "homeTeam":"<%= fixtureDetails.homeTeam %>"
-              },{
-                "@type":"SportsTeam",
-                "awayTeam":"<%= fixtureDetails.awayTeam %>"
-              }],
-              "location":{
-                "@type":"Place",
-                "name":"<%= fixtureDetails.venueName %>",
-                "hasMap":"<%= fixtureDetails.venueLink %>",
-                "Lat":"<%= fixtureDetails.Lat %>",
-                "Lng":"<%= fixtureDetails.Lng %>",
-                "address":{
-                  "type":"PostalAddress",
-                  "streetAddress":"<%= fixtureDetails.venueAddress %>"
-                }
-              },
-              "description":"Badminton match: <%= fixtureDetails.homeTeam%> vs <%= fixtureDetails.awayTeam%>",
-              "eventAttendanceMode":"https://schema.org/OfflineEventAttendanceMode",
-              "eventStatus": "https://schema.org/EventScheduled",
-              "performer":{
-                "@type":"Organization",
-                "name":"<%= fixtureDetails.homeClub %>",
-                "url":"<%= typeof fixtureDetails.clubWebsite !== 'undefined' ? fixtureDetails.clubWebsite : 'https://tameside-badminton.co.uk' %>"
-              },
-              "organizer":{
-                "@type":"Organization",
-                "name":"<%= fixtureDetails.homeClub %>",
-                "url":"<%= typeof fixtureDetails.clubWebsite !== 'undefined' ? fixtureDetails.clubWebsite : 'https://tameside-badminton.co.uk' %>"
-              }
-            }
-          </script>
-          <style>
-            #eventMap {box-sizing: content-box;
-            height: 100%;}
-          </style>
-    <%  }
-     %>
+     <%# The homepage's upcoming fixtures, and any page that passes `jsonLd` (the event pages):
+         built in utils/structuredData.js. Both used to be literal JSON here, with invented
+         property names and HTML escaping inside JSON, and the event block was emitted only
+         when the title contained "Event", so retitling the page would have dropped it. %>
+     <% if (title.indexOf("Homepage") >= 0 && typeof row !== 'undefined' && row) {
+          row.forEach(function (fixtureDetails) { %>
+        <script type="application/ld+json"><%- sportsEventJsonLd(fixtureDetails) %></script>
+     <% }) } %>
+     <% if (typeof jsonLd !== 'undefined' && jsonLd) { [].concat(jsonLd).forEach(function (block) { %>
+        <script type="application/ld+json"><%- block %></script>
+     <% }) } %>
 
     <%- include('pwa-head.ejs') %>
   </head>
