@@ -1,0 +1,34 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<div class="container my-4">
+  <h1 class="mb-3"><%- icon('shield-halved') %> Lewis Shield handicap</h1>
+  <p>The handicap is points added to one side's total over all 18 games; the higher total wins the tie. It shows here from <strong><%= revealTime %></strong> on the night of the match, for both captains and both clubs' secretaries.
+    <%= secretary ? 'The Lewis secretary is ' + secretary + '.' : '' %></p>
+
+  <% if (manager) { %><p><a class="btn btn-sm btn-outline-primary" href="/lewis-shield/handicaps">Set handicaps</a></p><% } %>
+
+  <% if (!linked) { %>
+    <div class="alert alert-info">Your login is not linked to a player, so we can't tell which team you captain. Ask the results secretary.</div>
+  <% } else if (!rows.length) { %>
+    <div class="alert alert-info">You aren't down as a captain or club secretary for any team in the Lewis Shield this season. If you are captaining on the night, ask your club secretary or the Lewis secretary.</div>
+  <% } %>
+
+  <% rows.forEach(function (r) { %>
+    <div class="card mb-3">
+      <div class="card-body">
+        <h2 class="h5 mb-1"><%= r.home.name %> <span class="text-muted">v</span> <%= r.away.name %></h2>
+        <p class="text-muted small mb-2"><%= r.dayLabel %> · <%= r.roundLabel %></p>
+        <% if (!r.released) { %>
+          <p class="mb-0">Available from <%= revealTime %> on <%= r.dayLabel %>.</p>
+        <% } else if (r.handicap) { %>
+          <p class="fs-4 mb-0"><% if (r.handicap.team) { %><strong><%= r.handicap.team %></strong> receive <strong><%= r.handicap.points %></strong> points<% } else { %>Scratch: no handicap<% } %></p>
+        <% } else { %>
+          <p class="mb-0">No handicap has been set for this tie. Contact the Lewis secretary.</p>
+        <% } %>
+      </div>
+    </div>
+  <% }); %>
+</div>
+
+<%- include('footer.ejs') %>

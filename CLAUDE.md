@@ -911,6 +911,36 @@ tables (places up and down from the `promotion_places` site setting, row 6's
 - The payload names players. **A public page reads only the `public` block, through
   `TeamStrength.forecastFor`**, which holds no names or player ids (tests assert both).
 
+### Lewis Shield handicaps
+
+The Lewis Shield is played as a normal match and decided on **total points** over the 18
+games, with a handicap of points added to one side (Edgeley A beat College Green A 13-5 and
+351-285 on 2 Sep 2026; 70 to College Green would have won it for them). Built 23 Nov 2026:
+the Lewis secretary sets each tie's handicap in advance, and the tie's officers see it on the
+night. `controllers/lewisHandicapController.js`, `models/lewisHandicap.js`,
+`migrations/lewis-handicap.sql` (table `lewis_handicap`, keyed by **fixture**: the bracket
+row has no date).
+
+- **The secretary is the player named by the `lewis_secretary` site setting**
+  (`/admin/site-settings`), or any superadmin, read per request. Their login must be linked.
+  `/lewis-shield/handicaps` lists every tie with a suggestion; **Squads** works one out for
+  named players. The fixture list holds every pairing a round could produce, so only the
+  ties that are on need one.
+- **Officers are by pointer only**: `team.captain` of either team, `club."clubSec"` /
+  `"matchSec"` of either club. They see `/lewis-shield/handicap` (linked from the draw).
+- **Released from 21:30 UK on the fixture's date** (`REVEAL_TIME`), decided in SQL so the
+  pages can't disagree, and an unreleased figure never reaches the view model.
+  `test/integration/lewis-handicap.test.js` asserts it is absent from the HTML.
+- **The suggestion is the team-strength rating's** (`utils/lewisHandicap.js`), read from the
+  latest `strength_run` payload, never a refit: points per game follow exactly from the
+  per-rally model. Measured: ~28 points off with the actual players, ~48 with usual sides;
+  `--points` on the backtest, table in `docs/team-strength.md`. Advice, never applied.
+- `team.handicap` ('Scr', '-7', '-2H') is a per-team column copied with Stockport's schema
+  and read by nothing. Not this.
+- `DEV_PLAYER=<id>` makes the dev-mode mock that player, e.g. a captain.
+- Not done: semi-final and final ties have no fixture rows (the generator writes R1, R2 and
+  QF only), so they can't get a handicap until they do; `/admin/lewis` doesn't show it.
+
 ### Superadmin Admin UI
 
 Superadmin-gated pages under `/admin/*` (session-`secured()` route + in-controller

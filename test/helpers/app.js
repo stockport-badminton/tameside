@@ -58,6 +58,8 @@ const MODELS = {
   SocialResultPost: require('../../models/socialResultPost'),
   AuthCull: require('../../models/authCull'),
   InboundEmail: require('../../models/inboundEmail'),
+  LewisHandicap: require('../../models/lewisHandicap'),
+  TeamStrength: require('../../models/teamStrength'),
 };
 for (const [name, mod] of Object.entries(MODELS)) {
   for (const key of Object.keys(mod)) {

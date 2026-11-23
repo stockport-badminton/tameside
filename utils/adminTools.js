@@ -19,6 +19,7 @@ const GROUPS = [
       { href: '/fixture-players', label: 'Fixture Players', blurb: 'Who played in each fixture.' },
       { href: '/admin/rearrangements', label: 'Rearrangement Requests', blurb: 'Mail to rearrangements@: the fixture and new date it points at, checked, one Apply.', count: 'rearrangementRequests' },
       { href: '/admin/lewis', label: 'Lewis Results', blurb: 'Enter and correct Lewis Shield results.' },
+      { href: '/lewis-shield/handicaps', label: 'Lewis Handicaps', blurb: 'Set each tie\'s handicap, with the rating\'s suggestion; captains see it from 21:30 on the night.' },
     ],
   },
   {

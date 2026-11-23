@@ -67,118 +67,122 @@ that is its first middleware. See `middleware/access.js` for what each level mea
 | 56 | GET | `/player/:id(\d+)/update` | member, then own club's player, or superadmin |
 | 57 | GET | `/playerStats/:id(\d+)/:fullName` | member, then own club's player, or superadmin |
 | 58 | GET | `/lewis-shield` | public |
-| 59 | GET | `/lewis-shield/:season` | public |
-| 60 | GET | `/populated-scorecard/:division/:home_team/:away_team/:home_man_1/:home_man_2/:home_man_3/:home_man_4/:home_lady_1/:home_lady_2/:away_man_1/:away_man_2/:away_man_3/:away_man_4/:away_lady_1/:away_lady_2/:Game1homeScore/:Game1awayScore/:Game2homeScore/:Game2awayScore/:Game3homeScore/:Game3awayScore/:Game4homeScore/:Game4awayScore/:Game5homeScore/:Game5awayScore/:Game6homeScore/:Game6awayScore/:Game7homeScore/:Game7awayScore/:Game8homeScore/:Game8awayScore/:Game9homeScore/:Game9awayScore/:Game10homeScore/:Game10awayScore/:Game11homeScore/:Game11awayScore/:Game12homeScore/:Game12awayScore/:Game13homeScore/:Game13awayScore/:Game14homeScore/:Game14awayScore/:Game15homeScore/:Game15awayScore/:Game16homeScore/:Game16awayScore/:Game17homeScore/:Game17awayScore/:Game18homeScore/:Game18awayScore` | member |
-| 61 | GET | `/scorecard/fixture/:id(\d+)` | member, then either club, or superadmin |
-| 62 | GET | `/admin/homepage-content` | superadmin |
-| 63 | GET | `/admin/homepage-content/create` | superadmin |
-| 64 | POST | `/admin/homepage-content` | superadmin |
-| 65 | GET | `/admin/homepage-content/:id` | superadmin |
-| 66 | POST | `/admin/homepage-content/:id` | superadmin |
-| 67 | POST | `/admin/homepage-content/:id/delete` | superadmin |
-| 68 | GET | `/admin/site-settings` | superadmin |
-| 69 | POST | `/admin/site-settings` | superadmin |
-| 70 | GET | `/admin/link-auth-accounts` | superadmin |
-| 71 | POST | `/admin/link-auth-accounts` | superadmin |
-| 72 | POST | `/admin/link-auth-accounts/unlink` | superadmin |
-| 73 | POST | `/admin/link-auth-accounts/record-email-links` | superadmin |
-| 74 | POST | `/admin/link-auth-accounts/keep` | superadmin |
-| 75 | POST | `/admin/link-auth-accounts/delete-due` | superadmin |
-| 76 | GET | `/admin/registration-reminders` | superadmin |
-| 77 | POST | `/admin/registration-reminders/:club(\d+)/received` | superadmin |
-| 78 | POST | `/admin/registration-reminders/:club(\d+)/chase` | superadmin |
-| 79 | GET | `/admin` | superadmin |
-| 80 | GET | `/admin/missed-three` | superadmin |
-| 81 | GET | `/admin/missed-three/:playerId(\d+)/notice` | superadmin |
-| 82 | GET | `/admin/missed-three/:playerId(\d+)/notice/email` | superadmin |
-| 83 | POST | `/admin/missed-three/:playerId(\d+)/notice` | superadmin |
-| 84 | GET | `/admin/league-run-in` | superadmin |
-| 85 | GET | `/admin/team-strength` | superadmin |
-| 86 | GET | `/admin/team-strength/compare` | superadmin |
-| 87 | POST | `/admin/team-strength/run` | cron:STRENGTH_RUN_TOKEN |
-| 88 | GET | `/admin/social/weekly-tables` | superadmin |
-| 89 | POST | `/admin/social/weekly-tables` | cron:SOCIAL_WEEKLY_TABLES_TOKEN |
-| 90 | GET | `/admin/social/weekly-fixtures` | superadmin |
-| 91 | POST | `/admin/social/weekly-fixtures` | cron:SOCIAL_WEEKLY_FIXTURES_TOKEN |
-| 92 | GET | `/api/social/generate-weekly-video` | cron:SOCIAL_WEEKLY_VIDEO_TOKEN |
-| 93 | GET | `/admin/social/weekly-video` | superadmin |
-| 94 | POST | `/admin/social/weekly-video` | cron:SOCIAL_WEEKLY_VIDEO_TOKEN |
-| 95 | POST | `/admin/social/results/meta` | cron:SOCIAL_RESULTS_META_TOKEN |
-| 96 | GET | `/admin/spam` | superadmin |
-| 97 | POST | `/admin/spam` | superadmin |
-| 98 | POST | `/admin/spam/:id/active` | superadmin |
-| 99 | GET | `/admin/inbound-email` | superadmin |
-| 100 | GET | `/admin/player-requests` | superadmin |
-| 101 | GET | `/admin/player-requests/match` | superadmin |
-| 102 | GET | `/admin/player-requests/:id` | superadmin |
-| 103 | POST | `/admin/player-requests/:id/candidates/:index` | superadmin |
-| 104 | POST | `/admin/player-requests/:id/candidates` | superadmin |
-| 105 | POST | `/admin/player-requests/:id/status` | superadmin |
-| 106 | GET | `/admin/rearrangements` | superadmin |
-| 107 | GET | `/admin/rearrangements/:id` | superadmin |
-| 108 | POST | `/admin/rearrangements/:id/apply` | superadmin |
-| 109 | POST | `/admin/rearrangements/:id/status` | superadmin |
-| 110 | GET | `/admin/clubs` | superadmin |
-| 111 | GET | `/admin/clubs/create` | superadmin |
-| 112 | POST | `/admin/clubs` | superadmin |
-| 113 | GET | `/admin/clubs/:id(\d+)` | superadmin |
-| 114 | POST | `/admin/clubs/:id(\d+)` | superadmin |
-| 115 | GET | `/admin/teams` | superadmin |
-| 116 | GET | `/admin/teams/create` | superadmin |
-| 117 | POST | `/admin/teams` | superadmin |
-| 118 | POST | `/admin/teams/:id(\d+)/move` | superadmin |
-| 119 | GET | `/admin/teams/:id(\d+)` | superadmin |
-| 120 | POST | `/admin/teams/:id(\d+)` | superadmin |
-| 121 | POST | `/admin/fixture/:id(\d+)/date` | superadmin |
-| 122 | POST | `/admin/fixture/:id(\d+)/concede` | superadmin |
-| 123 | GET | `/admin/lewis` | superadmin |
-| 124 | POST | `/admin/lewis/:drawPos(\d+)/result` | superadmin |
-| 125 | GET | `/admin/scorecard-ocr` | superadmin |
-| 126 | GET | `/admin/scorecard-ocr/review` | superadmin |
-| 127 | GET | `/admin/scorecard-ocr/image` | superadmin |
-| 128 | POST | `/scorecard-ocr/analyse` | member |
-| 129 | POST | `/scorecard-document/convert` | member |
-| 130 | GET | `/admin/distribution` | superadmin |
-| 131 | POST | `/admin/distribution/preview` | superadmin |
-| 132 | POST | `/admin/distribution/send` | superadmin |
-| 133 | POST | `/scorecard-beta` | superadmin |
-| 134 | GET | `/populated-scorecard-beta/:id(\d+)` | superadmin |
-| 135 | GET | `/login` | public |
-| 136 | GET | `/callback` | public |
-| 137 | GET | `/logout` | public |
-| 138 | GET | `/player-stats/*` | member |
-| 139 | GET | `/player-stats` | member |
-| 140 | GET | `/pair-stats/*` | member |
-| 141 | GET | `/pair-stats` | member |
-| 142 | GET | `/admin/results/*` | member |
-| 143 | GET | `/fixture-gen` | superadmin |
-| 144 | POST | `/fixture-gen/regenerate` | superadmin |
-| 145 | POST | `/fixture-gen/publish` | superadmin |
-| 146 | GET | `/club/:id` | member |
-| 147 | GET | `/players/club-:club?/team-:team?/gender-:gender?` | member |
-| 148 | GET | `/players/club-:club?` | member |
-| 149 | GET | `/players/team-:team?` | member |
-| 150 | GET | `/players/gender-:gender?` | member |
-| 151 | GET | `/players` | member |
-| 152 | GET | `/played-up-counts` | superadmin |
-| 153 | GET | `/manage-players` | member, then own club, or superadmin |
-| 154 | GET | `/manage-players/club-:club` | member, then club access |
-| 155 | GET | `/manage-players/club-:club/edit` | superadmin |
-| 156 | POST | `/api/teams/:id/order` | superadmin (api) |
-| 157 | POST | `/api/players/:id/move` | superadmin (api) |
-| 158 | POST | `/api/players/:id/release` | superadmin (api) |
-| 159 | GET | `/api/roster/club-:club/candidates` | superadmin (api) |
-| 160 | POST | `/api/roster/club-:club/players` | superadmin (api) |
-| 161 | POST | `/api/roster/club-:club/attach` | superadmin (api) |
-| 162 | POST | `/api/roster/club-:club/transfer` | superadmin (api) |
-| 163 | GET | `/forms/team-registration/:club/prefilled` | member, then club access |
-| 164 | GET | `/forms/team-registration/:club/docx` | member, then club access |
-| 165 | GET | `/email-scorecard` | member |
-| 166 | POST | `/email-scorecard` | member |
-| 167 | POST | `/add-scorecard-photo/:id(\d+)` | member, then own scorecard, or superadmin |
-| 168 | GET | `/admin/team-registrations` | member, then club access |
-| 169 | POST | `/admin/team-registrations/review` | member, then club access |
-| 170 | POST | `/admin/team-registrations/apply` | member, then club access |
-| 171 | GET | `/scorecard-photo/:id(\d+)` | member |
-| 172 | POST | `/player/:id(\d+)` | member, then own club's player, or superadmin |
-| 173 | GET | `/club-api/:id` | superadmin |
+| 59 | GET | `/lewis-shield/handicap` | member, then own ties; shown from 21:30 on the night |
+| 60 | GET | `/lewis-shield/handicaps` | member, then Lewis secretary or superadmin |
+| 61 | POST | `/lewis-shield/handicaps/:id(\d+)` | member, then Lewis secretary or superadmin |
+| 62 | GET | `/lewis-shield/handicaps/:id(\d+)/squads` | member, then Lewis secretary or superadmin |
+| 63 | GET | `/lewis-shield/:season` | public |
+| 64 | GET | `/populated-scorecard/:division/:home_team/:away_team/:home_man_1/:home_man_2/:home_man_3/:home_man_4/:home_lady_1/:home_lady_2/:away_man_1/:away_man_2/:away_man_3/:away_man_4/:away_lady_1/:away_lady_2/:Game1homeScore/:Game1awayScore/:Game2homeScore/:Game2awayScore/:Game3homeScore/:Game3awayScore/:Game4homeScore/:Game4awayScore/:Game5homeScore/:Game5awayScore/:Game6homeScore/:Game6awayScore/:Game7homeScore/:Game7awayScore/:Game8homeScore/:Game8awayScore/:Game9homeScore/:Game9awayScore/:Game10homeScore/:Game10awayScore/:Game11homeScore/:Game11awayScore/:Game12homeScore/:Game12awayScore/:Game13homeScore/:Game13awayScore/:Game14homeScore/:Game14awayScore/:Game15homeScore/:Game15awayScore/:Game16homeScore/:Game16awayScore/:Game17homeScore/:Game17awayScore/:Game18homeScore/:Game18awayScore` | member |
+| 65 | GET | `/scorecard/fixture/:id(\d+)` | member, then either club, or superadmin |
+| 66 | GET | `/admin/homepage-content` | superadmin |
+| 67 | GET | `/admin/homepage-content/create` | superadmin |
+| 68 | POST | `/admin/homepage-content` | superadmin |
+| 69 | GET | `/admin/homepage-content/:id` | superadmin |
+| 70 | POST | `/admin/homepage-content/:id` | superadmin |
+| 71 | POST | `/admin/homepage-content/:id/delete` | superadmin |
+| 72 | GET | `/admin/site-settings` | superadmin |
+| 73 | POST | `/admin/site-settings` | superadmin |
+| 74 | GET | `/admin/link-auth-accounts` | superadmin |
+| 75 | POST | `/admin/link-auth-accounts` | superadmin |
+| 76 | POST | `/admin/link-auth-accounts/unlink` | superadmin |
+| 77 | POST | `/admin/link-auth-accounts/record-email-links` | superadmin |
+| 78 | POST | `/admin/link-auth-accounts/keep` | superadmin |
+| 79 | POST | `/admin/link-auth-accounts/delete-due` | superadmin |
+| 80 | GET | `/admin/registration-reminders` | superadmin |
+| 81 | POST | `/admin/registration-reminders/:club(\d+)/received` | superadmin |
+| 82 | POST | `/admin/registration-reminders/:club(\d+)/chase` | superadmin |
+| 83 | GET | `/admin` | superadmin |
+| 84 | GET | `/admin/missed-three` | superadmin |
+| 85 | GET | `/admin/missed-three/:playerId(\d+)/notice` | superadmin |
+| 86 | GET | `/admin/missed-three/:playerId(\d+)/notice/email` | superadmin |
+| 87 | POST | `/admin/missed-three/:playerId(\d+)/notice` | superadmin |
+| 88 | GET | `/admin/league-run-in` | superadmin |
+| 89 | GET | `/admin/team-strength` | superadmin |
+| 90 | GET | `/admin/team-strength/compare` | superadmin |
+| 91 | POST | `/admin/team-strength/run` | cron:STRENGTH_RUN_TOKEN |
+| 92 | GET | `/admin/social/weekly-tables` | superadmin |
+| 93 | POST | `/admin/social/weekly-tables` | cron:SOCIAL_WEEKLY_TABLES_TOKEN |
+| 94 | GET | `/admin/social/weekly-fixtures` | superadmin |
+| 95 | POST | `/admin/social/weekly-fixtures` | cron:SOCIAL_WEEKLY_FIXTURES_TOKEN |
+| 96 | GET | `/api/social/generate-weekly-video` | cron:SOCIAL_WEEKLY_VIDEO_TOKEN |
+| 97 | GET | `/admin/social/weekly-video` | superadmin |
+| 98 | POST | `/admin/social/weekly-video` | cron:SOCIAL_WEEKLY_VIDEO_TOKEN |
+| 99 | POST | `/admin/social/results/meta` | cron:SOCIAL_RESULTS_META_TOKEN |
+| 100 | GET | `/admin/spam` | superadmin |
+| 101 | POST | `/admin/spam` | superadmin |
+| 102 | POST | `/admin/spam/:id/active` | superadmin |
+| 103 | GET | `/admin/inbound-email` | superadmin |
+| 104 | GET | `/admin/player-requests` | superadmin |
+| 105 | GET | `/admin/player-requests/match` | superadmin |
+| 106 | GET | `/admin/player-requests/:id` | superadmin |
+| 107 | POST | `/admin/player-requests/:id/candidates/:index` | superadmin |
+| 108 | POST | `/admin/player-requests/:id/candidates` | superadmin |
+| 109 | POST | `/admin/player-requests/:id/status` | superadmin |
+| 110 | GET | `/admin/rearrangements` | superadmin |
+| 111 | GET | `/admin/rearrangements/:id` | superadmin |
+| 112 | POST | `/admin/rearrangements/:id/apply` | superadmin |
+| 113 | POST | `/admin/rearrangements/:id/status` | superadmin |
+| 114 | GET | `/admin/clubs` | superadmin |
+| 115 | GET | `/admin/clubs/create` | superadmin |
+| 116 | POST | `/admin/clubs` | superadmin |
+| 117 | GET | `/admin/clubs/:id(\d+)` | superadmin |
+| 118 | POST | `/admin/clubs/:id(\d+)` | superadmin |
+| 119 | GET | `/admin/teams` | superadmin |
+| 120 | GET | `/admin/teams/create` | superadmin |
+| 121 | POST | `/admin/teams` | superadmin |
+| 122 | POST | `/admin/teams/:id(\d+)/move` | superadmin |
+| 123 | GET | `/admin/teams/:id(\d+)` | superadmin |
+| 124 | POST | `/admin/teams/:id(\d+)` | superadmin |
+| 125 | POST | `/admin/fixture/:id(\d+)/date` | superadmin |
+| 126 | POST | `/admin/fixture/:id(\d+)/concede` | superadmin |
+| 127 | GET | `/admin/lewis` | superadmin |
+| 128 | POST | `/admin/lewis/:drawPos(\d+)/result` | superadmin |
+| 129 | GET | `/admin/scorecard-ocr` | superadmin |
+| 130 | GET | `/admin/scorecard-ocr/review` | superadmin |
+| 131 | GET | `/admin/scorecard-ocr/image` | superadmin |
+| 132 | POST | `/scorecard-ocr/analyse` | member |
+| 133 | POST | `/scorecard-document/convert` | member |
+| 134 | GET | `/admin/distribution` | superadmin |
+| 135 | POST | `/admin/distribution/preview` | superadmin |
+| 136 | POST | `/admin/distribution/send` | superadmin |
+| 137 | POST | `/scorecard-beta` | superadmin |
+| 138 | GET | `/populated-scorecard-beta/:id(\d+)` | superadmin |
+| 139 | GET | `/login` | public |
+| 140 | GET | `/callback` | public |
+| 141 | GET | `/logout` | public |
+| 142 | GET | `/player-stats/*` | member |
+| 143 | GET | `/player-stats` | member |
+| 144 | GET | `/pair-stats/*` | member |
+| 145 | GET | `/pair-stats` | member |
+| 146 | GET | `/admin/results/*` | member |
+| 147 | GET | `/fixture-gen` | superadmin |
+| 148 | POST | `/fixture-gen/regenerate` | superadmin |
+| 149 | POST | `/fixture-gen/publish` | superadmin |
+| 150 | GET | `/club/:id` | member |
+| 151 | GET | `/players/club-:club?/team-:team?/gender-:gender?` | member |
+| 152 | GET | `/players/club-:club?` | member |
+| 153 | GET | `/players/team-:team?` | member |
+| 154 | GET | `/players/gender-:gender?` | member |
+| 155 | GET | `/players` | member |
+| 156 | GET | `/played-up-counts` | superadmin |
+| 157 | GET | `/manage-players` | member, then own club, or superadmin |
+| 158 | GET | `/manage-players/club-:club` | member, then club access |
+| 159 | GET | `/manage-players/club-:club/edit` | superadmin |
+| 160 | POST | `/api/teams/:id/order` | superadmin (api) |
+| 161 | POST | `/api/players/:id/move` | superadmin (api) |
+| 162 | POST | `/api/players/:id/release` | superadmin (api) |
+| 163 | GET | `/api/roster/club-:club/candidates` | superadmin (api) |
+| 164 | POST | `/api/roster/club-:club/players` | superadmin (api) |
+| 165 | POST | `/api/roster/club-:club/attach` | superadmin (api) |
+| 166 | POST | `/api/roster/club-:club/transfer` | superadmin (api) |
+| 167 | GET | `/forms/team-registration/:club/prefilled` | member, then club access |
+| 168 | GET | `/forms/team-registration/:club/docx` | member, then club access |
+| 169 | GET | `/email-scorecard` | member |
+| 170 | POST | `/email-scorecard` | member |
+| 171 | POST | `/add-scorecard-photo/:id(\d+)` | member, then own scorecard, or superadmin |
+| 172 | GET | `/admin/team-registrations` | member, then club access |
+| 173 | POST | `/admin/team-registrations/review` | member, then club access |
+| 174 | POST | `/admin/team-registrations/apply` | member, then club access |
+| 175 | GET | `/scorecard-photo/:id(\d+)` | member |
+| 176 | POST | `/player/:id(\d+)` | member, then own club's player, or superadmin |
+| 177 | GET | `/club-api/:id` | superadmin |

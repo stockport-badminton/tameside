@@ -106,6 +106,24 @@ model does about as well as the ELO does when it is given the real lineup.
 Re-run the backtest after changing anything in `utils/teamStrength.js`, and update this
 table.
 
+## The Lewis Shield handicap
+
+`utils/lewisHandicap.js` turns the rating into a Lewis Shield handicap: the points added to
+one side's total over the 18 games that make the tie even (the median margin, swing
+included). `node tools/strength-backtest.js --points` checks it on league fixtures (Lewis
+ties are too few). Measured 23 Nov 2026, fixtureSd 0.2:
+
+| | fixtures | no handicap off by | usual sides off by | side receiving it won | actual players off by | side receiving it won |
+|---|---|---|---|---|---|---|
+| TUNE 2025/26 | 139 | 86.6 | 45.0 | 51.8% | 28.5 | 42.3% |
+| TEST 2026/27 | 47 | 88.3 | 48.6 | 63.8% | 28.2 | 48.9% |
+
+With named players it is about as fair as a handicap can be. From the usual sides it
+over-compensates somewhat on 2026/27 (64% on 47 fixtures, about two standard errors; 52% on
+2025/26): a favourite often fields less than its usual side. Not corrected, because the
+tuning season says it is right; re-measure at the end of the season. The margin's 50% and
+90% bands hold 49% and 89-91% of results from the usual sides.
+
 ## Scheduling it
 
 Apply `migrations/strength-run.sql` first (`node tools/run-migration.js

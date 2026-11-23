@@ -32,8 +32,10 @@ module.exports = function devMode(req, res, next) {
     // with what a real login produces. On the Stockport site the mock was assembled by
     // hand, went missing a claim production had, and made a production-only breakage
     // invisible locally (their ce6250d).
+    // DEV_PLAYER makes the mock that player (e.g. a captain, for /lewis-shield/handicap).
+    const playerId = Number(process.env.DEV_PLAYER) || 0;
     const authRow = role === 'none' ? null : {
-      id: 0,
+      id: playerId,
       first_name: 'Dev',
       family_name: 'User',
       role: role,
@@ -44,7 +46,7 @@ module.exports = function devMode(req, res, next) {
     // DEV_ROLE=none with a DEV_CLUB is a member linked to a player at that club; without
     // one, an unlinked login (what a Stockport account looks like here).
     const linkRow = authRow || (process.env.DEV_CLUB
-      ? { id: 0, clubName: process.env.DEV_CLUB }
+      ? { id: playerId, clubName: process.env.DEV_CLUB }
       : null);
 
     req.user = authz.applyPlayerLink({

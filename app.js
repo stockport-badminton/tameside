@@ -512,6 +512,7 @@ let social_controller = require(__dirname + '/controllers/social_controller')
 let fixture_gen_controller = require(__dirname + '/controllers/fixtureGenController')
 let homepage_content_controller = require(__dirname + '/controllers/homepageContentController')
 let site_settings_controller = require(__dirname + '/controllers/siteSettingsController')
+const lewis_handicap_controller = require(__dirname + '/controllers/lewisHandicapController');
 let documents_controller = require(__dirname + '/controllers/documentsController')
 let team_registration_controller = require(__dirname + '/controllers/teamRegistrationController')
 let mailjet_webhook_controller = require(__dirname + '/controllers/mailjetWebhookController')
@@ -752,6 +753,12 @@ app.get('/playerStats/:id(\\d+)/:fullName', access.memberThen('own club\'s playe
 /* GET request for one Player. */
 // app.get('/player-stats', access.public, player_controller.all_player_stats);
 app.get('/lewis-shield', access.public, team_controller.lewis_draw);
+// Lewis Shield handicaps (controllers/lewisHandicapController.js). Above /:season, which
+// would take "handicap" for a season name and 404 it.
+app.get('/lewis-shield/handicap', access.memberThen('own ties; shown from 21:30 on the night'), lewis_handicap_controller.officer);
+app.get('/lewis-shield/handicaps', access.memberThen('Lewis secretary or superadmin'), lewis_handicap_controller.list);
+app.post('/lewis-shield/handicaps/:id(\\d+)', access.memberThen('Lewis secretary or superadmin'), lewis_handicap_controller.set);
+app.get('/lewis-shield/handicaps/:id(\\d+)/squads', access.memberThen('Lewis secretary or superadmin'), lewis_handicap_controller.squads);
 app.get('/lewis-shield/:season', access.public, team_controller.lewis_draw);
 
 

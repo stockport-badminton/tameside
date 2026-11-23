@@ -1,0 +1,70 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<%
+  var pct = function (p) { return Math.round(100 * p) + '%'; };
+  var sideName = function (r, to) { return to === 'home' ? r.home.name : to === 'away' ? r.away.name : null; };
+%>
+
+<div class="container my-4">
+  <h1 class="mb-3"><%- icon('shield-halved') %> Lewis Shield handicaps</h1>
+  <p>The handicap is points added to one side's total over all 18 games. Each tie's officers (both captains, and both clubs' club and match secretaries) see it at <a href="/lewis-shield/handicap">/lewis-shield/handicap</a> from <strong><%= revealTime %></strong> on the match date, and not before.</p>
+  <p class="text-muted small mb-4">
+    <strong>Suggested</strong> is the team-strength rating's figure for each team's usual side<%= ranAt ? ' (run of ' + new Date(ranAt).toLocaleDateString('en-GB', { timeZone: 'Europe/London' }) + ')' : '' %>: the points that make the tie even.
+    Checked on league fixtures, it is out by about 50 points on average for usual sides, about 28 when the actual players are known —
+    use <em>Squads</em> once you know who is playing. It is advice; the handicap is yours.
+  </p>
+  <% if (!ranAt) { %><div class="alert alert-warning">No team-strength run yet, so no suggestions.</div><% } %>
+
+  <% if (!rows.length) { %><p>No Lewis Shield ties this season.</p><% } %>
+
+  <div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <thead><tr><th>Date</th><th>Tie</th><th>Suggested</th><th>Handicap</th><th></th></tr></thead>
+    <tbody>
+    <% rows.forEach(function (r) { var h = r.handicap; %>
+      <tr id="tie-<%= r.id %>" class="<%= saved === r.id ? 'table-success' : '' %>">
+        <td class="text-nowrap"><%= r.dayLabel %><br><span class="small text-muted"><%= r.roundLabel %></span></td>
+        <td>
+          <%= r.home.name %> <span class="text-muted">v</span> <%= r.away.name %>
+          <% if (r.played) { %><br><span class="badge bg-secondary">played<%= r.homeScore != null ? ' ' + r.homeScore + '–' + r.awayScore : '' %></span><% } %>
+        </td>
+        <td class="small">
+          <% if (r.suggestion) { %>
+            <% if (r.suggestion.to) { %><strong><%= r.suggestion.points %></strong> to <%= sideName(r, r.suggestion.to) %><% } else { %>scratch<% } %>
+            <br><span class="text-muted">without: <%= r.home.name %> win <%= pct(r.suggestion.pHome) %></span>
+          <% } else { %><span class="text-muted">—</span><% } %>
+        </td>
+        <td>
+          <form method="post" action="/lewis-shield/handicaps/<%= r.id %>" class="d-flex flex-wrap align-items-center gap-2 mb-0">
+            <input type="number" name="points" min="0" max="<%= maxPoints %>" step="1" inputmode="numeric" class="form-control form-control-sm" style="width:5.5rem"
+                   value="<%= h ? h.points : (r.suggestion ? r.suggestion.points : '') %>" aria-label="Points">
+            <select name="to" class="form-select form-select-sm" style="width:auto" aria-label="To">
+              <option value="home" <%= (h ? h.to === 'home' : r.suggestion && r.suggestion.to === 'home') ? 'selected' : '' %>>to <%= r.home.name %></option>
+              <option value="away" <%= (h ? h.to === 'away' : r.suggestion && r.suggestion.to === 'away') ? 'selected' : '' %>>to <%= r.away.name %></option>
+              <option value="scratch" <%= h && !h.to ? 'selected' : '' %>>scratch (none)</option>
+              <% if (h) { %><option value="clear">not set yet</option><% } %>
+            </select>
+            <button type="submit" class="btn btn-sm <%= h ? 'btn-outline-primary' : 'btn-primary' %>"><%= h ? 'Change' : 'Set' %></button>
+          </form>
+          <div class="small mt-1">
+            <% if (h) { %>
+              <span class="badge bg-success">set</span>
+              <%= h.to ? h.points + ' to ' + sideName(r, h.to) : 'scratch' %>
+              <% if (r.withSet) { %><span class="text-muted">· even? <%= r.home.name %> <%= pct(r.withSet.pHome) %></span><% } %>
+              <% if (r.released) { %><span class="badge bg-info text-dark">visible to captains</span><% } %>
+            <% } else { %>
+              <span class="badge bg-warning text-dark">not set</span>
+            <% } %>
+          </div>
+        </td>
+        <td><a class="btn btn-sm btn-outline-secondary" href="/lewis-shield/handicaps/<%= r.id %>/squads">Squads</a></td>
+      </tr>
+    <% }); %>
+    </tbody>
+  </table>
+  </div>
+  <p class="text-muted small">The fixture list holds every pairing a round could produce; set only the ties that are on.</p>
+</div>
+
+<%- include('footer.ejs') %>

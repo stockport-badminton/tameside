@@ -1,0 +1,91 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<%
+  var pct = function (p) { return Math.round(100 * p) + '%'; };
+  var signed = function (x) { return (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(1); };
+  var sideName = function (to) { return to === 'home' ? tie.home.name : to === 'away' ? tie.away.name : null; };
+  var picker = function (side, prefix, key, i, players, chosen) {
+    var name = prefix + (key === 'ladies' ? 'l' : '') + (i + 1);
+    var label = (key === 'men' ? 'Man ' : 'Lady ') + (i + 1);
+    var out = '<label class="form-label small mb-0" for="' + name + '">' + label + '</label>'
+      + '<select class="form-select form-select-sm mb-2" id="' + name + '" name="' + name + '">'
+      + '<option value="0"' + (chosen.id == null ? ' selected' : '') + '>(average player for the division)</option>';
+    var team = null;
+    players.forEach(function (p) {
+      if (p.team !== team) { if (team !== null) out += '</optgroup>'; team = p.team; out += '<optgroup label="' + escapeFn(team) + '">'; }
+      var rating = p.rated ? Math.round(1500 + 1000 * p.s) : 'unrated';
+      out += '<option value="' + p.id + '"' + (p.id === chosen.id ? ' selected' : '') + '>' + escapeFn(p.name) + ' (' + rating + ')</option>';
+    });
+    if (team !== null) out += '</optgroup>';
+    return out + '</select>';
+  };
+  var escapeFn = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+%>
+
+<div class="container my-4">
+  <p><a href="/lewis-shield/handicaps#tie-<%= tie.id %>">← All handicaps</a></p>
+  <h1 class="h3"><%= tie.home.name %> v <%= tie.away.name %></h1>
+  <p class="text-muted"><%= tie.dayLabel %> · <%= tie.roundLabel %><%= tie.handicap ? ' · set: ' + (tie.handicap.to ? tie.handicap.points + ' to ' + sideName(tie.handicap.to) : 'scratch') : ' · not set' %></p>
+
+  <% if (!options) { %>
+    <div class="alert alert-warning">No team-strength run yet, so there is nothing to calculate from.</div>
+  <% } else if (!result) { %>
+    <div class="alert alert-warning">One of these teams is not in the latest team-strength run.</div>
+  <% } else { %>
+    <p>Pick each side in card order — men 1 and 2 play Open A, 3 and 4 Open B, and the mixed pair man 1 with lady 1, man 2 with lady 2, man 3 with lady 1, man 4 with lady 2. Each side starts as the team's usual side. Players are the club's, every team; ratings from the run of <%= new Date(ranAt).toLocaleDateString('en-GB', { timeZone: 'Europe/London' }) %>.</p>
+
+    <form method="get" action="/lewis-shield/handicaps/<%= tie.id %>/squads">
+      <div class="row">
+        <% [['home', 'h'], ['away', 'a']].forEach(function (pair) { var side = pair[0], prefix = pair[1]; %>
+          <div class="col-md-6">
+            <h2 class="h5"><%= tie[side].name %></h2>
+            <div class="row">
+              <div class="col-sm-6">
+                <% result[side].men.forEach(function (p, i) { %><%- picker(side, prefix, 'men', i, options[side].men, p) %><% }); %>
+              </div>
+              <div class="col-sm-6">
+                <% result[side].ladies.forEach(function (p, i) { %><%- picker(side, prefix, 'ladies', i, options[side].ladies, p) %><% }); %>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+      <button type="submit" class="btn btn-primary">Calculate</button>
+      <a class="btn btn-link" href="/lewis-shield/handicaps/<%= tie.id %>/squads">Back to usual sides</a>
+    </form>
+
+    <div class="card my-4">
+      <div class="card-body">
+        <h2 class="h5">
+          <% if (result.to) { %><%= result.points %> points to <%= sideName(result.to) %><% } else { %>Scratch: no handicap<% } %>
+        </h2>
+        <p class="mb-2">Without a handicap <%= result.expectedMargin >= 0 ? tie.home.name : tie.away.name %> would be expected to win by <%= Math.abs(Math.round(result.expectedMargin)) %> points (± <%= Math.round(result.sd) %>), and <%= tie.home.name %> to win the tie <%= pct(result.pHome) %> of the time. With it, each side wins about half the time.
+          <% if (usual) { %><span class="text-muted">Usual sides: <%= usual.to ? usual.points + ' to ' + sideName(usual.to) : 'scratch' %>.</span><% } %></p>
+        <form method="post" action="/lewis-shield/handicaps/<%= tie.id %>" class="d-flex flex-wrap align-items-center gap-2">
+          <input type="number" name="points" min="0" max="<%= maxPoints %>" step="1" class="form-control" style="width:6rem" value="<%= result.points %>" aria-label="Points">
+          <select name="to" class="form-select" style="width:auto" aria-label="To">
+            <option value="home" <%= result.to === 'home' ? 'selected' : '' %>>to <%= tie.home.name %></option>
+            <option value="away" <%= result.to === 'away' ? 'selected' : '' %>>to <%= tie.away.name %></option>
+            <option value="scratch" <%= !result.to ? 'selected' : '' %>>scratch (none)</option>
+          </select>
+          <button type="submit" class="btn btn-success">Set this handicap</button>
+        </form>
+      </div>
+    </div>
+
+    <h2 class="h6 mt-2">Where the points come from (expected margin per game, <%= tie.home.name %> minus <%= tie.away.name %>)</h2>
+    <div class="table-responsive">
+      <table class="table table-sm small">
+        <thead><tr><th>Event</th><th><%= tie.home.name %></th><th><%= tie.away.name %></th><th class="text-end">Per game</th></tr></thead>
+        <tbody>
+        <% result.rubbers.forEach(function (r) { %>
+          <tr><td><%= r.card %></td><td><%= r.home.join(' & ') %></td><td><%= r.away.join(' & ') %></td><td class="text-end"><%= signed(r.margin) %></td></tr>
+        <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('footer.ejs') %>

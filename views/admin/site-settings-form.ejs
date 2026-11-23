@@ -25,6 +25,16 @@
       <input type="number" min="0" max="4" step="1" class="form-control" style="max-width: 8em" id="promotion_places" name="promotion_places" value="<%= promotionPlaces %>">
       <small class="form-text text-muted">How many teams go up from Division 2 and down from Division 1 this season. Used by the League Run-in and the projected tables on Team Strength. Changes from season to season; 2 until it is set.</small>
     </div>
+    <div class="mb-3">
+      <label class="form-label" for="lewis_secretary">Lewis secretary</label>
+      <select class="form-select" style="max-width: 28em" id="lewis_secretary" name="lewis_secretary">
+        <option value="">(none: superadmins only)</option>
+        <% candidates.forEach(function(p){ %>
+          <option value="<%= p.id %>" <%= p.id === lewisSecretary ? 'selected' : '' %>><%= p.name %><%= p.club ? ' (' + p.club + ')' : '' %></option>
+        <% }); %>
+      </select>
+      <small class="form-text text-muted">Sets the Lewis Shield handicaps at <a href="/lewis-shield/handicaps">/lewis-shield/handicaps</a>. Their login must be linked to this player (Link Logins). Takes effect straight away.</small>
+    </div>
     <button type="submit" class="btn btn-primary">Save</button>
   </form>
 </div>

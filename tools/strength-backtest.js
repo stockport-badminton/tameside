@@ -8,6 +8,9 @@
 //   node tools/strength-backtest.js --tune     # also searches the fit settings and the
 //                                              # fixture swing on the tuning season
 //   node tools/strength-backtest.js --json out.json
+//   node tools/strength-backtest.js --points   # the Lewis Shield handicap instead
+//                                              # (utils/lewisHandicap.js): league fixtures'
+//                                              # points margins against the prediction
 //
 // Every Monday the rating is refitted to the games before it and predicts that week's
 // games, exactly as the nightly run would have. Nothing about a game is known to the fit
@@ -34,12 +37,14 @@
 require('dotenv').config()
 const fs = require('fs')
 const model = require('../utils/teamStrength')
+const lewisHandicap = require('../utils/lewisHandicap')
 const TeamStrength = require('../models/teamStrength')
 const seasonModel = require('../models/season')
 const { sql } = require('../utils/db_connect')
 
 const args = process.argv.slice(2)
 const TUNE = args.includes('--tune')
+const POINTS = args.includes('--points')
 const jsonOut = args.includes('--json') ? args[args.indexOf('--json') + 1] : null
 
 const PERIODS = [
@@ -385,9 +390,64 @@ function tune(data) {
   return { best, trail }
 }
 
+// The Lewis Shield handicap, checked on league fixtures (Lewis ties are too few, and their
+// players are the same people): refit every Monday, and for each fixture with all 18 games
+// scored, set the handicap from the usual (or actual) players and see what it would have
+// done. A fair handicap leaves the side it favours winning half the time, and the actual
+// margin should land inside the model's central 50% band half the time (90% band: 90%).
+function pointsCheck(data, settings, sds) {
+  const inPeriod = (season, t) => PERIODS.find(p => p.season === season && (!p.from || t >= p.from))
+  const rows = []
+  const weeks = [...new Set(data.fixtures.filter(f => inPeriod(f.season, f.t)).map(f => mondayOf(f.t)))].sort((a, b) => a - b)
+  for (const m of weeks) {
+    const end = nextMonday(m)
+    const { fit } = model.fitAt(data.input, m, settings)
+    for (const f of data.fixtures) {
+      if (f.t < m || f.t >= end || !inPeriod(f.season, f.t)) continue
+      if (f.rows.length !== 18 || f.rows.some(r => r.homeScore == null)) continue
+      const margin = f.rows.reduce((a, r) => a + Number(r.homeScore) - Number(r.awayScore), 0)
+      const out = { period: inPeriod(f.season, f.t).key, margin, by: {} }
+      for (const kind of ['actual', 'usual']) {
+        const home = lineupOf(fit, data, f, 'home', kind), away = lineupOf(fit, data, f, 'away', kind)
+        out.by[kind] = {}
+        for (const sd of sds) {
+          const mix = lewisHandicap.marginMixture(home, away, fit.home, sd)
+          const extra = Math.round(lewisHandicap.evenAt(mix))
+          // P(margin < actual) under the model: where the result fell in the prediction.
+          const pit = 1 - lewisHandicap.pHomeWins(mix, -margin)
+          out.by[kind][sd] = { extra, pit }
+        }
+      }
+      rows.push(out)
+    }
+  }
+  for (const p of PERIODS) {
+    const xs = rows.filter(r => r.period === p.key)
+    if (!xs.length) continue
+    const mae0 = xs.reduce((a, r) => a + Math.abs(r.margin), 0) / xs.length
+    console.log(`\n== ${p.label}: ${xs.length} fixtures, actual margin |mean| ${mae0.toFixed(1)} points (the error of "no handicap")`)
+    for (const kind of ['actual', 'usual']) for (const sd of sds) {
+      const ys = xs.map(r => ({ margin: r.margin, ...r.by[kind][sd] }))
+      const mae = ys.reduce((a, y) => a + Math.abs(y.margin + y.extra), 0) / ys.length
+      const bias = ys.reduce((a, y) => a + y.margin + y.extra, 0) / ys.length
+      // Of the fixtures given a handicap, how often the side receiving it won (ties: half).
+      const given = ys.filter(y => y.extra !== 0)
+      const recWon = given.reduce((a, y) => { const m = y.margin + y.extra; const r = y.extra > 0 ? m : -m; return a + (r > 0 ? 1 : r === 0 ? 0.5 : 0) }, 0) / (given.length || 1)
+      const in50 = ys.filter(y => y.pit > 0.25 && y.pit < 0.75).length / ys.length
+      const in90 = ys.filter(y => y.pit > 0.05 && y.pit < 0.95).length / ys.length
+      console.log(`  ${kind.padEnd(6)} fixtureSd ${String(sd).padEnd(4)}: off by ${mae.toFixed(1)} pts (bias ${bias >= 0 ? '+' : ''}${bias.toFixed(1)} to home), receiver won ${pct(recWon)}, inside 50% band ${pct(in50)}, 90% band ${pct(in90)}`)
+    }
+  }
+}
+
 ;(async () => {
   const started = Date.now()
   const data = prepare(await load())
+  if (POINTS) {
+    pointsCheck(data, { ...model.SETTINGS }, [0.1, 0.2, 0.3])
+    console.log(`(${((Date.now() - started) / 1000).toFixed(1)}s)`)
+    return
+  }
   console.log(`${data.input.games.length} usable games, ${data.fixtures.length} fixtures, loaded in ${Date.now() - started}ms`)
 
   let settings = { ...model.SETTINGS }, tuned = null
