@@ -861,6 +861,26 @@ back) — run it after touching either side.
   change rewrites history at the next backfill. That is why fixtures nobody re-entered can
   still differ from a fresh re-rate. Per-season rank was deferred on 2026-10-02.
 
+### Team strength (points rating)
+
+`/admin/team-strength` (superadmin) shows a second rating beside the ELO: every rally of
+every league game since Sep 2024, fitted all at once, refitted nightly by
+`POST /admin/team-strength/run` (`STRENGTH_RUN_TOKEN`) and stored whole in `strength_run`.
+Ported from Stockport (backlog row 7, Nov 2026); **`docs/team-strength.md` has the backtest
+and the scheduler setup.** Predictions, projected tables and order checks are row 8.
+
+- **`RUBBERS` is our 4+2 card, not Stockport's 3+3.** Open C and D cross one side's top pair
+  with the other's bottom pair, so a rubber picks per side. `test/team-strength.test.js`
+  checks every player gets exactly six games.
+- **`tools/strength-backtest.js` is the proof**, read-only, ~15s. Tuned on 2025/26,
+  reported on 2026/27: 79.0% of game winners against the ELO's 76.4%, with better log loss
+  everywhere. Re-run it after touching `utils/teamStrength.js`, and update the doc's table.
+  A settings search that "won" on 2025/26 lost on 2026/27; the settings stay Stockport's.
+- A player's starting point is the division they were registered in **that season**, from
+  the `<season>` archives, unlike the ELO backfill, which uses today's team.
+- The payload names players: nothing public may read `strength_run` until row 8 adds a
+  nameless block, as Stockport's `public` one is.
+
 ### Superadmin Admin UI
 
 Superadmin-gated pages under `/admin/*` (session-`secured()` route + in-controller
@@ -1938,6 +1958,8 @@ SOCIAL_POST_FB_STORY  # 'true' also posts every Facebook Page post as a Page sto
                    # posts none. See "Facebook Page stories" above.
 LOGIN_CULL_TOKEN   # Shared secret for the monthly login cull (/tasks/login-cull?t=...).
                    # Unset means the route 404s. See docs/login-cull.md.
+STRENGTH_RUN_TOKEN # Shared secret for the nightly team-strength run
+                   # (POST /admin/team-strength/run?t=...). Unset: only a superadmin runs it.
 SOCIAL_WEEKLY_VIDEO_TOKEN     # Shared secret for BOTH weekly-video routes (generate and
                    # post). Unset means that post is inert. One token per post rather than
                    # a shared one, so a post can be turned off on its own.

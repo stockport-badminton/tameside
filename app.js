@@ -802,6 +802,15 @@ app.get('/admin/missed-three/:playerId(\\d+)/notice', access.superadmin, missed_
 app.get('/admin/missed-three/:playerId(\\d+)/notice/email', access.superadmin, missed_three_controller.previewEmail);
 app.post('/admin/missed-three/:playerId(\\d+)/notice', access.superadmin, missed_three_controller.send);
 
+/* Team strength: a points-based rating, refitted nightly (controllers/teamStrengthController.js).
+   The run is POST for Cloud Scheduler (STRENGTH_RUN_TOKEN, `?t=`) or the page's button; same
+   gating rules as the social posts below. Unset token: only a superadmin can run it. */
+const team_strength_controller = require(__dirname + '/controllers/teamStrengthController');
+app.get('/admin/team-strength', access.superadmin, team_strength_controller.page);
+app.post('/admin/team-strength/run',
+  access.cron(requireCronCaller({ envVar: 'STRENGTH_RUN_TOKEN', callerProp: 'strengthCaller' })),
+  team_strength_controller.run);
+
 /* The weekly league-tables post to Facebook and Instagram.
 
    The GET is `secured` like every other /admin page. **The POST deliberately is NOT**:
