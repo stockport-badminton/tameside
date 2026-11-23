@@ -1244,46 +1244,42 @@ exports.fixture_populate_scorecard_fromId = function (req, res, next) {
 //
 // The header and the games are now separate locals, so a fixture with no game detail
 // still shows what the match was and how it finished.
+//
+// Who may look (Nov 2026, Stockport's 6801d52): a superadmin, or someone from either club.
+// It was public, so any line-up could be read by id. The summary is read first — it is
+// the existence check and carries both clubs — so the gate runs before any player is.
+// The header comes from the summary too, which costs the common path a second query.
 exports.getScorecard = function(req, res,next) {
-  Fixture.getScorecardDataById(req.params.id, function(err,games){
-    if (err){
-      // Was res.send(err), which answered 200 with a serialised error object — a real
-      // failure looked like a success to the browser and to monitoring.
-      return next(err);
+  Fixture.getFixtureSummaryById(req.params.id, function(summaryErr,fixture){
+    if (summaryErr){
+      return next(summaryErr);
     }
+    if (!fixture.length){
+      return render404(req, res);
+    }
+    const summary = fixture[0];
+    if (!authz.mayViewClubs(req, [summary.homeClub, summary.awayClub])){
+      return next(Object.assign(new Error('Scorecards are for the two clubs that played'), { status: 403 }));
+    }
+    res.set('Cache-Control', 'private, no-store');
 
-    const render = (summary) => res.render('viewScorecard', {
-      static_path: '/static',
-      title : "Scorecard Info",
-      pageDescription : "View scorecard for this match",
-      result: games,
-      summary: summary,
-      canonical: canonicalFor(req)
-    });
+    Fixture.getScorecardDataById(req.params.id, function(err,games){
+      if (err){
+        // Was res.send(err), which answered 200 with a serialised error object — a real
+        // failure looked like a success to the browser and to monitoring.
+        return next(err);
+      }
 
-    if (games.length){
-      // Every game row repeats the fixture-level columns, so take the header from the
-      // first and save a second query on the common path.
-      return render({
-        date: games[0].date,
-        homeTeam: games[0].homeTeam,
-        awayTeam: games[0].awayTeam,
-        homeScore: games[0].totalHomeScore,
-        awayScore: games[0].totalAwayScore,
+      const render = () => res.render('viewScorecard', {
+        static_path: '/static',
+        title : "Scorecard Info",
+        pageDescription : "View scorecard for this match",
+        result: games,
+        summary: summary,
+        canonical: canonicalFor(req)
       });
-    }
 
-    // No games. Fall back to the summary query, which LEFT JOINs and so distinguishes
-    // "no game detail" from "no such fixture" — the reason it exists rather than reusing
-    // getFixtureEventById, whose inner joins answer zero rows for both.
-    Fixture.getFixtureSummaryById(req.params.id, function(summaryErr,fixture){
-      if (summaryErr){
-        return next(summaryErr);
-      }
-      if (!fixture.length){
-        return render404(req, res);
-      }
-      return render(fixture[0]);
+      return render();
     })
   })
 };
@@ -1813,7 +1809,7 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
   // route shapes in app.js, which only covered one filter at a time plus two fixed
   // pairs, so anything the toolbar actually built 404'd. Values arrive
   // percent-decoded, so 'Manchester%20Edgeley' matches the club name in the DB.
-  exports.get_fixture_players_details = function(req, res) {
+  exports.get_fixture_players_details = function(req, res, next) {
 
     var active = (res.locals.filterBar && res.locals.filterBar.active) || {};
     var searchObj = {
@@ -1826,6 +1822,11 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
     }
     if (active.club){
       searchObj.club = active.club
+    }
+    // Line-ups: a superadmin sees every club, a linked login its own (overriding any club
+    // in the URL), nobody else anything. Public until Nov 2026.
+    if (!authz.scopeStats(req, searchObj)){
+      return next(Object.assign(new Error('Your login isn\'t linked to a player at a club'), { status: 403 }));
     }
     Fixture.getMatchPlayerOrderDetails(searchObj,function(err,row){
       if (err){

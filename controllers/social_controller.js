@@ -552,30 +552,6 @@ exports.league_table_image = function (req, res, next) {
   });
 };
 
-// GET /tables-social — the file-writing original, kept because the live Make.com scenario
-// still drives it. Drawing comes from the same builder as the route above, so the file on
-// disk and the image served on demand cannot say different things.
-exports.social_get_tables = function (req, res, next) {
-  getAllLeagueTables(req.params.season, async function (err, result) {
-    if (err) return next(err);
-    try {
-      await fs.mkdir(GENERATED_DIR, { recursive: true });
-
-      for (const divisionId of SOCIAL_DIVISION_IDS) {
-        const rows = result.filter(row => Number(row.division) === divisionId);
-        if (!rows.length) continue;
-        const name = rows[0].divisionName;
-        const buffer = await buildDivisionTable(name, rows, 'png');
-        await fs.writeFile(`${GENERATED_DIR}/league-table-${name}.png`, buffer);
-      }
-
-      res.sendStatus(200);
-    } catch (e) {
-      next(e);
-    }
-  });
-};
-
 exports.SOCIAL_DIVISION_IDS = SOCIAL_DIVISION_IDS;
 exports.buildDivisionTable = buildDivisionTable;
 exports.buildResultCard = buildResultCard;

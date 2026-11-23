@@ -13,13 +13,25 @@
 // These assert both halves: that what the shared builder emits routes, and that the
 // controller pulls the right filters out of it. Legacy shapes are covered too, since
 // those URLs are indexed and bookmarked.
-const { describe, it, afterEach, mock } = require('node:test');
+const { describe, it, before, after, afterEach, mock } = require('node:test');
 const assert = require('node:assert');
 const request = require('supertest');
 
 const { app, setModel, clearModels } = require('../helpers/app');
 
 afterEach(() => { clearModels(); mock.restoreAll(); });
+
+// The page needs a login since Nov 2026, and anyone but a superadmin has the club filter
+// overwritten with their own (line-up-gating.test.js). These are about the grammar, so
+// they run as a superadmin, whose filters pass through untouched.
+const savedEnv = {};
+before(() => {
+  for (const k of ['DEV_MODE', 'DEV_ROLE']) savedEnv[k] = process.env[k];
+  process.env.DEV_MODE = 'true'; process.env.DEV_ROLE = 'superadmin';
+});
+after(() => {
+  for (const [k, v] of Object.entries(savedEnv)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+});
 
 // Capture the searchObj the controller hands the model, and answer with one row so
 // the view renders.

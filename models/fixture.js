@@ -511,10 +511,14 @@ exports.getOutstandingFixtureId = async function(obj,done){
       fixture."homeScore",
       fixture."awayScore",
       "homeTeam".name AS "homeTeam",
-      "awayTeam".name AS "awayTeam"
+      "awayTeam".name AS "awayTeam",
+      "homeClub".name AS "homeClub",
+      "awayClub".name AS "awayClub"
     FROM fixture
     LEFT JOIN team "homeTeam" ON fixture."homeTeam" = "homeTeam".id
     LEFT JOIN team "awayTeam" ON fixture."awayTeam" = "awayTeam".id
+    LEFT JOIN club "homeClub" ON "homeTeam".club = "homeClub".id
+    LEFT JOIN club "awayClub" ON "awayTeam".club = "awayClub".id
     WHERE fixture.id = ${fixtureId}`.catch(err => {
       return done(err)
     })

@@ -33,9 +33,8 @@ exports.robots = function (req, res) {
 //
 // Only public HTML pages. Not here, on purpose:
 //   - anything behind a login (robots.txt disallows those; listing one is a wasted crawl)
-//   - /teams, /clubs, /team/:id, /player/:id, /fixtures/*: they answer JSON
-//   - player stats pages: public, but a page per named person is not something to push
-//     at search engines and AI crawlers. They stay reachable by link.
+//   - /teams, /clubs, /fixtures/*: they answer JSON
+//   - player stats pages: behind a login since Nov 2026, so covered by the first rule
 //   - past seasons' event pages: they 404 (getFixtureEventById's joins, models/fixture.js)
 
 const STATIC_PATHS = [

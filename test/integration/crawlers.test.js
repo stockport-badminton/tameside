@@ -45,10 +45,11 @@ describe('robots.txt is derived from the route access declarations', () => {
   });
 
   test('a shared literal prefix does not hide the public route', () => {
-    // /player/:id/update needs a login; /player/:id does not.
+    // /player/:id/update needs a login; the rule must not sweep up its prefix. (GET
+    // /player/:id itself was deleted in Nov 2026, and /playerStats/:id went behind a login.)
     assert.ok(robots.isDisallowed(rules, '/player/7/update'));
     assert.ok(!robots.isDisallowed(rules, '/player/7'));
-    assert.ok(!robots.isDisallowed(rules, '/playerStats/7/Dave-Lee'));
+    assert.ok(robots.isDisallowed(rules, '/playerStats/7/Dave-Lee'));
     assert.ok(!robots.isDisallowed(rules, '/clubs'));
     assert.ok(!robots.isDisallowed(rules, '/info/clubs'));
   });

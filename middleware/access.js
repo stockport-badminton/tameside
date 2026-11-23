@@ -63,6 +63,10 @@ exports.public = declare('public', function (req, res, next) { next(); });
 // Logged in.
 exports.member = declare('member', function (req, res, next) { return secured(req, res, next); });
 
+// The same for a route a page's script fetches: an expired session is a 401 JSON answer
+// rather than a redirect, which fetch would follow silently into the login page's HTML.
+exports.memberApi = declare('member (api)', function (req, res, next) { return securedApi(req, res, next); });
+
 // Logged in, and the handler decides the rest. `what` says what it checks, for the table.
 exports.memberThen = function (what) {
   if (!what) throw new Error('access.memberThen() needs to say what the handler checks');

@@ -47,13 +47,6 @@ exports.team_search = function(req,res,next) {
   })
 };
 
-// Display detail page for a specific Team
-exports.team_detail = function(req, res) {
-  Team.getById(req.params.id,function(err,row){
-    // console.log(row);
-    res.send(row);
-  })
-};
 
 // GET /lewis-shield and /lewis-shield/:season
 //

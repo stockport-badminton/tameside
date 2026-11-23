@@ -124,7 +124,8 @@ function memberClub(req) {
   return club && club !== 'All' && club !== NO_CLUB ? club : undefined;
 }
 
-// Who may see /player-stats and /pair-stats, and how much (Nov 2026): a superadmin sees
+// Who may see /player-stats and /pair-stats, and how much (Nov 2026) — and, by the same
+// rule, /fixture-players, /playerStats/:id and the ELO chart and its APIs: a superadmin sees
 // every club; anyone linked to a player at a club sees that club; nobody else, including
 // the Stockport accounts the shared Auth0 tenant lets log in here. Overwrites any club
 // in the filters, because the model matches it with LIKE and `club-%25` is a filter.
@@ -136,6 +137,20 @@ function scopeStats(req, searchObj) {
   if (!club) return false;
   searchObj.club = club;
   return true;
+}
+
+// May this login see something that belongs to one of `clubs` (club names) — a match's
+// scorecard, say, where either club's people may look? A superadmin may see any; otherwise
+// the linked player's club must be one of them, or a club admin's own club. Stockport's
+// equivalent is assertClubAccess (their 6801d52). Unlinked logins, Stockport's included,
+// see nothing.
+function mayViewClubs(req, clubs) {
+  if (isSuperAdmin(req)) return true;
+  const wanted = (clubs || []).filter(Boolean);
+  const mine = memberClub(req);
+  if (mine && wanted.includes(mine)) return true;
+  const adminClub = isAdmin(req) ? userClub(req) : undefined;
+  return !!adminClub && adminClub !== 'All' && wanted.includes(adminClub);
 }
 
 // The logged-in user's email address, for "who did this" fields.
@@ -162,6 +177,7 @@ module.exports = {
   applyPlayerLink,
   memberClub,
   scopeStats,
+  mayViewClubs,
   SUPERADMIN_CLAIM,
   ROLE_CLAIM,
   CLUB_CLAIM,

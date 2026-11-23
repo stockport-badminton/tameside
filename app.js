@@ -621,7 +621,8 @@ app.get('/resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division', acce
 app.get('/resultImage/:homeTeam/:awayTeam/:homeScore/:awayScore/:division/story.jpg', access.public, social_controller.social_get_result_story)
 app.get('/league-table-image/:division', access.public, social_controller.league_table_image)
 app.get('/fixtures-image/:division', access.public, social_controller.fixtures_image)
-app.get('/tables-social', access.public, social_controller.social_get_tables)
+// /tables-social is gone (Nov 2026, as Stockport's efbac93): Make.com's file-writing
+// original, public, writing PNGs to the container's disk on every GET. Make is retired.
 
 /* The weekly results video, streamed from S3 through our own domain.
 
@@ -662,8 +663,12 @@ app.post('/fixture/rearrangement', access.superadmin, fixture_controller.fixture
 // `/fixture-players/20252026/club-Hyde` and 404'd. Those legacy URLs still work:
 // filterState's parser reads `club-`, `team-`, `season-` and a bare 8-digit season
 // in any order.
-app.get('/fixture-players', access.public, fixture_controller.get_fixture_players_details);
-app.get('/fixture-players/*', access.public, fixture_controller.get_fixture_players_details);
+//
+// Every named line-up in order, so a superadmin sees every club and a login linked to a
+// player its own club only (authz.scopeStats). It was public until Nov 2026 (Stockport's
+// 9949f8c / 1ecec18: no line-up rebuildable without a sign-in).
+app.get('/fixture-players', access.memberThen('own club, or superadmin'), fixture_controller.get_fixture_players_details);
+app.get('/fixture-players/*', access.memberThen('own club, or superadmin'), fixture_controller.get_fixture_players_details);
 // Sends to addresses taken from the request body, so it was an open mail relay until
 // 2026-10-02: no session, no token, caller-chosen recipients and subject text, sent as the
 // league. The only UI is the superadmin Send Reminder button on the results grid, so the
@@ -684,26 +689,29 @@ app.get('/tables/All/:season', access.public, league_controller.all_league_table
 app.get('/tables/:division', access.public, league_controller.league_table);
 app.get('/tables/:division/:season', access.public, league_controller.league_table);
 
-app.get('/team/:id(\\d+)', access.public, team_controller.team_detail);
+// /team/:id (raw SELECT * of one team, nothing called it) deleted Nov 2026, as Stockport's 239e5e3.
 
 /* GET request for list of all Team items.
     router.get('/teams/:clubid/:venue/:matchDay', team_controller.team_list); */
 
 /* GET request for list of all Team items. */
 app.get('/teams', access.public, team_controller.team_list);
+// id, name and venue only: this was SELECT *, officer player ids included (Nov 2026).
 app.get('/clubs', access.public, club_controller.club_list);
 
 /* GET request for list of all Team items. */
 app.post('/teams', access.public, team_controller.team_search);
 
-/* GET request for one Player. */
-app.get('/eligiblePlayers/:id(\\d+)/:gender', access.public, player_controller.eligible_players_list);
+/* A team's eligible players, for the scorecard forms' selects. Names, so a login; not
+   club-scoped, because a captain entering a result needs the other side's players too. */
+app.get('/eligiblePlayers/:id(\\d+)/:gender', access.memberApi, player_controller.eligible_players_list);
 
-/* ELO ratings: chart page (login required), public JSON APIs, admin backfill
-   (secured + superadmin check in controller), DEV_MODE-only diagnostics. */
-app.get('/elo-chart', access.member, player_controller.player_elo_chart);
-app.get('/api/player-elo', access.public, player_controller.player_elo_history_api);
-app.get('/api/players/search', access.public, player_controller.player_search_api);
+/* ELO ratings: chart page and its two JSON APIs, scoped like the stats pages (a
+   superadmin sees every club, a linked login its own; Stockport's c8db046); admin
+   backfill; DEV_MODE-only diagnostics. The APIs were public until Nov 2026. */
+app.get('/elo-chart', access.memberThen('own club, or superadmin'), player_controller.player_elo_chart);
+app.get('/api/player-elo', access.memberApi, player_controller.player_elo_history_api);
+app.get('/api/players/search', access.memberApi, player_controller.player_search_api);
 app.get('/api/seasons', access.public, player_controller.get_seasons_api);
 app.get('/players/eloBackfillAdmin', access.superadmin, player_controller.player_elo_backfill_admin);
 app.get('/players/eloBackfillAll', access.superadmin, player_controller.player_elo_backfill_all);
@@ -717,10 +725,12 @@ app.get('/dev/elo-raw/:playerId(\\d+)', access.devOnly, player_controller.player
 // readable by anyone who guessed a player id.
 app.get('/player/:id(\\d+)/update', access.memberThen('own club\'s player, or superadmin'), player_controller.player_update_get);
 
-app.get('/player/:id(\\d+)', access.public, player_controller.player_detail);
+// GET /player/:id is gone (Nov 2026). It answered SELECT * FROM player to anyone: site
+// role, statsAccess and the encrypted contact columns, by sequential id, with nothing
+// linking to it. Stockport deleted theirs in ca7ee51. POST /player/:id stays.
 
-/* GET request for one Player. */
-app.get('/playerStats/:id(\\d+)/:fullName', access.public, player_controller.player_game_data);
+/* One player's games this season: own club's players, or superadmin. Was public. */
+app.get('/playerStats/:id(\\d+)/:fullName', access.memberThen('own club\'s player, or superadmin'), player_controller.player_game_data);
 
 /* player stats routes and filters. */
 
@@ -738,7 +748,9 @@ app.get('/populated-scorecard/:division/:home_team/:away_team/:home_man_1/:home_
   fixture_controller.fixture_populate_scorecard_fromUrl(req,res,next)
 })
 
-app.get('/scorecard/fixture/:id(\\d+)', access.public, fixture_controller.getScorecard);
+// Every game's four player names. Superadmin or someone from either club, checked before
+// any player is read (Stockport's 6801d52). Was public until Nov 2026.
+app.get('/scorecard/fixture/:id(\\d+)', access.memberThen('either club, or superadmin'), fixture_controller.getScorecard);
 
 
 

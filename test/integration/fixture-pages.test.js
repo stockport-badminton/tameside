@@ -21,6 +21,23 @@ const { app, setModel, clearModels } = require('../helpers/app');
 
 afterEach(() => { clearModels(); });
 
+// /scorecard/fixture/:id needs a login since Nov 2026 (superadmin or either club); these
+// tests are about rendering, so they run as a superadmin. The gating has its own file,
+// line-up-gating.test.js.
+function asSuperadmin(fn) {
+  return async () => {
+    const saved = { DEV_MODE: process.env.DEV_MODE, DEV_ROLE: process.env.DEV_ROLE };
+    process.env.DEV_MODE = 'true'; process.env.DEV_ROLE = 'superadmin';
+    try { await fn(); } finally {
+      for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    }
+  };
+}
+
+const SUMMARY_6027 = { id: 6027, date: new Date(2026, 2, 17), status: 'complete',
+  homeTeam: 'Hyde A', awayTeam: 'Medlock A', homeClub: 'Hyde', awayClub: 'Medlock',
+  homeScore: 9, awayScore: 9 };
+
 // Two game rows shaped as getScorecardDataById returns them: every row repeats the
 // fixture-level columns (date, team names, totalHome/AwayScore).
 const GAME_ROWS = [
@@ -35,7 +52,7 @@ const GAME_ROWS = [
 ];
 
 describe('GET /scorecard/fixture/:id', () => {
-  it('renders the summary and an explanation when no games were recorded', async () => {
+  it('renders the summary and an explanation when no games were recorded', asSuperadmin(async () => {
     // Fixture 5704 in production: a conceded 2025-26 match, 18-0, zero game rows. This
     // is why the fix can't just be "old archive" — conceded fixtures recur every season.
     setModel('Fixture', 'getScorecardDataById', (id, cb) => cb(null, []));
@@ -56,12 +73,11 @@ describe('GET /scorecard/fixture/:id', () => {
     // there is nothing to add up, and 0-0 would read as a real scoreline.
     assert.match(res.text, /<div class="col-1">18-0<\/div>/);
     assert.match(res.text, /<div class="col-2"><\/div>/);
-  });
+  }));
 
-  it('renders the games and no explanation when detail exists', async () => {
-    let summaryCalls = 0;
+  it('renders the games and no explanation when detail exists', asSuperadmin(async () => {
     setModel('Fixture', 'getScorecardDataById', (id, cb) => cb(null, GAME_ROWS));
-    setModel('Fixture', 'getFixtureSummaryById', (id, cb) => { summaryCalls++; cb(null, []); });
+    setModel('Fixture', 'getFixtureSummaryById', (id, cb) => cb(null, [SUMMARY_6027]));
 
     const res = await request(app).get('/scorecard/fixture/6027');
 
@@ -73,11 +89,9 @@ describe('GET /scorecard/fixture/:id', () => {
     // Points total (21+21 v 15+18) alongside the fixture score.
     assert.match(res.text, /<div class="col-2">42-33<\/div>/);
     assert.match(res.text, /<div class="col-1">9-9<\/div>/);
-    // The header is taken off the first game row, so the common path stays one query.
-    assert.strictEqual(summaryCalls, 0);
-  });
+  }));
 
-  it('404s when the fixture does not exist at all', async () => {
+  it('404s when the fixture does not exist at all', asSuperadmin(async () => {
     // getScorecardDataById answers zero rows for both "no game detail" and "no such
     // fixture". getFixtureSummaryById LEFT JOINs, so it separates the two.
     setModel('Fixture', 'getScorecardDataById', (id, cb) => cb(null, []));
@@ -85,22 +99,23 @@ describe('GET /scorecard/fixture/:id', () => {
 
     const res = await request(app).get('/scorecard/fixture/999999');
     assert.strictEqual(res.status, 404);
-  });
+  }));
 
-  it('surfaces a model failure as an error, not a 200', async () => {
+  it('surfaces a model failure as an error, not a 200', asSuperadmin(async () => {
+    setModel('Fixture', 'getFixtureSummaryById', (id, cb) => cb(null, [SUMMARY_6027]));
     setModel('Fixture', 'getScorecardDataById', (id, cb) => cb(new Error('connection terminated')));
 
     const res = await request(app).get('/scorecard/fixture/5704');
     assert.ok(res.status >= 500, `expected 5xx, got ${res.status}`);
-  });
+  }));
 
-  it('surfaces a summary-query failure as an error too', async () => {
+  it('surfaces a summary-query failure as an error too', asSuperadmin(async () => {
     setModel('Fixture', 'getScorecardDataById', (id, cb) => cb(null, []));
     setModel('Fixture', 'getFixtureSummaryById', (id, cb) => cb(new Error('connection terminated')));
 
     const res = await request(app).get('/scorecard/fixture/5704');
     assert.ok(res.status >= 500, `expected 5xx, got ${res.status}`);
-  });
+  }));
 });
 
 describe('GET /event/:id/:date-:homeTeam-:awayTeam', () => {

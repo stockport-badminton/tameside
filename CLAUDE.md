@@ -631,6 +631,15 @@ about being a Tameside player, and every `member` route is open to the other lea
   (`authz.scopeStats`, `test/integration/stats-scoping.test.js`). The `statsAccess` flag is
   no longer read for them. A session from before this has no `tameside`; a club admin's
   falls back to their claim.
+- **Line-ups and player data follow the same rule (23 Nov 2026)**, after Stockport's
+  lockdown: `/fixture-players`, `/playerStats/:id`, `/elo-chart` and its two APIs. A
+  scorecard (`/scorecard/fixture/:id`) is the superadmin's or either club's
+  (`authz.mayViewClubs`), checked before any player is read. All of them were public.
+  `GET /player/:id` (`SELECT * FROM player`, site role included), `/team/:id` and
+  `/tables-social` were deleted; `/clubs` answers id, name and venue only. **Nothing public
+  may name a player in a line-up or a game.** `/eligiblePlayers` is any login, not
+  club-scoped: a captain entering a result needs the other side's players.
+  `test/integration/line-up-gating.test.js`.
 - **A superadmin makes every link. No self-service claim, by decision**: anyone can pick
   "Dave Lee from Hyde", and a login address often says nothing about who someone is.
 - **The `member` gate itself is still "logged in".** Narrowing it to "linked to a player"

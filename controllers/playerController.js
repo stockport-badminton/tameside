@@ -34,8 +34,18 @@ exports.player_played_up_counts = function(req, res, next) {
 
 
 
-// Display list of all Players
-exports.player_game_data = function(req, res,next) {
+// GET /playerStats/:id/:fullName — one player's games. Public until Nov 2026; now a
+// superadmin, or a login linked to a player at the same club (the stats pages' rule),
+// checked before the games are read.
+exports.player_game_data = async function(req, res,next) {
+  if (!authz.isSuperAdmin(req)) {
+    let club
+    try { club = await Player.getClubNameById(req.params.id) } catch (err) { return next(err) }
+    if (!authz.mayViewClubs(req, [club])) {
+      if (!authz.memberClub(req)) return renderStatsNotLinked(res)
+      return next(Object.assign(new Error('Not a player at your club'), { status: 403 }))
+    }
+  }
     Player.getPlayerGameData(req.params.id,function(err,rows){
       if (err) return next(err)
       res.render('player-game-stats', {
@@ -78,14 +88,6 @@ exports.eligible_players_list = function(req, res) {
     Player.findElgiblePlayersFromTeamId(req.params.id,req.params.gender,function(err,rows){
       res.send(rows);
     })
-};
-
-// Display detail page for a specific Player
-exports.player_detail = function(req, res) {
-  Player.getById(req.params.id,function(err,rows){
-    // console.log(rows);
-    res.send(rows);
-  })
 };
 
 // The stats pages' answer to a login that is not linked to a player at a club: the
@@ -503,9 +505,23 @@ exports.player_elo_backfill_admin = async function(req, res, next) {
 // Returns ELO time-series JSON for use by the chart pages.
 const ELO_CHART_MAX_PLAYERS = 20
 
+function parseEloIds(raw) {
+  return String(raw || '').split(',').map(s => parseInt(s, 10)).filter(n => !isNaN(n)).slice(0, ELO_CHART_MAX_PLAYERS)
+}
+
+// The chart's ids narrowed to the caller's club (scope.club, set by authz.scopeStats); a
+// superadmin's scope has no club and keeps them all. Ids are what the URL says, so they
+// are filtered here rather than trusted.
+async function ownClubIds(req, scope, ids) {
+  if (!scope.club || ids.length === 0) return ids
+  return Player.filterIdsByClub(ids, scope.club)
+}
+
 exports.player_elo_history_api = async function(req, res, next) {
   try {
-    const rawIds = (req.query.players || '').split(',').map(s => parseInt(s, 10)).filter(n => !isNaN(n)).slice(0, ELO_CHART_MAX_PLAYERS)
+    const scope = {}
+    if (!authz.scopeStats(req, scope)) return res.status(403).json({ error: 'Your login isn\'t linked to a player at a club' })
+    const rawIds = await ownClubIds(req, scope, parseEloIds(req.query.players))
     if (rawIds.length === 0) return res.json([])
     const data = await Player.getPlayerEloTimeSeries(rawIds)
     res.json(data)
@@ -526,6 +542,9 @@ exports.player_search_api = async function(req, res, next) {
       team: (req.query.team || '').trim(),
       gender: (req.query.gender || '').trim(),
     }
+    // A superadmin searches every club; anyone else only their own, whatever was asked.
+    // signup approval and login linking use this too, and they are superadmin pages.
+    if (!authz.scopeStats(req, filters)) return res.status(403).json({ error: 'Your login isn\'t linked to a player at a club' })
     const hasFilter = Object.values(filters).some(v => v.length > 0)
     if (q.length < 2 && !hasFilter) return res.json([])
     const results = await Player.searchPlayers(q, filters)
@@ -539,7 +558,9 @@ exports.player_search_api = async function(req, res, next) {
 // Renders the multi-player ELO comparison page.
 exports.player_elo_chart = async function(req, res, next) {
   try {
-    const rawIds = (req.query.players || '').split(',').map(s => parseInt(s, 10)).filter(n => !isNaN(n)).slice(0, ELO_CHART_MAX_PLAYERS)
+    const scope = {}
+    if (!authz.scopeStats(req, scope)) return renderStatsNotLinked(res)
+    const rawIds = await ownClubIds(req, scope, parseEloIds(req.query.players))
     const [seriesData, divisions, clubs, teams] = await Promise.all([
       rawIds.length > 0 ? Player.getPlayerEloTimeSeries(rawIds) : [],
       promisify(Division.getAll)(),

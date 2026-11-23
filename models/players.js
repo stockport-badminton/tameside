@@ -1154,12 +1154,23 @@ exports.count = async function(searchTerm,done){
 // GET
 
 
-exports.getById = async function(playerId,done){
-  let result = await sql`SELECT * FROM player WHERE id = ${ playerId }`.catch(err => {
-    return done(err) ;
-  })
-  done(null,result);
+// The name of a player's club, for the own-club checks (authz.mayViewClubs). undefined
+// for no such player or no club row.
+exports.getClubNameById = async function(playerId) {
+  const rows = await sql`SELECT club.name FROM player JOIN club ON club.id = player.club
+    WHERE player.id = ${playerId}`
+  return rows.length ? rows[0].name : undefined
 }
+
+// Of these player ids, the ones at the named club (the ELO chart's own-club scope).
+exports.filterIdsByClub = async function(ids, clubName) {
+  if (!ids.length) return []
+  const rows = await sql`SELECT player.id::int AS id FROM player JOIN club ON club.id = player.club
+    WHERE player.id = ANY(${ids}::int[]) AND club.name = ${clubName}`
+  const keep = new Set(rows.map(r => r.id))
+  return ids.filter(id => keep.has(id))
+}
+
 
 // "otherComms" was missing here even though the column has existed as long as the
 // other four club-role flags, so the edit form silently rendered it unchecked and

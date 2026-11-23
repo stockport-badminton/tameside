@@ -8,10 +8,13 @@ require('dotenv').config()
 
 
 // Display list of all Clubs
-exports.club_list = function(req, res) {
+// Public, so it answers what a club list needs and nothing else. It was SELECT *, which
+// carried the club and match secretaries' player ids — the way into /player/:id while that
+// route was public. Club.getAll is shared with pages that want every column.
+exports.club_list = function(req, res, next) {
     Club.getAll(function(err,rows){
-      //console.log(rows);
-      res.send(rows);
+      if (err) return next(err);
+      res.send((rows || []).map(({ id, name, venue }) => ({ id, name, venue })));
     })
 };
 
