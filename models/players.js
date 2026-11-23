@@ -230,7 +230,9 @@ exports.getNamesClubsTeams = async function(searchTerms,done){
     }
 
     
-    let result = await sql`select * from (select "playerId", a.name, gender, date_of_registration, a.rank, club.id as "clubId", club.name as "clubName", "teamName", "teamId" from (SELECT player.id as "playerId", concat(first_name, ' ', family_name) as name, gender, date_of_registration, player.rank, team.id as "teamId", team.name as "teamName", player.club as "clubId" from ${sql("player" + season)} player join ${sql("team" + season)} team on team.id = player.team
+    let result
+    try {
+    result = await sql`select * from (select "playerId", a.name, gender, date_of_registration, a.rank, club.id as "clubId", club.name as "clubName", "teamName", "teamId" from (SELECT player.id as "playerId", concat(first_name, ' ', family_name) as name, gender, date_of_registration, player.rank, team.id as "teamId", team.name as "teamName", player.club as "clubId" from ${sql("player" + season)} player join ${sql("team" + season)} team on team.id = player.team
     ${
         searchTerms.name !== undefined 
         ? sql`AND (player.first_name like ${searchTerms.name.substr(0,1)+"%"} OR player.family_name like ${searchTerms.name.substr(0,1)+"%"})`
@@ -252,12 +254,12 @@ exports.getNamesClubsTeams = async function(searchTerms,done){
         ? sql`AND gender = ${searchTerms.gender}`
         : sql``
     }
-    order by "teamName", gender,rank`.catch(err => {
-      console.log(err.query)
-    return done(err) ;
-    })
-    console.log("Result" + JSON.stringify(result['Result']))
-
+    order by "teamName", gender,rank`;
+    } catch (err) {
+      // It used to .catch(done) and then fall through to done(null, undefined), rendering
+      // on top of the error (see "Retrying a read" in CLAUDE.md).
+      return done(err);
+    }
     done(null,result);
 }
 

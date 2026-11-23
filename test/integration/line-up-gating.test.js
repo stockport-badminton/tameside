@@ -262,3 +262,43 @@ describe('the member gate on a real page', () => {
     assert.match(res.headers['cache-control'], /no-store/);
   }));
 });
+
+describe('GET /players: own club only (Stockport 38e2971)', () => {
+  function stub() {
+    const asked = [];
+    setModel('Player', 'getNamesClubsTeams', (terms, cb) => { asked.push(terms); cb(null, []); });
+    return asked;
+  }
+
+  it('a member sees their own club, whatever the URL leaves out', asUser(HYDE, async () => {
+    const asked = stub();
+    const res = await request(app).get('/players');
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(asked[0].club, 'Hyde');
+    assert.match(res.headers['cache-control'], /no-store/);
+  }));
+
+  it('another club, or a LIKE pattern, is a 403 that reads nothing', asUser(HYDE, async () => {
+    const asked = stub();
+    for (const path of ['/players/club-Medlock', '/players/club-%25']) {
+      const res = await request(app).get(path);
+      assert.strictEqual(res.status, 403, path);
+    }
+    assert.strictEqual(asked.length, 0);
+  }));
+
+  it('a club admin is held to their club', asUser(HYDE_ADMIN, async () => {
+    const asked = stub();
+    assert.strictEqual((await request(app).get('/players/club-Hyde/team-Hyde%20A/gender-Male')).status, 200);
+    assert.strictEqual(asked[0].club, 'Hyde');
+    assert.strictEqual((await request(app).get('/players/club-Medlock')).status, 403);
+  }));
+
+  it('a superadmin sees every club, or the one asked for', asUser(SUPERADMIN, async () => {
+    const asked = stub();
+    await request(app).get('/players');
+    await request(app).get('/players/club-Medlock');
+    assert.strictEqual(asked[0].club, undefined);
+    assert.strictEqual(asked[1].club, 'Medlock');
+  }));
+});

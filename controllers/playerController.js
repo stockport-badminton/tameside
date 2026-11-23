@@ -62,25 +62,32 @@ exports.player_game_data = async function(req, res,next) {
 
 
 // Display list of all Players
-exports.player_list_clubs_teams = function(req, res) {
-    Player.getNamesClubsTeams(req.params, function(err,rows){
-      // console.log(rows);
-      if (err){
-        // console.log("all_player_stats controller error")
-        return next(err)
+// /players: the player registrations list. A superadmin sees every club (and may filter by
+// any); anyone else sees their own club only, as on Stockport (38e2971). Another club named
+// in the URL is a 403 rather than a quiet swap to their own, so the page never claims to
+// show a club it doesn't. A login with no club (unlinked, or at No Club) gets not-linked.
+exports.player_list_clubs_teams = function(req, res, next) {
+    const searchObj = Object.assign({}, req.params);
+    const asked = searchObj.club;
+    if (!authz.isSuperAdmin(req)) {
+      if (!authz.scopeStats(req, searchObj)) return renderStatsNotLinked(res);
+      if (asked !== undefined && asked !== searchObj.club) {
+        const err = new Error("You can only see your own club's players.");
+        err.status = 403;
+        return next(err);
       }
-      else {
-        // console.log("all_player_stats controller success")
-        // console.log(result);
-        res.render('player-list', {
-             static_path: '/static',
-             theme: process.env.THEME || 'flatly',
-             flask_debug: process.env.FLASK_DEBUG || 'false',
-             title : "Player Registrations",
-             pageDescription : "List of players registered to teams in the Stockport League",
-             result : rows
-         });
-      }
+    }
+    Player.getNamesClubsTeams(searchObj, function(err,rows){
+      if (err) return next(err);
+      res.set('Cache-Control', 'private, no-store');
+      res.render('player-list', {
+           static_path: '/static',
+           theme: process.env.THEME || 'flatly',
+           flask_debug: process.env.FLASK_DEBUG || 'false',
+           title : "Player Registrations",
+           pageDescription : "Players registered to teams in the Tameside League",
+           result : rows
+       });
     })
 };
 // Return list of players eligible based on team

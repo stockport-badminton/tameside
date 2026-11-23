@@ -636,7 +636,7 @@ about being a Tameside player — which is why `member` no longer means "logged 
   scorecard (`/scorecard/fixture/:id`) is the superadmin's or either club's
   (`authz.mayViewClubs`), checked before any player is read. All of them were public.
   `GET /player/:id` (`SELECT * FROM player`, site role included), `/team/:id` and
-  `/tables-social` were deleted; `/clubs` answers id, name and venue only. **Nothing public
+  `/tables-social` were deleted; `/clubs` answers id, name and venue only. `/players` (the registrations list) is own club only, superadmin all; another club in the URL is a 403. **Nothing public
   may name a player in a line-up or a game.** `/eligiblePlayers` is any login, not
   club-scoped: a captain entering a result needs the other side's players.
   `test/integration/line-up-gating.test.js`, which also checks `/eligiblePlayers` for any
