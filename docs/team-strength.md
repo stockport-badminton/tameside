@@ -5,10 +5,12 @@ A points-based doubles rating for every player, refitted every night, at
 `d5d0149`, `db9bc17`) as backlog row 7, reworked for a Tameside side of four men and two
 ladies, and backtested on our own results before anything relies on it.
 
-This row covers **the rating and the nightly run only.** The coming week's predictions, the
-projected tables, the team-order checks and the event-page forecast are row 8 and are not
-built yet. The run already works out and stores each team's usual players, because row 8's
-predictions field them.
+Row 8 (23 Nov 2026) added, on the same page: **this week's predictions** (including any
+fixture past its date with no result), **projected tables**, **team order checks**, and
+**/admin/team-strength/compare**, which sets out the results behind a flag so you can make
+the case to a club. The run also stores a nameless `public` block (a forecast per remaining
+fixture and a profile per team) for the event pages (rows 3 and 4) to read through
+`TeamStrength.forecastFor`. It must never hold a name or a player id, and tests check that.
 
 ## How it works
 
@@ -27,6 +29,21 @@ predictions field them.
   `sql.json`.
 - `POST /admin/team-strength/run` runs it: Cloud Scheduler with `?t=<STRENGTH_RUN_TOKEN>`,
   or the page's button. It takes about 1s on 5,900 games.
+
+### What is different from Stockport's, beyond the card
+
+- **Order checks compare card tiers, not every pair**: men {1,2} {3,4} {5+}, ladies {1,2}
+  {3+} (`ORDER_TIERS`). Men 1 and 2 play the same level games (Open A, and C or D), so
+  swapping them only changes who partners whom in the mixed. Flagging every pair, as
+  Stockport's 3+3 card needs, produced 61 order flags on 23 Nov 2026, about half of them
+  within a pair; this way there are 47. The red "played at" mark follows the same rule.
+- "The third nominated player" in the reserve checks is the **last one who plays**: man 4
+  or lady 2. A team "hasn't set its nominations" past 8 men or 4 ladies (twice a side, as
+  Stockport's 6 is twice 3).
+- **The places up and down** come from the `promotion_places` site setting (row 6).
+- **`formSd` scales with the season left** (`formSdFor`): 0.15 at the start, 0.1 from
+  about January, as the backtest measured.
+- Lewis Shield ties are neither predicted nor projected.
 
 ## The backtest
 
@@ -83,9 +100,8 @@ model does about as well as the ELO does when it is given the real lineup.
   model says.
 - **`formSd` (for row 8's season projection) needs about 0.15 from September and 0.1 from
   January.** Measured on 2025/26's 18 teams, so it is rough: squared z-scores of final games
-  won average 0.95 at 0.15 from the first fixture, and 0.84 at 0.1 from 1 January. It stays
-  at 0.1 because the nightly projection is mostly made mid-season. Row 8 should decide
-  whether to scale it by the share of the season left.
+  won average 0.95 at 0.15 from the first fixture, and 0.84 at 0.1 from 1 January. Row 8
+  scales it by the share of fixtures left (`formSdFor`).
 
 Re-run the backtest after changing anything in `utils/teamStrength.js`, and update this
 table.

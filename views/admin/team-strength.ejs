@@ -1,6 +1,7 @@
 <%#
   Team strength: the latest nightly run (controllers/teamStrengthController.js). Superadmin
   only: every row names a player. The rating and how it was tested: docs/team-strength.md.
+  Ported from Stockport's views/admin/team-strength.ejs, for a side of four men and two ladies.
 %>
 <%- include('../header.ejs') %>
 <%- include('../nav.ejs') %>
@@ -17,74 +18,219 @@
     var b = iso.split('-');
     return Number(b[2]) + ' ' + MONTHS[Number(b[1]) - 1] + ' ' + b[0];
   }
+  function pct(p) { return Math.round(100 * p) + '%'; }
+  function tier(g, rank) { var b = tiers[g], i = b.findIndex(function (x) { return rank <= x; }); return i === -1 ? b.length : i; }
   function place(p) { return p.rank == null ? '–' : (p.rank >= 99 ? 'R' : String(p.rank)); }
+  var KIND = { order: 'Order', lowerStronger: 'Lower team stronger', reserveTooLow: 'Reserve too low', reserveTooHigh: 'Reserve could go lower' };
+  var BADGE = { order: 'bg-warning text-dark', lowerStronger: 'bg-danger', reserveTooLow: 'bg-danger', reserveTooHigh: 'bg-secondary' };
+  var CARD = { FirstMens: 'Open A', SecondMens: 'Open B', ThirdMens: 'Open C', FourthMens: 'Open D', FirstLadies: 'Ladies',
+    FirstMixed: 'Mixed A', SecondMixed: 'Mixed B', ThirdMixed: 'Mixed C', FourthMixed: 'Mixed D' };
 %>
+<style>
+  .ts-bar { display: flex; height: 1.4rem; border-radius: 3px; overflow: hidden; font-size: .75rem; line-height: 1.4rem; color: #fff; }
+  .ts-bar > div { text-align: center; white-space: nowrap; overflow: hidden; }
+  .ts-home { background: #1f6b4a; } .ts-draw { background: #8a948e; } .ts-away { background: #2b5797; }
+  .ts-pos td.ts-cell, .ts-pos th.ts-cell { width: 1.6rem; padding: 0; text-align: center; font-size: .7rem; border-left: 1px solid #fff; }
+  .ts-num { font-variant-numeric: tabular-nums; text-align: right; }
+  .ts-fixture { border-bottom: 1px solid #dee2e6; padding: .75rem 0; }
+</style>
 
 <div class="col-12">
-  <h1>Team strength</h1>
-  <p class="text-muted">
-    A points-based rating for every player, fitted each night to every league game since
-    September 2024: each rally counts, so a 21&ndash;15 game says more than a 21&ndash;19 one,
-    and a game a year old counts half. 1500 is the centre of the scale; 100 points between two
-    partners is about 63% of games. &plusmn; is one standard error, so a wide one means few
-    recent games. Men and ladies are rated on separate scales. Lewis Shield games are not
-    counted. &#9733; marks the four men and two ladies the team is expected to field: whoever
-    has played most for it this season, then its nominated players.
-  </p>
-
-  <form method="post" action="/admin/team-strength/run" class="mb-3">
-    <button type="submit" class="btn btn-outline-primary btn-sm">Run now</button>
-    <% if (run) { %>
-      <span class="text-muted ms-2">
-        Last run <%= when(run.ran_at) %> (<%= run.caller %>): <%= run.games %> games in <%= (run.took_ms / 1000).toFixed(1) %>s.
-      </span>
-    <% } %>
-  </form>
-
-  <% if (!data) { %>
-    <p>No run yet. Run it once to see the ratings.</p>
-  <% } else { %>
-    <p class="small text-muted">
-      Home advantage: <%= data.home %> points per pair.
-      Division averages:
-      <% data.divisionMeans.forEach(function (d, i) { %><%= i ? '; ' : '' %>Division <%= d.rank %> men <%= d.men %>, ladies <%= d.ladies %><% }) %>.
+  <h1>Team strength <small class="text-muted"><%= season.slice(0, 4) %>/<%= season.slice(6) %></small></h1>
+  <% if (run) { %>
+    <p>
+      Ratings from <strong><%= run.games %></strong> league games, last worked out <strong><%= when(run.ran_at) %></strong>
+      (<%= (run.took_ms / 1000).toFixed(1) %>s, <%= run.caller === 'scheduler' ? 'nightly run' : 'run by hand' %>).
+      Predictions field each team's usual players: the <%= side.men %> men and <%= side.ladies %> ladies who have played
+      most for it this season, then its nominated players.
     </p>
+  <% } else { %>
+    <p>No run yet. It runs every night; you can run it now.</p>
+  <% } %>
+  <form method="post" action="/admin/team-strength/run" class="mb-3">
+    <button type="submit" class="btn btn-outline-primary btn-sm">Recalculate now</button>
+    <small class="text-muted ms-2">Takes a few seconds.</small>
+  </form>
+</div>
 
-    <% var division = null; %>
-    <% data.teams.forEach(function (t) { %>
-      <% if (t.division !== division) { division = t.division; %>
-        <h2 class="h4 mt-4"><%= division %></h2>
-      <% } %>
-      <h3 class="h6 mt-3"><%= t.name %> <span class="text-muted">(<%= t.club %>)</span></h3>
+<% if (data && data.week) { %>
+<div class="col-12">
+  <ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#week" type="button" role="tab">This week (<%= data.week.length %>)</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tables" type="button" role="tab">Projected tables</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#order" type="button" role="tab">Team order (<%= data.checks.reduce(function (a, c) { return a + c.flags.length; }, 0) %>)</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ratings" type="button" role="tab">Ratings</button></li>
+  </ul>
+
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="week" role="tabpanel">
+      <% if (!data.week.length) { %><p>No fixtures in the next seven days, and none awaiting a result.</p><% } %>
+      <% data.week.forEach(function (f) { %>
+      <div class="ts-fixture" data-fixture="<%= f.id %>">
+        <div class="d-flex flex-wrap justify-content-between">
+          <div><strong><%= f.home %></strong> v <strong><%= f.away %></strong></div>
+          <div class="text-muted"><% if (f.overdue) { %><span class="badge bg-warning text-dark ts-overdue">Awaiting result</span> <% } %><%= f.dayLabel %> · <%= f.division %></div>
+        </div>
+        <div class="ts-bar my-1" title="Home win <%= pct(f.pHome) %>, draw <%= pct(f.pDraw) %>, away win <%= pct(f.pAway) %>">
+          <div class="ts-home" style="width: <%= (100 * f.pHome).toFixed(1) %>%"><%= pct(f.pHome) %></div>
+          <div class="ts-draw" style="width: <%= (100 * f.pDraw).toFixed(1) %>%"><%= pct(f.pDraw) %></div>
+          <div class="ts-away" style="width: <%= (100 * f.pAway).toFixed(1) %>%"><%= pct(f.pAway) %></div>
+        </div>
+        <div class="small">
+          Most likely <strong class="ts-likely"><%= f.likely.home %>–<%= f.likely.away %></strong>,
+          expected <%= f.expected.toFixed(1) %>–<%= (18 - f.expected).toFixed(1) %>.
+          <a data-bs-toggle="collapse" href="#rubbers-<%= f.id %>">Game by game</a>
+        </div>
+        <div class="collapse" id="rubbers-<%= f.id %>">
+          <div class="table-responsive"><table class="table table-sm small mt-2 mb-0">
+            <thead><tr><th>Event</th><th><%= f.home %></th><th><%= f.away %></th><th class="ts-num">Home wins a game</th></tr></thead>
+            <tbody>
+            <% f.rubbers.forEach(function (r) { %>
+              <tr><td><%= CARD[r.type] || r.type %></td><td><%= r.home.join(' & ') %></td><td><%= r.away.join(' & ') %></td><td class="ts-num"><%= pct(r.p) %></td></tr>
+            <% }) %>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+      <% }) %>
+    </div>
+
+    <div class="tab-pane fade" id="tables" role="tabpanel">
+      <p class="small text-muted">
+        The rest of the season played 5,000 times with each team's usual players, added to the games already won. Each run
+        draws every player's strength from its uncertainty, gives each fixture its own swing and each team a form for the
+        rest of the season (<%= data.formSd %>, larger the more of the season is left), sized on 2025/26. The shaded cells
+        are how often a team finished in each place. <%= data.moving %> up and <%= data.moving %> down
+        (<a href="/admin/site-settings">Site Settings</a>). Only fixtures already in the database are played.
+      </p>
       <div class="row">
-        <% [['Men', t.men, t.usual.men], ['Ladies', t.ladies, t.usual.ladies]].forEach(function (g) { %>
-          <div class="col-lg-6">
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-2">
-                <thead>
-                  <tr><th><%= g[0] %></th><th></th><th class="text-end">Rating</th><th class="text-end">Mixed</th><th class="text-end">Games (year)</th><th>Last game</th></tr>
-                </thead>
+      <% data.projection.forEach(function (d) { %>
+        <div class="col-xl-6">
+          <h3 class="h5"><%= d.name %></h3>
+          <div class="table-responsive">
+            <table class="table table-sm small ts-pos" data-division="<%= d.name %>">
+              <thead><tr>
+                <th>Team</th><th class="ts-num" title="Games won so far (fixtures played)">Now</th>
+                <th class="ts-num" title="Projected games won at the end of the season">Final</th>
+                <th class="ts-num">Win</th><% if (d.promotes) { %><th class="ts-num">Up</th><% } %><% if (d.relegates) { %><th class="ts-num">Down</th><% } %>
+                <% d.teams.forEach(function (_, i) { %><th class="ts-cell"><%= i + 1 %></th><% }) %>
+              </tr></thead>
+              <tbody>
+              <% d.teams.forEach(function (t) { %>
+                <tr data-team="<%= t.name %>">
+                  <td><%= t.name %></td>
+                  <td class="ts-num"><%= t.gamesWon %> <span class="text-muted">(<%= t.played %>)</span></td>
+                  <td class="ts-num"><%= Math.round(t.expectedWon) %> <span class="text-muted">±<%= Math.round(t.sdWon) %></span></td>
+                  <td class="ts-num"><%= pct(t.pWinner) %></td>
+                  <% if (d.promotes) { %><td class="ts-num"><%= pct(t.pUp) %></td><% } %>
+                  <% if (d.relegates) { %><td class="ts-num"><%= pct(t.pDown) %></td><% } %>
+                  <% t.positions.forEach(function (p) { %><td class="ts-cell" style="background: rgba(31, 107, 74, <%= Math.min(1, p * 1.6).toFixed(2) %>); color: <%= p > 0.35 ? '#fff' : '#333' %>"><%= p >= 0.005 ? Math.round(100 * p) : '' %></td><% }) %>
+                </tr>
+              <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <% }) %>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="order" role="tabpanel">
+      <p class="small text-muted">
+        A flag needs an 80% chance the order is wrong, after allowing for how sure we are of each player, and both players
+        to have played at least 6 games in the last year. <strong>Order</strong>: a lower-nominated player rates above a
+        higher one. <strong>Lower team stronger</strong>: a lower team's nominated player rates above a higher team's.
+        <strong>Reserve too low</strong>: a reserve rates above the last playing nominee of the team above
+        (man <%= side.men %>, lady <%= side.ladies %>). <strong>Reserve could go lower</strong>: a reserve rates below the
+        team below's. Ratings are level doubles; "mixed" is how much better or worse the player does in mixed.
+        <strong>Played at</strong> is where the player has stood on the card this season in the level doubles for their own
+        team, averaged over the fixtures in brackets (playing up and the mixed left out). It is in red when a man has
+        mostly played in the other pair from the one he is nominated to (1&ndash;2 or 3&ndash;4): the nominations, or the
+        sheets, may be out of date. Order flags likewise ignore a swap within a pair, which only changes the mixed partners.
+        <a href="/admin/team-strength/compare">Compare any two players</a>: the results behind a flag, to make the case to a club.
+      </p>
+      <% data.checks.forEach(function (c, ci) { %>
+      <div class="card mb-3" data-club="<%= c.name %>">
+        <div class="card-body">
+          <h3 class="h5"><%= c.name %> <small class="text-muted"><%= c.teams.map(function (t) { return t.name; }).join(' · ') %></small></h3>
+          <% if (!c.flags.length) { %><p class="mb-2 text-success">Nothing flagged.</p><% } %>
+          <ul class="list-unstyled mb-2">
+          <% c.flags.forEach(function (f) { %>
+            <li class="mb-1"><span class="badge <%= BADGE[f.kind] %>"><%= KIND[f.kind] %></span> <%= f.text %>
+              <span class="text-muted small">(<%= f.stronger %> v <%= f.weaker %>, <%= pct(f.p) %> sure)</span>
+              <% if (f.strongerId && f.weakerId) { %><a class="small ts-case" href="/admin/team-strength/compare?a=<%= f.strongerId %>&amp;b=<%= f.weakerId %>">The results</a><% } %></li>
+          <% }) %>
+          </ul>
+          <a class="small" data-bs-toggle="collapse" href="#sheets-<%= ci %>">Team sheets with ratings</a>
+          <div class="collapse" id="sheets-<%= ci %>"><div class="row mt-2">
+          <% c.teams.forEach(function (t) { ['men', 'ladies'].forEach(function (g) { var sq = t[g]; if (!sq.nominated.length && !sq.reserves.length) return; %>
+            <div class="col-lg-6">
+              <h4 class="h6"><%= t.name %> · <%= g === 'men' ? 'Men' : 'Ladies' %><% if (sq.unset) { %> <span class="badge bg-secondary">nominations not set</span><% } %></h4>
+              <div class="table-responsive"><table class="table table-sm small">
+                <thead><tr><th>#</th><th>Player</th><th class="ts-num">Rating</th><th class="ts-num">Mixed</th><th class="ts-num" title="Games in the last 12 months">Games 12m</th><th class="ts-num" title="Average position on the card this season in the level doubles, for this team, and over how many fixtures">Played at</th></tr></thead>
+                <tbody>
+                <% [['', sq.nominated], ['R', sq.reserves]].forEach(function (pair) { var mark = pair[0]; pair[1].forEach(function (p) {
+                     // Red only when they have been playing in a different pair from the one they are
+                     // nominated to (men 1-2 v 3-4): within a pair the level games are the same.
+                     var off = !mark && !sq.unset && p.rank != null && p.rank <= side[g] && p.pos != null && p.posN >= 2
+                       && Math.abs(p.pos - p.rank) >= 1 && tier(g, p.rank) !== tier(g, Math.round(p.pos)); %>
+                  <tr class="<%= mark ? 'text-muted' : '' %>"><td><%= mark || p.rank %></td><td><%= p.name %></td>
+                    <td class="ts-num"><%= p.r == null ? 'no games' : p.r %><% if (p.se != null) { %> <span class="text-muted">±<%= p.se %></span><% } %></td>
+                    <td class="ts-num"><%= p.r == null ? '' : (p.mixed > 0 ? '+' : '') + p.mixed %></td><td class="ts-num"><%= p.recent %></td>
+                    <td class="ts-num ts-played-at<%= off ? ' text-danger fw-bold' : '' %>"<% if (off) { %> title="Nominated <%= p.rank %>, has played at <%= p.pos.toFixed(1) %>"<% } %>><%= p.pos == null ? '' : p.pos.toFixed(1) %><% if (p.pos != null) { %> <span class="text-muted fw-normal">(<%= p.posN %>)</span><% } %></td></tr>
+                <% }) }) %>
+                </tbody>
+              </table></div>
+            </div>
+          <% }) }) %>
+          </div></div>
+        </div>
+      </div>
+      <% }) %>
+    </div>
+
+    <div class="tab-pane fade" id="ratings" role="tabpanel">
+      <p class="small text-muted">
+        Fitted each night to every league game since September 2024: each rally counts, so a 21&ndash;15 game says more
+        than a 21&ndash;19 one, and a game a year old counts half. 1500 is the centre of the scale; 100 points between two
+        partners is about 63% of games. &plusmn; is one standard error. Men and ladies are rated on separate scales. Lewis
+        Shield games are not counted. Home advantage: <%= data.home %> points per pair. Division averages:
+        <% data.divisionMeans.forEach(function (d, i) { %><%= i ? '; ' : '' %>Division <%= d.rank %> men <%= d.men %>, ladies <%= d.ladies %><% }) %>.
+        &#9733; marks the players the predictions field.
+      </p>
+      <% var division = null; %>
+      <% data.teams.forEach(function (t) { %>
+        <% if (t.division !== division) { division = t.division; %><h2 class="h4 mt-4"><%= division %></h2><% } %>
+        <h3 class="h6 mt-3"><%= t.name %> <span class="text-muted">(<%= t.club %>)</span></h3>
+        <div class="row">
+          <% [['Men', t.men, t.usual.men], ['Ladies', t.ladies, t.usual.ladies]].forEach(function (g) { %>
+            <div class="col-lg-6"><div class="table-responsive">
+              <table class="table table-sm small align-middle mb-2">
+                <thead><tr><th><%= g[0] %></th><th></th><th class="ts-num">Rating</th><th class="ts-num">Mixed</th><th class="ts-num">Games (year)</th><th>Last game</th></tr></thead>
                 <tbody>
                   <% if (!g[1].length) { %><tr><td colspan="6" class="text-muted">None registered</td></tr><% } %>
                   <% g[1].forEach(function (p) { %>
                     <tr>
                       <td><%= place(p) %></td>
                       <td><%= p.name %><% if (g[2].indexOf(p.id) !== -1) { %> <span title="expected to play">&#9733;</span><% } %></td>
-                      <td class="text-end"><% if (p.r == null) { %><span class="text-muted">no games</span><% } else { %><%= p.r %> <span class="text-muted small">&plusmn;<%= p.se %></span><% } %></td>
-                      <td class="text-end"><%= p.r == null ? '' : (p.mixed > 0 ? '+' : '') + p.mixed %></td>
-                      <td class="text-end"><%= p.games %> (<%= p.recent %>)</td>
+                      <td class="ts-num"><% if (p.r == null) { %><span class="text-muted">no games</span><% } else { %><%= p.r %> <span class="text-muted">&plusmn;<%= p.se %></span><% } %></td>
+                      <td class="ts-num"><%= p.r == null ? '' : (p.mixed > 0 ? '+' : '') + p.mixed %></td>
+                      <td class="ts-num"><%= p.games %> (<%= p.recent %>)</td>
                       <td><%= day(p.last) %></td>
                     </tr>
                   <% }) %>
                 </tbody>
               </table>
-            </div>
-          </div>
-        <% }) %>
-      </div>
-    <% }) %>
-  <% } %>
+            </div></div>
+          <% }) %>
+        </div>
+      <% }) %>
+    </div>
+  </div>
 </div>
+<% } else if (data) { %>
+<div class="col-12"><p>The latest run is from before the predictions existed. Recalculate to see them.</p></div>
+<% } %>
 
 <%- include('../footer.ejs') %>
 </body>

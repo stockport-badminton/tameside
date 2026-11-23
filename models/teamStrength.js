@@ -116,4 +116,65 @@ exports.latest = async function () {
   return row || null
 }
 
+// This season's league fixtures still to play, as League.getRunIn counts them: no score,
+// outstanding or being rearranged, Lewis Shield left out (a handicap cup between divisions
+// is not something the rating predicts). `thisWeek`: due by the end of the coming seven UK
+// days, which takes in one whose date has passed with no result yet (`overdue`) — played
+// and not entered, or not played and not yet rearranged (Stockport 750637a).
+exports.remainingFixtures = async function () {
+  const rows = await sql`
+    SELECT f.id, f."homeTeam", f."awayTeam", f.date,
+           to_char(f.date, 'Dy FMDD Mon') AS "dayLabel",
+           f.date < date_trunc('day', now() AT TIME ZONE 'Europe/London') + INTERVAL '7 days' AS "thisWeek",
+           f.date < date_trunc('day', now() AT TIME ZONE 'Europe/London') AS overdue
+    FROM fixture f
+    JOIN season s ON f.date > s."startDate" AND f.date < s."endDate"
+    WHERE s.name = ${seasonModel.current()}
+      AND f."homeScore" IS NULL
+      AND f.status IN ('outstanding', 'rearranging')
+      AND f.lewis_round IS NULL
+    ORDER BY f.date, f.id`
+  return rows.map(r => ({ ...r, id: Number(r.id), homeTeam: Number(r.homeTeam), awayTeam: Number(r.awayTeam) }))
+}
+
+// What an event page may show of the latest run: the fixture's forecast and the two teams'
+// profiles from its `public` block (utils/teamStrength.js publicForecast, publicTeams), each
+// null when the run has none, or null altogether before the first run. Only those three
+// pieces leave the database, not the payload around them, which names players.
+exports.forecastFor = async function (fixtureId, homeTeam, awayTeam) {
+  const at = path => sql`payload #> ${path.map(String)}::text[]`
+  const [row] = await sql`
+    SELECT ran_at,
+           ${at(['public', 'fixtures', fixtureId])} AS fixture,
+           ${at(['public', 'teams', homeTeam])} AS home,
+           ${at(['public', 'teams', awayTeam])} AS away
+    FROM strength_run ORDER BY id DESC LIMIT 1`
+  return row || null
+}
+
+// Every scored league game either of `ids` played, in `seasons` (all of them when null),
+// with both teams' names: the evidence for swapping two players (utils/playerCase.js).
+// Team names are today's: ids carry across seasons and the names rarely change.
+exports.pairGames = async function (ids, seasons) {
+  if (!ids.length) return []
+  const rows = await sql`
+    SELECT g.id, g.fixture, g."gameType", g."homePlayer1", g."homePlayer2", g."awayPlayer1", g."awayPlayer2",
+           g."homeScore", g."awayScore", f.date, f."homeTeam", f."awayTeam", s.name AS season,
+           ht.name AS "homeTeamName", at.name AS "awayTeamName"
+    FROM game g
+    JOIN fixture f ON f.id = g.fixture
+    JOIN season s ON f.date > s."startDate" AND f.date < s."endDate"
+    LEFT JOIN team ht ON ht.id = f."homeTeam"
+    LEFT JOIN team at ON at.id = f."awayTeam"
+    WHERE g."homeScore" IS NOT NULL AND g."awayScore" IS NOT NULL
+      AND f.lewis_round IS NULL
+      -- Only the latest entry of a re-entered scorecard: its 18 rows are one insert.
+      AND g.id > (SELECT max(id) - 18 FROM game WHERE fixture = g.fixture)
+      AND (g."homePlayer1" IN ${sql(ids)} OR g."homePlayer2" IN ${sql(ids)}
+           OR g."awayPlayer1" IN ${sql(ids)} OR g."awayPlayer2" IN ${sql(ids)})
+      ${seasons ? sql`AND s.name IN ${sql(seasons.length ? seasons : [''])}` : sql``}
+    ORDER BY f.date, g.id`
+  return rows
+}
+
 exports.KEEP_RUNS = KEEP_RUNS

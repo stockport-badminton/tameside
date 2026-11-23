@@ -867,7 +867,9 @@ back) — run it after touching either side.
 every league game since Sep 2024, fitted all at once, refitted nightly by
 `POST /admin/team-strength/run` (`STRENGTH_RUN_TOKEN`) and stored whole in `strength_run`.
 Ported from Stockport (backlog row 7, Nov 2026); **`docs/team-strength.md` has the backtest
-and the scheduler setup.** Predictions, projected tables and order checks are row 8.
+and the scheduler setup.** Row 8 (same day) added this week's predictions, projected
+tables (places up and down from the `promotion_places` site setting, row 6's
+`/admin/league-run-in`), team order checks and `/admin/team-strength/compare`.
 
 - **`RUBBERS` is our 4+2 card, not Stockport's 3+3.** Open C and D cross one side's top pair
   with the other's bottom pair, so a rubber picks per side. `test/team-strength.test.js`
@@ -878,8 +880,10 @@ and the scheduler setup.** Predictions, projected tables and order checks are ro
   A settings search that "won" on 2025/26 lost on 2026/27; the settings stay Stockport's.
 - A player's starting point is the division they were registered in **that season**, from
   the `<season>` archives, unlike the ELO backfill, which uses today's team.
-- The payload names players: nothing public may read `strength_run` until row 8 adds a
-  nameless block, as Stockport's `public` one is.
+- **Order checks compare card tiers** (`ORDER_TIERS`: men 1-2, 3-4, 5+; ladies 1-2, 3+),
+  not every pair as Stockport's do: men 1 and 2 play the same level games here.
+- The payload names players. **A public page reads only the `public` block, through
+  `TeamStrength.forecastFor`**, which holds no names or player ids (tests assert both).
 
 ### Superadmin Admin UI
 

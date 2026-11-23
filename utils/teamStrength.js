@@ -327,8 +327,258 @@ function usualPlayers(n, nominated, reserves, played) {
   return out.sort((a, b) => b.s - a.s)
 }
 
+// ---------------------------------------------------------------------------
+// Season projection (backlog row 8; Stockport e9ea24b)
+
+// A seeded generator, so a run can be repeated exactly (mulberry32).
+function rng(seed) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// formSd, scaled by how much of the season is left. tools/strength-backtest.js measured
+// 0.15 for a projection made at the start of 2025/26 and 0.1 for one made in January: a
+// team's form has longer to wander the more of the season there is to play.
+function formSdFor(shareLeft) {
+  const x = Math.min(Math.max(shareLeft, 0), 1)
+  return 0.1 + 0.05 * Math.max(0, (x - 0.45) / 0.55)
+}
+
+// Plays the rest of the season `sims` times. Each run first draws every player's strength
+// from their uncertainty, and a form for each team, then plays all 18 games of every fixture
+// left. Final order is games won, ties by divRank, as League.getRunIn sorts.
+// `divisions`: [{ id, name, rank, promotes, relegates, teams: [{ id, name, divRank, gamesWon,
+// played, remaining }] }]; `remaining`: [{ home, away }]; `lineups`: team id → { men, ladies }
+// of slots with `se`.
+function projectSeason(divisions, remaining, lineups, homeEdge, opts = {}) {
+  const sims = opts.sims || 5000, moving = opts.moving ?? 2
+  const fixtureSd = opts.fixtureSd ?? SETTINGS.fixtureSd, formSd = opts.formSd ?? SETTINGS.formSd
+  const rand = rng(opts.seed || 20262027)
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand())
+  const divOf = new Map(), teamIdx = new Map()
+  divisions.forEach((d, di) => d.teams.forEach((t, ti) => { divOf.set(t.id, di); teamIdx.set(t.id, ti) }))
+  const fixtures = remaining.filter(f => divOf.has(f.home) && divOf.get(f.home) === divOf.get(f.away)
+    && lineups.has(f.home) && lineups.has(f.away))
+  const perFixture = GAMES_PER_RUBBER * RUBBERS.length
+
+  const counts = divisions.map(d => d.teams.map(() => new Array(d.teams.length).fill(0)))
+  const wonSum = divisions.map(d => d.teams.map(() => 0)), wonSq = divisions.map(d => d.teams.map(() => 0))
+  const draw = p => ({ ...p, s: p.s + p.se * gauss() })
+
+  for (let n = 0; n < sims; n++) {
+    const drawn = new Map(), form = new Map()
+    for (const [id, l] of lineups) { drawn.set(id, { men: l.men.map(draw), ladies: l.ladies.map(draw) }); form.set(id, formSd * gauss()) }
+    const won = divisions.map(d => d.teams.map(t => t.gamesWon))
+    for (const f of fixtures) {
+      const di = divOf.get(f.home)
+      let hw = 0
+      const swing = fixtureSd * gauss() + (form.get(f.home) || 0) - (form.get(f.away) || 0)
+      for (const q of rubberProbs(drawn.get(f.home), drawn.get(f.away), homeEdge, swing)) {
+        for (let g = 0; g < GAMES_PER_RUBBER; g++) if (rand() < q) hw++
+      }
+      won[di][teamIdx.get(f.home)] += hw
+      won[di][teamIdx.get(f.away)] += perFixture - hw
+    }
+    divisions.forEach((d, di) => {
+      const order = d.teams.map((t, ti) => ti)
+        .sort((a, b) => won[di][b] - won[di][a] || (d.teams[a].divRank ?? 99) - (d.teams[b].divRank ?? 99))
+      order.forEach((ti, pos) => { counts[di][ti][pos]++; wonSum[di][ti] += won[di][ti]; wonSq[di][ti] += won[di][ti] ** 2 })
+    })
+  }
+
+  return divisions.map((d, di) => {
+    const n = d.teams.length
+    const teams = d.teams.map((t, ti) => {
+      const pos = counts[di][ti].map(c => c / sims)
+      const sum = (from, to) => pos.slice(from, to).reduce((a, v) => a + v, 0)
+      return {
+        id: t.id, name: t.name, gamesWon: t.gamesWon, played: t.played, remaining: t.remaining,
+        expectedWon: wonSum[di][ti] / sims,
+        sdWon: Math.sqrt(Math.max(0, wonSq[di][ti] / sims - (wonSum[di][ti] / sims) ** 2)),
+        positions: pos,
+        expectedPosition: pos.reduce((a, v, i) => a + v * (i + 1), 0),
+        pWinner: pos[0],
+        pUp: d.promotes ? sum(0, moving) : 0,
+        pDown: d.relegates ? sum(Math.max(n - moving, moving), n) : 0,
+      }
+    }).sort((a, b) => a.expectedPosition - b.expectedPosition)
+    return { id: d.id, name: d.name, rank: d.rank, promotes: d.promotes, relegates: d.relegates, teams }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// The public forecast: what the event pages may show (Stockport 6801d52)
+//
+// Everything else here is admin-only because it names players. The event pages want the
+// forecast and a few facts about each team, and nothing more, so these two build a block
+// with no names and no player ids in it at all: what is not stored there cannot leak.
+
+const round = (x, dp = 3) => Math.round(x * 10 ** dp) / 10 ** dp
+
+const categoryOf = type => (/Mens$/.test(type) ? 'mens' : /Ladies$/.test(type) ? 'ladies' : 'mixed')
+
+// How many games of each category a fixture has: 8 men's, 2 ladies', 8 mixed (Stockport's
+// is six of each, which their preview wording assumes).
+const CATEGORY_GAMES = Object.freeze(RUBBERS.reduce((o, r) => {
+  o[categoryOf(r.type)] = (o[categoryOf(r.type)] || 0) + GAMES_PER_RUBBER
+  return o
+}, {}))
+
+// One fixture: the result probabilities, the likeliest score, and how many of each
+// category's games the home side is expected to win.
+function publicForecast(pr) {
+  const edges = { mens: 0, ladies: 0, mixed: 0 }
+  for (const r of pr.rubbers) edges[categoryOf(r.type)] += GAMES_PER_RUBBER * r.p
+  return {
+    pHome: round(pr.pHome), pDraw: round(pr.pDraw), pAway: round(pr.pAway),
+    expected: round(pr.expected, 2), likely: pr.likely,
+    edges: { mens: round(edges.mens, 2), ladies: round(edges.ladies, 2), mixed: round(edges.mixed, 2) },
+  }
+}
+
+// Each team as the previews describe it, by team id:
+// - `men`, `ladies`, `overall`: where its usual players of each rank in its division (1 = strongest).
+// - `settled`: the share of its usual six who played, averaged over its fixtures this season;
+//   `last`: how many of them played in its latest fixture. Null before it has played.
+// - `projection`: its expected finishing place and chances, from projectSeason.
+// `played`: team → fixture → { t, players: Set } this season.
+function publicTeams(teams, lineups, played, projection) {
+  const proj = new Map()
+  for (const d of projection) for (const t of d.teams) {
+    proj.set(t.id, { teams: d.teams.length, expected: round(t.expectedPosition, 2),
+      pWinner: round(t.pWinner), pUp: round(t.pUp), pDown: round(t.pDown) })
+  }
+  const byDivision = new Map()
+  for (const t of teams) if (lineups.has(t.id)) byDivision.set(t.divisionId, [...(byDivision.get(t.divisionId) || []), t.id])
+
+  const mean = ss => ss.reduce((a, p) => a + p.s, 0) / ss.length
+  const ranks = (ids, score) => new Map([...ids].sort((a, b) => score(b) - score(a)).map((id, i) => [id, i + 1]))
+  const sideSize = SIDE.men + SIDE.ladies
+
+  const out = {}
+  for (const ids of byDivision.values()) {
+    const l = id => lineups.get(id)
+    const men = ranks(ids, id => mean(l(id).men)), ladies = ranks(ids, id => mean(l(id).ladies))
+    const overall = ranks(ids, id => -(men.get(id) + ladies.get(id)) + 1e-6 * (mean(l(id).men) + mean(l(id).ladies)))
+    for (const id of ids) {
+      const usual = new Set([...l(id).men, ...l(id).ladies].map(p => p.id).filter(p => p != null))
+      const fixtures = [...(played.get(id)?.values() || [])].sort((a, b) => a.t - b.t)
+      const share = f => [...usual].filter(p => f.players.has(p)).length
+      out[id] = {
+        teams: ids.length, men: men.get(id), ladies: ladies.get(id), overall: overall.get(id),
+        fixtures: fixtures.length,
+        settled: fixtures.length ? round(fixtures.reduce((a, f) => a + share(f), 0) / (sideSize * fixtures.length), 2) : null,
+        last: fixtures.length ? share(fixtures[fixtures.length - 1]) : null,
+        projection: proj.get(id) || null,
+      }
+    }
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------------
+// Team order checks (Stockport e9ea24b, reworked for 4+2)
+
+const RESERVE_BASE = 99
+// A team with more nominated players of a gender than this has not set its nominations:
+// everyone is "nominated", so there is no order to check. Twice a side, as Stockport's 6 is
+// twice their three.
+const MAX_NOMINATED = Object.freeze({ men: 2 * SIDE.men, ladies: 2 * SIDE.ladies })
+const MIN_RECENT_GAMES = 6
+const CONFIDENCE = 0.8
+
+// Normal CDF (a close tanh approximation, plenty for an 80% threshold).
+const Phi = x => 0.5 * (1 + Math.tanh(0.7978845608 * (x + 0.044715 * x ** 3)))
+
+/** P(a is stronger than b). */
+const pStronger = (a, b) => Phi(((a.s ?? 0) - (b.s ?? 0)) / Math.sqrt((a.se ?? 1) ** 2 + (b.se ?? 1) ** 2))
+const usable = p => p.s != null && p.recent >= MIN_RECENT_GAMES
+
+// Where an order matters on our card. Men 1 and 2 play Open A together, 3 and 4 Open B, so
+// a swap WITHIN a pair changes only who partners whom in the mixed; a swap ACROSS one moves a
+// player between Open A and B (and C/D). Nominees past the side (man 5, lady 3) do not play
+// unless someone drops out. So the order check compares tiers: men {1,2} {3,4} {5+},
+// ladies {1,2} {3+}. Stockport's 3+3 card puts every man in a different pairing, which is
+// why theirs compares every pair; here that flagged man 2 over man 1 as often as anything.
+const ORDER_TIERS = Object.freeze({ men: [2, 4], ladies: [2] })
+const tierOf = (gender, rank) => {
+  const bounds = ORDER_TIERS[gender]
+  const i = bounds.findIndex(b => (rank ?? 1) <= b)
+  return i === -1 ? bounds.length : i
+}
+
+// The four checks, for one club's teams in club order (team.rank, first team first):
+//   order           a player in a lower card tier rates above one in a higher tier, in the
+//                   same team (see ORDER_TIERS)
+//   lowerStronger   a lower team's nominated player rates above a higher team's
+//   reserveTooLow   a reserve rates above the team above's last playing nominee (man 4, lady 2)
+//   reserveTooHigh  a reserve rates below the team below's last playing nominee
+// Each needs both players with recent games and an 80% chance the order is wrong.
+function orderFlags(teams) {
+  const flags = []
+  const flag = (kind, gender, team, stronger, weaker, text) => {
+    if (!usable(stronger) || !usable(weaker)) return
+    const p = pStronger(stronger, weaker)
+    if (p >= CONFIDENCE) flags.push({ kind, gender, team, text, p, stronger, weaker })
+  }
+  for (const gender of ['men', 'ladies']) {
+    const label = gender === 'men' ? 'man' : 'lady'
+    const last = sq => sq.nominated[Math.min(SIDE[gender] - 1, sq.nominated.length - 1)]
+    teams.forEach((team, ti) => {
+      const sq = team[gender], nom = sq.nominated
+      if (!sq.unset) for (let i = 0; i < nom.length; i++) for (let j = i + 1; j < nom.length; j++) {
+        if (tierOf(gender, nom[i].rank) === tierOf(gender, nom[j].rank)) continue
+        flag('order', gender, team.name, nom[j], nom[i],
+          `${nom[j].name} (${label} ${nom[j].rank}) looks stronger than ${nom[i].name} (${label} ${nom[i].rank})`)
+      }
+      for (let tj = 0; tj < ti; tj++) {
+        const up = teams[tj]
+        if (up[gender].unset || sq.unset) continue
+        for (const b of nom) for (const a of up[gender].nominated) {
+          flag('lowerStronger', gender, team.name, b, a,
+            `${b.name} (${team.name} ${label} ${b.rank}) looks stronger than ${a.name} (${up.name} ${label} ${a.rank})`)
+        }
+      }
+      const above = teams[ti - 1], below = teams[ti + 1]
+      const ta = above && !above[gender].unset ? last(above[gender]) : undefined
+      if (above && ta) for (const r of sq.reserves) {
+        flag('reserveTooLow', gender, team.name, r, ta,
+          `${r.name} (reserve, ${team.name}) looks stronger than ${above.name}'s ${label} ${ta.rank}, ${ta.name}`)
+      }
+      const tb = below && !below[gender].unset ? last(below[gender]) : undefined
+      if (below && tb) for (const r of sq.reserves) {
+        flag('reserveTooHigh', gender, team.name, tb, r,
+          `${r.name} (reserve, ${team.name}) looks weaker than ${below.name}'s ${label} ${tb.rank}, ${tb.name}`)
+      }
+    })
+  }
+  return flags
+}
+
+// Where each pair stands on the card in a level game, per side (Stockport 99716c7, for
+// 4+2): Open A is 1+2 a side, Open B 3+4, Ladies 1+2; Open C is the home 1+2 against the
+// away 3+4 and Open D the reverse. Player 1 of a pair is the higher. Mixed games say
+// nothing: clubs often shuffle the mixed order away from the level one.
+const LEVEL_POSITIONS = Object.freeze({
+  FirstMens: { home: [1, 2], away: [1, 2] },
+  SecondMens: { home: [3, 4], away: [3, 4] },
+  ThirdMens: { home: [1, 2], away: [3, 4] },
+  FourthMens: { home: [3, 4], away: [1, 2] },
+  FirstLadies: { home: [1, 2], away: [1, 2] },
+})
+/** The card positions of a game's two pairs, or null for a mixed game. */
+const levelPositions = gameType => (gameType && Object.hasOwn(LEVEL_POSITIONS, gameType) ? LEVEL_POSITIONS[gameType] : null)
+
 module.exports = {
   SETTINGS, SIDE, RUBBERS, GAMES_PER_RUBBER, DAY,
   display, sig, gameWin, fit, gameProb, usableGame, latestEntries, collectGames, fitAt,
   rubberProbs, scoreDistribution, fixtureDistribution, predictFixture, usualPlayers,
+  rng, formSdFor, projectSeason, CATEGORY_GAMES, publicForecast, publicTeams,
+  RESERVE_BASE, MAX_NOMINATED, ORDER_TIERS, MIN_RECENT_GAMES, CONFIDENCE, pStronger, orderFlags, levelPositions,
 }

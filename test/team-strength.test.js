@@ -146,3 +146,168 @@ describe('usual players', () => {
     assert.deepStrictEqual(model.usualPlayers(2, [], reserves, []).map(p => p.id), [9])
   })
 })
+
+describe('projectSeason', () => {
+  const uncertain = s => ({ men: [0, 1, 2, 3].map(i => ({ ...slot(i, s), se: 0.05 })), ladies: [0, 1].map(i => ({ ...slot(10 + i, s), se: 0.05 })) })
+  const division = (teams, extra = {}) => ({ id: 1, name: 'Division 1', rank: 2, promotes: true, relegates: true, teams, ...extra })
+  const team = (id, gamesWon, divRank = id) => ({ id, name: `T${id}`, divRank, gamesWon, played: 5, remaining: 2 })
+  const lineups = new Map([[1, uncertain(0)], [2, uncertain(0)], [3, uncertain(0)], [4, uncertain(0)]])
+  const remaining = [{ home: 1, away: 2 }, { home: 3, away: 4 }, { home: 2, away: 1 }, { home: 4, away: 3 }]
+
+  it('gives each team a distribution over the places, and repeats exactly with the same seed', () => {
+    const d = [division([team(1, 60), team(2, 50), team(3, 45), team(4, 40)])]
+    const a = model.projectSeason(d, remaining, lineups, 0, { sims: 400 })
+    const b = model.projectSeason(d, remaining, lineups, 0, { sims: 400 })
+    assert.deepStrictEqual(a, b)
+    for (const t of a[0].teams) assert.ok(Math.abs(t.positions.reduce((s, v) => s + v, 0) - 1) < 1e-9)
+  })
+
+  it('cannot take the title from a team out of reach', () => {
+    const [proj] = model.projectSeason([division([team(1, 200), team(2, 50), team(3, 45), team(4, 40)])], remaining, lineups, 0, { sims: 400 })
+    const t1 = proj.teams.find(t => t.id === 1)
+    assert.strictEqual(t1.pWinner, 1)
+    assert.ok(t1.expectedWon >= 200 && t1.expectedWon <= 236)
+  })
+
+  it('takes the number going up and down from its caller', () => {
+    const d = [division([team(1, 60), team(2, 50), team(3, 45), team(4, 40)])]
+    const [one] = model.projectSeason(d, remaining, lineups, 0, { sims: 300, moving: 1 })
+    assert.ok(Math.abs(one.teams.reduce((a, t) => a + t.pUp, 0) - 1) < 1e-9)
+    const [two] = model.projectSeason(d, remaining, lineups, 0, { sims: 300, moving: 2 })
+    assert.ok(Math.abs(two.teams.reduce((a, t) => a + t.pDown, 0) - 2) < 1e-9)
+  })
+
+  it('promotes nobody from the top division and relegates nobody from the bottom', () => {
+    const d = [division([team(1, 60), team(2, 50), team(3, 45), team(4, 40)], { promotes: false, relegates: false })]
+    const [proj] = model.projectSeason(d, remaining, lineups, 0, { sims: 200 })
+    assert.ok(proj.teams.every(t => t.pUp === 0 && t.pDown === 0))
+  })
+
+  it('plays only fixtures between teams of the same division with lineups', () => {
+    const [proj] = model.projectSeason([division([team(1, 0), team(2, 0)])], [{ home: 1, away: 3 }, { home: 1, away: 2 }], lineups, 0, { sims: 200 })
+    assert.ok(Math.abs(proj.teams.reduce((s, t) => s + t.expectedWon, 0) - 18) < 1e-9)
+  })
+
+  it('a team\'s form wanders more the more of the season is left (sized by the backtest)', () => {
+    assert.ok(Math.abs(model.formSdFor(1) - 0.15) < 1e-9)
+    assert.ok(Math.abs(model.formSdFor(0.45) - 0.1) < 1e-9)
+    assert.ok(Math.abs(model.formSdFor(0) - 0.1) < 1e-9)
+  })
+})
+
+describe('orderFlags (4+2)', () => {
+  const rated = (name, rank, r, recent = 20) => ({ id: rank, name, rank, r, s: (r - 1500) / 1000, se: 0.03, recent })
+  const squad = (nominated, reserves = [], unset = false) => ({ name: '', nominated, reserves, unset })
+  const team = (name, men, ladies = squad([])) => ({ name, men, ladies })
+  const four = (prefix, rs) => rs.map((r, i) => rated(`${prefix}${i + 1}`, i + 1, r))
+
+  it('flags a man in the bottom pair well above one in the top pair', () => {
+    const flags = model.orderFlags([team('A', squad(four('M', [1500, 1480, 1700, 1300])))])
+    assert.deepStrictEqual(flags.map(f => [f.kind, f.text]), [
+      ['order', 'M3 (man 3) looks stronger than M1 (man 1)'],
+      ['order', 'M3 (man 3) looks stronger than M2 (man 2)'],
+    ])
+  })
+
+  it('does not flag a swap within a pair: man 2 over man 1 plays the same level games', () => {
+    assert.deepStrictEqual(model.orderFlags([team('A', squad(four('M', [1500, 1800, 1300, 1290])))]), [])
+    assert.deepStrictEqual(model.orderFlags([team('A', squad([]), squad([rated('L1', 1, 1400), rated('L2', 2, 1700)]))]), [])
+  })
+
+  it('flags a nominee beyond the side who rates above one who plays', () => {
+    const flags = model.orderFlags([team('A', squad([...four('M', [1600, 1590, 1580, 1570]), rated('M5', 5, 1900)]))])
+    assert.strictEqual(flags.length, 4)
+    assert.ok(flags.every(f => f.kind === 'order' && f.stronger.name === 'M5'))
+  })
+
+  it('leaves alone a gap it cannot be sure of, and players with few recent games', () => {
+    assert.deepStrictEqual(model.orderFlags([team('A', squad(four('M', [1500, 1500, 1520, 1500])))]), [])
+    assert.deepStrictEqual(model.orderFlags([team('A', squad([...four('M', [1500, 1500, 1500, 1500]).slice(0, 2), rated('M3', 3, 1800, 3)]))]), [])
+  })
+
+  it('compares a reserve with the team above\'s man 4 (not man 3)', () => {
+    const a = team('A', squad(four('A', [1800, 1750, 1700, 1500])))
+    const b = team('B', squad(four('B', [1400, 1390, 1380, 1370]), [rated('BR', 99, 1650)]))
+    const flags = model.orderFlags([a, b])
+    assert.deepStrictEqual(flags.map(f => [f.kind, f.text]), [['reserveTooLow', 'BR (reserve, B) looks stronger than A\'s man 4, A4']])
+  })
+
+  it('compares a reserve lady with the team above\'s lady 2', () => {
+    const a = team('A', squad([]), squad([rated('L1', 1, 1700), rated('L2', 2, 1400)]))
+    const b = team('B', squad([]), squad([rated('K1', 1, 1300), rated('K2', 2, 1290)], [rated('KR', 99, 1650)]))
+    assert.deepStrictEqual(model.orderFlags([a, b]).map(f => f.text), ['KR (reserve, B) looks stronger than A\'s lady 2, L2'])
+  })
+
+  it('skips a team whose nominations are not set (more than twice a side)', () => {
+    assert.deepStrictEqual(model.MAX_NOMINATED, { men: 8, ladies: 4 })
+    assert.deepStrictEqual(model.orderFlags([team('A', squad(four('M', [1300, 1300, 1900, 1900]), [], true))]), [])
+  })
+})
+
+describe('levelPositions (4+2)', () => {
+  it('places each pair of a level game on the card, per side, and says nothing for a mixed', () => {
+    assert.deepStrictEqual(model.levelPositions('FirstMens'), { home: [1, 2], away: [1, 2] })
+    assert.deepStrictEqual(model.levelPositions('SecondMens'), { home: [3, 4], away: [3, 4] })
+    assert.deepStrictEqual(model.levelPositions('ThirdMens'), { home: [1, 2], away: [3, 4] })
+    assert.deepStrictEqual(model.levelPositions('FourthMens'), { home: [3, 4], away: [1, 2] })
+    assert.deepStrictEqual(model.levelPositions('FirstLadies'), { home: [1, 2], away: [1, 2] })
+    assert.strictEqual(model.levelPositions('FirstMixed'), null)
+    assert.strictEqual(model.levelPositions(null), null)
+  })
+
+  it('agrees with RUBBERS on every level event', () => {
+    const home = side(100), away = side(200)
+    for (const r of model.RUBBERS.filter(x => !x.mixed)) {
+      const at = model.levelPositions(r.type)
+      const pos = (l, p) => (l.men.includes(p) ? l.men.indexOf(p) : l.ladies.indexOf(p)) + 1
+      assert.deepStrictEqual(r.home(home).map(p => pos(home, p)), at.home, r.type)
+      assert.deepStrictEqual(r.away(away).map(p => pos(away, p)), at.away, r.type)
+    }
+  })
+})
+
+// The block the public event pages read. What matters most is what is NOT in it.
+describe('the public forecast', () => {
+  const named = (id, name, s) => ({ id, name, s, se: 0.1, mx: 0 })
+  const lineup = (base, s) => ({
+    men: [1, 2, 3, 4].map(i => named(base + i, `Mister ${base + i}`, s - 0.03 * i)),
+    ladies: [5, 6].map(i => named(base + i, `Miss ${base + i}`, s - 0.03 * i)),
+  })
+  const lineups = new Map([[1, lineup(9100, 0.3)], [2, lineup(9200, -0.2)], [3, lineup(9300, 0)]])
+
+  it('splits a fixture into 8 men\'s, 2 ladies\' and 8 mixed games', () => {
+    assert.deepStrictEqual(model.CATEGORY_GAMES, { mens: 8, ladies: 2, mixed: 8 })
+    const fc = model.publicForecast(model.predictFixture(lineups.get(1), lineups.get(2), 0.02))
+    assert.ok(Math.abs(fc.pHome + fc.pDraw + fc.pAway - 1) < 0.01)
+    assert.ok(fc.pHome > fc.pAway)
+    assert.strictEqual(fc.likely.home + fc.likely.away, 18)
+    assert.ok(Math.abs(fc.edges.mens + fc.edges.ladies + fc.edges.mixed - fc.expected) < 0.05)
+    assert.ok(fc.edges.mens > 4 && fc.edges.mens <= 8 && fc.edges.ladies <= 2)
+  })
+
+  it('ranks each team\'s squad within its division and says how settled its line-up has been', () => {
+    const teams = [{ id: 1, divisionId: 7 }, { id: 2, divisionId: 7 }, { id: 3, divisionId: 7 }]
+    const all = base => new Set([1, 2, 3, 4, 5, 6].map(i => base + i))
+    const played = new Map([
+      [1, new Map([[50, { t: 1, players: all(9100) }]])],
+      [2, new Map([[51, { t: 2, players: new Set([9201, 9202, 9203, 777, 778, 779]) }], [50, { t: 1, players: all(9200) }]])],
+    ])
+    const projection = [{ teams: [{ id: 1, expectedPosition: 1.2, pWinner: 0.8, pUp: 0, pDown: 0 }, { id: 2, expectedPosition: 2.9, pWinner: 0, pUp: 0, pDown: 0.6 }, { id: 3, expectedPosition: 2, pWinner: 0.2, pUp: 0, pDown: 0.4 }] }]
+    const out = model.publicTeams(teams, lineups, played, projection)
+    assert.deepStrictEqual({ ...out[1], projection: undefined }, { teams: 3, men: 1, ladies: 1, overall: 1, fixtures: 1, settled: 1, last: 6, projection: undefined })
+    assert.strictEqual(out[1].projection.pWinner, 0.8)
+    assert.deepStrictEqual([out[2].overall, out[2].fixtures, out[2].settled, out[2].last], [3, 2, 0.75, 3])
+    assert.deepStrictEqual([out[3].overall, out[3].fixtures, out[3].settled, out[3].last], [2, 0, null, null])
+  })
+
+  it('carries no player\'s name and no player\'s id', () => {
+    const teams = [{ id: 1, divisionId: 7 }, { id: 2, divisionId: 7 }]
+    const played = new Map([[1, new Map([[50, { t: 1, players: new Set([9101, 9105]) }]])]])
+    const block = JSON.stringify({
+      fixture: model.publicForecast(model.predictFixture(lineups.get(1), lineups.get(2), 0)),
+      teams: model.publicTeams(teams, lineups, played, []),
+    })
+    assert.doesNotMatch(block, /Mister|Miss/)
+    assert.doesNotMatch(block, /9[123]0\d/)
+  })
+})

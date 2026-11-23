@@ -808,6 +808,7 @@ app.post('/admin/missed-three/:playerId(\\d+)/notice', access.superadmin, missed
 const team_strength_controller = require(__dirname + '/controllers/teamStrengthController');
 app.get('/admin/league-run-in', access.superadmin, league_controller.run_in);
 app.get('/admin/team-strength', access.superadmin, team_strength_controller.page);
+app.get('/admin/team-strength/compare', access.superadmin, team_strength_controller.compare);
 app.post('/admin/team-strength/run',
   access.cron(requireCronCaller({ envVar: 'STRENGTH_RUN_TOKEN', callerProp: 'strengthCaller' })),
   team_strength_controller.run);

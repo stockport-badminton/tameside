@@ -1,0 +1,165 @@
+<%#
+  Make the case (/admin/team-strength/compare): the results behind a team-order flag.
+  Superadmin only. Ported from Stockport's (2cc3b7b), in Bootstrap 5.
+%>
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+<%
+  const pct = x => Math.round(100 * x) + '%';
+  const share = r => r.for + r.against ? r.for / (r.for + r.against) : 0.5;
+  const cell = r => r.played ? r.won + ' of ' + r.played + ' · ' + pct(share(r)) : '—';
+  const FAVOURS = { a: ['bg-success', 'For'], b: ['bg-danger', 'Against'], even: ['bg-secondary', 'Level'], thin: ['bg-light text-dark', 'Too few games'] };
+  const qs = (a, b) => '/admin/team-strength/compare?a=' + a + '&b=' + b + '&seasons=' + window;
+%>
+<style>
+  .ts-page .ts-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ts-page .ts-case-text { font-family: inherit; font-size: .85rem; white-space: pre-wrap; }
+</style>
+
+<div class="col-12 ts-page">
+  <p class="small mb-1"><a href="/admin/team-strength">← Team strength</a></p>
+  <h1>Make the case</h1>
+  <p class="text-muted">The results behind a team-order flag: what a club or its players can check for themselves, for and against.</p>
+
+  <form method="get" action="/admin/team-strength/compare" class="row g-2 align-items-end mb-3">
+    <% [['a', 'Should be higher'], ['b', 'Should be lower']].forEach(function([key, label], i){ %>
+    <div class="col-md-4 mb-2">
+      <label for="pick-<%= key %>" class="form-label small mb-0"><%= label %></label>
+      <select class="form-select form-select-sm" id="pick-<%= key %>" name="<%= key %>">
+        <option value="" disabled<%= ids[i] ? '' : ' selected' %>>Choose a player</option>
+        <% picker.forEach(function(t){ if (!t.players.length) return; %>
+        <optgroup label="<%= t.team %>">
+          <% t.players.forEach(function(p){ %><option value="<%= p.id %>"<%= ids[i] === p.id ? ' selected' : '' %>><%= p.name %></option><% }) %>
+        </optgroup>
+        <% }) %>
+      </select>
+    </div>
+    <% }) %>
+    <div class="col-md-2 mb-2">
+      <label for="pick-seasons" class="form-label small mb-0">Results from</label>
+      <select class="form-select form-select-sm" id="pick-seasons" name="seasons">
+        <% Object.entries(windows).forEach(function([k, label]){ %><option value="<%= k %>"<%= k === window ? ' selected' : '' %>><%= label %></option><% }) %>
+      </select>
+    </div>
+    <div class="col-md-2 mb-2"><button type="submit" class="btn btn-primary btn-sm">Compare</button></div>
+  </form>
+
+  <% if (error) { %><div class="alert alert-warning"><%= error %></div><% } %>
+
+  <% if (result) { const c = result.case, A = c.a.name, B = c.b.name; %>
+  <h2 class="h4" data-case="<%= c.a.id %>-<%= c.b.id %>"><%= A %> above <%= B %>
+    <small class="text-muted"><a class="small" href="<%= qs(c.b.id, c.a.id) %>">the other way round</a></small></h2>
+  <p class="text-muted small">
+    <%= A %>: <%= result.teams.a || 'no team' %><%= result.ranks.a != null && result.ranks.a < 99 ? ', number ' + result.ranks.a : ', reserve' %> ·
+    <%= B %>: <%= result.teams.b || 'no team' %><%= result.ranks.b != null && result.ranks.b < 99 ? ', number ' + result.ranks.b : ', reserve' %> ·
+    level doubles, <%= windows[window] %>
+  </p>
+
+  <div class="card mb-3"><div class="card-body py-2">
+    <% if (result.rating) { const r = result.rating; %>
+    <p class="mb-0" data-rating>
+      Ratings: <strong><%= A %> <%= r.a %></strong> <span class="text-muted">±<%= r.ra.se %></span>,
+      <strong><%= B %> <%= r.b %></strong> <span class="text-muted">±<%= r.rb.se %></span>:
+      <strong><%= pct(r.p) %></strong> likely <%= A %> is the stronger level doubles player.
+      <span class="text-muted small">The latest run; the rating counts every league game, weighted to the last year.</span>
+    </p>
+    <% } else { %>
+    <p class="mb-0 text-muted">No rating for one of them in the latest run: it will be there after the next one.</p>
+    <% } %>
+  </div></div>
+
+  <h3 class="h5">What the results say</h3>
+  <ul class="list-unstyled">
+  <% c.findings.forEach(function(f){ const [badge, label] = FAVOURS[f.favours]; %>
+    <li class="mb-2" data-finding="<%= f.key %>" data-favours="<%= f.favours %>">
+      <span class="badge <%= badge %>"><%= label %></span> <strong><%= f.title %>.</strong> <%= f.text %>
+    </li>
+  <% }) %>
+  </ul>
+  <p class="small text-muted">
+    "For" and "Against" need <%= minGames %> games on each side and <%= Math.round(100 * margin) %> points in every 100 between them;
+    games the two played together are left out. The like-for-like comparisons come first: the whole record is the weakest,
+    as the player higher in the order meets the stronger pairs.
+  </p>
+
+  <h3 class="h5">To send</h3>
+  <textarea class="form-control ts-case-text mb-1" id="case-text" rows="12" readonly><%= result.text %></textarea>
+  <button type="button" class="btn btn-outline-secondary btn-sm mb-4" id="copy-case">Copy</button>
+
+  <% if (c.nights.length) { %>
+  <h3 class="h5">Same nights</h3>
+  <div class="table-responsive"><table class="table table-sm small" data-section="nights">
+    <thead><tr><th>Date</th><th>Fixture</th><th class="ts-num"><%= A %></th><th class="ts-num"><%= B %></th></tr></thead>
+    <tbody>
+    <% c.nights.forEach(function(n){ %>
+      <tr><td><a href="/scorecard/fixture/<%= n.fixture %>"><%= n.date %></a></td><td><%= n.team %> v <%= n.opponent %></td>
+        <td class="ts-num"><%= cell(n.a) %></td><td class="ts-num"><%= cell(n.b) %></td></tr>
+    <% }) %>
+      <tr class="fw-bold"><td colspan="2">All</td><td class="ts-num"><%= cell(c.nightTotal.a) %></td><td class="ts-num"><%= cell(c.nightTotal.b) %></td></tr>
+    </tbody>
+  </table></div>
+  <% } %>
+
+  <% if (c.partners.length) { %>
+  <h3 class="h5">Same partners</h3>
+  <div class="table-responsive"><table class="table table-sm small" data-section="partners">
+    <thead><tr><th>Partner</th><th class="ts-num"><%= A %></th><th class="ts-num"><%= B %></th></tr></thead>
+    <tbody>
+    <% c.partners.forEach(function(p){ %>
+      <tr><td><%= p.name %></td><td class="ts-num"><%= cell(p.a) %></td><td class="ts-num"><%= cell(p.b) %></td></tr>
+    <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+
+  <% if (c.headToHead.games.length) { %>
+  <h3 class="h5">Head to head</h3>
+  <div class="table-responsive"><table class="table table-sm small" data-section="headToHead">
+    <thead><tr><th>Date</th><th><%= A %>'s pair</th><th>Against</th><th class="ts-num">Score</th></tr></thead>
+    <tbody>
+    <% c.headToHead.games.forEach(function(g){ %>
+      <tr><td><a href="/scorecard/fixture/<%= g.fixture %>"><%= g.date %></a></td><td><%= g.pair.join(' & ') %></td><td><%= g.against.join(' & ') %></td><td class="ts-num"><%= g.score %></td></tr>
+    <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+
+  <% if (c.opponents.length) { %>
+  <h3 class="h5">Same opponents <small class="text-muted"><%= c.opponents.length > 15 ? 'the 15 met most by both' : '' %></small></h3>
+  <div class="table-responsive"><table class="table table-sm small" data-section="opponents">
+    <thead><tr><th>Opponent</th><th class="ts-num"><%= A %></th><th class="ts-num"><%= B %></th></tr></thead>
+    <tbody>
+    <% c.opponents.slice(0, 15).forEach(function(p){ %>
+      <tr><td><%= p.name %></td><td class="ts-num"><%= cell(p.a) %></td><td class="ts-num"><%= cell(p.b) %></td></tr>
+    <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+
+  <h3 class="h5">Season by season</h3>
+  <div class="table-responsive"><table class="table table-sm small" data-section="seasons">
+    <thead><tr><th>Season</th><th class="ts-num"><%= A %></th><th class="ts-num"><%= B %></th></tr></thead>
+    <tbody>
+    <% c.seasons.forEach(function(s){ %>
+      <tr><td><%= s.season.slice(0, 4) %>/<%= s.season.slice(6) %></td><td class="ts-num"><%= cell(s.a) %></td><td class="ts-num"><%= cell(s.b) %></td></tr>
+    <% }) %>
+    <% c.leagues.forEach(function(l){ %>
+      <tr><td><%= l.league === 'mcrbl' ? 'Manchester' : 'Stockport' %> league</td><td class="ts-num"><%= cell(l.a) %></td><td class="ts-num"><%= cell(l.b) %></td></tr>
+    <% }) %>
+      <tr class="text-muted"><td>Mixed</td><td class="ts-num"><%= cell(c.mixed.a) %></td><td class="ts-num"><%= cell(c.mixed.b) %></td></tr>
+    </tbody>
+  </table></div>
+  <% } %>
+</div>
+
+<script>
+  document.getElementById('copy-case') && document.getElementById('copy-case').addEventListener('click', function () {
+    var box = document.getElementById('case-text'), btn = this;
+    box.select();
+    var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); };
+    if (navigator.clipboard) navigator.clipboard.writeText(box.value).then(done, function () { document.execCommand('copy'); done(); });
+    else { document.execCommand('copy'); done(); }
+  });
+</script>
+
+<%- include('../footer.ejs') %>
