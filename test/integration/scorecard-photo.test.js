@@ -38,9 +38,11 @@ const BUCKET = process.env.S3_BUCKET_NAME; // 'test-bucket', from the helper
 // before/after hooks, which would race across describe blocks.
 function asUser({ role } = {}, fn) {
   return async () => {
-    const saved = { DEV_MODE: process.env.DEV_MODE, DEV_ROLE: process.env.DEV_ROLE };
+    const saved = { DEV_MODE: process.env.DEV_MODE, DEV_ROLE: process.env.DEV_ROLE, DEV_CLUB: process.env.DEV_CLUB };
+    // DEV_ROLE=none is a member only when linked to a player (DEV_CLUB): `member` refuses an
+    // unlinked login since Nov 2026, which is what a Stockport account looks like here.
     if (role === undefined) delete process.env.DEV_MODE;
-    else { process.env.DEV_MODE = 'true'; process.env.DEV_ROLE = role; }
+    else { process.env.DEV_MODE = 'true'; process.env.DEV_ROLE = role; if (role === 'none') process.env.DEV_CLUB = 'Hyde'; }
     try { await fn(); } finally {
       for (const [k, v] of Object.entries(saved)) {
         if (v === undefined) delete process.env[k]; else process.env[k] = v;

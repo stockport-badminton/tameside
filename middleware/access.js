@@ -60,7 +60,9 @@ function compose(mws) {
 // Anyone. Say why in a comment on the route when it is not obvious.
 exports.public = declare('public', function (req, res, next) { next(); });
 
-// Logged in.
+// Logged in AND a Tameside login: linked to a Tameside player, or holding a site role.
+// The Auth0 tenant is shared with Stockport, so "logged in" alone includes their players
+// (middleware/secured.js linkedGate, Nov 2026).
 exports.member = declare('member', function (req, res, next) { return secured(req, res, next); });
 
 // The same for a route a page's script fetches: an expired session is a 401 JSON answer

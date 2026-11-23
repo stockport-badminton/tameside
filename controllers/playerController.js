@@ -93,7 +93,7 @@ exports.eligible_players_list = function(req, res) {
 // The stats pages' answer to a login that is not linked to a player at a club: the
 // Stockport accounts the shared Auth0 tenant lets in, and our own unlinked ones.
 function renderStatsNotLinked(res) {
-  res.status(403).render('stats-not-linked', {
+  res.status(403).render('not-linked', {
     static_path: '/static',
     theme: process.env.THEME || 'flatly',
     title: 'Stats',

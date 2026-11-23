@@ -208,10 +208,17 @@ describe('ELO APIs', () => {
     assert.strictEqual(asked.search, 'Aerospace');
   }));
 
-  it('/eligiblePlayers answers any login: a captain needs the other side too', asUser(UNLINKED, async () => {
+  it('/eligiblePlayers answers any club\'s member: a captain needs the other side too', asUser(AEROSPACE, async () => {
     setModel('Player', 'findElgiblePlayersFromTeamId', (id, g, done) => done(null, [{ id: 9 }]));
     const res = await request(app).get('/eligiblePlayers/3/Male');
     assert.strictEqual(res.status, 200);
+  }));
+
+  it('/eligiblePlayers refuses an unlinked login with JSON', asUser(UNLINKED, async () => {
+    setModel('Player', 'findElgiblePlayersFromTeamId', () => { throw new Error('must not be reached'); });
+    const res = await request(app).get('/eligiblePlayers/3/Male');
+    assert.strictEqual(res.status, 403);
+    assert.match(res.body.error, /linked/);
   }));
 });
 
@@ -242,5 +249,16 @@ describe('the results grid\'s Details link', () => {
     const res = await request(app).get('/admin/results/All');
     assert.strictEqual(res.status, 200);
     assert.deepStrictEqual(links(res.text), [101, 102]);
+  }));
+});
+
+// `member` itself means a Tameside login since Nov 2026 (test/member-gate.test.js has
+// the states); this checks the page a refused login actually gets, on a real route.
+describe('the member gate on a real page', () => {
+  it('an unlinked login gets the not-linked page, not result entry', asUser(UNLINKED, async () => {
+    const res = await request(app).get('/email-scorecard');
+    assert.strictEqual(res.status, 403);
+    assert.match(res.text, /isn.t linked to a player/);
+    assert.match(res.headers['cache-control'], /no-store/);
   }));
 });

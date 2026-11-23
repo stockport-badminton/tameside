@@ -391,20 +391,26 @@ var strategy = new Auth0Strategy(
       // features such as own-club stats. Its own catch: a failure here must cost the
       // member link only, never the role below — a missing table would otherwise strip
       // every admin at login.
+      var LOOKUP_FAILED = {};
       var linked = Player.getLinkedPlayerByAuthId(profile.id).catch(function (err) {
         console.error('[authz] player link lookup failed at login:', err.message);
         Sentry.captureException(err);
-        return undefined;
+        return LOOKUP_FAILED;
       });
 
       Promise.all([Player.getAuthRoleByEmail(email), linked]).then(function (rows) {
         var authRow = rows[0], linkRow = rows[1];
+        var lookupFailed = linkRow === LOOKUP_FAILED;
+        if (lookupFailed) linkRow = undefined;
         // A role on the account-linked player counts too, so a role-holder linked by
         // account id alone is not dropped by the address match.
         if (!authRow && linkRow && (linkRow.role || linkRow.statsAccess == 1)) authRow = linkRow;
         authz.applyRoleClaims(profile._json, authRow);
         // A role-holder matched by address only is still a known player.
         authz.applyPlayerLink(profile, linkRow || authRow);
+        // A failed lookup is "unknown", not "unlinked": `member` refuses an unlinked
+        // login, and a DB blip must not lock a captain out of result entry.
+        if (lookupFailed && !authRow) delete profile.tameside;
         return done(null, profile);
       }).catch(function (err) {
         // Authentication now touches Postgres, which it never used to. Failing the
@@ -415,7 +421,8 @@ var strategy = new Auth0Strategy(
         console.error('[authz] role lookup failed at login:', err.message);
         Sentry.captureException(err);
         authz.applyRoleClaims(profile._json, null);
-        authz.applyPlayerLink(profile, null);
+        // Unknown, not unlinked: see middleware/secured.js linkedGate.
+        delete profile.tameside;
         return done(null, profile);
       });
     }

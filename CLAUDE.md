@@ -616,7 +616,7 @@ never been run**: nothing could say so until now.
 **Stockport approving someone lets them log in here.** `betaAccess` is one flag in the
 shared tenant, set by either site's approve page. Measured 5 Nov 2026: of 135 accounts able
 to log in, 83 had no player row here, 46 of them Stockport's. So "logged in" says nothing
-about being a Tameside player, and every `member` route is open to the other league.
+about being a Tameside player — which is why `member` no longer means "logged in" (below).
 
 - **`player_auth_account`** (`migrations/player-auth-account.sql`) links an Auth0
   `user_id` to a player. Keyed by account because the address is encrypted and can't be
@@ -626,7 +626,7 @@ about being a Tameside player, and every `member` route is open to the other lea
   `authz.applyPlayerLink`), NOT in the club claim — `hasClubAccess` reads the claim, so a
   member carrying it would get a club admin's roster and form access. `club` is null at No
   Club. The link lookup has its own catch in `app.js`: a failure costs the link, never the
-  role.
+  role, and leaves `tameside` **absent** (unknown), never null (unlinked).
 - **Stats pages: superadmin sees all, a linked member their own club, nobody else**
   (`authz.scopeStats`, `test/integration/stats-scoping.test.js`). The `statsAccess` flag is
   no longer read for them. A session from before this has no `tameside`; a club admin's
@@ -639,12 +639,23 @@ about being a Tameside player, and every `member` route is open to the other lea
   `/tables-social` were deleted; `/clubs` answers id, name and venue only. **Nothing public
   may name a player in a line-up or a game.** `/eligiblePlayers` is any login, not
   club-scoped: a captain entering a result needs the other side's players.
-  `test/integration/line-up-gating.test.js`.
+  `test/integration/line-up-gating.test.js`, which also checks `/eligiblePlayers` for any
+  club's member.
 - **A superadmin makes every link. No self-service claim, by decision**: anyone can pick
   "Dave Lee from Hyde", and a login address often says nothing about who someone is.
-- **The `member` gate itself is still "logged in".** Narrowing it to "linked to a player"
-  would lock out captains with unlinked logins mid-season, so it waits until the screen
-  below has cleared them. Backlog.
+- **`member` means a Tameside login (23 Nov 2026): linked to a player, or holding a site
+  role** (`linkedGate` in `middleware/secured.js`). Anything else gets the 403
+  `views/not-linked.ejs` page (`memberApi`: 403 JSON). Measured first: of 112 accounts able
+  to log in, 88 linked and 22 Stockport-only. Every logged-in account PostHog had seen in
+  120 days was linked, and the one unlinked account to have filed a scorecard this season
+  (a Mellor captain whose Auth0 claim said New Mills) was linked the same day. A role
+  counts because the results mailboxes are superadmins, not players.
+  - **`tameside` absent means unknown**: a session from before linking, or a lookup that
+    failed at login. It gets one fresh login per session (`/login` re-runs the lookup), then
+    is let through. A DB blip must not lock a captain out of result entry, and that state
+    can't be reached by choosing it.
+  - So **a new captain cannot enter a result until a superadmin links them** on the screen
+    below. That is the cost, and the point. `test/member-gate.test.js`.
 
 **Linking is a screen, not a spreadsheet**: `/admin/link-auth-accounts` (superadmin, "Link
 Logins" on `/admin`) lists every account that can log in: needs a player, probably

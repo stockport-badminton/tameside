@@ -1,0 +1,23 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<%# Shown to a login that is not linked to a player at a Tameside club: by every `member`
+    route (middleware/secured.js) and by the stats pages. The Auth0 login is shared with
+    the Stockport league's site, so this is also what their players see here. Linking is
+    done by the results secretary, never by the visitor (controllers/authLinkController.js). %>
+<div class="container my-4">
+  <h1 class="h4">Your login isn't linked to a player yet</h1>
+  <p>
+    Result entry, stats and club pages are for Tameside league players, so we need to know
+    which player you are first. Ask the results secretary through the
+    <a href="/contact-us">contact form</a> to link your login, and say which club you play for.
+  </p>
+  <p class="text-muted small">
+    Logged in with a Stockport league account? Their site is separate: this login works
+    there as before.
+  </p>
+</div>
+
+<%- include('footer.ejs') %>
+</body>
+</html>
