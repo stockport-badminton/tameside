@@ -108,3 +108,14 @@ test('no template loads anything from cdn.datatables.net', () => {
   })(VIEWS);
   assert.deepStrictEqual(offenders, []);
 });
+
+test('the bundle is the Bootstrap 5 integration, and still DataTables 1.x', () => {
+  // It was the bs4 build (DT 1.10.20) on a Bootstrap 5 site until Nov 2026 (BL-01).
+  // 1.x on purpose: datatables-controls.ejs's `dom` string and the `.dataTables_*`
+  // rules in modern-styles.css are 1.x's names, and 2.x renames both.
+  const head = fs.readFileSync(path.join(ROOT, 'static/vendor/datatables/datatables.min.js'), 'utf8').slice(0, 1000);
+  assert.match(head, /download\/#bs5\//, 'built with the bs5 styling integration');
+  assert.match(head, /DataTables 1\.\d+\.\d+/);
+  const css = fs.readFileSync(path.join(ROOT, 'static/vendor/datatables/datatables.min.css'), 'utf8').slice(0, 1000);
+  assert.match(css, /download\/#bs5\//);
+});

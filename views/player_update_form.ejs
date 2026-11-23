@@ -23,7 +23,7 @@
           </div>
           <div class="col-6">
             <label for="gender">Gender</label>
-            <select name="gender" id="gender" class="form-control">
+            <select name="gender" id="gender" class="form-select">
               <% if (result[0].gender == 'Male') { %>
                 <option value="Male" selected>Male</option>
                 <option value="Female">Female</option>
@@ -68,7 +68,7 @@
           </div>
           <div class="col-6 mt-2">
             <label for="role" class="form-label">Site Role</label>
-            <select name="role" id="role" class="form-control">
+            <select name="role" id="role" class="form-select">
               <option value="" <%= !result[0].role ? 'selected' : '' %>>None</option>
               <option value="admin" <%= result[0].role === 'admin' ? 'selected' : '' %>>Admin (own club only)</option>
               <option value="superadmin" <%= result[0].role === 'superadmin' ? 'selected' : '' %>>Superadmin (all clubs)</option>

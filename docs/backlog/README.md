@@ -21,7 +21,6 @@ lockdown commits from 2 to 22 Nov (league-site `b3ff421`). The 2 Nov review cove
 
 | # | What | Brief | Different here |
 |---|---|---|---|
-| 1 | Bootstrap 4 leftovers | [BL-01](BL-01-bootstrap-4-leftovers.md) | Ours alone. Their HARD-50 is a whole BS4→BS5 migration. |
 | 2 | CSP resource allowlist | league-site `docs/hardening/done/HARD-12-security-headers.md` | The helmet headers and the enforced CSP baseline landed 4 Nov 2026 (`utils/securityHeaders.js`). Still to do: the allowlist, run report-only first behind a `/csp-report` collector, as Stockport did. Removing inline script is a separate job (their HARD-15, absorbed by REARCH-07). |
 | 5 | Weekly fixtures post links to the division | — | Ours: `controllers/weeklyFixturesController.js` uses `siteUrl()`, the homepage. Stockport's c482fc3 did the result posts (we already do) and not this one, so this goes beyond them. |
 | — | OCR for the v2 scorecard | [BL-05](BL-05-ocr-scorecard-v2.md) | Ours alone. Waits on the committee adopting the card (sent to captains 16 Nov 2026). The A/B write-in box is done (v2.1); a printed version mark is still worth asking for before printing — see the brief. |

@@ -17,7 +17,7 @@ const SHEETS = ['bootstrap/style.scss', 'static/css/modern-styles.css'];
 // one of these as its WHOLE selector applies everywhere, which is the thing that makes a
 // stray declaration expensive.
 const SHARED = ['alert', 'card', 'badge', 'btn', 'modal', 'table', 'row', 'container',
-  'form-control', 'nav-link', 'dropdown-menu'];
+  'form-control', 'form-select', 'nav-link', 'dropdown-menu'];
 
 describe('no unscoped height on a shared Bootstrap component', () => {
   // **This is a real bug that survived the entire life of the repo**, from the first

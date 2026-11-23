@@ -23,7 +23,7 @@
       }
       %>
 
-      <div class="jumbotron">
+      <div>
         <% if (hasErrors) { %>
             <p>Looks like something went wrong</p>
             <p><a class="btn btn-lg btn-danger"  data-bs-toggle="modal" href="#signupModal">Fix Errors</a></p>
@@ -142,7 +142,7 @@
                    <div class="card-body py-3">
                      <h5 class="card-title mb-1"><%- icon('wand-magic-sparkles') %> Got a photo of the scorecard?</h5>
                      <p class="card-text small text-muted mb-2">Upload it and we'll read the card and prefill everything — you check it and submit as normal. Or skip this and enter manually below.</p>
-                     <div class="form-row align-items-center">
+                     <div class="row g-2 align-items-center">
                        <div class="col-auto"><input type="file" id="ocr-file" accept="image/jpeg,image/png,image/heic,image/heif,application/pdf,.pdf,.docx" /></div>
                        <div class="col-auto"><button type="button" class="btn btn-primary btn-sm" id="ocr-go"><%- icon('wand-magic-sparkles') %> Read &amp; prefill</button></div>
                      </div>
@@ -378,18 +378,18 @@
                  </script>
                  <% } %>
 
-                 <div class="form-row">
+                 <div class="row g-2">
                    <div class="col-md-6">
-                     <div class="form-group">
+                     <div class="sc-field mb-3">
                        <label for="division">Division</label>
-                       <select class="form-control" name="division" id="division" placeholder="Division">
+                       <select class="form-select" name="division" id="division" placeholder="Division">
                          <option value="" disabled selected>Choose Division</option>
                          <%- include('partials/scorecard-select-options', { rows: hasErrors ? scorecard.divisionRows : result }) %>
                        </select>
                      </div>
                    </div>
                    <div class="col-md-6">
-                     <div class="form-group">
+                     <div class="sc-field mb-3">
                        <label for="date">Date</label>
                        <% if (hasErrors) { %>
                        <input type="date" class="form-control" id="date" name="date" value="<%= data.date %>" placeholder="<%= data.date %>">
@@ -399,9 +399,9 @@
                      </div>
                    </div>
                  </div>
-                 <div class="form-group">
+                 <div class="sc-field mb-3">
                    <label for="homeTeam">Home Team</label>
-                   <select class="form-control" id="homeTeam" name="homeTeam" placeholder="Home Team">
+                   <select class="form-select" id="homeTeam" name="homeTeam" placeholder="Home Team">
                      <% if (hasErrors) { %>
                      <option value="" disabled>Choose Home Team</option>
                      <%- include('partials/scorecard-select-options', { rows: scorecard.homeTeamRows }) %>
@@ -410,9 +410,9 @@
                      <% } %>
                    </select>
                  </div>
-                 <div class="form-group">
+                 <div class="sc-field mb-3">
                    <label for="awayTeam">Away Team</label>
-                   <select class="form-control" id="awayTeam" name="awayTeam" placeholder="Away Team">
+                   <select class="form-select" id="awayTeam" name="awayTeam" placeholder="Away Team">
                      <% if (hasErrors) { %>
                      <option value="" disabled>Choose Away Team</option>
                      <%- include('partials/scorecard-select-options', { rows: scorecard.awayTeamRows }) %>
@@ -424,11 +424,11 @@
              </div>
              <div class="modal-body step step-2">
 
-                 <div class="form-row">
+                 <div class="row g-2">
                    <div class="col-md-6">
-                     <div class="form-group step-2">
+                     <div class="sc-field mb-3 step-2">
                        <label for="homeMan1">Man 1</label>
-                       <select class="form-control" id="homeMan1" name="homeMan1" placeholder="Home Man 1">
+                       <select class="form-select" id="homeMan1" name="homeMan1" placeholder="Home Man 1">
                          <% if (hasErrors) { %>
                          <option value="" disabled>Choose Man 1</option>
                          <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, side: 'home', selectedValue: data['homeMan1'], ordinalKey: 'first' }) %>
@@ -437,9 +437,9 @@
                          <% } %>
                        </select>
                      </div>
-                     <div class="form-group step-2">
+                     <div class="sc-field mb-3 step-2">
                        <label for="homeMan2">Man 2</label>
-                       <select class="form-control" id="homeMan2" name="homeMan2" placeholder="Home Man 2">
+                       <select class="form-select" id="homeMan2" name="homeMan2" placeholder="Home Man 2">
                          <% if (hasErrors) { %>
                          <option value="" disabled>Choose Man 2</option>
                          <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, side: 'home', selectedValue: data['homeMan2'], ordinalKey: 'second' }) %>
@@ -448,9 +448,9 @@
                          <% } %>
                        </select>
                      </div>
-                     <div class="form-group step-2">
+                     <div class="sc-field mb-3 step-2">
                        <label for="homeMan3">Man 3</label>
-                       <select class="form-control" id="homeMan3" name="homeMan3" placeholder="Home Man 3">
+                       <select class="form-select" id="homeMan3" name="homeMan3" placeholder="Home Man 3">
                          <% if (hasErrors) { %>
                          <option value="" disabled>Choose Man 3</option>
                          <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, side: 'home', selectedValue: data['homeMan3'], ordinalKey: 'third' }) %>
@@ -461,9 +461,9 @@
                      </div>
                    </div>
                    <div class="col-md-6">
-                      <div class="form-group step-2">
+                      <div class="sc-field mb-3 step-2">
                         <label for="homeMan4">Man 4</label>
-                        <select class="form-control" id="homeMan4" name="homeMan4" placeholder="Home Man 4">
+                        <select class="form-select" id="homeMan4" name="homeMan4" placeholder="Home Man 4">
                           <% if (hasErrors) { %>
                           <option value="" disabled>Choose Man 4</option>
                           <%- include('partials/scorecard-player-options', { rows: scorecard.homeMenRows, side: 'home', selectedValue: data['homeMan4'], ordinalKey: 'fourth' }) %>
@@ -472,9 +472,9 @@
                           <% } %>
                         </select>
                       </div>
-                     <div class="form-group step-2">
+                     <div class="sc-field mb-3 step-2">
                        <label for="homeLady1">Lady 1</label>
-                       <select class="form-control" id="homeLady1" name="homeLady1" placeholder="Home Lady 1">
+                       <select class="form-select" id="homeLady1" name="homeLady1" placeholder="Home Lady 1">
                          <% if (hasErrors) { %>
                          <option value="" disabled>Choose Lady 1</option>
                          <%- include('partials/scorecard-player-options', { rows: scorecard.homeLadiesRows, side: 'home', selectedValue: data['homeLady1'], ordinalKey: 'first' }) %>
@@ -483,9 +483,9 @@
                          <% } %>
                        </select>
                      </div>
-                     <div class="form-group step-2">
+                     <div class="sc-field mb-3 step-2">
                        <label for="homeLady2">Lady 2</label>
-                       <select class="form-control" id="homeLady2" name="homeLady2" placeholder="Home Lady 2">
+                       <select class="form-select" id="homeLady2" name="homeLady2" placeholder="Home Lady 2">
                          <% if (hasErrors) { %>
                          <option value="" disabled>Choose Lady 2</option>
                          <%- include('partials/scorecard-player-options', { rows: scorecard.homeLadiesRows, side: 'home', selectedValue: data['homeLady2'], ordinalKey: 'second' }) %>
@@ -500,11 +500,11 @@
              </div>
              <div class="modal-body step step-3">
 
-                 <div class="form-row">
+                 <div class="row g-2">
                    <div class="col-md-6">
-                     <div class="form-group step-3">
+                     <div class="sc-field mb-3 step-3">
                        <label for="awayMan1">Man 1</label>
-                       <select class="form-control" id="awayMan1" name="awayMan1" placeholder="Away Man 1">
+                       <select class="form-select" id="awayMan1" name="awayMan1" placeholder="Away Man 1">
                          <% if (hasErrors) { %>
                          <option value="" disabled>Choose Man 1</option>
                          <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, side: 'away', selectedValue: data['awayMan1'], ordinalKey: 'first' }) %>
@@ -513,9 +513,9 @@
                          <% } %>
                        </select>
                      </div>
-                     <div class="form-group step-3">
+                     <div class="sc-field mb-3 step-3">
                        <label for="awayMan2">Man 2</label>
-                       <select class="form-control" id="awayMan2" name="awayMan2" placeholder="Away Man 2">
+                       <select class="form-select" id="awayMan2" name="awayMan2" placeholder="Away Man 2">
                          <% if (hasErrors) { %>
                          <option value="" disabled>Choose Man 2</option>
                          <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, side: 'away', selectedValue: data['awayMan2'], ordinalKey: 'second' }) %>
@@ -524,9 +524,9 @@
                          <% } %>
                        </select>
                      </div>
-                     <div class="form-group step-3">
+                     <div class="sc-field mb-3 step-3">
                        <label for="awayMan3">Man 3</label>
-                       <select class="form-control" id="awayMan3" name="awayMan3" placeholder="Away Man 3">
+                       <select class="form-select" id="awayMan3" name="awayMan3" placeholder="Away Man 3">
                          <% if (hasErrors) { %>
                          <option value="" disabled>Choose Man 3</option>
                          <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, side: 'away', selectedValue: data['awayMan3'], ordinalKey: 'third' }) %>
@@ -537,9 +537,9 @@
                      </div>
                    </div>
                    <div class="col-md-6">
-                    <div class="form-group step-3">
+                    <div class="sc-field mb-3 step-3">
                       <label for="awayMan4">Man 4</label>
-                      <select class="form-control" id="awayMan4" name="awayMan4" placeholder="Away Man 4">
+                      <select class="form-select" id="awayMan4" name="awayMan4" placeholder="Away Man 4">
                         <% if (hasErrors) { %>
                         <option value="" disabled>Choose Man 4</option>
                         <%- include('partials/scorecard-player-options', { rows: scorecard.awayMenRows, side: 'away', selectedValue: data['awayMan4'], ordinalKey: 'fourth' }) %>
@@ -548,9 +548,9 @@
                         <% } %>
                       </select>
                     </div>
-                     <div class="form-group step-3">
+                     <div class="sc-field mb-3 step-3">
                        <label for="awayLady1">Lady 1</label>
-                       <select class="form-control" id="awayLady1" name="awayLady1" placeholder="Away Lady 1">
+                       <select class="form-select" id="awayLady1" name="awayLady1" placeholder="Away Lady 1">
                          <% if (hasErrors) { %>
                          <option value="" disabled>Choose Lady 1</option>
                          <%- include('partials/scorecard-player-options', { rows: scorecard.awayLadiesRows, side: 'away', selectedValue: data['awayLady1'], ordinalKey: 'first' }) %>
@@ -559,9 +559,9 @@
                          <% } %>
                        </select>
                      </div>
-                     <div class="form-group step-3">
+                     <div class="sc-field mb-3 step-3">
                        <label for="awayLady2">Lady 2</label>
-                       <select class="form-control" id="awayLady2" name="awayLady2" placeholder="Away Lady 2">
+                       <select class="form-select" id="awayLady2" name="awayLady2" placeholder="Away Lady 2">
                          <% if (hasErrors) { %>
                          <option value="" disabled>Choose Lady 2</option>
                          <%- include('partials/scorecard-player-options', { rows: scorecard.awayLadiesRows, side: 'away', selectedValue: data['awayLady2'], ordinalKey: 'second' }) %>
@@ -576,22 +576,22 @@
              </div>
              <% EVENT_STEPS.forEach(function(ev, idx) { %><div class="modal-body step step-<%= ev.step %> <%= ev.key %>">
 
-              <div class="form-group step-<%= ev.step %> <%= ev.key %>">
+              <div class="sc-field mb-3 step-<%= ev.step %> <%= ev.key %>">
                 <label for="home<%= ev.key %>">Home <%= ev.key %></label>
-                <% ev.home.forEach(function(p) { %><select class="form-control playerInput" id="<%= p[0] %>" data-player-type="<%= p[1] %>" name="<%= p[0] %>" placeholder="<%= p[2] %>">
+                <% ev.home.forEach(function(p) { %><select class="form-select playerInput" id="<%= p[0] %>" data-player-type="<%= p[1] %>" name="<%= p[0] %>" placeholder="<%= p[2] %>">
                 </select>
                 <% }) %>
               </div>
-              <div class="form-group step-<%= ev.step %> <%= ev.key %>">
+              <div class="sc-field mb-3 step-<%= ev.step %> <%= ev.key %>">
                 <label for="away<%= ev.key %>">Away <%= ev.key %></label>
-                <% ev.away.forEach(function(p) { %><select class="form-control playerInput" id="<%= p[0] %>" data-player-type="<%= p[1] %>" name="<%= p[0] %>" placeholder="<%= p[2] %>">
+                <% ev.away.forEach(function(p) { %><select class="form-select playerInput" id="<%= p[0] %>" data-player-type="<%= p[1] %>" name="<%= p[0] %>" placeholder="<%= p[2] %>">
                 </select>
                 <% }) %>
               </div>
-              <div class="form-row">
-                <% ev.games.forEach(function(g) { %><div class="form-group step-<%= ev.step %> <%= ev.key %> col-6">
+              <div class="row g-2">
+                <% ev.games.forEach(function(g) { %><div class="sc-field mb-3 step-<%= ev.step %> <%= ev.key %> col-6">
                   <label for="game<%= g %>Score">Game <%= g %></label>
-                  <div class="form-row"><div class="col-6"><input type="number" inputmode="numeric" min="0" max="30" class="form-control scoreInput Game<%= g %> home" id="Game<%= g %>homeScore" name="Game<%= g %>homeScore" <% if (hasErrors) { %>value="<%= data['Game' + g + 'homeScore'] %>"<% } else { %>placeholder=""<% } %>></div>
+                  <div class="row g-2"><div class="col-6"><input type="number" inputmode="numeric" min="0" max="30" class="form-control scoreInput Game<%= g %> home" id="Game<%= g %>homeScore" name="Game<%= g %>homeScore" <% if (hasErrors) { %>value="<%= data['Game' + g + 'homeScore'] %>"<% } else { %>placeholder=""<% } %>></div>
                   <div class="col-6"><input type="number" inputmode="numeric" min="0" max="30" class="form-control scoreInput Game<%= g %> away" id="Game<%= g %>awayScore" name="Game<%= g %>awayScore" <% if (hasErrors) { %>value="<%= data['Game' + g + 'awayScore'] %>"<% } else { %>placeholder=""<% } %>></div></div>
                 </div>
                 <% }) %>
@@ -599,13 +599,13 @@
 
               </div><% }) %>
              <div class="modal-body step step-13 ScorecardUpload">
-                <div class="form-row">
-                    <div class="form-group step-13 ScorecardUpload col-12">
+                <div class="row g-2">
+                    <div class="sc-field mb-3 step-13 ScorecardUpload col-12">
                         <label for="scoresheet-spreadsheet">Upload Scorecard</label>
                         <div id="scoresheet-already-uploaded-msg" class="text-success small mb-2" style="display:none;">
                           ✓ Already uploaded from step 1 — <a href="#" id="replace-scoresheet-link">upload a different photo instead</a>
                         </div>
-                        <div class="form-row">
+                        <div class="row g-2">
                             <div class="col-12"><input type="file" name="scoresheet-spreadsheet" id="scoresheet-spreadsheet" /></div>
                             <%# value= matters: on the error re-render this field is how the photo the captain
                                  already uploaded survives. Without it their upload was silently
@@ -661,7 +661,7 @@
                    </div>
                  </div>
 
-                 <div class="form-group step-14">
+                 <div class="sc-field mb-3 step-14">
                    <div id="FirstMensSummary" class="row">
                      <div class="col-4"></div>
                      <div class="col-1">vs</div>
@@ -994,7 +994,7 @@
       function byId(id) { return document.getElementById(id); }
 
       // ---- Steps 2/3: mirror each roster pick into the fields that carry it ----
-      qsa('.form-group.step-2 input, .form-group.step-3 input').forEach(function (input) {
+      qsa('.sc-field.step-2 input, .sc-field.step-3 input').forEach(function (input) {
         input.addEventListener('change', function () {
           qsa('[data-player-type="' + input.id + '"]').forEach(function (el) { el.value = input.value; });
         });
@@ -1116,8 +1116,8 @@
 
       // Fill in the summary row for the event step just completed.
       function summarise(prevStep) {
-        var selects = qsa('.form-group.step-' + prevStep + ' > select');
-        var scores = qsa('.form-group.step-' + prevStep + ' .scoreInput');
+        var selects = qsa('.sc-field.step-' + prevStep + ' > select');
+        var scores = qsa('.sc-field.step-' + prevStep + ' .scoreInput');
         if (selects.length < 4 || scores.length < 4) return;
         var classes = selects[0].parentElement.classList;
         var summary = byId(classes[classes.length - 1] + 'Summary');
@@ -1223,7 +1223,7 @@
     // letting the user continue. Steps without scores (1-3, 13, 14) are a
     // no-op. Returns false and shows inline errors if anything's invalid.
     function validateStepScores(step) {
-      var groups = document.querySelectorAll('#signupModal .form-group.step-' + step + '.col-6');
+      var groups = document.querySelectorAll('#signupModal .sc-field.step-' + step + '.col-6');
       if (groups.length === 0) return true;
       var allValid = true;
       groups.forEach(function (group) {

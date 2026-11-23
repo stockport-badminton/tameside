@@ -23,7 +23,7 @@ test('an invalid game score blocks Continue and shows an inline error', async ({
   await expect(modal.locator('.modal-body.step-5')).toBeHidden();
   await expect(modal.locator('#Game1homeScore')).toHaveClass(/is-invalid/);
   await expect(modal.locator('#Game1awayScore')).toHaveClass(/is-invalid/);
-  await expect(modal.locator('.form-group.step-4.col-6 >> text=Enter a valid game score')).toBeVisible();
+  await expect(modal.locator('.sc-field.step-4.col-6 >> text=Enter a valid game score')).toBeVisible();
 
   // Fix the score to a legal result and try again — should now advance.
   await modal.locator('#Game1homeScore').fill('21');

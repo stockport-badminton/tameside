@@ -21,7 +21,7 @@
       <% if (hidden.indexOf('division') === -1) { %>
         <div class="filter-field">
           <label for="divisionSelect"><%- icon('trophy') %> Division</label>
-          <select class="form-control" name="divisionSelect" id="divisionSelect">
+          <select class="form-select" name="divisionSelect" id="divisionSelect">
             <option value="0">All divisions</option>
             <% for (const division of filterBar.divisions) { %>
               <option value="<%= division.value %>" <%= applied.division === division.value ? 'selected' : '' %>><%= division.name %></option>
@@ -33,7 +33,7 @@
       <% if (hidden.indexOf('season') === -1) { %>
         <div class="filter-field">
           <label for="seasonSelect"><%- icon('calendar-check') %> Season</label>
-          <select class="form-control" name="seasonSelect" id="seasonSelect">
+          <select class="form-select" name="seasonSelect" id="seasonSelect">
             <option value="0">Current season<%= filterBar.currentSeasonLabel ? ' (' + filterBar.currentSeasonLabel + ')' : '' %></option>
             <% for (const season of filterBar.seasons) { %>
               <option value="<%= season.value %>" <%= applied.season === season.value ? 'selected' : '' %>><%= season.label %></option>
@@ -45,7 +45,7 @@
       <% if (hidden.indexOf('status') === -1) { %>
         <div class="filter-field">
           <label for="statusSelect"><%- icon('circle-check') %> Status</label>
-          <select class="form-control" name="statusSelect" id="statusSelect">
+          <select class="form-select" name="statusSelect" id="statusSelect">
             <option value="0">All statuses</option>
             <% for (const status of ['outstanding', 'rearranging', 'rearranged', 'conceded', 'complete']) { %>
               <option value="<%= status %>" <%= applied.status === status ? 'selected' : '' %>><%= status.charAt(0).toUpperCase() + status.slice(1) %></option>
@@ -57,7 +57,7 @@
       <% if (hidden.indexOf('gender') === -1) { %>
         <div class="filter-field">
           <label for="gender"><%- icon('venus-mars') %> Gender</label>
-          <select class="form-control" name="gender" id="gender">
+          <select class="form-select" name="gender" id="gender">
             <option value="0">All</option>
             <option value="Male" <%= applied.gender === 'Male' ? 'selected' : '' %>>Male</option>
             <option value="Female" <%= applied.gender === 'Female' ? 'selected' : '' %>>Female</option>
@@ -68,7 +68,7 @@
       <% if (hidden.indexOf('gametype') === -1) { %>
         <div class="filter-field">
           <label for="gameType"><%- icon('shuttlecock') %> Game type</label>
-          <select class="form-control" name="gameType" id="gameType">
+          <select class="form-select" name="gameType" id="gameType">
             <option value="0">All types</option>
             <% for (const type of ['Mens', 'Ladies', 'Mixed']) { %>
               <option value="<%= type %>" <%= applied.gameType === type ? 'selected' : '' %>><%= type %></option>
@@ -80,7 +80,7 @@
       <% if (typeof clubs !== 'undefined') { %>
         <div class="filter-field">
           <label for="club"><%- icon('building') %> Club</label>
-          <select class="form-control" name="club" id="club">
+          <select class="form-select" name="club" id="club">
             <option value="0">All clubs</option>
             <% for (const row of clubs) { %>
               <option value="<%= row %>" <%= applied.club === String(row) ? 'selected' : '' %>><%= row %></option>
@@ -92,7 +92,7 @@
       <% if (typeof teams !== 'undefined') { %>
         <div class="filter-field">
           <label for="team"><%- icon('users') %> Team</label>
-          <select class="form-control" name="team" id="team">
+          <select class="form-select" name="team" id="team">
             <option value="0">All teams</option>
             <% for (const row of teams) { %>
               <option value="<%= row %>" <%= applied.team === String(row) ? 'selected' : '' %>><%= row %></option>

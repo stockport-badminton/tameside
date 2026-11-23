@@ -32,3 +32,28 @@ just renders slightly wrong, or does nothing:
 
 - The greps above return zero, or the leftovers are listed with a reason.
 - `npm test` and `npm run test:e2e` pass (the wizard spec drives these selects).
+
+## Outcome (23 Nov 2026)
+
+All four greps are zero. What it turned up beyond the brief:
+
+- **`form-row` was a live layout bug, not just dead markup.** The wizards' score boxes are
+  `col-6` inside a `form-row`, and with no flex parent each one stacked at half width, so
+  a game's home and away boxes read as a column of four. Now `row g-2`: one row per event.
+- **`form-group` was a JS hook** in the three scorecard views (`.form-group.step-N`
+  selects a step's fields) and on the reminder modal. Those are now `sc-field` and
+  `#reminderEmailField`, so the spacing class (`mb-3`) isn't load-bearing.
+- **"Enter Result" on `index-scorecard` can never show**: the success render passes no
+  `result`. Only "Fix Errors" (the `POST /scorecard-beta` error page) was ever reachable.
+- **DataTables is 1.13.11 (bs5), not 2.x.** `datatables-controls.ejs`'s `dom` and the
+  `.dataTables_*` rules are 1.x names. The bs5 stylesheet sets
+  `table.dataTable > tbody > tr { background-color: transparent }`, which blanked the
+  status row colours on `/results` until the `.status-*` rules were spelled out against it.
+- `form-select`'s arrow padding widened the filter bar past its line, so `.filter-fields`
+  is `flex: 1 1 0` now. That also fixed Apply wrapping on the stats pages, which predated
+  this.
+- Also: `jumbotron` (inert, dropped), `no-gutters` → `g-0`, `font-weight-bold` →
+  `fw-bold`, `text-left` → `text-start`.
+
+Checked by before/after screenshots at desktop and phone width (wizard step 4, `/results`,
+`/player-stats`, `/contact-us`). `npm test` 1578/1578, `npm run test:e2e` 65/65.

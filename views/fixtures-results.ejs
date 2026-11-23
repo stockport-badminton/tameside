@@ -290,7 +290,7 @@
               <%- icon('circle-check') %> Fixture Updated!
             </div>
           </div>
-          <div id="rearrangementForm" class="form-group">
+          <div id="rearrangementForm" class="mb-3">
             <label for="date">
               <%- icon('calendar', { variant: 'regular' }) %> New Fixture Date
             </label>
@@ -352,7 +352,7 @@
       </div>
       <form role="form" id="reminderForm" action="/fixture/reminder" method="post">
         <div class="modal-body" id="reminderModalBody">
-          <div class="form-group">
+          <div id="reminderEmailField" class="mb-3">
             <label for="email">
               <%- icon('envelope') %> Email Contact
             </label>
@@ -478,7 +478,7 @@
   $('a[data-bs-target="#reminderModal"]').click(function(){
     $('#reminderModalBody .alert-danger').remove();
     $('#reminderSent').addClass('d-none');
-    $('#reminderModalBody > .form-group').show();
+    $('#reminderEmailField').show();
     $('#remindFixture').show().prop('disabled', false);
     $('#email').val('');
     $('#reminderFixtureId').val($(this).attr('data-fixture-id'));
@@ -517,7 +517,7 @@
       'email':$('#email').val(),
       'fixtureId':$('#reminderFixtureId').val()
     }, function (data) {
-      $('#reminderModalBody > .form-group').hide();
+      $('#reminderEmailField').hide();
       $('#reminderSent').removeClass('d-none');
       $('#remindFixture').hide();
     }).fail(function (xhr) {

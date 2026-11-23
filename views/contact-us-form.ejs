@@ -8,26 +8,26 @@
     <div class="container">
 
 <form role="form" id="contactUs" action="/contact-us" method="post">
-  <div class="form-group">
+  <div class="mb-3">
     <label for="contactType">Are you trying to get in touch with a committee member of a specific club?</label>
-    <select class="form-control" name="contactType" id="contactType">
+    <select class="form-select" name="contactType" id="contactType">
       <option value="" disabled selected>Choose..</option>
       <option value="Clubs">Club Secretaries</option>
       <option value="League">League Representatives</option>
     </select>
   </div>
-  <div class="form-group d-none" id="clubsDropDown">
+  <div class="mb-3 d-none" id="clubsDropDown">
     <label for="clubSelect">Which club are you contacting?</label>
-    <select class="form-control" id="clubSelect" name="clubSelect">
+    <select class="form-select" id="clubSelect" name="clubSelect">
       <option value="" disabled selected>Choose a Club</option>
       <% clubs.forEach(function(row){ %>
         <option value="<%= row['id'] %>"><%= row['name'] %></option>
       <% }) %>
     </select>
   </div>
-  <div class="form-group d-none" id="leagueDropDown">
+  <div class="mb-3 d-none" id="leagueDropDown">
     <label for="leagueSelect">Which committee member are you contacting</label>
-    <select name="leagueSelect" id="leagueSelect" class="form-control">
+    <select name="leagueSelect" id="leagueSelect" class="form-select">
       <option value="" disabled selected>Choose...</option>
       <option value="secretary">League Secretary</option>
       <option value="results">Results Secretary</option>
@@ -39,16 +39,16 @@
       <option value="website">Website Secretary</option>
     </select>
   </div>
-  <div class="form-group">
+  <div class="mb-3">
     <label for="contactEmail">Email address</label>
     <input type="email" class="form-control" id="contactEmail" name="contactEmail" aria-describedby="emailHelp" placeholder="Enter email">
     <small id="emailHelp" class="form-text text-muted">We'll never share your email with anyone else.</small>
   </div>
-  <div class="form-group">
+  <div class="mb-3">
     <label for="contactQuery">Message that you want to send to the club contact</label>
     <textarea class="form-control" id="contactQuery" name="contactQuery" rows="3"></textarea>
   </div>
-  <div class="form-group">
+  <div class="mb-3">
     <div class="g-recaptcha" data-sitekey="<%= recaptcha %>"></div>
   <%# Honeypot + signed render timestamp. Must be inside the form. %>
   <%- include('spam-fields.ejs') %>
@@ -67,12 +67,12 @@
     var league = document.getElementById('leagueDropDown');
     switch (this.value) {
       case 'Clubs':
-        clubs.className = 'form-group d-block';
-        league.className = 'form-group d-none';
+        clubs.className = 'mb-3 d-block';
+        league.className = 'mb-3 d-none';
         break;
       case 'League':
-        league.className = 'form-group d-block';
-        clubs.className = 'form-group d-none';
+        league.className = 'mb-3 d-block';
+        clubs.className = 'mb-3 d-none';
         break;
       default:
     }

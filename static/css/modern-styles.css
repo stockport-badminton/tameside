@@ -536,14 +536,22 @@ footer {
 }
 
 /* Form Styles */
-.form-control {
+/* `.form-select` shares the look. Selects were `.form-control` under Bootstrap 4, which
+ * in 5 loses the arrow; the right padding is the room Bootstrap 5 leaves for it. */
+.form-control,
+.form-select {
     border-radius: 8px;
     border: 2px solid #e9ecef;
     padding: 0.75rem;
     transition: all 0.3s ease;
 }
 
-.form-control:focus {
+.form-select {
+    padding-right: 2.25rem;
+}
+
+.form-control:focus,
+.form-select:focus {
     border-color: #2a5298;
     box-shadow: 0 0 0 0.2rem rgba(42,82,152,0.25);
 }
@@ -809,7 +817,11 @@ footer {
 
 .filter-fields {
     display: flex;
-    flex: 1 1 auto;
+    /* Basis 0, not auto: auto is the fields' max-content width, which is the longest
+     * option of every select side by side. Bootstrap 5's form-select adds room for its
+     * arrow to each, and that was enough to push Apply onto a line of its own. */
+    flex: 1 1 0;
+    min-width: 0;
     flex-wrap: wrap;
     gap: 0.75rem 1rem;
 }
@@ -835,9 +847,9 @@ footer {
     opacity: 0.75;
 }
 
-.filter-field select.form-control {
+.filter-field select.form-select {
     height: auto;
-    padding: 0.4rem 0.5rem;
+    padding: 0.4rem 2rem 0.4rem 0.5rem;
     font-size: 0.9rem;
 }
 
@@ -969,6 +981,12 @@ footer {
     border: 1px solid #ced4da;
     border-radius: 8px;
     font-size: 0.85rem;
+}
+
+/* The bs5 integration makes the page-size select a `.form-select`, whose arrow sits in
+ * the right padding the rule above would otherwise take away. */
+.dt-controls select {
+    padding-right: 1.75rem;
 }
 
 .dt-controls input[type="search"] {
@@ -1137,25 +1155,34 @@ table.colsearch-on .dt-colsearch-row {
     vertical-align: middle;
 }
 
-/* Status Colors */
-.status-overdue {
+/* Status Colors. Each is also spelled `table.dataTable > tbody > tr.status-…`, because
+ * the DataTables bs5 stylesheet sets `table.dataTable > tbody > tr { background-color:
+ * transparent }` (0,1,3), which beats a bare class and blanked these rows on /results.
+ * The bs4 build it replaced (BL-01, Nov 2026) had no such rule. */
+.status-overdue,
+table.dataTable > tbody > tr.status-overdue {
     background: rgba(220, 53, 69, 0.1);
     border-left: 4px solid #dc3545;
 }
 
 .status-rearranging,
-.status-rearranged {
+.status-rearranged,
+table.dataTable > tbody > tr.status-rearranging,
+table.dataTable > tbody > tr.status-rearranged {
     background: rgba(255, 193, 7, 0.1);
     border-left: 4px solid #ffc107;
 }
 
-.status-tournament {
+.status-tournament,
+table.dataTable > tbody > tr.status-tournament {
     background: rgba(102, 126, 234, 0.1);
     border-left: 4px solid #667eea;
 }
 
 .status-conceded,
-.status-void {
+.status-void,
+table.dataTable > tbody > tr.status-conceded,
+table.dataTable > tbody > tr.status-void {
     background: rgba(108, 117, 125, 0.1);
     border-left: 4px solid #6c757d;
 }
