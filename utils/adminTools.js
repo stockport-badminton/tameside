@@ -39,6 +39,7 @@ const GROUPS = [
     title: 'Rules & stats',
     tools: [
       { href: '/admin/missed-three', label: 'Missed Three', blurb: 'Nominated players who have missed three matches (rule 18).', count: 'missedThree' },
+      { href: '/admin/league-run-in', label: 'League Run-in', blurb: 'This season\'s tables with the places going up and down, and which are already certain.' },
       { href: '/admin/team-strength', label: 'Team Strength', blurb: 'Points-based player ratings from the nightly run, team by team.' },
       { href: '/played-up-counts', label: 'Played Up Counts', blurb: 'Players who have played up more than twice this season.' },
       { href: '/player-stats', label: 'Individual Stats', blurb: 'Per-player results and ratings.' },

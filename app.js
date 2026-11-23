@@ -806,6 +806,7 @@ app.post('/admin/missed-three/:playerId(\\d+)/notice', access.superadmin, missed
    The run is POST for Cloud Scheduler (STRENGTH_RUN_TOKEN, `?t=`) or the page's button; same
    gating rules as the social posts below. Unset token: only a superadmin can run it. */
 const team_strength_controller = require(__dirname + '/controllers/teamStrengthController');
+app.get('/admin/league-run-in', access.superadmin, league_controller.run_in);
 app.get('/admin/team-strength', access.superadmin, team_strength_controller.page);
 app.post('/admin/team-strength/run',
   access.cron(requireCronCaller({ envVar: 'STRENGTH_RUN_TOKEN', callerProp: 'strengthCaller' })),

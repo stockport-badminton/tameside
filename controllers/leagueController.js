@@ -1,5 +1,7 @@
 
 let League = require('../models/league.js');
+const seasonModel = require('../models/season');
+const { runIn, GAMES_PER_FIXTURE } = require('../utils/leagueRunIn');
 
 // Display list of all Leagues
 exports.league_table = function(req,res,next) {
@@ -50,4 +52,22 @@ exports.all_league_tables = function(req,res,next) {
          });
       }
     })
+};
+// The run-in (superadmin): this season's tables with the places going up and down marked,
+// and which of those are already certain. See utils/leagueRunIn.js.
+exports.run_in = async function(req, res, next) {
+  try {
+    const [rows, moving] = await Promise.all([League.getRunIn(), League.movingPlaces()]);
+    res.render('admin/league-run-in', {
+      static_path: '/static',
+      title: 'League run-in',
+      pageDescription: 'This season\'s run-in: who is going up and who is going down',
+      divisions: runIn(rows, moving),
+      moving,
+      season: seasonModel.current(),
+      GAMES_PER_FIXTURE,
+    });
+  } catch (err) {
+    next(err);
+  }
 };

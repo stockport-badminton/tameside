@@ -219,3 +219,60 @@ order by
   done(null,result);
  } catch (err) { done(err); }
 }
+// This season's standings with the fixtures each team has left, for the run-in page and the
+// team-strength projection (utils/leagueRunIn.js, controllers/teamStrengthController.js).
+// Ported from Stockport's League.getRunIn (097de0a). Games won count exactly as the
+// /tables query counts them: every scored league fixture, less penalties, Lewis Shield ties
+// left out. A fixture is still to play while it has no score and is outstanding or being
+// rearranged; a superseded `rearranged` row is left out, as its replacement is counted.
+// Ordered as /tables orders them, then by team.divRank. Numbers come back as numbers.
+exports.getRunIn = async function() {
+  const season = seasonModel.current();
+  const rows = await sql`
+    SELECT division.id AS division, division.name AS "divisionName", division.rank AS "divisionRank",
+           team.id, team.name, team."divRank", s.played, s.remaining,
+           s.won - COALESCE(team.penalties, 0) AS "gamesWon", s.lost AS "gamesLost"
+    FROM (
+      SELECT x.team, SUM(x.played) AS played, SUM(x.remaining) AS remaining,
+             COALESCE(SUM(x.won), 0) AS won, COALESCE(SUM(x.lost), 0) AS lost
+      FROM (
+        SELECT f."homeTeam" AS team, f."homeScore" AS won, f."awayScore" AS lost,
+               CASE WHEN f."homeScore" IS NOT NULL THEN 1 ELSE 0 END AS played,
+               CASE WHEN f."homeScore" IS NULL AND f.status IN ('outstanding', 'rearranging') THEN 1 ELSE 0 END AS remaining
+        FROM fixture f JOIN season ON f.date > season."startDate" AND f.date < season."endDate"
+        WHERE season.name = ${season} AND f.lewis_round IS NULL
+        UNION ALL
+        SELECT f."awayTeam", f."awayScore", f."homeScore",
+               CASE WHEN f."awayScore" IS NOT NULL THEN 1 ELSE 0 END,
+               CASE WHEN f."awayScore" IS NULL AND f.status IN ('outstanding', 'rearranging') THEN 1 ELSE 0 END
+        FROM fixture f JOIN season ON f.date > season."startDate" AND f.date < season."endDate"
+        WHERE season.name = ${season} AND f.lewis_round IS NULL
+      ) AS x
+      GROUP BY x.team
+    ) AS s
+    JOIN team ON team.id = s.team
+    JOIN division ON division.id = team.division
+    WHERE division.league = 1
+    ORDER BY division.rank, "gamesWon" DESC, team."divRank", team.name`;
+  return rows.map(r => ({
+    ...r,
+    division: Number(r.division), divisionRank: Number(r.divisionRank), id: Number(r.id),
+    played: Number(r.played), remaining: Number(r.remaining),
+    gamesWon: Number(r.gamesWon), gamesLost: Number(r.gamesLost),
+  }));
+}
+
+// How many teams go up from, and down to, each pair of divisions this season: the site
+// setting `promotion_places` (/admin/site-settings), 2 when unset or not a small number.
+// It varies by season (decided 23 Nov 2026), so it is a setting, not a constant.
+const { DEFAULT_MOVING } = require('../utils/leagueRunIn');
+exports.movingPlaces = async function() {
+  try {
+    const [row] = await sql`SELECT value FROM site_setting WHERE key = 'promotion_places'`;
+    const n = row ? Number.parseInt(row.value, 10) : NaN;
+    return Number.isInteger(n) && n >= 0 && n <= 4 ? n : DEFAULT_MOVING;
+  } catch (err) {
+    console.log('[league] promotion_places unreadable, using the default', err.message);
+    return DEFAULT_MOVING;
+  }
+}
