@@ -52,6 +52,8 @@ exports.getLeagueTable = async function(division,season,done){
     seasonName = await seasonModel.hasSnapshot(season) ? season : ''
   }
   division = division.replace('-',' ');
+  // Lewis Shield ties (fixture.lewis_round, from 2026/27) are filtered out below: they are
+  // published through the same path as a league result, so they carry a homeScore.
 
   // /tables/:division. Retried on a dead connection — see withRetry in
   // utils/db_connect.js. The thunk rebuilds the whole template, which matters here:
@@ -84,6 +86,7 @@ FROM (
                             AND fixture."date" < season."endDate")
                         where
                             season."name" = ${ season }
+                            AND fixture.lewis_round IS NULL
                         UNION ALL
                         SELECT
                             fixture."date", CASE
@@ -102,6 +105,7 @@ FROM (
                             AND fixture."date" < season."endDate")
                         where
                             season."name" = ${ season }
+                            AND fixture.lewis_round IS NULL
                     ) AS a
                 GROUP BY
                     a."teamId"
@@ -202,6 +206,9 @@ ${
   )
 where
   season.name = ${ season }
+  -- Lewis Shield ties are a cup, not the league: from 2026/27 they are fixture rows,
+  -- and a result entered through /email-scorecard sets homeScore like any other.
+  AND fixture.lewis_round IS NULL
 group by
   team.name
 order by

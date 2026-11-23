@@ -60,5 +60,17 @@ describe('models/league.js', () => {
       assert.match(body, /as "gamesWon"/i);
       assert.match(body, /as "gamesLost"/i);
     });
+
+    // Lewis Shield ties are fixture rows from 2026/27 and are published like a league
+    // result, so a table that doesn't filter them counts cup games as league games.
+    test(`${fn} leaves out Lewis Shield ties, in every half of the query`, () => {
+      const start = src.indexOf(`exports.${fn} =`);
+      const end = src.indexOf('exports.', start + 1);
+      const body = src.slice(start, end === -1 ? undefined : end);
+      const seasons = (body.match(/season\.?"?name"?\s*=\s*\$\{/g) || []).length;
+      const lewis = (body.match(/fixture\.lewis_round IS NULL/g) || []).length;
+      assert.ok(seasons > 0);
+      assert.strictEqual(lewis, seasons);
+    });
   }
 });
