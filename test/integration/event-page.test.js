@@ -123,3 +123,23 @@ describe('a played fixture', () => {
     await asRole('superadmin', null, async () => { r = await link(); assert.strictEqual(r.has, true); })();
   });
 });
+
+describe('the venue map', () => {
+  // Stockport's HARD-46: ~800 KB of Maps and a Places lookup on every visit, for a map few
+  // people scroll to. The loader stub may be in the page; nothing may CALL it until a tap.
+  it('waits for a tap before loading anything from Google', async () => {
+    stub({ row: { ...ROW, placeId: 'ChIJtest' } });
+    const res = await request(app).get(URL);
+    assert.strictEqual(res.status, 200);
+    assert.match(res.text, /id="eventMap" class="ev-map-placeholder"/);
+    assert.match(res.text, /id="showEventMap"/);
+    assert.doesNotMatch(res.text, /^\s*initMap\(\);/m, 'initMap must only run from the button');
+    assert.doesNotMatch(res.text, /<script[^>]+src="[^"]*maps\.googleapis/);
+  });
+
+  it('has no map box at all without a place id', async () => {
+    stub();
+    const res = await request(app).get(URL);
+    assert.doesNotMatch(res.text, /id="eventMap"|showEventMap|importLibrary/);
+  });
+});

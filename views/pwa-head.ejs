@@ -3,7 +3,13 @@
 <% /* Gated on app.locals.serviceWorkerEnabled — see the comment beside it in app.js.
       Defaults to registering if the local is somehow absent, so a stray render can
       never accidentally tear down the worker in production. */ %>
-<% if (typeof serviceWorkerEnabled === 'undefined' || serviceWorkerEnabled) { %>
+<%# A page can opt out with `serviceWorker: false`; the 404 page does (Stockport 7ce4dca, Nov
+    2026). A headless crawler opens every page in a fresh browser, so each dead link it followed
+    installed the worker and precached the shell pages again: ~7,000 of 16,700 requests in one
+    crawl of theirs. Opting out registers nothing and, unlike the dev branch below, tears
+    nothing down: a returning visitor who hits a 404 keeps their worker. %>
+<% if (locals.serviceWorker === false) { %>
+<% } else if (typeof serviceWorkerEnabled === 'undefined' || serviceWorkerEnabled) { %>
 <script>
   // After load, not during it: on first install the worker precaches the shell assets and
   // several pages, and doing that while the first page is still loading competes with it

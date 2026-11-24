@@ -73,6 +73,7 @@
   .ev-venue dt { font-weight: 600; margin-top: .5rem; }
   .ev-venue dd { margin-bottom: 0; }
   #eventMap { height: 260px; border-radius: .35rem; margin-top: .75rem; background: #eef0f2; }
+  .ev-map-placeholder { display: flex; align-items: center; justify-content: center; }
   .ev-links { list-style: none; padding: 0; margin: 0; }
   .ev-links li { padding: .25rem 0; }
 
@@ -219,7 +220,16 @@
           <% if (f.matchSecretary && f.matchSecretary.trim()) { %><dt>Match Secretary</dt><dd><%= f.matchSecretary %></dd><% } %>
         </dl>
         <% if (f.venueLink) { %><p class="mt-2 mb-0"><a href="<%= f.venueLink %>" target="_blank" rel="noopener">Open in Google Maps</a></p><% } %>
-        <% if (f.placeId) { %><div id="eventMap" aria-label="Map of <%= f.venueName %>"></div><% } %>
+        <%# Tap to load (Stockport's HARD-46, as /info/clubs did in Oct 2026): the Maps script,
+            three libraries and a Places lookup were ~800 KB on every visit, the tile became
+            the page's LCP, and each view spent Maps and Places quota whether or not anyone
+            looked. The button sits in the map's own fixed-height box, so nothing shifts when
+            the map replaces it. Script: the bottom of this file. %>
+        <% if (f.placeId) { %>
+        <div id="eventMap" class="ev-map-placeholder" aria-label="Map of <%= f.venueName %>">
+          <button type="button" id="showEventMap" class="btn btn-outline-primary btn-sm"><%- icon('map-location-dot') %> Show map</button>
+        </div>
+        <% } %>
       </section>
 
       <section class="ev-card" aria-labelledby="ev-more">
@@ -254,7 +264,22 @@ async function initMap() {
   const map = new Map(document.getElementById("eventMap"), { center: place.location, zoom: 15, mapId: "DEMO_MAP_ID" });
   new google.maps.marker.AdvancedMarkerElement({ position: place.location, map: map });
 }
-initMap();
+// Only when asked: the loader above is a stub that fetches nothing until importLibrary is
+// called. A failed load says so and can be tried again.
+(function () {
+  var btn = document.getElementById('showEventMap');
+  if (!btn) { return; }
+  btn.addEventListener('click', function () {
+    if (btn.disabled) { return; }
+    btn.disabled = true;
+    btn.textContent = 'Loading map…';
+    initMap().catch(function (err) {
+      console.log('[event map] load failed', err);
+      btn.disabled = false;
+      btn.textContent = "Couldn't load the map. Try again";
+    });
+  });
+})();
 </script>
 <% } %>
 

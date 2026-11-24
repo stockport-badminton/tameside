@@ -13,8 +13,11 @@ This list used to exist only in the assistant's memory, which nobody else could 
 did not track. Keep it here, and keep it current: when something lands, move its brief to
 `done/` or delete the row.
 
-Last reviewed 23 Nov 2026, against Stockport's ratings, predictions, event-page and route
-lockdown commits from 2 to 22 Nov (league-site `b3ff421`). The 2 Nov review covered about
+Last reviewed 24 Nov 2026, against league-site `7ce4dca` and its open HARD and REARCH briefs.
+That pass took HARD-46 (event-page map on tap) and the 404 half of `7ce4dca` (no service
+worker from a 404); the withdrawn-team half doesn't apply, as we have no withdrawn teams.
+The 23 Nov review covered Stockport's ratings, predictions, event-page and route lockdown
+commits from 2 to 22 Nov (league-site `b3ff421`). The 2 Nov review covered about
 110 commits from 3 Oct plus their open HARD and REARCH briefs.
 
 ## Open, in order
@@ -24,6 +27,7 @@ lockdown commits from 2 to 22 Nov (league-site `b3ff421`). The 2 Nov review cove
 | 2 | CSP resource allowlist | league-site `docs/hardening/done/HARD-12-security-headers.md` | The helmet headers and the enforced CSP baseline landed 4 Nov 2026 (`utils/securityHeaders.js`). Still to do: the allowlist, run report-only first behind a `/csp-report` collector, as Stockport did. Removing inline script is a separate job (their HARD-15, absorbed by REARCH-07). |
 | 5 | Weekly fixtures post links to the division | — | Ours: `controllers/weeklyFixturesController.js` uses `siteUrl()`, the homepage. Stockport's c482fc3 did the result posts (we already do) and not this one, so this goes beyond them. |
 | — | OCR for the v2 scorecard | [BL-05](BL-05-ocr-scorecard-v2.md) | Ours alone. Waits on the committee adopting the card (sent to captains 16 Nov 2026). The A/B write-in box is done (v2.1); a printed version mark is still worth asking for before printing — see the brief. |
+| — | PDF scorecards whose image is `/FlateDecode` | league-site `docs/hardening/HARD-29-flatedecode-scorecards.md` | Low: about one card a season there. Ours decline for other reasons first (MRC layers, two pages; see CLAUDE.md, Document scorecards), so measure our archive's share before building it. |
 | — | `/sign-s3` lets the client choose the key | [BL-02](BL-02-sign-s3-server-keys.md) | Parked 30 Oct 2026. |
 | — | Build social cards from layers | [BL-03](BL-03-social-card-layers.md) | Parked 2 Oct 2026. |
 
@@ -36,6 +40,8 @@ lockdown commits from 2 to 22 Nov (league-site `b3ff421`). The 2 Nov review cove
 | Drop `player_id_key` / `team_id_key` | — | Ours alone. Each duplicates its `_pkey`, but six FKs are bound to them (four to player's, the two `tameside_draft_fixture` team FKs to team's; see `migrations/drop-redundant-indexes.sql`). One migration: recreate those six against the pkeys (`NOT VALID`, then `VALIDATE`), then drop both keys, **never with CASCADE**. Small gain (a few kB, a duplicate btree write); off-season because `player` is read by every page. Raised 2 Nov 2026. |
 | Weekly rating snapshots and the "about these ratings" text | league-site `88de0ee`, `3dbfd9e`, `f9e1ac0`, `d02a3c0`, migration 038 | Row 7 has landed. Theirs reads the REARCH-02 history tables (`player_at`, `team_season`). Ours would use `team<season>` until season history lands. |
 | Other league's games in the ratings | league-site `63504e2`, migration 033, `utils/externalLeagues.js` | Optional. Row 7 has landed; check it with `tools/strength-backtest.js`. Stockport already reads **our** DB read-only for this (`TAMESIDE_DATABASE_URL`). The reverse needs a read-only Stockport credential. Players are linked only on a unique exact name match with compatible gender, never by id. |
+| One outbox for every side effect | league-site `docs/hardening/2728-rearch/REARCH-05-outbox.md` | Smaller here: we have `social_result_post` and `sendResultZap`'s swallow-and-log, no `afterCommit`, Threads queue or invoice run. Worth it mainly if a second queue appears. |
+| `req.user` as our own object; logging defaults | league-site `docs/hardening/2728-rearch/REARCH-09-small-defaults.md` | Part A fits us directly: we write DB roles into Auth0's claim namespace at login too (`authz.applyRoleClaims`), and four views spell those keys out. Part C (tokenless drafts) doesn't apply: we have no draft tokens. |
 | Per-season Elo rank | league-site commit `18d1067` | Accuracy, not speed. Deferred 2 Oct 2026. The backfill rates the past with each player's *current* team's division (see CLAUDE.md, Elo). |
 
 ## Skipped, and why

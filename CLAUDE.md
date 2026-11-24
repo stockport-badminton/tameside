@@ -319,6 +319,11 @@ team-strength run's nameless `public` block (`TeamStrength.forecastFor`).
 - Each extra (context, forecast, table) fails on its own and leaves its section out; a test
   that renders the page must stub `Fixture.getMatchContext`, `TeamStrength.forecastFor` and
   `League.getRunIn`, or it opens a DB connection.
+- **The venue map loads on tap** (Stockport's HARD-46, 24 Nov 2026), like `/info/clubs`. The
+  Maps loader in the page is a stub that fetches nothing until `initMap` runs from the button;
+  eager, it was ~800 KB, the page's LCP and a Places lookup on every visit. **The Maps key
+  refuses localhost** (Places 403s), so a local map always fails; check it by serving the
+  local HTML at the production origin with Playwright's `page.route`.
 - Dates are `utils/ukDate.js`: by hand, in Europe/London. `fixture.date` is UK midnight, so
   a summer fixture read with the server's clock is the evening before.
 
