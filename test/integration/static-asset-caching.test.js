@@ -53,13 +53,18 @@ describe('Cache-Control on the static mounts', () => {
   test('the vendor files are served from their own mounts', async () => {
     for (const url of [
       '/scripts/bootstrap/dist/js/bootstrap.bundle.min.js',
-      '/scripts/ejs/ejs.js',
       '/scripts/jquery/dist/jquery.min.js',
     ]) {
       const res = await request(app).get(url);
       assert.strictEqual(res.status, 200, url);
       assert.strictEqual(res.headers['cache-control'], 'public, max-age=3600', url);
     }
+  });
+
+  // Client-side EJS needed CSP 'unsafe-eval' (static/js/form-options.js replaced it).
+  test('the ejs package is not served to browsers', async () => {
+    const res = await request(app).get('/scripts/ejs/ejs.js');
+    assert.strictEqual(res.status, 404);
   });
 
   // Two revisions serve side by side during a deploy, so the new page's `?v=<new>` can

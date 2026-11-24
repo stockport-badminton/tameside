@@ -129,8 +129,9 @@ describe('B: the error re-render keeps the choice and cannot post a label', () =
   it('no placeholder on the wizard has a label for a value, disabled or not', () => {
     // A disabled option is not submitted with the form, but script reading `select.value`
     // still gets its label: the OCR rematch posted "Choose..." as a team id
-    // (TAMESIDE-NODE-4). The static templates fill the wizard's selects client-side.
-    for (const file of ['views/email-scorecard.ejs', 'static/formOption.ejs', 'static/playerFormOptions.ejs',
+    // (TAMESIDE-NODE-4). The client-side fill (static/js/form-options.js) is pinned in
+    // test/form-options.test.js.
+    for (const file of ['views/email-scorecard.ejs',
       'views/populated-scorecard.ejs', 'views/index-scorecard.ejs', 'views/contact-us-form.ejs']) {
       const src = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
       const valueless = (src.match(/<option(?![^>]*\bvalue=)[^>]*>/g) || []);
@@ -147,13 +148,13 @@ describe('B: the error re-render keeps the choice and cannot post a label', () =
     assert.deepStrictEqual(disabled, []);
   });
 
-  it('the confirmation form loads option templates that exist', () => {
-    // It asked for /static/beta/*.ejs, which never existed here, so changing the division
-    // or a team on that page silently did nothing.
+  // It used to ask for /static/beta/*.ejs, which never existed here, so changing the
+  // division or a team on that page silently did nothing. Now the fill is a script.
+  it('the confirmation form loads the option builder it calls', () => {
     const src = fs.readFileSync(path.join(__dirname, '..', 'views', 'populated-scorecard.ejs'), 'utf8');
-    const urls = src.match(/\/static\/[\w/.-]+\.ejs/g) || [];
-    assert.ok(urls.length, 'expected option template urls');
-    for (const u of urls) assert.ok(fs.existsSync(path.join(__dirname, '..', u.slice(1))), u + ' does not exist');
+    assert.match(src, /FormOptions\.fill(Teams|Players)/);
+    assert.match(src, /assetUrl\('\/static\/js\/form-options\.js'\)/);
+    assert.ok(fs.existsSync(path.join(__dirname, '..', 'static', 'js', 'form-options.js')));
   });
 
   it('every player select passes the posted value through to the partial', () => {

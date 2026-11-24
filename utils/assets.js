@@ -32,11 +32,11 @@ const ROOT = path.join(__dirname, '..');
 // What /scripts serves. It used to be the whole of node_modules, which published every
 // installed package's files; these are the only ones a page asks for.
 //   bootstrap/dist  static/js/main.js imports the bundle on every page
-//   ejs             client-side templates on the scorecard and player-form pages
 //   jquery/dist     footer.ejs, on the pages that opt in with useJQuery
+// Not ejs: the scorecard pages templated in the browser with it until Nov 2026, which
+// needed CSP 'unsafe-eval'. static/js/form-options.js replaced it. Don't serve it again.
 const VENDOR_DIRS = [
   'bootstrap/dist',
-  'ejs',
   'jquery/dist'
 ];
 

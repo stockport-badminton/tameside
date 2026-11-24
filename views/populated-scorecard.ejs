@@ -996,7 +996,8 @@
        </div><!-- /.modal -->
     <% } %>
     <%- include('footer.ejs', { useJQuery: true }) %>
-    <script type="text/javascript" src="/scripts/ejs/ejs.js"></script>
+    <%# Options built with DOM calls, not EJS in the browser: that needs CSP 'unsafe-eval'. %>
+    <script src="<%= assetUrl('/static/js/form-options.js') %>"></script>
     <% if (typeof photo !== 'undefined' && photo) { %>
     <script src="<%= assetUrl('/static/js/scorecard-upload.js') %>"></script>
     <script src="<%= assetUrl('/static/js/scorecard-photo-replace.js') %>"></script>
@@ -1014,51 +1015,26 @@
       })
       $("#division").change(function(){
         var selectedDivision = this.value;
-        $.get('/static/formOption.ejs', function (template) {
-            $.post('/teams', {'divisionId':selectedDivision}, function (data) {
-               // Generate the html from the given data.
-               var html = ejs.render(template,{data:data});
-               $('#homeTeam').html(html);
-               $('#awayTeam').html(html);
-            });
+        $.post('/teams', {'divisionId':selectedDivision}, function (data) {
+           FormOptions.fillTeams('#homeTeam, #awayTeam', data);
         });
       })
       $("#homeTeam").change(function(){
         var selectedTeam = this.value;
-        $.get('/static/playerFormOptions.ejs', function (template) {
-            $.get('/eligiblePlayers/'+selectedTeam+'/Male', function (data) {
-               // Generate the html from the given data.
-               var html = ejs.render(template,{data:data});
-               $('#homeMan1').html(html);
-               $('#homeMan2').html(html);
-               $('#homeMan3').html(html);
-            });
-            $.get('/eligiblePlayers/'+selectedTeam+'/Female', function (data) {
-               // Generate the html from the given data.
-               var html = ejs.render(template,{data:data});
-               $('#homeLady1').html(html);
-               $('#homeLady2').html(html);
-               $('#homeLady3').html(html);
-            });
+        $.get('/eligiblePlayers/'+selectedTeam+'/Male', function (data) {
+           FormOptions.fillPlayers('#homeMan1, #homeMan2, #homeMan3, #homeMan4', data);
+        });
+        $.get('/eligiblePlayers/'+selectedTeam+'/Female', function (data) {
+           FormOptions.fillPlayers('#homeLady1, #homeLady2', data);
         });
       })
       $("#awayTeam").change(function(){
         var selectedTeam = this.value;
-        $.get('/static/playerFormOptions.ejs', function (template) {
-            $.get('/eligiblePlayers/'+selectedTeam+'/Male', function (data) {
-               // Generate the html from the given data.
-               var html = ejs.render(template,{data:data});
-               $('#awayMan1').html(html);
-               $('#awayMan2').html(html);
-               $('#awayMan3').html(html);
-            });
-            $.get('/eligiblePlayers/'+selectedTeam+'/Female', function (data) {
-               // Generate the html from the given data.
-               var html = ejs.render(template,{data:data});
-               $('#awayLady1').html(html);
-               $('#awayLady2').html(html);
-               $('#awayLady3').html(html);
-            });
+        $.get('/eligiblePlayers/'+selectedTeam+'/Male', function (data) {
+           FormOptions.fillPlayers('#awayMan1, #awayMan2, #awayMan3, #awayMan4', data);
+        });
+        $.get('/eligiblePlayers/'+selectedTeam+'/Female', function (data) {
+           FormOptions.fillPlayers('#awayLady1, #awayLady2', data);
         });
       })
       $("#homeMan1, #homeMan2, #homeMan3, #homeMan4, #homeLady1, #homeLady2, #awayMan1, #awayMan2, #awayMan3, #awayMan4, #awayLady1, #awayLady2").change(function(){

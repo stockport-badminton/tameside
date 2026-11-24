@@ -53,13 +53,13 @@
 // 4. `CSP_ENFORCE=true npm run test:e2e` passes (playwright.config.js passes the variable
 //    through to the server it starts).
 //
-// Known blocker for 4: the scorecard pages render their <option> lists with EJS IN THE
-// BROWSER (/scripts/ejs/ejs.js, on email-scorecard, index-scorecard and
-// populated-scorecard). EJS compiles a template with `new Function`, which needs
-// 'unsafe-eval', and that is deliberately NOT in script-src: enforcing today would leave
-// the team and player dropdowns empty. Stockport hit exactly this (5 e2e failures) and
-// removed client-side EJS rather than allowing eval (league-site 9e6f2df,
-// static/beta/js/form-options.js). Do the same here before enforcing.
+//    Met 24 Nov 2026: 65 passed, zero violations. It was 53/12 before client-side EJS
+//    went: the scorecard pages built their <option> lists with ejs.render IN THE
+//    BROWSER, which compiles with `new Function` and needs 'unsafe-eval', so every
+//    wizard spec timed out on an empty team dropdown. static/js/form-options.js builds
+//    them with DOM calls instead (as Stockport's 9e6f2df did), and /scripts no longer
+//    serves ejs. 'unsafe-eval' was never the fix and must not be added: alongside
+//    'unsafe-inline' it would leave script-src constraining only where scripts load from.
 //
 // What enforcing would and would not buy: it stops a script loading from a host not on
 // the list. It does NOT stop an injected inline script, because 'unsafe-inline' has to
@@ -114,7 +114,7 @@ function allowlist() {
       // 'unsafe-inline', which kills every attribute handler, and a handler cannot carry
       // a nonce. Removing them is Stockport's HARD-15, a separate job.
       "'unsafe-inline'",
-      // NOT 'unsafe-eval'. See "Known blocker" above.
+      // NOT 'unsafe-eval'. See check 4 above.
 
       'https://js-de.sentry-cdn.com',    // header.ejs: the browser Sentry loader
       'https://browser.sentry-cdn.com',  // what that loader fetches, and every

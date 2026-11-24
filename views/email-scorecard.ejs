@@ -759,7 +759,7 @@
        </div><!-- /.modal -->
     <% } %>
     <%- include('footer.ejs') %>
-    <script type="text/javascript" src="/scripts/ejs/ejs.js"></script>
+    <script src="<%= assetUrl('/static/js/form-options.js') %>"></script>
     <script src="<%= assetUrl('/static/js/scorecard-upload.js') %>"></script>
     <script>window.scorecardUpload.guardSubmit(document.getElementById('signupForm'));</script>
 
@@ -1001,35 +1001,24 @@
       });
 
       // ---- Division -> teams -> eligible players cascades ----
-      var templates = {};
-      function template(name) {
-        if (!templates[name]) {
-          templates[name] = fetch('/static/' + name)
-            .then(function (r) { if (!r.ok) throw new Error(name + ' HTTP ' + r.status); return r.text(); })
-            .catch(function (e) { delete templates[name]; throw e; });
-        }
-        return templates[name];
-      }
       function getJSON(url, opts) {
         return fetch(url, opts).then(function (r) {
           if (!r.ok) throw new Error(url + ' HTTP ' + r.status);
           return r.json();
         });
       }
-      function fillSelects(ids, html) {
-        ids.forEach(function (id) { var s = byId(id); if (s) s.innerHTML = html; });
-      }
+      // static/js/form-options.js builds the options with DOM calls, not EJS in the
+      // browser, which needs CSP 'unsafe-eval' (utils/securityHeaders.js).
+      function selects(ids) { return ids.map(byId).filter(Boolean); }
       // console.log, not console.error: browser Sentry captures level 'error'.
       function cascadeFailed(e) { console.log('scorecard form options failed to load:', e && e.message); }
 
       var division = byId('division');
       if (division) division.addEventListener('change', function () {
-        Promise.all([
-          template('formOption.ejs'),
-          getJSON('/teams', { method: 'POST', body: new URLSearchParams({ divisionId: division.value }) }),
-        ]).then(function (r) {
-          fillSelects(['homeTeam', 'awayTeam'], ejs.render(r[0], { data: r[1] }));
-        }).catch(cascadeFailed);
+        getJSON('/teams', { method: 'POST', body: new URLSearchParams({ divisionId: division.value }) })
+          .then(function (data) {
+            FormOptions.fillTeams(selects(['homeTeam', 'awayTeam']), data);
+          }).catch(cascadeFailed);
       });
 
       ['home', 'away'].forEach(function (side) {
@@ -1037,13 +1026,11 @@
         if (!team) return;
         team.addEventListener('change', function () {
           var teamId = team.value;
-          template('playerFormOptions.ejs').then(function (tpl) {
-            getJSON('/eligiblePlayers/' + teamId + '/Male').then(function (data) {
-              fillSelects([side + 'Man1', side + 'Man2', side + 'Man3', side + 'Man4'], ejs.render(tpl, { data: data }));
-            }).catch(cascadeFailed);
-            getJSON('/eligiblePlayers/' + teamId + '/Female').then(function (data) {
-              fillSelects([side + 'Lady1', side + 'Lady2'], ejs.render(tpl, { data: data }));
-            }).catch(cascadeFailed);
+          getJSON('/eligiblePlayers/' + teamId + '/Male').then(function (data) {
+            FormOptions.fillPlayers(selects([side + 'Man1', side + 'Man2', side + 'Man3', side + 'Man4']), data);
+          }).catch(cascadeFailed);
+          getJSON('/eligiblePlayers/' + teamId + '/Female').then(function (data) {
+            FormOptions.fillPlayers(selects([side + 'Lady1', side + 'Lady2']), data);
           }).catch(cascadeFailed);
         });
       });

@@ -1,6 +1,6 @@
 <%#
   Player options for one select on the scorecard form's ERROR re-render.
-  (The happy path builds these client-side from static/playerFormOptions.ejs.)
+  (The happy path builds these client-side with static/js/form-options.js.)
 
   `selectedValue` is the value the captain posted, and it exists because of a real trap:
   the partial used to mark a row selected only where `row[ordinalKey] == 1`, which no row

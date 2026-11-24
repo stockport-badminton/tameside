@@ -455,11 +455,16 @@ images and so cannot blank a page. The resource allowlist goes out as
 (structured, in Cloud Logging). `CSP_ENFORCE=true` merges the allowlist into the enforced
 header; unset it to roll back.
 
-- **Do not set `CSP_ENFORCE` before the four checks in `utils/securityHeaders.js`.** The
-  known blocker: the scorecard pages template `<option>` lists with **EJS in the
-  browser**, which needs `'unsafe-eval'`, deliberately not allowed. Enforcing today would
-  leave the wizard's dropdowns empty. Remove client-side EJS first, as Stockport did
-  (league-site `9e6f2df`, `form-options.js`); don't add `'unsafe-eval'`.
+- **Do not set `CSP_ENFORCE` before the four checks in `utils/securityHeaders.js`.**
+  The e2e one is met (65/65 enforcing, 24 Nov 2026); the page walk and a real photo
+  upload are not.
+- **No templating in the browser.** The scorecard pages used to build their `<option>`
+  lists with client-side EJS, which compiles with `new Function` and needs
+  `'unsafe-eval'`: enforcing left every wizard dropdown empty (12 e2e failures).
+  `static/js/form-options.js` (`FormOptions.fillTeams` / `fillPlayers`, Stockport's
+  `9e6f2df` API) builds them with DOM calls, and `/scripts` no longer serves `ejs`. Its
+  output is ours, not Stockport's: placeholder `value="" disabled selected`, "No Player"
+  options last. Never add `'unsafe-eval'`. `test/form-options.test.js`.
 - **`'unsafe-inline'` stays in `script-src`** (~86 inline handlers). The policy restricts
   where scripts load from, not inline script. Removing those is Stockport's HARD-15.
 - **Ours, not Stockport's:** `frame-src blob:` (the PDF preview iframes),
@@ -2148,8 +2153,8 @@ Rules that follow, all pinned by `test/scorecard-no-player.test.js`:
   (`selectedValue`), not what the ordinal columns say, so a `No Player` choice survives a
   validation error. `side` picks the matching home/away label — cosmetic, since both carry
   `0`, but showing "No Player Home Team" in an away dropdown reads like a bug.
-- The happy path builds these selects client-side from `static/playerFormOptions.ejs`,
-  whose placeholder is already `disabled`. Only the **error re-render** used the server
+- The happy path builds these selects client-side with `static/js/form-options.js`
+  (formerly `static/playerFormOptions.ejs`), whose placeholder is already `disabled`. Only the **error re-render** used the server
   partial, which is why this went unnoticed for so long: it needs a first failure to reach.
 
 Badminton scoring rules enforced in `fixtureController.validateScorecard`:
