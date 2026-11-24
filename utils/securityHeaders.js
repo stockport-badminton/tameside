@@ -199,7 +199,13 @@ function allowlist() {
       'https://recaptcha.google.com',
     ],
 
-    'worker-src': ["'self'"],   // /sw.js, registered by pwa-head.ejs
+    'worker-src': [
+      "'self'",   // /sw.js, registered by pwa-head.ejs
+      // Sentry's loader bundle (bundle.tracing.replay) compresses in a Worker built from a
+      // blob URL. First report 24 Nov 2026 on /populated-scorecard-beta/2352; Stockport
+      // allowed the same. A worker from a blob this origin made, not script from anywhere.
+      'blob:',
+    ],
     'manifest-src': ["'self'"], // /manifest.json
     'media-src': ["'self'"],    // admin/weekly-video-preview.ejs: /social-video/:aspect
   };
