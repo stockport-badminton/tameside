@@ -78,10 +78,28 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
+// Chrome no longer honours report-uri; it wants a named group declared in this header.
+// Firefox and Safari have it the other way round, so both go out.
+app.use(function (req, res, next) {
+  const endpoints = securityHeaders.reportingEndpointsHeader();
+  if (endpoints) res.setHeader('Reporting-Endpoints', endpoints);
+  next();
+});
+
+// Two CSP headers: the enforced baseline, and the resource allowlist report-only until
+// CSP_ENFORCE=true merges it into the first. See utils/securityHeaders.js.
 app.use(helmet.contentSecurityPolicy({
   useDefaults: false,
   directives: securityHeaders.enforcedDirectives(),
 }));
+
+if (securityHeaders.observedDirectives()) {
+  app.use(helmet.contentSecurityPolicy({
+    useDefaults: false,
+    reportOnly: true,
+    directives: securityHeaders.observedDirectives(),
+  }));
+}
 
 // Whether views/pwa-head.ejs registers the service worker.
 //
@@ -241,6 +259,16 @@ function healthCheck(req, res) {
 }
 app.get('/health', access.public, healthCheck);
 app.get('/healthz', access.public, healthCheck);
+
+// Where the CSP sends its violations (controllers/cspReportController.js). Up here, above
+// compression and the global JSON parser, with a parser of its own: browsers send
+// application/csp-report or application/reports+json, which the global one ignores.
+app.post(securityHeaders.REPORT_PATH, access.public,
+  express.json({
+    type: ['application/csp-report', 'application/reports+json', 'application/json'],
+    limit: '32kb',
+  }),
+  require('./controllers/cspReportController').receive);
 
 
 // Compress text responses. Registered ahead of the static mounts and all routes so

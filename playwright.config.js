@@ -25,6 +25,10 @@ module.exports = defineConfig({
       PORT: PORT,
       DEV_MODE: 'true',
       NODE_ENV: 'development',
+      // `CSP_ENFORCE=true npm run test:e2e` runs the suite with the CSP allowlist
+      // enforced: prerequisite 4 in utils/securityHeaders.js. Needs a fresh server, so
+      // stop any dev server on this port first (reuseExistingServer would keep it).
+      ...(process.env.CSP_ENFORCE ? { CSP_ENFORCE: process.env.CSP_ENFORCE } : {}),
     },
   },
 });

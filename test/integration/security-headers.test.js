@@ -44,7 +44,7 @@ describe('security headers are on every response', () => {
   }
 });
 
-describe('the CSP is the baseline only', () => {
+describe('the enforced CSP is the baseline only', () => {
   test('it carries the four structural directives', async () => {
     const res = await request(app).get('/privacy-policy');
     const csp = directives(res.headers['content-security-policy']);
@@ -62,14 +62,67 @@ describe('the CSP is the baseline only', () => {
     assert.deepStrictEqual(csp['form-action'], ["'self'", `https://${process.env.AUTH0_DOMAIN}`]);
   });
 
-  // The resource allowlist has not been observed yet. With a default-src, or any *-src,
-  // enforced today, every CDN script and style the site loads would be blocked.
+  // The allowlist is still report-only. With a default-src, or any *-src, enforced
+  // today, a host nobody remembered would be blocked for real visitors.
   test('it names no source of scripts, styles, images or connections', async () => {
     const res = await request(app).get('/privacy-policy');
     const names = Object.keys(directives(res.headers['content-security-policy']));
     const sources = names.filter((n) => n.endsWith('-src') && n !== 'object-src');
     assert.deepStrictEqual(sources, []);
-    assert.strictEqual(res.headers['content-security-policy-report-only'], undefined);
+  });
+});
+
+describe('the resource allowlist is report-only', () => {
+  async function observed() {
+    const res = await request(app).get('/privacy-policy');
+    assert.ok(res.headers['content-security-policy-report-only'], 'report-only header present');
+    return { res, csp: directives(res.headers['content-security-policy-report-only']) };
+  }
+
+  test('it is on every kind of response', async () => {
+    for (const [, url] of RESPONSES) {
+      const res = await request(app).get(url);
+      assert.ok(res.headers['content-security-policy-report-only'], url);
+    }
+  });
+
+  test('it reports to our own collector, both ways browsers do it', async () => {
+    const { res, csp } = await observed();
+    assert.deepStrictEqual(csp['report-uri'], ['/csp-report']);
+    assert.deepStrictEqual(csp['report-to'], ['csp-endpoint']);
+    assert.strictEqual(res.headers['reporting-endpoints'], 'csp-endpoint="/csp-report"');
+  });
+
+  test('default-src is self', async () => {
+    const { csp } = await observed();
+    assert.deepStrictEqual(csp['default-src'], ["'self'"]);
+  });
+
+  // The scorecard pages' client-side EJS needs eval. The fix is to stop templating in
+  // the browser (Stockport 9e6f2df), not to allow it: with 'unsafe-inline' already in,
+  // eval as well would leave script-src constraining only where scripts load from.
+  test("script-src does not allow 'unsafe-eval'", async () => {
+    const { csp } = await observed();
+    assert.ok(!csp['script-src'].includes("'unsafe-eval'"));
+  });
+
+  // The photo is PUT from the browser straight to the presigned URL.
+  test('connect-src allows the photo upload to the bucket, both host spellings', async () => {
+    const { csp } = await observed();
+    assert.ok(csp['connect-src'].includes('https://test-bucket.s3.eu-west-1.amazonaws.com'));
+    assert.ok(csp['connect-src'].includes('https://test-bucket.s3-eu-west-1.amazonaws.com'));
+  });
+
+  // The PDF previews are iframes on URL.createObjectURL(file).
+  test('frame-src allows the blob: PDF preview', async () => {
+    const { csp } = await observed();
+    assert.ok(csp['frame-src'].includes('blob:'));
+  });
+
+  test('img-src allows the data: and blob: photo previews', async () => {
+    const { csp } = await observed();
+    assert.ok(csp['img-src'].includes('data:'));
+    assert.ok(csp['img-src'].includes('blob:'));
   });
 });
 

@@ -443,23 +443,46 @@ Font Awesome's CSS and webfonts are out of `style.css` (339 KB → 236 KB raw) a
 ### Security headers
 
 `helmet` is mounted first in `app.js`, so every response gets the headers: pages, static
-assets, 404s and `/health`. The policy and its reasons are in `utils/securityHeaders.js`.
-It is ported from Stockport's HARD-12, Nov 2026, but **only the enforced CSP baseline**:
-`frame-ancestors`, `base-uri`, `object-src` and `form-action`. Nothing in it names a
-source of scripts, styles or images, so it cannot blank a page.
+assets, 404s and `/health`. The policy, its reasons and the enforcement checklist are in
+`utils/securityHeaders.js`. Ported from Stockport's HARD-12 (baseline 4 Nov 2026,
+allowlist 24 Nov 2026).
 
-- **The resource allowlist (`script-src` and the rest) is not here yet.** It is the part
-  that can break the scorecard wizard. Stockport ran theirs report-only, with a
-  `/csp-report` collector, before enforcing it. Their findings are in league-site
-  `docs/hardening/done/HARD-12-security-headers.md`, including the quilljs redirect
-  trap and S3 needing `connect-src`.
-- **`form-action` includes the Auth0 domain, unlike Stockport's.** Chrome checks it on
-  every redirect a submission follows, so a POST from an expired session (→ `/login` →
-  Auth0) would otherwise be blocked.
+**Two CSP headers.** The enforced one is the baseline only (`frame-ancestors`,
+`base-uri`, `object-src`, `form-action`), which names no source of scripts, styles or
+images and so cannot blank a page. The resource allowlist goes out as
+`Content-Security-Policy-Report-Only`; violations are POSTed to `/csp-report`
+(`controllers/cspReportController.js`) and logged as `csp-report: <directive> <blocked>`
+(structured, in Cloud Logging). `CSP_ENFORCE=true` merges the allowlist into the enforced
+header; unset it to roll back.
+
+- **Do not set `CSP_ENFORCE` before the four checks in `utils/securityHeaders.js`.** The
+  known blocker: the scorecard pages template `<option>` lists with **EJS in the
+  browser**, which needs `'unsafe-eval'`, deliberately not allowed. Enforcing today would
+  leave the wizard's dropdowns empty. Remove client-side EJS first, as Stockport did
+  (league-site `9e6f2df`, `form-options.js`); don't add `'unsafe-eval'`.
+- **`'unsafe-inline'` stays in `script-src`** (~86 inline handlers). The policy restricts
+  where scripts load from, not inline script. Removing those is Stockport's HARD-15.
+- **Ours, not Stockport's:** `frame-src blob:` (the PDF preview iframes),
+  `img-src data: blob:` (photo and document previews), and `form-action` includes the
+  Auth0 domain (Chrome checks it on every redirect a submission follows, so a POST from an
+  expired session → `/login` → Auth0 would otherwise be blocked).
+- **The photo upload is a browser PUT straight to S3**, so the bucket is in `connect-src`
+  (both host spellings, derived from `S3_BUCKET_NAME`). Playwright never performs it;
+  only a real upload proves it.
+- **CSP checks every hop of a redirect and reports the pre-redirect URL**:
+  `cdn.quilljs.com` 301s to `cdn.jsdelivr.net`, so a violation can name a host that is
+  plainly on the list.
+- A page with no reports may be clean or unvisited. Check the request log before reading
+  anything into silence.
+- Adding a CDN `<script src>` or stylesheet to a view: add its host to the allowlist with
+  the template named. `test/security-headers.test.js` scans `views/` and fails otherwise;
+  runtime-injected hosts only show up in the reports.
 - CORP is `cross-origin` because our images are shown elsewhere (emails, link previews).
   HSTS is set without `includeSubDomains`. Firebase sends HSTS too, but only on the
   custom domain.
-- `test/integration/security-headers.test.js`.
+- `test/integration/security-headers.test.js`, `test/integration/csp-report.test.js`,
+  `test/security-headers.test.js`. `CSP_ENFORCE=true npm run test:e2e` runs the browser
+  suite enforcing.
 
 ### Route access declarations
 
@@ -2025,6 +2048,9 @@ LOGIN_CULL_TOKEN   # Shared secret for the monthly login cull (/tasks/login-cull
                    # Unset means the route 404s. See docs/login-cull.md.
 STRENGTH_RUN_TOKEN # Shared secret for the nightly team-strength run
                    # (POST /admin/team-strength/run?t=...). Unset: only a superadmin runs it.
+CSP_ENFORCE        # 'true' enforces the CSP resource allowlist; unset it is report-only.
+                   # Read the checklist in utils/securityHeaders.js before setting it.
+CSP_REPORT_URI     # Where CSP violations go. Unset: /csp-report. '' : no reporting.
 SOCIAL_WEEKLY_VIDEO_TOKEN     # Shared secret for BOTH weekly-video routes (generate and
                    # post). Unset means that post is inert. One token per post rather than
                    # a shared one, so a post can be turned off on its own.
