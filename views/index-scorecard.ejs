@@ -30,6 +30,9 @@
         <% } %>
         <% if (hasScorecardData) { %>
           <p>Some Scorecard Data</p>
+          <% if (locals.pushNote) { %>
+            <p class="text-muted small" data-role="push-note"><%= pushNote %></p>
+          <% } %>
           <%- include('recentPlayerHistory.ejs') %>
         <% } %>
         <% if (hasResult && !hasErrors) { %>

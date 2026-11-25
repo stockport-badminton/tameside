@@ -14,6 +14,7 @@ const { hasWinner, hasValidMargin } = require("../utils/scorecardValidation");
 // Shared with every other admin-gated controller — utils/authz.js owns the claim key.
 const Sentry = require('@sentry/node');
 const eloChain = require('../utils/eloChain');
+const push = require('../utils/push');
 const authz = require("../utils/authz");
 const { isSuperAdmin } = authz;
 
@@ -1716,6 +1717,17 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                     // console.log(zapObject)
                      Fixture.sendResultZap(zapObject,function(err,zapRes){
                        if (err) res.send(err)
+                      // Push notifications to the followers of both teams (utils/push/,
+                      // Stockport 1a5f9d2). Started now, awaited before the page renders:
+                      // Cloud Run throttles the CPU once the response is sent, and a fan-out
+                      // takes about a second. Claimed per fixture first, so republishing a
+                      // corrected result notifies nobody a second time. Never rejects, so it
+                      // can never fail the publish; null tells the page it went wrong.
+                      const pushed = push.notifyResult(FixtureIdResult[0].id).catch(pushErr => {
+                        console.error(`[push] result for fixture ${FixtureIdResult[0].id} failed: ${pushErr.message}`);
+                        Sentry.captureException(pushErr, { tags: { step: 'push result' } });
+                        return null;
+                      });
                       Player.getNominatedPlayers(getFixtureDetailsResult[0].homeTeam,function(err,homeTeamNomPlayers){
                         if (err) res.send(err)
                         Player.getNominatedPlayers(getFixtureDetailsResult[0].awayTeam,function(err,awayTeamNomPlayers){
@@ -1770,7 +1782,12 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                                     },
                                     customId: 'WebsiteUpdated',
                                   })
-                                  .then(()=>{                                
+                                // Settled rather than chained, so a mail failure still waits
+                                // for the push and is never an unhandled rejection meanwhile.
+                                const mailed = request.then(() => null, error => error);
+                                Promise.all([mailed, pushed])
+                                  .then(([mailError, pushResult])=>{
+                                    if (mailError) throw mailError;
                                     res.render('index-scorecard',{
                                       static_path:'/static',
                                       theme:process.env.THEME || 'flatly',
@@ -1780,7 +1797,8 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                                       homeTeamNomPlayers:homeTeamNomPlayers,
                                       awayTeamNomPlayers:awayTeamNomPlayers,
                                       homeTeamFixturePlayers:homeTeamFixturePlayers,
-                                      awayTeamFixturePlayers:awayTeamFixturePlayers
+                                      awayTeamFixturePlayers:awayTeamFixturePlayers,
+                                      pushNote: push.pushNote(pushResult)
                                     })
                                   })
                                   .catch(error => {

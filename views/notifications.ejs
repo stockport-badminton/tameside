@@ -1,0 +1,99 @@
+<%- include('header.ejs') %>
+<%- include('nav.ejs') %>
+
+<%#
+  Opt-in for push notifications (docs/push.md). Client: static/js/push-panel.js.
+  Server: controllers/pushController.js. Ported from Stockport (league-site 1a5f9d2), in
+  Bootstrap 5 and without their walkthrough video, which shows their site.
+  Exactly one [data-state] block is shown at a time; the script picks it.
+%>
+<div class="container text-start my-4">
+  <h1><%- icon('bell') %> Notifications</h1>
+  <p class="lead">
+    Get a notification on this phone or computer when your team's result is published, and a
+    reminder the evening before (6pm) and on the day (5pm) of each match.
+  </p>
+
+  <section id="push-panel" class="mb-5" aria-live="polite"
+           data-vapid-key="<%= vapidPublicKey || '' %>">
+
+    <div data-state="loading"><p class="text-muted">Checking notification settings…</p></div>
+
+    <div data-state="unavailable" hidden>
+      <p>Notifications aren't available on the site at the moment.</p>
+    </div>
+
+    <div data-state="unsupported" hidden>
+      <p>This browser doesn't support notifications. Chrome, Edge, Firefox and Safari do.</p>
+    </div>
+
+    <div data-state="ios-install" hidden>
+      <p>
+        On iPhone and iPad, add this site to your Home Screen first: tap
+        <strong>Share</strong> → <strong>Add to Home Screen</strong>, then open it from
+        there and come back to this page.
+      </p>
+    </div>
+
+    <div data-state="denied" hidden>
+      <p>
+        Notifications are blocked for this site. To turn them on, allow notifications for
+        this site in your browser or phone settings, then reload this page.
+      </p>
+    </div>
+
+    <div data-state="ready" hidden>
+      <p data-role="intro" class="fw-bold"></p>
+
+      <div class="row">
+        <fieldset class="col-md-8 mb-3">
+          <legend class="h5">Teams</legend>
+          <% clubs.forEach(function (club) {
+               var open = club.teams.some(function (t) { return t.id === preselect; }); %>
+            <details class="mb-1"<%= open ? ' open' : '' %>>
+              <summary><%= club.name %> <span class="text-muted small" data-role="club-count"></span></summary>
+              <div class="ps-3 pt-1">
+                <% club.teams.forEach(function (t) { %>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="push-team" id="team-<%= t.id %>"
+                           value="<%= t.id %>"<%= t.id === preselect ? ' checked' : '' %>>
+                    <label class="form-check-label" for="team-<%= t.id %>">
+                      <%= t.name %><% if (t.divisionName) { %> <span class="text-muted small"><%= t.divisionName %></span><% } %>
+                    </label>
+                  </div>
+                <% }) %>
+              </div>
+            </details>
+          <% }) %>
+        </fieldset>
+
+        <fieldset class="col-md-4 mb-3">
+          <legend class="h5">Notify me about</legend>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="push-type" id="type-results" value="results" checked>
+            <label class="form-check-label" for="type-results">Results</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="push-type" id="type-reminders" value="reminders" checked>
+            <label class="form-check-label" for="type-reminders">Match reminders</label>
+          </div>
+        </fieldset>
+      </div>
+
+      <button type="button" class="btn btn-primary me-2 mb-2" data-action="subscribe"></button>
+      <button type="button" class="btn btn-outline-secondary mb-2" data-action="unsubscribe" hidden>Turn off</button>
+      <p data-role="status" class="mt-2 mb-0"></p>
+    </div>
+  </section>
+
+  <p class="small text-muted">
+    Notifications are per device: turn them on on each phone or computer you want them on.
+    We keep only what's needed to send them (the address your browser gives us for this, and
+    the teams you chose), not who you are. See the <a href="/privacy-policy">privacy policy</a>.
+  </p>
+</div>
+
+<script src="<%= assetUrl('/static/js/push-panel.js') %>" defer></script>
+<%- include('footer.ejs') %>
+</body>
+</html>

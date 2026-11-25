@@ -54,6 +54,7 @@ const GROUPS = [
       { href: '/admin/social/weekly-tables', label: 'Weekly Tables Post', blurb: 'Saturday\'s league tables — preview the cards and captions.' },
       { href: '/admin/social/weekly-fixtures', label: 'Weekly Fixtures Post', blurb: 'Sunday\'s coming-week fixtures.' },
       { href: '/admin/social/weekly-video', label: 'Weekly Video Post', blurb: 'The weekly results video.' },
+      { href: '/admin/push', label: 'Push Notifications', blurb: 'Who follows which team on their phone, what has been sent, and a test send.' },
     ],
   },
   {

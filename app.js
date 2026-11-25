@@ -899,6 +899,26 @@ app.post('/admin/social/results/meta',
   access.cron(requireCronCaller({ envVar: 'SOCIAL_RESULTS_META_TOKEN', callerProp: 'socialCaller' })),
   require('./controllers/metaResultsController').run);
 
+/* Web push notifications (docs/push.md, Stockport 1a5f9d2): the opt-in page, the subscription
+   API it calls, the scheduled match reminders and the superadmin page. Results are sent from
+   the publish request (full_fixture_post), so they have no route here.
+   The API is public and called by fetch() from /notifications: no spamGate (no free text,
+   only an allowlisted push-service endpoint, team ids checked against the league's teams and
+   two type names), and the browser's same-origin headers are checked in the controller.
+   Stockport also rate-limits it; this site has no rate limiting (CLAUDE.md, Spam). */
+const push_controller = require('./controllers/pushController');
+app.get('/notifications', access.public, push_controller.notificationsPage);
+app.post('/api/push/subscribe', access.public, push_controller.subscribe);
+app.delete('/api/push/subscribe', access.public, push_controller.unsubscribe);
+app.post('/api/push/subscription', access.public, push_controller.lookup);
+// Cloud Scheduler: tbl-push-tonight (17:00) and tbl-push-tomorrow (18:00), Europe/London,
+// `?t=` like the other jobs (Stockport's is a header). Unset PUSH_CRON_TOKEN means inert.
+app.post('/admin/push/reminders',
+  access.cron(requireCronCaller({ envVar: 'PUSH_CRON_TOKEN', callerProp: 'pushCaller' })),
+  push_controller.reminders);
+app.get('/admin/push', access.superadmin, push_controller.adminPage);
+app.post('/admin/push/test', access.superadmin, push_controller.adminTest);
+
 app.get('/admin/spam', access.superadmin, spam_admin_controller.form);
 app.post('/admin/spam', access.superadmin, spam_admin_controller.add);
 app.post('/admin/spam/:id/active', access.superadmin, spam_admin_controller.toggle);

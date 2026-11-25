@@ -1,0 +1,86 @@
+<%- include('../header.ejs') %>
+<%- include('../nav.ejs') %>
+
+<%# controllers/pushController.js (adminPage, adminTest). docs/push.md has the design. %>
+<div class="container text-start my-4">
+  <h1>Push Notifications</h1>
+
+  <p>
+    Results go out when they are published; match reminders at 6pm the evening before and
+    5pm on the day (Cloud Scheduler: <code>tbl-push-tomorrow</code>, <code>tbl-push-tonight</code>).
+    Each one is sent at most once. People turn them on at <a href="/notifications">/notifications</a>.
+  </p>
+
+  <% if (!configured) { %>
+    <div class="alert alert-warning">
+      <strong>Not configured.</strong> <code>VAPID_PRIVATE_KEY</code> or <code>VAPID_PUBLIC_KEY</code>
+      is unset on this server, so nothing is sent.
+    </div>
+  <% } %>
+  <% if (notice) { %>
+    <div class="alert alert-<%= notice[0] %>"><%= notice[1] %></div>
+  <% } %>
+
+  <h2 class="h4 mt-4">Send a test</h2>
+  <form method="post" action="/admin/push/test" class="mb-2" id="push-test-form">
+    <input type="hidden" name="endpoint" value="">
+    <button type="submit" name="to" value="me" class="btn btn-primary me-2 mb-2">To this browser</button>
+    <button type="submit" name="to" value="everyone" class="btn btn-outline-danger mb-2"
+            onclick="return confirm('Send a test notification to every subscriber?')">To everyone (<%= counts.subscriptions %>)</button>
+  </form>
+  <script>
+    // "To this browser" needs this browser's subscription endpoint, which only the page knows.
+    (function () {
+      var field = document.querySelector('#push-test-form input[name="endpoint"]');
+      if (!('serviceWorker' in navigator)) return;
+      navigator.serviceWorker.ready
+        .then(function (reg) { return reg.pushManager.getSubscription(); })
+        .then(function (sub) { if (sub) field.value = sub.endpoint; })
+        .catch(function () {});
+    })();
+  </script>
+
+  <h2 class="h4 mt-4">Followers</h2>
+  <p><%= counts.subscriptions %> device<%= counts.subscriptions === 1 ? '' : 's' %> subscribed.</p>
+  <% if (counts.teams.length) { %>
+    <table class="table table-sm" style="max-width: 30rem">
+      <thead><tr><th>Team</th><th class="text-end">Devices</th></tr></thead>
+      <tbody>
+        <% counts.teams.forEach(function (t) { %>
+          <tr><td><%= t.name %></td><td class="text-end"><%= t.subscribers %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <h2 class="h4 mt-4">Recent sends</h2>
+  <% if (!sends.length) { %>
+    <p>Nothing sent yet.</p>
+  <% } else { %>
+    <%
+      var fmt = function (d) {
+        return new Date(d).toLocaleString('en-GB', { timeZone: 'Europe/London',
+          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      };
+    %>
+    <table class="table table-sm">
+      <thead><tr><th>When</th><th>What</th><th class="text-end">Devices</th><th class="text-end">Sent</th><th class="text-end">Failed</th><th class="text-end">Removed</th></tr></thead>
+      <tbody>
+        <% sends.forEach(function (s) { var m = s.summary || {}; %>
+          <tr>
+            <td><%= fmt(s.sentAt) %></td>
+            <td><code><%= s.key %></code><% if (m.skipped) { %> <span class="text-muted"><%= m.skipped %></span><% } %></td>
+            <td class="text-end"><%= m.subscribers != null ? m.subscribers : '—' %></td>
+            <td class="text-end"><%= m.sent != null ? m.sent : '—' %></td>
+            <td class="text-end"><%= m.failed || '' %></td>
+            <td class="text-end"><%= m.removed || '' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<%- include('../footer.ejs') %>
+</body>
+</html>

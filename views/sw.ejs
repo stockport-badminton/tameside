@@ -163,3 +163,38 @@ self.addEventListener('fetch', function(event) {
   // Everything else (dynamic JSON/API reads, etc.): don't call respondWith,
   // let the browser fetch it natively.
 });
+
+// ── Push notifications (utils/push/, docs/push.md) ──────────────────────────────────
+// The payload is { title, body, url, tag } from utils/push/send.js. A notification with the
+// same tag replaces an earlier one; results and each kind of reminder have their own.
+self.addEventListener('push', function(event) {
+  var data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data && event.data.text() }; }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Tameside Badminton League', {
+      body: data.body || '',
+      tag: data.tag,
+      icon: '/touch-icon-192x192.png',
+      badge: '/badge-96.png',
+      data: { url: data.url || '/' }
+    })
+  );
+});
+
+// Open the notification's page: in a window of ours that is already open, or a new one.
+// Same-origin paths only; anything else opens the homepage.
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  var path = (event.notification.data && event.notification.data.url) || '/';
+  var target = new URL(path, self.location.origin);
+  if (target.origin !== self.location.origin) { target = new URL('/', self.location.origin); }
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(windows) {
+      var existing = windows.find(function(w) { return new URL(w.url).origin === self.location.origin; });
+      if (existing && 'navigate' in existing) {
+        return existing.navigate(target.href).then(function(w) { return (w || existing).focus(); });
+      }
+      return self.clients.openWindow(target.href);
+    })
+  );
+});

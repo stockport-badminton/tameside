@@ -60,6 +60,7 @@ const MODELS = {
   InboundEmail: require('../../models/inboundEmail'),
   LewisHandicap: require('../../models/lewisHandicap'),
   TeamStrength: require('../../models/teamStrength'),
+  Push: require('../../models/push'),
 };
 for (const [name, mod] of Object.entries(MODELS)) {
   for (const key of Object.keys(mod)) {

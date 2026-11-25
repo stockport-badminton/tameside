@@ -944,6 +944,22 @@ tables (places up and down from the `promotion_places` site setting, row 6's
 - The payload names players. **A public page reads only the `public` block, through
   `TeamStrength.forecastFor`**, which holds no names or player ids (tests assert both).
 
+### Push notifications (`/notifications`)
+
+Results when published and match reminders at 18:00 the evening before and 17:00 on the day,
+to browsers that opted in per team. Ported from Stockport's `1a5f9d2` (24 Nov 2026);
+**`docs/push.md` has the design, the differences and the production setup.**
+
+- **Every send is claimed in `push_send` first**, so a republished result or a repeated
+  scheduler run sends nothing twice. **No `VAPID_PRIVATE_KEY` = nothing sent**, the kill
+  switch, and checked before the claim.
+- **The result push runs inside the publish request and is awaited before the page renders**
+  (CPU is throttled after the response), and never fails the publish; the confirmation page
+  says what happened.
+- **Lewis Shield ties get reminders**, labelled "Lewis Shield": each Lewis row is a real match.
+- Replacing the VAPID pair orphans every subscription. `tools/rehearse-push.js` runs the SQL
+  against production and rolls back. Local testing needs `SW_ENABLE=true`.
+
 ### Lewis Shield handicaps
 
 The Lewis Shield is played as a normal match and decided on **total points** over the 18
@@ -2053,6 +2069,11 @@ LOGIN_CULL_TOKEN   # Shared secret for the monthly login cull (/tasks/login-cull
                    # Unset means the route 404s. See docs/login-cull.md.
 STRENGTH_RUN_TOKEN # Shared secret for the nightly team-strength run
                    # (POST /admin/team-strength/run?t=...). Unset: only a superadmin runs it.
+VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY  # Web push key pair (npx web-push generate-vapid-keys).
+                   # Public is printed into /notifications; private signs sends. Unset
+                   # private = nothing sent. Replacing the pair orphans every subscription.
+PUSH_CRON_TOKEN    # Shared secret for the match reminders (POST /admin/push/reminders?t=...).
+                   # Unset means the route 404s for the scheduler. See docs/push.md.
 CSP_ENFORCE        # 'true' enforces the CSP resource allowlist; unset it is report-only.
                    # Read the checklist in utils/securityHeaders.js before setting it.
 CSP_REPORT_URI     # Where CSP violations go. Unset: /csp-report. '' : no reporting.
