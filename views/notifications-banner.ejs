@@ -1,0 +1,40 @@
+<%#
+  The offer to turn on notifications, at the top of the fixtures & results pages, where people
+  already come to follow their team. It hides itself on a device that already has notifications
+  on, and once dismissed (remembered in this browser). Opens the walkthrough video through
+  notifications-video.ejs. Ported from Stockport (league-site 4d6cf0d), Bootstrap 5.
+  `height: auto` because the site gives every .alert height: 100% (see roster.css).
+%>
+<section class="notifications-offer">
+  <div class="container">
+    <div class="alert alert-info alert-dismissible mb-3 py-2" role="status" id="notificationsBanner" hidden style="height: auto">
+      <%- icon('bell') %> <strong>Get your team's results and match reminders on your phone.</strong>
+      <a href="/notifications" class="alert-link">Turn on notifications</a> &middot;
+      <a href="#" class="alert-link" data-notifications-video><%- icon('circle-play') %> Watch how (1 minute)</a>
+      <button type="button" class="btn-close" aria-label="Dismiss" data-role="dismiss"></button>
+    </div>
+  </div>
+</section>
+<script>
+  (function () {
+    var KEY = 'notificationsBannerDismissed';
+    var banner = document.getElementById('notificationsBanner');
+    var dismissed = false;
+    try { dismissed = localStorage.getItem(KEY) === '1'; } catch (e) {}
+    if (dismissed) return;
+    banner.querySelector('[data-role="dismiss"]').addEventListener('click', function () {
+      banner.hidden = true;
+      try { localStorage.setItem(KEY, '1'); } catch (e) {}
+      window.tblTrack('notifications_banner_dismissed', {});
+    });
+    // Shown unless this device is already subscribed. No worker yet (a first visit) counts as
+    // not subscribed: the offer is the point of the banner.
+    function show(subscribed) { banner.hidden = !!subscribed; }
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.getRegistration) return show(false);
+    navigator.serviceWorker.getRegistration().then(function (reg) {
+      if (!reg || !reg.pushManager) return show(false);
+      return reg.pushManager.getSubscription().then(show);
+    }).catch(function () { show(false); });
+  })();
+</script>
+<%- include('notifications-video.ejs') %>

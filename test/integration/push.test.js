@@ -61,6 +61,8 @@ describe('GET /notifications', () => {
     assert.match(res.text, /<summary>Hyde[\s\S]*Hyde A[\s\S]*Hyde B[\s\S]*<summary>Shell/);
     assert.match(res.text, /name="push-team" id="team-4"\s+value="4">/);
     assert.match(res.text, /\/static\/js\/push-panel\.js\?v=/);
+    assert.match(res.text, /<a href="#" data-notifications-video>[\s\S]*?Watch how it works/);
+    assert.ok(res.text.includes('id="notificationsVideoPlayer"'));
   }));
 
   it('?team= ticks that team and opens its club', withEnv(anon, async () => {

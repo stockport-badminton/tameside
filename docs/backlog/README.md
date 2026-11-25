@@ -31,11 +31,16 @@ commits from 2 to 22 Nov (league-site `b3ff421`). The 2 Nov review covered about
 | — | `/sign-s3` lets the client choose the key | [BL-02](BL-02-sign-s3-server-keys.md) | Parked 30 Oct 2026. |
 | — | Build social cards from layers | [BL-03](BL-03-social-card-layers.md) | Parked 2 Oct 2026. |
 
+## Christmas break (matches thin out for a fortnight)
+
+| What | Brief | Different here |
+|---|---|---|
+| A local database, and the site in Docker beside it | [BL-06](BL-06-local-database.md) | We have **no** local DB and no baseline schema (ours was cloned from Stockport's), so it starts from a cleaned `pg_dump` of production. Six tasks; the dev-mode guard (their HARD-13) is the last, and can wait for the off-season. Raised 25 Nov 2026. |
+
 ## Off-season (before the June 2027 rollover)
 
 | What | Brief | Different here |
 |---|---|---|
-| A local database | league-site `docs/hardening/2728-rearch/done/REARCH-08-real-database-tests.md`, `docs/hardening/done/HARD-13-dev-database-guard.md` | Matters more here: we have **no** local DB, so Playwright reads production and SQL is rehearsed in a rolled-back transaction (`tools/rehearse-roster.js`, `tools/rotate-db-encode.js --rehearse`). |
 | Season history | league-site `docs/hardening/2728-rearch/REARCH-02-season-history.md` | Must land before `clone_season()` runs in June 2027. |
 | Drop `player_id_key` / `team_id_key` | — | Ours alone. Each duplicates its `_pkey`, but six FKs are bound to them (four to player's, the two `tameside_draft_fixture` team FKs to team's; see `migrations/drop-redundant-indexes.sql`). One migration: recreate those six against the pkeys (`NOT VALID`, then `VALIDATE`), then drop both keys, **never with CASCADE**. Small gain (a few kB, a duplicate btree write); off-season because `player` is read by every page. Raised 2 Nov 2026. |
 | Weekly rating snapshots and the "about these ratings" text | league-site `88de0ee`, `3dbfd9e`, `f9e1ac0`, `d02a3c0`, migration 038 | Row 7 has landed. Theirs reads the REARCH-02 history tables (`player_at`, `team_season`). Ours would use `team<season>` until season history lands. |

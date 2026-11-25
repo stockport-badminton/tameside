@@ -41,3 +41,4 @@ uat-cards/
 # Not committed: the SCSS is the source of truth.
 static/css/style.css
 .preview-emails/
+tools/demo-video/generated/

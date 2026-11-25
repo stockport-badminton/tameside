@@ -111,6 +111,10 @@ self.addEventListener('fetch', function(event) {
   if (request.method !== 'GET') { return; }
   if (url.origin !== self.location.origin) { return; }
   if (isExcludedPath(url.pathname)) { return; }
+  // Range requests (a <video> fetching the walkthrough, static/video/) go to the network
+  // untouched: cache.put refuses a 206, and Safari's media player is unreliable through a
+  // worker. Stockport's worker has no such guard; their video is served through it.
+  if (request.headers.has('range')) { return; }
 
   // Full page navigations: network-only, never cached. Every server-rendered
   // page embeds per-user nav/admin state, so caching full HTML risks leaking

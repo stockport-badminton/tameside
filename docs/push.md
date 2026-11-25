@@ -38,6 +38,12 @@ duplicates a league row for the same teams and day, so a tie gets one reminder.
   what this browser is subscribed to from the server, not from localStorage.
 - `views/sw.ejs`: the `push` and `notificationclick` handlers. `rootfiles/badge-96.png` is the
   monochrome status-bar badge (a bell, Stockport's file).
+- `views/notifications-banner.ejs`: the offer at the top of the fixtures & results pages
+  (`/results/…`, not the grid). Hidden on a device already subscribed, and once dismissed
+  (localStorage).
+- `views/notifications-video.ejs` + `static/video/notifications-mobile.{mp4,jpg}`: the
+  one-minute walkthrough, opened by any `[data-notifications-video]` link. Our own recording
+  of this site; re-record with `tools/demo-video/record-notifications.js` (its README).
 - Linked from the Fixtures & Results menu and the manifest's shortcuts.
 
 ## Rules
@@ -73,8 +79,11 @@ duplicates a league row for the same teams and day, so a tie gets one reminder.
 - **The scheduler presents `?t=`**, like our other jobs (`requireCronCaller` has no header
   option), and a refusal is a 404, not their 403.
 - **Lewis Shield ties are reminded about**; Stockport leaves out Messer, which has no dates.
-- No walkthrough video (their `4d6cf0d`): the recording shows their site. Record our own
-  with their `tools/demo-video/` kit if it's wanted, and port the results-page banner with it.
+- **The walkthrough video is recorded from production data**, anonymously and writing nothing
+  (their `4d6cf0d` records from a seeded local database we don't have), with Hyde A and its
+  real fixtures. Theirs links "every club page has a bell"; ours doesn't say that, since we
+  have no bells. The service worker leaves Range requests alone so the video isn't served
+  through its cache.
 - Bootstrap 5 markup; no club-page bell links (our `/info/clubs` rows carry no team ids).
 
 ## Production setup

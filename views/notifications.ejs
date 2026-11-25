@@ -4,7 +4,7 @@
 <%#
   Opt-in for push notifications (docs/push.md). Client: static/js/push-panel.js.
   Server: controllers/pushController.js. Ported from Stockport (league-site 1a5f9d2), in
-  Bootstrap 5 and without their walkthrough video, which shows their site.
+  Bootstrap 5. The walkthrough video is our own recording (tools/demo-video/).
   Exactly one [data-state] block is shown at a time; the script picks it.
 %>
 <div class="container text-start my-4">
@@ -13,6 +13,7 @@
     Get a notification on this phone or computer when your team's result is published, and a
     reminder the evening before (6pm) and on the day (5pm) of each match.
   </p>
+  <p><a href="#" data-notifications-video><%- icon('circle-play') %> Watch how it works (1 minute)</a></p>
 
   <section id="push-panel" class="mb-5" aria-live="polite"
            data-vapid-key="<%= vapidPublicKey || '' %>">
@@ -93,6 +94,7 @@
   </p>
 </div>
 
+<%- include('notifications-video.ejs') %>
 <script src="<%= assetUrl('/static/js/push-panel.js') %>" defer></script>
 <%- include('footer.ejs') %>
 </body>

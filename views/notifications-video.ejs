@@ -1,0 +1,35 @@
+<%#
+  The "how to turn on notifications" walkthrough, in a native <dialog>. Any element with
+  [data-notifications-video] opens it. Phone cut only: it's a phone task, and a portrait video
+  plays fine in the dialog on a desktop. Ported from Stockport (league-site 4d6cf0d); ours is
+  recorded from this site by tools/demo-video/record-notifications.js (see its README before
+  re-recording it).
+%>
+<dialog id="notificationsVideo" class="p-0 border-0 rounded shadow" aria-label="How to turn on notifications">
+  <form method="dialog" class="text-end m-0"><button class="btn btn-sm btn-light m-1" aria-label="Close">&times;</button></form>
+  <video id="notificationsVideoPlayer" controls playsinline preload="none"
+         poster="<%= assetUrl('/static/video/notifications-mobile.jpg') %>"
+         src="<%= assetUrl('/static/video/notifications-mobile.mp4') %>"></video>
+  <p class="small text-center my-2"><a href="/notifications">Turn on notifications &rarr;</a></p>
+</dialog>
+<style>
+  #notificationsVideo { max-width: 96vw; max-height: 96vh; background: #111; }
+  #notificationsVideo::backdrop { background: rgba(0, 0, 0, .7); }
+  #notificationsVideo video { display: block; max-width: 92vw; max-height: 80vh; }
+  #notificationsVideo .small a { color: #ddd; }
+</style>
+<script>
+  (function () {
+    var dialog = document.getElementById('notificationsVideo');
+    var player = document.getElementById('notificationsVideoPlayer');
+    document.querySelectorAll('[data-notifications-video]').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        e.preventDefault();
+        dialog.showModal();
+        player.play().catch(function () {});
+        window.tblTrack('notifications_video_opened', { from: location.pathname });
+      });
+    });
+    dialog.addEventListener('close', function () { player.pause(); });
+  })();
+</script>

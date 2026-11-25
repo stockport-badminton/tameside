@@ -959,6 +959,9 @@ to browsers that opted in per team. Ported from Stockport's `1a5f9d2` (24 Nov 20
 - **Lewis Shield ties get reminders**, labelled "Lewis Shield": each Lewis row is a real match.
 - Replacing the VAPID pair orphans every subscription. `tools/rehearse-push.js` runs the SQL
   against production and rolls back. Local testing needs `SW_ENABLE=true`.
+- **The walkthrough video** (`static/video/notifications-mobile.mp4`, banner on `/results/…`)
+  is re-recorded with `node tools/demo-video/record-notifications.js`: real pages, anonymous,
+  push stubbed in the browser, nothing written. Watch a take before committing it.
 
 ### Lewis Shield handicaps
 
