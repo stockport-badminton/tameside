@@ -128,6 +128,36 @@ describe('the captions', () => {
     assert.match((await weekly.captions([WEEK[0]])).facebook, /1 match this week/);
     assert.match((await weekly.captions(WEEK)).facebook, /4 matches this week/);
   });
+
+  // Backlog row 5: the link went to the homepage, whose Upcoming list mixes the divisions
+  // and shows only the next few. The division's results page lists every match and venue.
+  it('links the division when only one is playing', async () => {
+    Club.getInstagramHandles = async () => [];
+    const text = await weekly.captions([WEEK[1]]);
+    for (const caption of [text.facebook, text.instagram]) {
+      assert.match(caption, /Full fixture list and venues at https:\/\/tameside-badminton\.co\.uk\/results\/Division-2\n/);
+    }
+  });
+
+  it('links each division, in card order, when both are playing', async () => {
+    Club.getInstagramHandles = async () => [];
+    const text = await weekly.captions([WEEK[1], WEEK[0]]);
+    const expected = 'Full fixture lists and venues:\n'
+      + 'Division 1: https://tameside-badminton.co.uk/results/Division-1\n'
+      + 'Division 2: https://tameside-badminton.co.uk/results/Division-2';
+    assert.ok(text.facebook.includes(expected), text.facebook);
+    assert.ok(text.instagram.includes(expected), text.instagram);
+  });
+
+  it('never links the bare homepage', async () => {
+    Club.getInstagramHandles = async () => [];
+    const odd = [{ divisionName: 'Lewis Shield', homeTeam: 'x', awayTeam: 'y' }];
+    for (const rows of [WEEK, [WEEK[0]], odd]) {
+      const text = await weekly.captions(rows);
+      assert.ok(!/co\.uk\/?(\s|$)/.test(text.facebook), text.facebook);
+    }
+    assert.match((await weekly.captions(odd)).facebook, /\/results\/All/);
+  });
 });
 
 describe('what the card prints', () => {

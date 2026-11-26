@@ -23,7 +23,7 @@
 // two tables because a division always has a table; a division can easily have no fixtures
 // in a week when the other one does — it happens in the very first week of this season.
 
-const { siteUrl, absoluteUrl, canonicalFor } = require('../utils/siteUrl');
+const { absoluteUrl, canonicalFor, divisionResultsPath } = require('../utils/siteUrl');
 const { fixturesImagePath } = require('../utils/socialPaths');
 const meta = require('../utils/metaPublisher');
 const Club = require('../models/club');
@@ -31,9 +31,6 @@ const Fixture = require('../models/fixture');
 const { isSuperAdmin } = require('../utils/authz');
 const { DIVISIONS } = require('./weeklyTablesController');
 
-// The homepage, deliberately: its "Upcoming Fixtures" list is the full fixture list the
-// caption promises.
-const SITE = siteUrl();
 const HASHTAGS = '#badminton #tameside #tbl #fixtures #bulutangkis';
 
 /**
@@ -84,6 +81,24 @@ function imagePaths(rows) {
  * `@Club Name` text Make carried for years did nothing whatsoever. Omitting them is honest;
  * faking them is not.
  */
+/**
+ * Where "Full fixture list and venues" points: the division's own fixtures & results page,
+ * which lists every match with its venue. It used to be the homepage, whose Upcoming list
+ * is every division mixed and only the next few — Stockport's c482fc3 moved the result
+ * posts to the division and left this one (backlog row 5).
+ *
+ * One division playing: its page. Both: a line each, in card order, so whoever follows the
+ * link from the Division 2 card isn't sent to Division 1. A week whose rows match no known
+ * division (it can't post, but the preview still renders) falls back to every division.
+ */
+function fixturesLinkText(rows) {
+  const divisions = divisionsWithFixtures(rows);
+  const url = (d) => absoluteUrl(divisionResultsPath(d));
+  if (divisions.length === 0) return `Full fixture list and venues at ${url('All')}`;
+  if (divisions.length === 1) return `Full fixture list and venues at ${url(divisions[0])}`;
+  return ['Full fixture lists and venues:'].concat(divisions.map(d => `${d}: ${url(d)}`)).join('\n');
+}
+
 async function captions(rows) {
   const playing = new Set();
   for (const r of rows) {
@@ -95,13 +110,13 @@ async function captions(rows) {
   const mentions = clubs.map(c => '@' + c.handle).join(' ');
   const count = rows.length;
   const headline = `${count} ${count === 1 ? 'match' : 'matches'} this week.`;
+  const intro = `${headline} ${fixturesLinkText(rows)}`;
 
   return {
-    facebook: `${headline} Full fixture list and venues at ${SITE}\n\n${HASHTAGS}`,
+    facebook: `${intro}\n\n${HASHTAGS}`,
     // `.filter(Boolean)` matters: no Tameside club has a handle stored yet, and an empty
     // mentions line would post as a blank paragraph in the middle of the caption.
-    instagram: [`${headline} Full fixture list and venues at ${SITE}`, mentions, HASHTAGS]
-      .filter(Boolean).join('\n\n'),
+    instagram: [intro, mentions, HASHTAGS].filter(Boolean).join('\n\n'),
     mentioned: clubs.map(c => c.name),
   };
 }
