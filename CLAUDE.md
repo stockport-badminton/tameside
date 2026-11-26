@@ -102,6 +102,15 @@ the work. When something lands, update the list in the same commit.
 - `models/` — Database layer. Each function executes a SQL tagged-template query and returns results via a Node-style callback: `done(err, result)`.
 - `views/` — EJS templates. `header.ejs`, `nav.ejs`, `footer.ejs` are included as partials. Several views have `-old.ejs` siblings (legacy versions, unused).
 
+**Declare every variable.** These files are not strict mode, so `for (row of result)` or a
+bare `zapObject = {…}` makes a global that outlives the request: concurrent requests share
+it, and EJS resolves a name a template wasn't given against the globals, so a
+`typeof filter !== 'undefined'` guard sees another request's value. Stockport's
+`/player/create` 500'd that way (`7a336ba`); ours had ten such loops, plus a `zapObject`
+that two overlapping publishes could have swapped in the "Result published" email.
+`test/no-implicit-globals.test.js` catches the loop form; for the rest, an ESLint
+`no-undef` pass over the server code was clean on 26 Nov 2026.
+
 ### Database
 
 PostgreSQL via Supabase, accessed with the `postgres` (v3) library. All queries use tagged template literals — never string-concatenated SQL:
@@ -1059,6 +1068,12 @@ Rules worth not rediscovering:
   rejecting every submission. The cache is warmed at boot in `app.js` because the IP check
   reads it synchronously on every request — skipped under `NODE_ENV=test` so every test
   file doesn't open its own connection.
+- **The lists are refreshed from requests, not a timer** (`spamControls.refreshIfStale`,
+  Stockport's `7b4d36e`, Nov 2026): the IP middleware starts a reload, un-awaited, when the
+  cache is over a minute old, one at a time. The 60s `setInterval` it replaced failed 14
+  times in the 30 days to 26 Nov 2026 (ECONNRESET and CONNECT_TIMEOUT), 12 of them on an
+  instance that had served nothing for 30s: it was the only thing touching the DB on an
+  idle instance. Don't bring back a timer; Cloud Run gives no CPU between requests.
 - **`SESSION_SECRET` signs the timing stamp** and `app.js` falls back to a hardcoded
   string if it is unset. With a known key a stamp can be forged, which downgrades that
   check. It is **still unset in Cloud Run, and deliberately parked until the end of the
@@ -1078,8 +1093,8 @@ Rules worth not rediscovering:
 and `test/db-pool.test.js` asserts both:
 
 - **`IDLE_TIMEOUT` (180s) must stay above `spamControls.CACHE_TTL_MS` (60s).** The blocklist
-  refresh timer in `app.js` runs on that interval; if the pool closes idle connections
-  sooner, every tick reconnects. That pairing (30s vs 60s) was costing **1,800 connection
+  refresh runs at most that often (from requests since Nov 2026; a timer before); if the
+  pool closes idle connections sooner, every refresh reconnects. That pairing (30s vs 60s) was costing **1,800 connection
   opens/day on zero traffic** — at ~3.6ms per open that is ~6.5 s/day, several times more
   DB time than every application query combined (~1 s/day). Verified after the fix: **0
   opens over 4 minutes**, with the refresh still ticking once a minute. `app.js` reads the
@@ -2026,6 +2041,12 @@ and after any change to extraction or matching; every number below came from it.
 - **The card year is inferred** from day/month (`cardDateNear`): the year is what Vision
   misreads. It can override a fixture-date fallback that was right — net +16, but 2 fewer
   than the fixture matching alone gave.
+- **Then the fixture checks it** (`chooseCardDate`, Stockport's `1796ff6`, Nov 2026): with
+  a matched fixture, the written date stands only from 14 days before it to today, else
+  the fixture's date; never a future date. Dates right 242 → 245, wrong 12 → 9, nothing
+  made worse (each was a misread month). The fallback also stopped using `toISOString()`
+  on `fixture.date`, which put every BST fixture a day early. `[ocr] read ok` logs
+  `dateRaw`, the date box as Vision read it, since the form may now show something else.
 - scorecardstore dates dump as London midnight; never `toISOString()` them in analysis
   (it cost the first pass 89 false "wrong dates").
 Finding which project owns a key needs no credentials: call an API it hasn't enabled, and
@@ -2180,6 +2201,11 @@ Rules that follow, all pinned by `test/scorecard-no-player.test.js`:
 - The happy path builds these selects client-side with `static/js/form-options.js`
   (formerly `static/playerFormOptions.ejs`), whose placeholder is already `disabled`. Only the **error re-render** used the server
   partial, which is why this went unnoticed for so long: it needs a first failure to reach.
+
+**The match date must be in the season and not after tomorrow** (`matchDateIsPlausible`,
+Stockport's `1796ff6`): `season.matchDateWindow()`, which `season.init()` builds from the
+season table and stretches back into last season during the June/July overlap. Null under
+test, where `init` is stubbed, so only the future check applies there.
 
 Badminton scoring rules enforced in `fixtureController.validateScorecard`:
 

@@ -13,7 +13,15 @@ This list used to exist only in the assistant's memory, which nobody else could 
 did not track. Keep it here, and keep it current: when something lands, move its brief to
 `done/` or delete the row.
 
-Last reviewed 24 Nov 2026, against league-site `7ce4dca` and its open HARD and REARCH briefs.
+Last reviewed 26 Nov 2026, against league-site `c625675`. That pass took `7a336ba`
+(undeclared variables leaking as globals; ours had more, see CLAUDE.md), `7b4d36e` (the
+blocklist refresh on requests; the pg client-error half doesn't apply, postgres.js) and
+`1796ff6` (misread scorecard years). Left for later: `e14dd97` (REARCH-07 step 6, after
+row 2) and `73855ed` (watch progress on the walkthrough video). Not ours: `93d4674` (our
+homepage has no gallery and makes no Cloudinary call, `test/homepage-no-gallery-fetch.test.js`)
+and HARD-50 (Bootstrap 4 to 5, which we already are).
+
+Reviewed 24 Nov 2026, against league-site `7ce4dca` and its open HARD and REARCH briefs.
 That pass took HARD-46 (event-page map on tap) and the 404 half of `7ce4dca` (no service
 worker from a 404); the withdrawn-team half doesn't apply, as we have no withdrawn teams.
 The 23 Nov review covered Stockport's ratings, predictions, event-page and route lockdown

@@ -33,8 +33,10 @@ const POOL_MAX = parseInt(process.env.PG_POOL_MAX, 10) || 5
 // the cumulative totals: sampling it live shows a constant ~3.75/min whether or not
 // this pool is opening connections, so it belongs to Supavisor's own auth refresh.)
 //
-// At 180s the timer reuses one warm connection instead of replacing it, and a real
-// browsing session does too. postgres.js recycles connections on its own
+// At 180s the timer reused one warm connection instead of replacing it, and a real
+// browsing session does too. (Since Nov 2026 the refresh runs from requests rather than
+// a timer — spamControls.refreshIfStale — so an idle instance opens nothing at all; the
+// pairing still keeps a refresh on a lightly used instance from reconnecting.) postgres.js recycles connections on its own
 // max_lifetime (30-60 min, randomised) regardless, so nothing is held forever.
 // Verified after deploy: 0 connection opens over 4 minutes, refresh still 1/min.
 const IDLE_TIMEOUT = 180

@@ -11,26 +11,6 @@ const { absoluteUrl, divisionResultsPath } = require('../utils/siteUrl');
 const { resultImagePath, resultStoryImagePath } = require('../utils/socialPaths');
 const SocialResultPost = require('./socialResultPost');
 
- exports.createBatch = async function(BatchObj,done){
-  if(db.isObject(BatchObj)){
-    let bulkobj = BatchObj.data.map(row => {
-      // Use reduce() to create an object for each row
-      return row.reduce((obj, value, index) => {
-          obj[BatchObj.fields[index]] = value; // Assign value to corresponding key
-          return obj;
-      }, {});
-    })
-    
-    let rows = sql`insert into ${BatchObj.tablename} ${ sql(bulkobj) }`.catch(err => {
-      return done(err)
-    })
-    done(null,rows);
-  }
-  else{
-    return done('not object');
-  }
-}
-
 // Homepage. Retried on a dead connection — see withRetry in utils/db_connect.js.
 exports.getRecent = async function(done){
  try {
@@ -94,6 +74,11 @@ team "homeTeam" on fixture."homeTeam" = "homeTeam".id join
 team "awayTeam" on fixture."awayTeam" = "awayTeam".id left join
 scorecardstore on (fixture.date = scorecardstore.date AND fixture."homeTeam" = scorecardstore."homeTeam" AND fixture."awayTeam" = scorecardstore."awayTeam")
 where season.name = ${seasonModel.current()} AND fixture.status not in ('rearranged','rearranging','conceded','void','complete')
+  -- A fixture with a result is never outstanding, whatever its status or the draft join
+  -- says. Stockport listed two published results here after their drafts were filed under
+  -- a misread date (league-site 1796ff6). Today every scored fixture of ours is also
+  -- complete or conceded (checked 26 Nov 2026), so this is belt and braces.
+  AND fixture."homeScore" is null
 order by date) as a 
 where date < NOW() and "scoreCardId" is null`);
   done(null,result);
@@ -167,7 +152,7 @@ exports.getFixtureDetails = async function(searchObj, done){
     let sqlArray = []
     let titleString = ""
     if (searchObj !== undefined){
-      for (filter of filterArray){
+      for (const filter of filterArray){
         //console.log(filter)
         //console.log(Object.entries(searchObj))
         let sqlParams = Object.entries(searchObj).filter(obj => obj[0] === filter)
@@ -183,7 +168,7 @@ exports.getFixtureDetails = async function(searchObj, done){
     let season = ""
     let seasonString = seasonModel.current()
     let whereTerms = ""
-    searchArray = []
+    let searchArray = []
     const checkSeason = function(season){
       let firstYear = parseInt(season.slice(0,4))
       let secondYear = parseInt(season.slice(4))
@@ -395,7 +380,9 @@ exports.getScorecardCandidates = async function () {
 };
 
 exports.getOutstandingFixtureId = async function(obj,done){
-  if(typeof obj.homeTeam !== undefined && typeof obj.awayTeam !== undefined){
+  // Compared with undefined rather than 'undefined' until Nov 2026: always true, so the
+  // else below (which named an err that doesn't exist) could never run.
+  if(typeof obj.homeTeam !== 'undefined' && typeof obj.awayTeam !== 'undefined'){
     // var sql = 'select id from (select fixture.id, homeTeam, awayTeam, status from fixture join season where season.name=? AND fixture.date > season.startDate) as a where awayTeam = ? AND homeTeam = ? AND status = "outstanding"';
     console.log(`select a.id, division.name, division.rank from (SELECT id, homeTeam FROM (SELECT fixture.id, homeTeam, awayTeam, status FROM fixture JOIN season on season.name = ${seasonModel.current()} AND fixture.date > season.startDate) AS a WHERE awayTeam = ${obj.awayTeam} AND homeTeam = ${obj.homeTeam} AND status like 'outstanding') as a join team on a.homeTeam = team.id join division on team.division = division.id`)
     let result = await sql`select a.id, division.name, division.rank, a.lewis_round from (SELECT id, "homeTeam", lewis_round FROM (SELECT fixture.id, "homeTeam", "awayTeam", status, lewis_round FROM fixture JOIN season on season.name like ${seasonModel.current()} AND fixture.date > season."startDate") AS a WHERE "awayTeam" = ${obj.awayTeam} AND "homeTeam" = ${obj.homeTeam} AND status like 'outstanding') as a join team on a."homeTeam" = team.id join division on team.division = division.id`.catch(err => {
@@ -414,12 +401,14 @@ exports.getOutstandingFixtureId = async function(obj,done){
     }
     }
     else {
-      return done(err);
+      return done(new Error('getOutstandingFixtureId needs a home and an away team'));
     }
   }
 
   exports.updateById = async function(fixtureObj,fixtureId,done){
-    if (typeof fixtureObj !== undefined){
+    // Compared with undefined rather than 'undefined', so this was always true and the
+    // else below, which named an err that doesn't exist, could never run.
+    if (typeof fixtureObj !== 'undefined'){
       let rows = await sql`
         update fixture set ${
           sql(fixtureObj, Object.keys(fixtureObj))
@@ -433,7 +422,7 @@ exports.getOutstandingFixtureId = async function(obj,done){
       done(null,rows);
     }
     else {
-      return done(err);
+      return done(new Error('updateById needs a fixture object'));
     }
   
   }

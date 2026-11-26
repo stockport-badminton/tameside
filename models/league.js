@@ -38,6 +38,9 @@ const seasonModel = require('./season');
   
 
 exports.getLeagueTable = async function(division,season,done){
+  // Declared: as a global it outlived the request, and the withRetry thunk below reads
+  // it again on a retry, by which time another request may have set it.
+  let seasonName
   if (season === undefined){
     seasonName = ''
     season = seasonModel.current();
@@ -144,6 +147,9 @@ ORDER BY "gamesWon" DESC
 }
 
 exports.getAllLeagueTables = async function(season,done){
+  // Declared: as a global it outlived the request, and the withRetry thunk below reads
+  // it again on a retry, by which time another request may have set it.
+  let seasonName
   if (season === undefined){
     seasonName = ''
     season = seasonModel.current()

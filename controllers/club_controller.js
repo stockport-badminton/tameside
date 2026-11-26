@@ -35,7 +35,7 @@ exports.club_list_detail = function(req, res, next) {
             let newClubElem = {}
             let prevRowElem = {}
             let teamElem = {}
-            for (row of result){
+            for (const row of result){
               if (row.clubId == prevRowElem.id ){
                 teamElem = {}
                 teamElem.name = row.teamname

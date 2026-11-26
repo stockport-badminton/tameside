@@ -19,9 +19,9 @@ test('db pool ceilings', async (t) => {
     assert.ok(
       IDLE_TIMEOUT > refreshSeconds,
       `idle_timeout (${IDLE_TIMEOUT}s) must exceed the blocklist refresh interval ` +
-      `(${refreshSeconds}s). Below it, the refresh timer's connection is closed ` +
-      `between ticks and every tick opens a new one — 1,800 opens/day when this ` +
-      `regressed on 2026-08-05.`
+      `(${refreshSeconds}s). Below it, the refresh's connection is closed between ` +
+      `refreshes and each one opens a new one — 1,800 opens/day when this ` +
+      `regressed on 2026-08-05 (then a timer; now driven by requests).`
     );
   });
 

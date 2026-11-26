@@ -1,3 +1,4 @@
+const { isoDay } = require('../utils/ukDate');
 const { sql } = require('../utils/db_connect');
 
 // Single source of truth for "which season is current". Historically each model
@@ -18,23 +19,41 @@ function dateBasedSeason(offset) {
 
 let _current = null;
 let _previous = null;
+let _matchDates = null;
 
 exports.init = async function () {
   try {
     const rows = await sql`
-      SELECT name FROM season
+      SELECT name, "startDate", "endDate" FROM season
       WHERE "startDate" <= now()
       ORDER BY "startDate" DESC
       LIMIT 2`;
     if (rows && rows.length) {
       _current = rows[0].name;
       _previous = rows[1] ? rows[1].name : dateBasedSeason(1);
+      _matchDates = matchDatesFrom(rows, new Date());
     }
   } catch (err) {
     console.error('season.init failed; using date-based fallback:', err.message);
   }
   return { current: exports.current(), previous: exports.previous() };
 };
+
+// The days a match may be played on, as London YYYY-MM-DD: this season's, and last
+// season's too while its window is still open (the June/July overlap, when the new season
+// has started and the old one's late results are still coming in). Ported from Stockport
+// (league-site 1796ff6). The dates are UK midnights, hence isoDay rather than toISOString.
+function matchDatesFrom(rows, now) {
+  const [cur, prev] = rows;
+  if (!cur || !cur.startDate || !cur.endDate) return null;
+  const prevOpen = prev && prev.endDate && new Date(prev.endDate) >= now;
+  return { from: isoDay(prevOpen ? prev.startDate : cur.startDate), to: isoDay(cur.endDate) };
+}
+exports._matchDatesFrom = matchDatesFrom;
+
+// { from, to }, or null until init() has read the season table (and in tests, which never
+// call it): the scorecard form then checks only that a date is not in the future.
+exports.matchDateWindow = function () { return _matchDates; };
 
 exports.current = function () { return _current || dateBasedSeason(0); };
 exports.previous = function () { return _previous || dateBasedSeason(1); };

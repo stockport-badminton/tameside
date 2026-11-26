@@ -15,7 +15,8 @@ const Sentry = require('@sentry/node');
 // whether that were true or not, which is worse than no test at all.
 const ocrSource = require('../utils/scorecardOcrSource');
 const { isOcrFailure } = require('../utils/ocrFailure');
-const { extractScorecard, cardDateNear } = require('../utils/scorecardExtraction');
+const { extractScorecard, cardDateNear, chooseCardDate } = require('../utils/scorecardExtraction');
+const { isoDay } = require('../utils/ukDate');
 const { matchScorecard, matchTeamName, matchFixturePair } = require('../utils/scorecardMatch');
 const Team = require('../models/teams');
 const Player = require('../models/players');
@@ -196,9 +197,15 @@ async function analyseVision(vision, names, overrides) {
   }
 
   // Card date -> yyyy-mm-dd for the form's date input, with the year inferred from the
-  // written day and month (see cardDateNear); the fixture's date when there is none.
-  let cardDate = cardDateNear(extraction.meta.date, Date.now());
-  if (!cardDate && fixture && fixture.date) cardDate = new Date(fixture.date).toISOString().slice(0, 10);
+  // written day and month (see cardDateNear); the fixture's date when there is none, or
+  // when the written one can't be this fixture's (chooseCardDate: a misread month).
+  // isoDay, not toISOString: fixture.date is UK midnight, which in BST is 23:00 UTC the
+  // day before, so every Sep/Oct/Apr fallback used to come out a day early.
+  const cardDate = chooseCardDate(
+    cardDateNear(extraction.meta.date, Date.now()),
+    fixture && fixture.date ? isoDay(fixture.date) : null,
+    isoDay(new Date()),
+  );
 
   // Handoff URL for the admin review flow (needs both teams).
   let handoffUrl = null;
@@ -357,6 +364,10 @@ exports.analyse = async function (req, res) {
     logRead('ok', Object.assign({}, fields, {
       teamResolution: r.teamResolution,
       warnings: r.extraction.warnings.length,
+      // The date box as read. A misread one is overruled by the fixture's date, so this is
+      // the only record of what Vision saw.
+      dateRaw: (r.extraction.meta && r.extraction.meta.date) || null,
+      date: r.cardDate,
       slots: filled('home') + filled('away'),
     }));
     res.json({

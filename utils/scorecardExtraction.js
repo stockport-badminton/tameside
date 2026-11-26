@@ -532,4 +532,23 @@ function cardDateNear(text, now) {
   return found.length ? found[0].value : null;
 }
 
-module.exports = { extractScorecard, splitScores, normaliseOrientation, divisionDigit, parseCardDate, cardDateNear, EVENT_NAMES, GAME_MAP };
+// The date for the form: what the card says when it is plausible, else the matched
+// fixture's. Ported from Stockport (league-site 1796ff6, Nov 2026), where two cards were
+// filed as 2016 off a misread date box and nobody noticed. cardDateNear already stops a
+// year that far out here, but a misread day or month still lands anywhere in its window.
+//
+// With a fixture, a written date has to fall between CARD_DATE_EARLY_DAYS before the
+// listed date (played early) and today (rearranged and not yet entered); otherwise the
+// fixture's own date wins. Without one, anything up to today stands. Never the future.
+// All three are YYYY-MM-DD London days, so they compare as strings.
+const CARD_DATE_EARLY_DAYS = 14;
+
+function chooseCardDate(written, fixtureDay, today) {
+  if (written && written > today) written = null;
+  if (!fixtureDay) return written || null;
+  const [y, m, d] = fixtureDay.split('-').map(Number);
+  const earliest = new Date(Date.UTC(y, m - 1, d - CARD_DATE_EARLY_DAYS)).toISOString().slice(0, 10);
+  return written && written >= earliest ? written : fixtureDay;
+}
+
+module.exports = { extractScorecard, splitScores, normaliseOrientation, divisionDigit, parseCardDate, cardDateNear, chooseCardDate, EVENT_NAMES, GAME_MAP };

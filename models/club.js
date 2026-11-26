@@ -10,26 +10,6 @@ exports.create = async function(name,venue,done){
 }
 
 
-exports.createBatch = async function(BatchObj,done){
-    if(db.isObject(BatchObj)){
-      let bulkobj = BatchObj.data.map(row => {
-        // Use reduce() to create an object for each row
-        return row.reduce((obj, value, index) => {
-            obj[BatchObj.fields[index]] = value; // Assign value to corresponding key
-            return obj;
-        }, {});
-      })
-      
-      let rows = sql`insert into ${BatchObj.tablename} ${ sql(bulkobj) }`.catch(err => {
-        return done(err)
-      })
-      done(null,rows);
-    }
-    else{
-      return done('not object');
-    }
-  }
-
 // GET
 exports.getAll = async function(done){
   let result = await sql`SELECT * FROM "club" order by name asc`.catch(err => {

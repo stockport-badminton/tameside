@@ -209,3 +209,42 @@ describe('cardDateNear (year from the day and month, as of filing)', () => {
     assert.strictEqual(cardDateNear('', on('2024-11-28')), null);
   });
 });
+
+// The written date stands only if it could be this fixture's (league-site 1796ff6). The
+// three wrong-month cases are real cards from the OCR accuracy run, Nov 2026: each was
+// read as a date the captain never wrote, and the fixture's date was right.
+describe('chooseCardDate (the written date has to be plausible for the fixture)', () => {
+  const { chooseCardDate } = require('../utils/scorecardExtraction');
+
+  it('keeps a written date on or after the fixture, up to today (played late)', () => {
+    assert.strictEqual(chooseCardDate('2026-11-20', '2026-11-12', '2026-11-26'), '2026-11-20');
+    assert.strictEqual(chooseCardDate('2026-11-12', '2026-11-12', '2026-11-26'), '2026-11-12');
+  });
+
+  it('keeps a written date up to 14 days before the fixture (played early)', () => {
+    assert.strictEqual(chooseCardDate('2026-10-29', '2026-11-12', '2026-11-26'), '2026-10-29');
+    assert.strictEqual(chooseCardDate('2026-10-28', '2026-11-12', '2026-11-26'), '2026-11-12');
+  });
+
+  it('overrules a misread month with the fixture date', () => {
+    assert.strictEqual(chooseCardDate('2024-08-25', '2024-09-25', '2024-10-01'), '2024-09-25'); // "25/08/247"
+    assert.strictEqual(chooseCardDate('2024-07-04', '2024-11-14', '2024-11-20'), '2024-11-14'); // "4/07/11/24"
+    assert.strictEqual(chooseCardDate('2025-07-02', '2025-09-02', '2025-09-03'), '2025-09-02'); // "02/07/25"
+  });
+
+  it('never returns a future date', () => {
+    assert.strictEqual(chooseCardDate('2026-12-01', '2026-11-25', '2026-11-26'), '2026-11-25');
+    assert.strictEqual(chooseCardDate('2026-12-01', null, '2026-11-26'), null);
+  });
+
+  it('falls back to the fixture with nothing written, and to null with neither', () => {
+    assert.strictEqual(chooseCardDate(null, '2026-11-25', '2026-11-26'), '2026-11-25');
+    assert.strictEqual(chooseCardDate(null, null, '2026-11-26'), null);
+    assert.strictEqual(chooseCardDate('2026-11-01', null, '2026-11-26'), '2026-11-01');
+  });
+
+  it('crosses a month and a year boundary when counting back 14 days', () => {
+    assert.strictEqual(chooseCardDate('2025-12-20', '2026-01-02', '2026-01-05'), '2025-12-20');
+    assert.strictEqual(chooseCardDate('2025-12-18', '2026-01-02', '2026-01-05'), '2026-01-02');
+  });
+});

@@ -48,28 +48,7 @@ exports.create = async function(first_name,family_name,team,club,gender,done){
 }
 
 
-exports.createBatch = async function(BatchObj,done){
-    if(db.isObject(BatchObj)){
-      let bulkobj = BatchObj.data.map(row => {
-        // Use reduce() to create an object for each row
-        return row.reduce((obj, value, index) => {
-            obj[BatchObj.fields[index]] = value; // Assign value to corresponding key
-            return obj;
-        }, {});
-      })
-      
-      let rows = sql`insert into ${sql(BatchObj.tablename)} ${ sql(bulkobj) }`.catch(err => {
-        return done(err)
-      })
-      done(null,rows);
-    }
-    else{
-      return done('not object');
-    }
-  }
-
 // PATCH
-
 exports.updateBulk = async function(BatchObj,done){
   if(typeof BatchObj.tablename !== undefined && typeof BatchObj.data !== undefined && typeof BatchObj.fields !== undefined){
     // console.log(BatchObj);
@@ -94,7 +73,7 @@ exports.updateBulk = async function(BatchObj,done){
     // console.log(idIndex)
     
     // console.log(BatchObj.fields)
-    for (x in BatchObj.data){
+    for (const x in BatchObj.data){
         let idArray = await BatchObj.data[x].splice(idIndex,1)
         let telArray = telIndex >= 0 ? await BatchObj.data[x].splice(telIndex,1) : []
         // console.log("telArray")
@@ -102,7 +81,7 @@ exports.updateBulk = async function(BatchObj,done){
         let emailArray = emailIndex >= 0 ? await BatchObj.data[x].splice(emailIndex,1) : []
         // console.log("emailArray")
         // console.log(emailArray)
-        arrayObj = Object.assign(...await BatchObj.fields.map((k, i) => ({[k]: BatchObj.data[x][i]})))
+        const arrayObj = Object.assign(...await BatchObj.fields.map((k, i) => ({[k]: BatchObj.data[x][i]})))
         // console.log("BathObj.data")
         // console.log(BatchObj.data)
          // console.log("arrayObj")
@@ -500,7 +479,7 @@ exports.newGetPlayerStats = async function(searchObj,done){
   let sqlArray = []
   let titleString = ""
   if (searchObj !== undefined){
-    for (filter of filterArray){
+    for (const filter of filterArray){
       //console.log(filter)
       //console.log(Object.entries(searchObj))
       let sqlParams = Object.entries(searchObj).filter(obj => obj[0] === filter)
@@ -517,7 +496,7 @@ exports.newGetPlayerStats = async function(searchObj,done){
   let seasonString = seasonModel.current()
   let whereTerms = ""
   let whereValue = []
-  searchArray = []
+  let searchArray = []
   const checkSeason = async function(season){
     
     let firstYear = parseInt(season.slice(0,4))
@@ -537,6 +516,7 @@ exports.newGetPlayerStats = async function(searchObj,done){
   // checkSeason vets the shape of the name only. Snapshots start at 2023-24, so a
   // plausible name in the gap suffixed a player<season>/team<season> that does not
   // exist — 42P01, and a process kill rather than a 500. See seasonModel.hasSnapshot.
+  let seasonVal
   if (searchObj.season === undefined
       || !await checkSeason(searchObj.season)
       || !await seasonModel.hasSnapshot(searchObj.season)){
@@ -798,7 +778,7 @@ exports.newGetPairStats = async function(searchObj,done){
   let sqlArray = []
   let titleString = ""
   if (searchObj !== undefined){
-    for (filter of filterArray){
+    for (const filter of filterArray){
       //console.log(filter)
       //console.log(Object.entries(searchObj))
       let sqlParams = Object.entries(searchObj).filter(obj => obj[0] === filter)
@@ -813,7 +793,7 @@ exports.newGetPairStats = async function(searchObj,done){
   
   let season = ""
   let seasonString = seasonModel.current()
-  searchArray = []
+  let searchArray = []
   const checkSeason = async function(season){
     let firstYear = parseInt(season.slice(0,4))
     let secondYear = parseInt(season.slice(4))
@@ -838,6 +818,7 @@ exports.newGetPairStats = async function(searchObj,done){
   // The hasSnapshot check closes the other half: checkSeason vets the shape of the name
   // only, and snapshots start at 2023-24, so a plausible name in the gap still built a
   // table that doesn't exist. See seasonModel.hasSnapshot.
+  let seasonVal
   if (searchObj.season === undefined
       || !await checkSeason(searchObj.season)
       || !await seasonModel.hasSnapshot(searchObj.season)){

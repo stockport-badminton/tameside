@@ -36,7 +36,7 @@ const TeamStrength = require('../models/teamStrength');
 const structuredData = require('../utils/structuredData');
 const { buildPreview } = require('../utils/fixturePreview');
 const { CATEGORY_GAMES } = require('../utils/teamStrength');
-const { shortDate } = require('../utils/ukDate');
+const { shortDate, isoDay } = require('../utils/ukDate');
 const { resultImagePath } = require('../utils/socialPaths');
 // One mailer for every league email; templates compile from emails/*.mjml.
 const mailer = require('../utils/mailer');
@@ -264,11 +264,32 @@ const MIXED_LADY_FIELDS = [
   "FirstMixedawayLady1", "SecondMixedawayLady2", "ThirdMixedawayLady1", "FourthMixedawayLady2",
 ];
 
+// A date can be a valid date and still be wrong: Stockport filed two cards as 2016 on
+// 24 Nov 2026, read off the photo and not noticed (league-site 1796ff6). So it must be in
+// the season (seasonModel.matchDateWindow) and not after tomorrow, a day's grace for a card
+// filed around midnight. Synchronous and throwing: an async validator that returns false
+// is a silent pass (see Spam and abuse controls in CLAUDE.md).
+const ukDay = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+function matchDateIsPlausible(value) {
+  const date = String(value).slice(0, 10);
+  if (date > isoDay(new Date(Date.now() + 24 * 60 * 60 * 1000))) {
+    throw new Error("The match date can't be in the future.");
+  }
+  const season = seasonModel.matchDateWindow();
+  if (season && (date < season.from || date > season.to)) {
+    throw new Error(`The match date must be in this season (${ukDay(season.from)} to ${ukDay(season.to)}). Please check the year.`);
+  }
+  return true;
+}
+exports._matchDateIsPlausible = matchDateIsPlausible;
+
 exports.validateScorecard = [
   // isInt, not notEmpty: a placeholder's label is not empty, and a team that isn't an id
   // reaches a bigint query on the success path (the same crash as TAMESIDE-NODE-4).
   body("division").isInt().withMessage("Please choose a division."),
-  body("date").isISO8601().withMessage("Please choose a valid date."),
+  // No .withMessage() after the .custom(): it would replace the thrown message.
+  body("date").isISO8601().withMessage("Please choose a valid date.")
+    .bail().custom(matchDateIsPlausible),
   body("homeTeam").isInt().withMessage("Please choose a home team."),
   body("awayTeam")
     .isInt()
@@ -373,7 +394,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
             .map((row) => row.division)
             .filter((division, index, arr) => arr.indexOf(division) == index);
           let griddedData = [];
-          for (division of divisionsArray) {
+          for (const division of divisionsArray) {
             // console.log(division);
             let gridFixtures = result.filter(
               (row) =>
@@ -410,7 +431,6 @@ exports.fixture_detail_byDivision = function (req, res, next) {
             jsonResult = JSON.stringify(griddedData);
           }
           res.status(200);
-          console.log(division);
           let renderObject = {
             static_path: "/static",
             title: "Fixtures & Results: " + divisionString,
@@ -496,7 +516,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
           .filter((division, index, arr) => arr.indexOf(division) == index);
         // console.log(divisionsArray)
         let griddedData = [];
-        for (division of divisionsArray) {
+        for (const division of divisionsArray) {
           // console.log(division);
           let gridFixtures = result.filter(
             (row) =>
@@ -537,7 +557,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
         if (searchObj !== undefined) {
           let filterArray = ["season", "division", "club", "team"];
 
-          for (filter of filterArray) {
+          for (const filter of filterArray) {
  // console.log(filter);
  // console.log(Object.entries(searchObj));
             let sqlParams = Object.entries(searchObj).filter(
@@ -1649,7 +1669,7 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
               const isLewisFixture = FixtureIdResult[0].lewis_round != null
               if (!isLewisFixture){
                 const fixtureRank = FixtureIdResult[0].rank
-                for (game of gameObject.data){
+                for (const game of gameObject.data){
                   const { updateObj } = Game.calculateRating(game, prevScores, req.body.date, fixtureRank)
                   Object.assign(game, updateObj)
                   for (const [pidKey, endKey] of [
@@ -1702,7 +1722,7 @@ exports.fixture_populate_scorecard_fromUrl = function(req,res,next){
                   }
                   Fixture.getFixtureDetailsById(FixtureIdResult[0].id,function(err,getFixtureDetailsResult){
                     if(err) res.send(err)
-                    zapObject = {
+                    const zapObject = {
                       // What the results queue is keyed on (models/socialResultPost.js).
                       "fixtureId":FixtureIdResult[0].id,
                       // Canonical host, not req.headers.host — whatever consumes this

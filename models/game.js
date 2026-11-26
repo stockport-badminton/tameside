@@ -59,7 +59,8 @@ exports.updateById = async function(gameObj,gameId,done){
     }
     else {
       console.error(`no gameobj or id: ${JSON.stringify(gameObj)}, ${gameId}`)
-      return done(err);
+      // Was done(err), with no err in scope: a ReferenceError instead of a callback.
+      return done(new Error('updateById needs a game object and an id'));
     }
   
   }

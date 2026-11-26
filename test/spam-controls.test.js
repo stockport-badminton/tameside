@@ -102,3 +102,44 @@ describe('isBlockedIpSync', () => {
     assert.strictEqual(Spam.isBlockedIpSync(undefined), false);
   });
 });
+
+// The cache is refreshed from requests, not a timer (league-site 7b4d36e): on Cloud Run a
+// timer fires while the instance has no CPU, and its connect timed out. These use the
+// loader seam, so no DB.
+describe('refreshIfStale', () => {
+  it('does nothing while the cache is fresh', async () => {
+    let calls = 0;
+    assert.strictEqual(Spam.refreshIfStale(async () => { calls++; }), null);
+    assert.strictEqual(calls, 0);
+  });
+
+  it('reloads a stale cache once, however many requests arrive meanwhile', async () => {
+    Spam._expireCacheForTests();
+    let calls = 0;
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    const loader = async () => { calls++; await gate; };
+    const first = Spam.refreshIfStale(loader);
+    const second = Spam.refreshIfStale(loader);
+    assert.strictEqual(first, second, 'a concurrent request shares the load in flight');
+    release();
+    await first;
+    assert.strictEqual(calls, 1);
+  });
+
+  it('never rejects, and waits a full TTL before retrying a failure', async () => {
+    Spam._expireCacheForTests();
+    let calls = 0;
+    const failing = async () => { calls++; throw new Error('connect timeout'); };
+    await Spam.refreshIfStale(failing); // resolves: the request path must not see it
+    assert.strictEqual(Spam.refreshIfStale(failing), null, 'not retried on the next request');
+    assert.strictEqual(calls, 1);
+    assert.strictEqual(Spam.isBlockedIpSync('1.2.3.4'), true, 'the lists it had are kept');
+  });
+
+  it('app.js has no refresh timer and calls it from the request path', () => {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'app.js'), 'utf8');
+    assert.ok(!/setInterval\([\s\S]{0,200}spamControls/.test(src), 'no setInterval refreshing the lists');
+    assert.match(src, /if \(REFRESH_BLOCKLISTS\) spamControls\.refreshIfStale\(\);/);
+  });
+});

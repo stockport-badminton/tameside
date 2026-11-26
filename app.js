@@ -185,23 +185,13 @@ const spamControls = require('./models/spamControls');
 // file was enough to make the suite intermittently fail against the Supabase pooler. The
 // spam tests install lists through spamControls._setCacheForTests instead.
 if (process.env.NODE_ENV !== 'test') {
-  spamControls.refresh()
-    .then(function () { console.log('Blocklists loaded'); })
-    .catch(function (err) { console.error('blocklist load failed:', err.message); });
+  // Through refreshIfStale, so a request arriving during boot shares this load rather than
+  // starting a second one. It never rejects; a failure is logged there.
+  spamControls.refreshIfStale();
 
-  // Keep the cache fresh so an admin change on /admin/spam lands within a minute on every
-  // Cloud Run instance, with no restart and no cross-instance invalidation. unref() so this
-  // timer never holds the process open.
-  //
-  // The interval comes from spamControls rather than being restated here, because it is
-  // half of a pair: utils/db_connect.js's idle_timeout has to stay above it, or the
-  // connection this timer uses is closed between ticks and every tick reconnects. That
-  // was costing 1,800 connection opens/day before 2026-08-05.
-  setInterval(function () {
-    spamControls.refresh().catch(function (err) {
-      console.error('blocklist refresh failed:', err.message);
-    });
-  }, spamControls.CACHE_TTL_MS).unref();
+  // There is no refresh timer any more: the IP middleware below refreshes a stale cache
+  // from inside a request, so an admin change on /admin/spam still lands within a minute
+  // on every instance that is serving. See spamControls.refreshIfStale for why.
 }
 
 app.set('view engine', 'ejs');
@@ -342,8 +332,14 @@ app.use(sassMiddleware({
 // someone is a form submission on /admin/spam rather than an edit to this file followed by
 // a deploy. Read from the in-memory cache synchronously: this runs on every request, and
 // awaiting a query here would put a DB round trip in front of every page.
+//
+// It also starts the cache's reload when it is over a minute old, without waiting for it
+// (spamControls.refreshIfStale). Not under test, where a request must not open a real
+// connection: the suite installs lists with _setCacheForTests.
 const { clientIp: resolveClientIp } = require('./utils/clientIp');
+const REFRESH_BLOCKLISTS = process.env.NODE_ENV !== 'test';
 app.use(function (req, res, next) {
+  if (REFRESH_BLOCKLISTS) spamControls.refreshIfStale();
   if (spamControls.isBlockedIpSync(resolveClientIp(req))) {
     return res.status(403).send('Forbidden');
   }

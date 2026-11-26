@@ -62,9 +62,35 @@ async function ensureLoaded() {
 
 exports.refresh = load;
 
-// Exported so app.js's refresh timer runs on this exact interval rather than its own
-// copy of "60 seconds", and so a test can check it against the pool's idle_timeout —
-// if the timeout is the shorter of the two, every tick opens a fresh DB connection.
+// The request path's refresh: start a reload when the cache is stale, without awaiting it.
+// Ported from Stockport (league-site 7b4d36e, Nov 2026).
+//
+// This used to be a 60s setInterval in app.js. Cloud Run gives an instance CPU only while
+// a request is in flight, so the timer mostly fired on a throttled instance: Stockport
+// logged ~160 "connection timeout" failures in a month, every one from the timer, because
+// when the CPU came back Node ran the overdue connect timer before the handshake's I/O.
+// Started from inside a request, the reload runs while the instance has CPU, and an idle
+// instance does no DB work at all.
+//
+// One reload at a time: concurrent requests on a stale cache share it. A failure keeps the
+// lists as they were and waits a full TTL before trying again, as ensureLoaded does.
+// `loader` is a test seam; the app always uses load.
+let inFlight = null;
+exports.refreshIfStale = function (loader = load) {
+  if (inFlight || Date.now() - cache.loadedAt < CACHE_TTL_MS) return inFlight;
+  inFlight = Promise.resolve()
+    .then(loader)
+    .catch(function (err) {
+      cache.loadedAt = Date.now();
+      console.error('blocklist refresh failed:', err.message);
+    })
+    .finally(function () { inFlight = null; });
+  return inFlight;
+};
+
+// Exported so a test can check it against the pool's idle_timeout: if the timeout is the
+// shorter of the two, an instance taking a request a minute or two apart opens a fresh DB
+// connection for every refresh instead of reusing a warm one.
 exports.CACHE_TTL_MS = CACHE_TTL_MS;
 
 // Test seam: lets the suite install known lists without a DB. Sets loadedAt so
@@ -77,6 +103,11 @@ exports._setCacheForTests = function (lists) {
   cache.loadedAt = Date.now();
 };
 
+// Test seam: makes the cache stale, so refreshIfStale() will reload it.
+exports._expireCacheForTests = function () {
+  cache.loadedAt = 0;
+};
+
 exports.isBlockedIp = async function (ip) {
   if (!ip) return false;
   const lists = await ensureLoaded();
@@ -84,8 +115,8 @@ exports.isBlockedIp = async function (ip) {
 };
 
 // Synchronous variant for the request-path middleware, which cannot afford to await on
-// every request. Reads whatever the cache holds; the refresh is triggered separately at
-// startup and on a timer in app.js.
+// every request. Reads whatever the cache holds; app.js warms it at startup and calls
+// refreshIfStale() from the same middleware.
 exports.isBlockedIpSync = function (ip) {
   return !!ip && cache.ip.has(ip);
 };
