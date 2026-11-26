@@ -20,6 +20,22 @@ npm run test:e2e    # Playwright — the scorecard wizard and the roster editor 
 
 `test.js` in the root is an unrelated manual scratch file (not part of either suite).
 
+```bash
+tools/local-db.sh up && tools/local-db.sh load   # a scrubbed local copy of production (BL-06)
+LOCAL_DATABASE_URL=$(tools/local-db.sh url) DB_ENCODE=$(tools/local-db.sh key) \
+  DEV_MODE=true NODE_ENV=development npm run dev   # the site on it instead of production
+```
+
+**A local database exists, opt in** (BL-06, Nov 2026). `utils/db_connect.js` honours
+`LOCAL_DATABASE_URL` only when `NODE_ENV !== 'production'`; unset, everything still talks to
+production, including Playwright (below) until BL-06 task 5. `load` reads production with
+`pg_dump` (through the container's own, via the session pooler) and rebuilds the copy from
+scratch: mail, session, push and contact-form tables come across empty, and every contact
+value is rewritten as a fake under a local key. `tools/local-db/check.sql` then scans every
+`bytea` and text column, not just the known ones, and **a failed or interrupted load deletes
+the whole volume**, because a dropped schema's rows are still in the WAL. Its first run caught
+`club."contactUs"` and `club_registration.updated_by`, which nobody had listed.
+
 Playwright (`test/e2e/`) covers the two pages whose behaviour lives in browser JS — the
 email-scorecard entry wizard (step navigation, live score validation, OCR-photo reuse) and
 the roster editor (drag on mouse and touch, keyboard, menu, Save/Discard) — not the whole

@@ -174,8 +174,11 @@ async function main(args) {
     return;
   }
 
-  const { sql } = require('../utils/db_connect');
+  const { sql, DB_TARGET } = require('../utils/db_connect');
   const db = ledgerDb(sql);
+  // Which database, before anything else: with LOCAL_DATABASE_URL set (BL-06) this is the
+  // local copy, so a new migration can be tried there first.
+  console.log(`target: ${DB_TARGET}`);
 
   if (args.includes('--status')) {
     const s = await status(db);

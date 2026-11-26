@@ -139,6 +139,11 @@ const authz = require('./utils/authz');
 // docs/routes.md is the resulting table.
 const access = require('./middleware/access');
 
+// Say so at boot when this process is on the local copy (BL-06, LOCAL_DATABASE_URL), so
+// nobody has to wonder which database a dev server is writing to. Production says nothing.
+const { IS_LOCAL: DB_IS_LOCAL, DB_TARGET } = require('./utils/db_connect');
+if (DB_IS_LOCAL) console.log('[db] using the LOCAL database:', DB_TARGET);
+
 app.locals.pastSeasons = [];
 seasonModel.init()
   .then(function (resolved) {

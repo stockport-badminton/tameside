@@ -69,10 +69,30 @@ const MAX_PIPELINE = 0
 // It can't hold session state, so prepared statements must be disabled
 // (postgres.js uses them by default); sql.begin() transactions are fine —
 // each runs start-to-finish on one server connection (see beginOnReserved below).
+//
+// LOCAL_DATABASE_URL points a DEVELOPMENT process at another database instead (BL-06: the
+// local copy from tools/local-db.sh). It is read only when NODE_ENV is not 'production',
+// so no setting can move the deployed service off Supabase; the Dockerfile sets
+// NODE_ENV=production. Unset, which is the default everywhere, this is production exactly
+// as before. Locally there is no TLS, hence ssl off for that URL.
+const PRODUCTION_HOST = 'aws-0-eu-west-2.pooler.supabase.com'
+const LOCAL_URL = process.env.NODE_ENV !== 'production' ? process.env.LOCAL_DATABASE_URL : undefined
+const IS_LOCAL = !!LOCAL_URL
+const CONNECTION = IS_LOCAL
+  ? LOCAL_URL
+  : `postgres://postgres.tdsvugmbkgakgbtmoajj:${encodeURIComponent(process.env.PGPASSWORD)}@${PRODUCTION_HOST}:6543/postgres`
+
+// Where this process's queries go, with no credentials, for anything that says so: the
+// tools print it before they write, so a dry run can't claim one database and use another.
+const DB_TARGET = (function () {
+  const u = new URL(CONNECTION)
+  return `${u.hostname}:${u.port || 5432}${u.pathname}` + (IS_LOCAL ? ' (local)' : ' (production)')
+})()
+
 const sql = postgres(
-  `postgres://postgres.tdsvugmbkgakgbtmoajj:${encodeURIComponent(process.env.PGPASSWORD)}@aws-0-eu-west-2.pooler.supabase.com:6543/postgres`,
+  CONNECTION,
   {
-    ssl: { rejectUnauthorized: false },
+    ssl: IS_LOCAL ? false : { rejectUnauthorized: false },
     prepare: false,
     max: POOL_MAX,
     idle_timeout: IDLE_TIMEOUT,
@@ -212,4 +232,4 @@ async function withRetry(run) {
 // POOL_MAX and IDLE_TIMEOUT are exported so a test can assert the two ceilings that
 // are enforced elsewhere: the pool cap against cloudbuild.yaml's --max-instances,
 // and the idle timeout against the blocklist refresh interval.
-module.exports = { sql, POOL_MAX, IDLE_TIMEOUT, MAX_PIPELINE, withRetry, isRetryable, RETRY_DELAY_MS, beginOnReserved }
+module.exports = { sql, POOL_MAX, IDLE_TIMEOUT, MAX_PIPELINE, withRetry, isRetryable, RETRY_DELAY_MS, beginOnReserved, DB_TARGET, IS_LOCAL, PRODUCTION_HOST }

@@ -36,6 +36,53 @@ but each new feature has to write one, and a rehearsal can't run the app around 
   `postgres:17`, and the restore must tolerate (or filter out) the Supabase-only ones, plus
   Supabase's roles and grants (`--no-owner --no-privileges`).
 
+## Status, 26 Nov 2026
+
+**Done: the `db_connect` prerequisite and tasks 1–2.** `LOCAL_DATABASE_URL` (development
+only), `docker-compose.local.yml`, `tools/local-db.sh`, `tools/local-db/scrub.sql` and
+`check.sql`. A load takes about ten seconds, and the site boots and renders on the copy.
+Where it differs from the plan below:
+
+- **Port 5434, not 5433**: Stockport's local database has 5433 and both should run at once.
+- **More was scrubbed than the list in task 2**, because the check scans every column rather
+  than trusting the list: `club."contactUs"` (and archives), `club_registration.updated_by`,
+  `scorecardstore.email`, `player_auth_account.user_id`, and `transactions` (another
+  system's billing log from the clone) comes across empty.
+- **Rows that are never needed are never copied**: those tables are dumped schema-only
+  (`--exclude-table-data`) rather than copied and truncated.
+- **A failed or interrupted load deletes the volume**, not just the schema: the rows are in
+  the WAL. The first version used an ERR trap, which bash skips when a failure inside a
+  function ends the script under `set -e`, and it left an unscrubbed copy behind (found and
+  deleted at once). It is an EXIT trap now, and was tested by forcing a failure.
+
+**Left for the break:** task 3 (`dev.env`, and making the local copy the default for
+`npm run dev`), task 4 (the site in the compose file), 5 and 6.
+
+## Spike, 26 Nov 2026 (schema only, no rows)
+
+A schema-only `pg_dump` of production, restored into a throwaway `postgres:17`, to find what
+breaks before the break. No personal data left Supabase: `--schema-only` copies no rows.
+
+- **The app cannot point anywhere else today.** `utils/db_connect.js` hard-codes production's
+  pooler host and project ref; only `PGPASSWORD` comes from the environment, and SSL is
+  forced. It is the only connection in the codebase (tools, session store and migrations
+  all go through it), so it is one change, and it is a **prerequisite for task 3**: read an
+  opt-in local URL when `NODE_ENV !== 'production'`, SSL off for localhost, production
+  unchanged by default. `tools/rotate-db-encode.js` and `tools/merge-players.js` print
+  `DATABASE_URL`'s host as their "target" while connecting through the hard-coded string;
+  make them print what `db_connect` actually uses.
+- **No local `pg_dump` is needed.** `docker run postgres:17 pg_dump` (17.11 against the
+  server's 17.6) works through the session pooler, `DATABASE_URL` in `.env` (port 5432),
+  with `PGPASSWORD` passed in: the URL itself carries no password.
+- **The restore is clean except Supabase's roles.** All 48 tables and `clone_season` came
+  through. The only errors were 33 RLS policies granted `TO supabase_admin`; create that
+  role (`NOLOGIN`) before restoring and they apply. RLS is enabled on most tables, which is
+  harmless locally because the app connects as their owner.
+- Nothing in `public` references the `extensions`, `auth`, `vault` or `pgsodium` schemas,
+  and the dump sets an empty `search_path`. Install `pgcrypto` and `uuid-ossp` first; the
+  app calls `pgp_sym_*` unqualified, which finds them in `public` locally (in
+  `extensions` on Supabase).
+
 ## Tasks
 
 1. **`docker-compose.local.yml` and `tools/local-db.sh`** (`up`, `load`, `status`, `psql`,

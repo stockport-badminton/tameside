@@ -1,0 +1,31 @@
+# A local Postgres for development (BL-06), so local work stops reading and writing the
+# live league. Opt in: nothing uses it until LOCAL_DATABASE_URL is set (utils/db_connect.js).
+#
+#   tools/local-db.sh up      start it
+#   tools/local-db.sh load    copy production in, then scrub contact details (rebuilds)
+#   tools/local-db.sh down    stop, keep the data
+#   tools/local-db.sh nuke    stop and delete the data
+#
+# Port 5434: Stockport's local database (~/league-site) has 5433, and the two should be
+# able to run side by side. Not 5432 either, so a URL that drifts back to a default fails
+# loudly instead of finding some other Postgres.
+services:
+  db:
+    image: postgres:17          # production is 17.6 on Supabase
+    container_name: tbl-local-db
+    environment:
+      POSTGRES_USER: tbl
+      POSTGRES_PASSWORD: tbl
+      POSTGRES_DB: tbl
+    ports:
+      - "127.0.0.1:5434:5432"   # this machine only
+    volumes:
+      - tbl-local-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tbl -d tbl"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  tbl-local-pgdata:

@@ -39,7 +39,7 @@
 require('dotenv').config({ quiet: true });
 const fs = require('fs');
 const path = require('path');
-const { sql } = require('../utils/db_connect');
+const { sql, DB_TARGET } = require('../utils/db_connect');
 const { matchName } = require('../utils/nameMatch');
 
 const MODE = ['--propose', '--rehearse', '--apply'].find(f => process.argv.includes(f)) || '--dry';
@@ -201,7 +201,7 @@ function readPlan() {
 }
 
 async function main() {
-  console.log(`target : ${new URL(process.env.DATABASE_URL).host}\nmode   : ${MODE}\n`);
+  console.log(`target : ${DB_TARGET}\nmode   : ${MODE}\n`); // what db_connect uses
   if (MODE === '--propose') return propose();
 
   const plan = readPlan();

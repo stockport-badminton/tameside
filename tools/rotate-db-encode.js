@@ -29,7 +29,7 @@
 //   the app holds the OLD key against NEW ciphertext, and anything it saves in that window
 //   is old-key ciphertext. --verify finds those rows and --fix-stray re-encrypts them.
 require('dotenv').config({ quiet: true });
-const { sql } = require('../utils/db_connect');
+const { sql, DB_TARGET } = require('../utils/db_connect');
 
 const MODE = ['--rehearse', '--apply', '--verify', '--fix-stray'].find(f => process.argv.includes(f)) || '--dry';
 const OLD = process.env.DB_ENCODE;
@@ -86,7 +86,7 @@ async function main() {
   if (OLD === NEW) throw new Error('DB_ENCODE and NEW_DB_ENCODE are the same — nothing to rotate.');
   if (NEW.length < 24) throw new Error('NEW_DB_ENCODE is suspiciously short.');
 
-  console.log(`target : ${new URL(process.env.DATABASE_URL).host}`);
+  console.log(`target : ${DB_TARGET}`); // what db_connect uses, not DATABASE_URL
   console.log(`mode   : ${MODE}\n`);
 
   if (MODE === '--verify' || MODE === '--fix-stray') {
