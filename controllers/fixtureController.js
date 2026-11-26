@@ -353,6 +353,21 @@ exports.fixture_get_summary = function(req, res,next) {
 };
 
 
+// The results page's title, from names: "Fixtures & Results: Hyde B, Division 1, 2025/26".
+// It used to concatenate the raw filter values, so a division read as its id
+// ("Fixtures & Results: 20252026 9") and the unfiltered page ended in a bare colon.
+// A team says more than its club, so the club is left out when both are given.
+function resultsTitle({ division, season, club, team } = {}) {
+  const decode = (v) => { try { return decodeURIComponent(String(v)); } catch (e) { return String(v); } };
+  const parts = [];
+  if (team) parts.push(decode(team));
+  else if (club) parts.push(decode(club));
+  if (division && !/^all$/i.test(division)) parts.push(division);
+  if (/^\d{8}$/.test(String(season || ''))) parts.push(`${String(season).slice(0, 4)}/${String(season).slice(6)}`);
+  return parts.length ? `Fixtures & Results: ${parts.join(', ')}` : 'Fixtures & Results';
+}
+exports._resultsTitle = resultsTitle;
+
 exports.fixture_detail_byDivision = function (req, res, next) {
   let divisionString = "";
   let searchObj = {};
@@ -433,7 +448,7 @@ exports.fixture_detail_byDivision = function (req, res, next) {
           res.status(200);
           let renderObject = {
             static_path: "/static",
-            title: "Fixtures & Results: " + divisionString,
+            title: resultsTitle({ division: divisionString, season: req.params.season }),
             pageDescription:
               "Find out how the teams in your division have got on, and check when your next match is",
             result: result,
@@ -553,33 +568,19 @@ exports.fixture_detail_byDivision = function (req, res, next) {
           jsonResult = JSON.stringify(griddedData);
           // console.log(jsonResult)
         }
-        let titleString = "";
-        if (searchObj !== undefined) {
-          let filterArray = ["season", "division", "club", "team"];
-
-          for (const filter of filterArray) {
- // console.log(filter);
- // console.log(Object.entries(searchObj));
-            let sqlParams = Object.entries(searchObj).filter(
-              (obj) => obj[0] === filter
-            );
-            if (sqlParams.length > 0) {
-              titleString += sqlParams[0][1];
-              titleString += " ";
- // console.log("titleString:" + titleString);
-            }
-          }
-        }
-        // console.log(result)
-        let clubs = result.map(item => item.homeClub).filter((value, index, self) => self.indexOf(value) === index) 
-        let teams = result.map(item => item.homeTeam).filter((value, index, self) => self.indexOf(value) === index)         
-        // console.log(clubs)
-        // console.log(teams)
+        const titleString = resultsTitle({
+          division: divisionString,
+          season: searchObj && searchObj.season,
+          club: searchObj && searchObj.club,
+          team: searchObj && searchObj.team,
+        });
+        let clubs = result.map(item => item.homeClub).filter((value, index, self) => self.indexOf(value) === index)
+        let teams = result.map(item => item.homeTeam).filter((value, index, self) => self.indexOf(value) === index)
         let renderObject = {
           path: req.path,
           user: req.user,
           static_path: "/static",
-          title: "Fixtures & Results: " + titleString,
+          title: titleString,
           pageDescription:
             "Find out how the teams in your division have got on, and check when your next match is",
           result: result,
