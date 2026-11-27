@@ -12,12 +12,13 @@ replace: "$1$2"
 ## gcloud build / deploy
 
 Deploys are automatic: pushing to `main` fires the Cloud Build trigger
-`rmgpgab-tameside-site-europe-west2-stockport-badminton-tamesdpb`, which runs
-`cloudbuild.yaml` (build → push → `gcloud run services update`).
+`tameside-site-main` (region `europe-west2`), which runs
+`cloudbuild.yaml` (build → push → `gcloud run services update`). Builds run in
+europe-west2 too, so `gcloud builds list` needs `--region=europe-west2`.
 
 To re-run that same pipeline by hand:
 ```
-gcloud builds submit --region=global --config cloudbuild.yaml
+gcloud builds submit --region=europe-west2 --config cloudbuild.yaml
 ```
 
 Images live at

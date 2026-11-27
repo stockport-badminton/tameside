@@ -55,14 +55,19 @@ docker run -p 8080:8080 -e PORT=8080 IMAGE_NAME
 
 # Deploy: automatic on push to main (Cloud Build trigger → cloudbuild.yaml).
 # Manual re-run of the same pipeline:
-gcloud builds submit --region=global --config cloudbuild.yaml
+gcloud builds submit --region=europe-west2 --config cloudbuild.yaml
 ```
 
 ### Deploy pipeline
 
 `cloudbuild.yaml` is the source of truth: build → push → `gcloud run services update`.
-A Cloud Build trigger on `push to ^main$` runs it (project `avid-compound-429108-g9`,
-region `europe-west2`, service `tameside-site`). Keep the pipeline in that file rather
+The trigger `tameside-site-main` on `push to ^main$` runs it (project
+`avid-compound-429108-g9`, region `europe-west2`, service `tameside-site`). **The trigger
+and its builds are regional** (2nd-gen GitHub connection `tameside-github`, 27 Nov 2026,
+as Stockport's): the global trigger it replaced built in the global pool, so pulling the
+`:latest` cache from europe-west2 Artifact Registry was billed as inter-region egress on
+every build. Don't recreate a global trigger, and use `--region=europe-west2` with
+`gcloud builds list`/`submit`. Keep the pipeline in that file rather
 than in the trigger's inline config, so build changes are reviewable in git.
 
 Build caching relies on the `:latest` tag: it is pushed on every build purely so the

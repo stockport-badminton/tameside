@@ -1,7 +1,16 @@
 # Build → push → deploy pipeline for the tameside-site Cloud Run service.
 #
 # This file is the source of truth for deploys. The push-to-main trigger
-# (rmgpgab-tameside-site-europe-west2-stockport-badminton-tamesdpb) points at it.
+# (tameside-site-main, region europe-west2) points at it:
+#   gcloud builds triggers describe tameside-site-main --region=europe-west2
+#
+# The trigger is regional (europe-west2, a 2nd-gen GitHub connection) since 27 Nov
+# 2026, as Stockport's is. The global trigger it replaced
+# (rmgpgab-tameside-site-europe-west2-stockport-badminton-tamesdpb) ran builds in the
+# global pool, so importing the :latest cache image from europe-west2 was billed as
+# Artifact Registry inter-region egress on every build. `gcloud builds list` without
+# --region=europe-west2 no longer shows these builds.
+#
 # It replaces the inline config that trigger used to carry, which ran
 # `docker build --no-cache` and so rebuilt every layer — including `npm ci` and two
 # apt installs — on every single deploy.
@@ -12,7 +21,7 @@
 # The first build after adopting this file has no cache to import (only :$COMMIT_SHA
 # tags exist today, no :latest) — BuildKit warns and builds cold, then seeds :latest.
 #
-# Manual run: gcloud builds submit --region=global --config cloudbuild.yaml
+# Manual run: gcloud builds submit --region=europe-west2 --config cloudbuild.yaml
 # COMMIT_SHA is only populated for trigger builds, so the tag falls back to BUILD_ID.
 #
 # Note on style: substitutions are handed to the steps through explicit `env:` entries
