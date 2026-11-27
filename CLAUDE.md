@@ -30,8 +30,11 @@ LOCAL_DATABASE_URL=$(tools/local-db.sh url) DB_ENCODE=$(tools/local-db.sh key) \
 `LOCAL_DATABASE_URL` only when `NODE_ENV !== 'production'`; unset, everything still talks to
 production, including Playwright (below) until BL-06 task 5. `load` reads production with
 `pg_dump` (through the container's own, via the session pooler) and rebuilds the copy from
-scratch: mail, session, push and contact-form tables come across empty, and every contact
-value is rewritten as a fake under a local key. `tools/local-db/check.sql` then scans every
+scratch: mail, session, push and contact-form tables come across empty, and every address
+becomes a plus-alias of the results mailbox (`tameside.badders.results+firstnamelastname@`,
+`+ClubNameContactUs@`, `+draft<id>@`, as Stockport's), encrypted under a local key, so mail a
+local run sends arrives in one inbox and says who it was for. Phones become 07700 900xxx and
+scorecard photo URLs are cleared, so a local server never fetches production's bucket. `tools/local-db/check.sql` then scans every
 `bytea` and text column, not just the known ones, and **a failed or interrupted load deletes
 the whole volume**, because a dropped schema's rows are still in the WAL. Its first run caught
 `club."contactUs"` and `club_registration.updated_by`, which nobody had listed.

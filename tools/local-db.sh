@@ -127,7 +127,7 @@ case "${1:-}" in
       SELECT relname AS table, n_live_tup AS rows
         FROM pg_stat_user_tables WHERE n_live_tup > 0
        ORDER BY n_live_tup DESC LIMIT 10;"
-    echo "contact details (should all be @example.invalid and 07700 900xxx):"
+    echo "contact details (should all be tameside.badders.results+… and 07700 900xxx):"
     psql_in -P pager=off -t -c "
       SELECT '  ' || pgp_sym_decrypt(\"playerEmail\", '$LOCAL_KEY') || '   ' ||
                      coalesce(pgp_sym_decrypt(\"playerTel\", '$LOCAL_KEY'), '')

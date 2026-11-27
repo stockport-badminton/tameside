@@ -6,7 +6,8 @@
 -- learns about it, rather than quietly copying real addresses to a laptop.
 --
 -- No production key is involved: a value passes only if it decrypts with the LOCAL key to
--- one of scrub.sql's fakes, which proves it was rewritten here.
+-- one of scrub.sql's values (a results-mailbox alias, or a drama-range phone), which proves
+-- it was rewritten here.
 
 DO $$
 DECLARE
@@ -23,8 +24,10 @@ DECLARE
                            'registration_request', 'rearrangement_request', 'submission_log',
                            'push_subscription', 'push_send', 'auth_account_notice',
                            'social_result_post', 'transactions'];
-  -- Public addresses that may appear in page content: the league's own domain.
-  public_domains text := '(tameside-badminton\.co\.uk|example\.invalid)$';
+  -- Addresses allowed in plain text: the league's own domain, and the results mailbox and
+  -- its plus-aliases (scrub.sql's values, and the league's own public address).
+  allowed  text := '^([^@]+@tameside-badminton\.co\.uk|tameside\.badders\.results(\+[A-Za-z0-9]*)?@gmail\.com)$';
+  alias    text := '^tameside\.badders\.results\+[A-Za-z0-9]+@gmail\.com$';
 BEGIN
   -- 1. Every encrypted value is one of ours.
   FOR r IN
@@ -38,7 +41,7 @@ BEGIN
       EXCEPTION WHEN OTHERS THEN
         plain := NULL;
       END;
-      IF plain IS NULL OR NOT (plain ~ '@example\.invalid$' OR plain ~ '^07700 900[0-9]{3}$') THEN
+      IF plain IS NULL OR NOT (plain ~ alias OR plain ~ '^07700 900[0-9]{3}$') THEN
         bad := bad + 1;
       END IF;
     END LOOP;
@@ -47,7 +50,7 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- 2. No plain-text email address anywhere, other than the league's own and our fakes.
+  -- 2. No plain-text email address anywhere, other than the league's own and the aliases.
   FOR r IN
     SELECT table_name, column_name FROM information_schema.columns
      WHERE table_schema = 'public' AND data_type IN ('text', 'character varying') ORDER BY 1, 2
@@ -55,7 +58,7 @@ BEGIN
     EXECUTE format(
       'SELECT count(*) FROM public.%I, LATERAL regexp_matches(%I, %L, %L) m
         WHERE m[1] !~* %L',
-      r.table_name, r.column_name, '([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})', 'g', public_domains)
+      r.table_name, r.column_name, '([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})', 'g', allowed)
       INTO n;
     IF n > 0 THEN
       problems := problems || format('%s.%s: %s plain-text address(es)', r.table_name, r.column_name, n);
@@ -93,8 +96,12 @@ BEGIN
   SELECT count(*) INTO n FROM blocked_entry WHERE kind IN ('ip', 'email');
   IF n > 0 THEN problems := problems || format('blocked_entry: %s ip/email row(s)', n); END IF;
 
+  -- 5. No scorecard photo points at the production bucket.
+  SELECT count(*) INTO n FROM scorecardstore WHERE "scoresheet-url" IS NOT NULL;
+  IF n > 0 THEN problems := problems || format('scorecardstore: %s photo URL(s) into production storage', n); END IF;
+
   IF array_length(problems, 1) > 0 THEN
     RAISE EXCEPTION 'local copy is NOT clean: %', array_to_string(problems, '; ');
   END IF;
-  RAISE NOTICE 'clean: every contact value is a local fake';
+  RAISE NOTICE 'clean: every address is a results-mailbox alias, every phone a drama number';
 END $$;

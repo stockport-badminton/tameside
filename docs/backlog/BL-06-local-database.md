@@ -48,6 +48,10 @@ Where it differs from the plan below:
   than trusting the list: `club."contactUs"` (and archives), `club_registration.updated_by`,
   `scorecardstore.email`, `player_auth_account.user_id`, and `transactions` (another
   system's billing log from the clone) comes across empty.
+- **Addresses are results-mailbox plus-aliases, not `@example.invalid`**, as Stockport's
+  (their `sanitise.sql`): `tameside.badders.results+firstnamelastname@gmail.com`,
+  `+ClubNameContactUs`, `+draft<id>`. Mail a local run sends then arrives somewhere we read,
+  so email flows can be tested end to end. Scorecard photo URLs are cleared, also as theirs.
 - **Rows that are never needed are never copied**: those tables are dumped schema-only
   (`--exclude-table-data`) rather than copied and truncated.
 - **A failed or interrupted load deletes the volume**, not just the schema: the rows are in
